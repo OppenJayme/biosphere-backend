@@ -56,3 +56,26 @@ This document records the conventions agreed upon for the BioSphere database. Th
 
 - Add `UNIQUE`, cascading deletes, and other strong constraints only when confirmed business rules support them.
 - Do not enforce a final uniqueness rule for accession numbers until it has been validated with the curator.
+
+## Step 5 - Frozen Statuses, Enums, and Controlled Values
+
+- User Role: `CURATOR`, `DEVELOPER`
+- Account Status: `ACTIVE`, `INACTIVE`
+- Specimen Status: `UNCATALOGED`, `CATALOGED`, `ARCHIVED`
+- Specimen Gender: `MALE`, `FEMALE`, `UNKNOWN`, `NOT_APPLICABLE`
+- General Inquiry Status: `PENDING`, `REVIEWED`, `TURNED_TO_VISIT_REQUEST`, `CLOSED`
+- Visit Request Status: `PENDING`, `APPROVED_BY_CURATOR`, `SUBMITTED_FOR_CAMPUS_ENTRY`, `DECLINED`, `CANCELLED`, `COMPLETED`
+- QR Exhibit Status: `UNPUBLISHED`, `PUBLISHED`, `DISABLED`
+- FAQ Status: `ACTIVE`, `INACTIVE`, `ARCHIVED`
+- Lot Transaction Type: `MOVEMENT`, `CONDITION_CHANGE`, `SPLIT`, `MERGE`, `QUANTITY_ADJUSTMENT`
+- Quantity Adjustment Type: `ADDITION`, `REMOVAL`, `TRANSFER_OUT`, `DEACCESSION`, `MISSING_LOSS`, `DESTRUCTION`, `DATA_CORRECTION`
+- Backup Status: `IN_PROGRESS`, `COMPLETED`, `FAILED`
+- Audit Result: `SUCCESS`, `FAILED`, `DENIED`
+
+### Notes
+
+- `TRANSFER_OUT` means a specimen physically leaves the USC Biological Museum collection.
+- Moving a specimen between internal museum storage locations is a location movement and must not reduce total specimen quantity.
+- Collection names must NOT be implemented as an enum because future collections may be added after system turnover.
+- Storage unit types, specimen condition classifications, preservation methods, and other curator-extensible museum values should not be frozen as PostgreSQL enums unless later confirmed.
+- These values are now considered frozen implementation conventions and should be used consistently in the PostgreSQL schema, Prisma schema, NestJS DTOs/services, API validation, frontend status handling, and tests.
