@@ -7,7 +7,7 @@ import { SupabaseModule } from './supabase/supabase.module';
 import { APP_GUARD } from '@nestjs/core';
 import { SupabaseAuthGuard } from './auth/guards/supabase-auth.guard';
 import { RolesGuard } from './auth/guards/roles.guard';
-import { TestModule } from 'test/test.module';
+import { TestModule } from 'test/dev-sandbox.module';
 import { InquiriesModule } from './inquiries/inquiries.module';
 import { VisitRequestsModule } from './visit-requests/visit-requests.module';
 import { AuthModule } from './auth/auth.module';
