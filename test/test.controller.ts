@@ -1,6 +1,6 @@
 // Auth Tester
 import { Controller, Post, Body } from "@nestjs/common";
-import { Roles } from "src/auth/roles.decorator";
+import { Roles } from "src/auth/decorators/roles.decorator";
 
 @Controller('test')
 export class TestController {

@@ -2,7 +2,7 @@ import { CanActivate, ExecutionContext, Inject, Injectable, UnauthorizedExceptio
 import { Reflector } from "@nestjs/core";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { SUPABASE_CLIENT } from "src/supabase/supabase-client.provider";
-import { IS_PUBLIC_KEY } from "./public.decorator";
+import { IS_PUBLIC_KEY } from "../decorators/public.decorator";
 
 @Injectable()
 export class SupabaseAuthGuard implements CanActivate {
@@ -39,8 +39,6 @@ export class SupabaseAuthGuard implements CanActivate {
             email: data.user.email,
             role: (data.user.app_metadata as any)?.role ?? null,
         };
-
-        console.log(req.user);
 
         return true;
     }

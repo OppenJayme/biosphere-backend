@@ -5,19 +5,19 @@ import { AppService } from './app.service';
 import { ConfigModule } from '@nestjs/config';
 import { SupabaseModule } from './supabase/supabase.module';
 import { APP_GUARD } from '@nestjs/core';
-import { SupabaseAuthGuard } from './auth/supabase-auth.guard';
-import { RolesGuard } from './auth/roles.guard';
+import { SupabaseAuthGuard } from './auth/guards/supabase-auth.guard';
+import { RolesGuard } from './auth/guards/roles.guard';
 import { TestModule } from 'test/test.module';
 import { InquiriesModule } from './inquiries/inquiries.module';
 import { VisitRequestsModule } from './visit-requests/visit-requests.module';
+import { AuthModule } from './auth/auth.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     SupabaseModule,
+    AuthModule,
     TestModule,
-  
-    ConfigModule.forRoot({ isGlobal: true }),
     // NFR-SEC-15: rate limit public forms. Defaults to 10 req/min per IP,
     // applied globally for now — narrow this to just the public POST
     // routes once curator-only routes sit behind auth.
