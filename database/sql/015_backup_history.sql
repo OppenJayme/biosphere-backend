@@ -34,3 +34,12 @@ ALTER TABLE public.backup_history
   ENABLE ROW LEVEL SECURITY;
 
 COMMIT;
+
+-- ALter1
+
+BEGIN;
+
+ALTER TABLE public.backup_history
+  ALTER COLUMN created_by DROP NOT NULL;
+
+COMMIT;
