@@ -54,7 +54,7 @@ CREATE TABLE public.visit_request (
   CONSTRAINT visit_request_visitor_count_positive
     CHECK (visitor_count > 0)
 );
-a
+
 CREATE INDEX idx_visit_request_status
   ON public.visit_request(status);
 
