@@ -40,3 +40,12 @@ ALTER TABLE public.audit_log
   ENABLE ROW LEVEL SECURITY;
 
 COMMIT;
+
+/*
+A couple of intentional choices:
+
+- user_id is nullable because some events like failed/denied authentication may occur before a valid BioSphere user is resolved.
+- affected_record_id has no FK because it can refer to different tables depending on affected_record_type.
+- details is JSONB because audit events may need different supporting metadata.
+- Audit records should later be append-only; normal users should not edit/delete them.
+*/
