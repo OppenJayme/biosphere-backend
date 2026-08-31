@@ -65,3 +65,8 @@ ALTER TABLE public.visit_request
   ENABLE ROW LEVEL SECURITY;
 
 COMMIT;
+
+/*
+I intentionally left out the ERD's visitor_list TEXT because the same ERD already has a separate 
+VisitRequestVisitor child table, which is the cleaner design and matches the SRS data model.
+*/
