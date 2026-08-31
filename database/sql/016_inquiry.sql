@@ -47,3 +47,12 @@ ALTER TABLE public.inquiry
 COMMIT;
 
 --Keep inquiry_type as text for now because we never froze inquiry types as an enum.
+
+-- Alter 1
+
+BEGIN;
+
+ALTER TABLE public.inquiry
+  ADD COLUMN consent_accepted_at TIMESTAMPTZ;
+
+COMMIT;

@@ -7,3 +7,10 @@ ALTER TABLE public.storage_unit
     CHECK (capacity IS NULL OR capacity > 0);
 
 COMMIT;
+
+BEGIN;
+
+ALTER TABLE public.storage_unit
+  ADD COLUMN archived_at TIMESTAMPTZ;
+
+COMMIT;
