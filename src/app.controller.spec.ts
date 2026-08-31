@@ -15,8 +15,8 @@ describe('AppController', () => {
   });
 
   describe('root', () => {
-    it('should return "Hello World!"', () => {
-      expect(appController.getHello()).toBe('Hello World!');
+    it('reports that the API is running', () => {
+      expect(appController.getStatus()).toBe('BioSphere API is running');
     });
   });
 });
