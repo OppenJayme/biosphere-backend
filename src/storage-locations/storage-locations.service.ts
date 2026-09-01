@@ -62,7 +62,8 @@ export class StorageLocationsService {
       );
     }
 
-    const newParent = this.findOne(newParentId);
+    this.findOne(newParentId); // newParent is never used. But we do still want findOne() to run, because it validates that the requested
+    // parent actually exists. The current code on develop confirms that.
 
     if (this.isDescendant(newParentId, id)) {
       throw new BadRequestException(
