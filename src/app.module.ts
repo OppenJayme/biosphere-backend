@@ -11,6 +11,8 @@ import { RolesGuard } from './auth/guards/roles.guard';
 import { InquiriesModule } from './inquiries/inquiries.module';
 import { VisitRequestsModule } from './visit-requests/visit-requests.module';
 import { AuthModule } from './auth/auth.module';
+import { DeveloperModule } from './developer/developer.module';
+import { DeveloperModule } from './developer/developer.module';
 
 @Module({
   imports: [
@@ -24,6 +26,7 @@ import { AuthModule } from './auth/auth.module';
     ThrottlerModule.forRoot([{ ttl: 60_000, limit: 10 }]),
     InquiriesModule,
     VisitRequestsModule,
+    DeveloperModule,
   ],
   controllers: [AppController],
   providers: [
