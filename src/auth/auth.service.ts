@@ -1,11 +1,13 @@
 import { Inject, Injectable, UnauthorizedException } from '@nestjs/common';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { SUPABASE_CLIENT } from 'src/supabase/supabase-client.provider';
+import { SUPABASE_CLIENT } from '../supabase/supabase-client.provider';
+import { parseUserRole, type UserRole } from './types/auth.types';
 
 @Injectable()
 export class AuthService {
   constructor(
-    @Inject(SUPABASE_CLIENT) private readonly supabase: SupabaseClient,
+    @Inject(SUPABASE_CLIENT)
+    private readonly supabase: SupabaseClient,
   ) {}
 
   async login(email: string, password: string) {
@@ -14,27 +16,33 @@ export class AuthService {
       password,
     });
 
-    if (error || !data.session) {
-      throw new UnauthorizedException('Invalid Email or Password');
+    if (error || !data.session || !data.user) {
+      throw new UnauthorizedException('Invalid email or password');
     }
+
+    const roleValue: unknown = data.user.app_metadata.role;
 
     return {
       access_token: data.session.access_token,
       user: {
         id: data.user.id,
-        email: data.user.email,
-        role: (data.user.app_metadata as any)?.role ?? null,
+        email: data.user.email ?? null,
+        role: parseUserRole(roleValue),
       },
     };
   }
 
-  async inviteUser(email: string, role: 'curator' | 'developer') {
+  async inviteUser(email: string, role: UserRole) {
     const { data, error } = await this.supabase.auth.admin.inviteUserByEmail(
       email,
-      { data: { role } },
+      {
+        data: { role },
+      },
     );
 
-    if (error) throw error;
+    if (error) {
+      throw error;
+    }
 
     return data;
   }

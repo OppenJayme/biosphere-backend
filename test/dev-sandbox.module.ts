@@ -1,6 +1,6 @@
 // Auth Tester
 import { Module } from '@nestjs/common';
-import { TestController } from './test.controller';
+import { TestController } from './dev-sandbox.controller';
 
 @Module({
   controllers: [TestController],

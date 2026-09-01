@@ -1,10 +1,10 @@
 // Auth Tester
-import { Controller, Post, Body } from '@nestjs/common';
+import { Body, Controller, Post } from '@nestjs/common';
 import { Roles } from 'src/auth/decorators/roles.decorator';
 
 @Controller('test')
 export class TestController {
-  @Roles('curator')
+  @Roles('CURATOR')
   @Post('curator-table')
   editCuratorTable(
     @Body()
@@ -15,7 +15,7 @@ export class TestController {
     return { message: 'Curator table edited', body };
   }
 
-  @Roles('developer')
+  @Roles('DEVELOPER')
   @Post('developer-table')
   editDeveloperTable(
     @Body()
