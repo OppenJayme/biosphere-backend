@@ -11,7 +11,7 @@ import { TestModule } from 'test/dev-sandbox.module';
 import { InquiriesModule } from './inquiries/inquiries.module';
 import { VisitRequestsModule } from './visit-requests/visit-requests.module';
 import { AuthModule } from './auth/auth.module';
-import { SpecimensModule } from './specimens/specimens.module'; 
+import { SpecimensModule } from './specimens/specimens.module';
 
 @Module({
   imports: [
@@ -28,7 +28,8 @@ import { SpecimensModule } from './specimens/specimens.module';
   ],
   controllers: [AppController],
   providers: [
-    AppService, { provide: APP_GUARD, useClass: ThrottlerGuard },
+    AppService,
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
     { provide: APP_GUARD, useClass: SupabaseAuthGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
   ],

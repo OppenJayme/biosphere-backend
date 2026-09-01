@@ -38,7 +38,9 @@ export class SpecimensService {
     const missingFields = this.getMissingFields(dto);
     const specimen: Specimen = {
       id: randomUUID(),
-      status: missingFields.length ? SpecimenStatus.UNCATALOGED : SpecimenStatus.CATALOGED,
+      status: missingFields.length
+        ? SpecimenStatus.UNCATALOGED
+        : SpecimenStatus.CATALOGED,
       publicDisplay: false,
       missingFields,
       createdBy: actingCuratorId,
@@ -63,7 +65,11 @@ export class SpecimensService {
     return specimen;
   }
 
-  update(id: string, dto: UpdateSpecimenDto, actingCuratorId: string): Specimen {
+  update(
+    id: string,
+    dto: UpdateSpecimenDto,
+    actingCuratorId: string,
+  ): Specimen {
     const specimen = this.findOne(id);
     Object.assign(specimen, dto);
     specimen.updatedBy = actingCuratorId;
@@ -115,7 +121,10 @@ export class SpecimensService {
   }
 
   // REQ-4.4-19/20/22: import rows one at a time; never auto-merge duplicates
-  importRows(rows: ImportSpecimenRowDto[], actingCuratorId: string): ImportRowResult[] {
+  importRows(
+    rows: ImportSpecimenRowDto[],
+    actingCuratorId: string,
+  ): ImportRowResult[] {
     return rows.map((row) => {
       const duplicates = this.findPossibleDuplicates(row);
       const specimen = this.create(row, actingCuratorId);
