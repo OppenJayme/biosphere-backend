@@ -14,7 +14,7 @@ import { MoveStorageUnitDto } from './dto/move-storage-unit.dto';
 import { StorageUnit } from './entities/storage-unit.entity';
 
 @ApiTags('storage-locations')
-@Roles('curator')
+@Roles('CURATOR')
 @Controller('storage-locations')
 export class StorageLocationsController {
   constructor(private readonly service: StorageLocationsService) {}
