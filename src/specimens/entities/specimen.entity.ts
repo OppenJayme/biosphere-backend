@@ -11,7 +11,9 @@ export class Specimen {
   @ApiProperty()
   id!: string;
 
-  @ApiPropertyOptional({ description: 'Nullable until assigned/confirmed (REQ-4.4-03)' })
+  @ApiPropertyOptional({
+    description: 'Nullable until assigned/confirmed (REQ-4.4-03)',
+  })
   accessionNumber?: string | null;
 
   @ApiPropertyOptional()
@@ -68,10 +70,18 @@ export class Specimen {
   @ApiProperty({ enum: SpecimenStatus, default: SpecimenStatus.UNCATALOGED })
   status!: SpecimenStatus;
 
-  @ApiProperty({ default: false, description: 'Curator-controlled, does not auto-publish full record (REQ-4.4-16)' })
+  @ApiProperty({
+    default: false,
+    description:
+      'Curator-controlled, does not auto-publish full record (REQ-4.4-16)',
+  })
   publicDisplay!: boolean;
 
-  @ApiPropertyOptional({ type: [String], description: 'Missing/invalid required fields, shown to curator (REQ-4.4-08)' })
+  @ApiPropertyOptional({
+    type: [String],
+    description:
+      'Missing/invalid required fields, shown to curator (REQ-4.4-08)',
+  })
   missingFields?: string[];
 
   @ApiProperty()

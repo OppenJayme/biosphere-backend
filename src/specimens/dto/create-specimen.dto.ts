@@ -3,7 +3,9 @@ import { ApiPropertyOptional } from '@nestjs/swagger';
 import { IsOptional, IsString } from 'class-validator';
 
 export class CreateSpecimenDto {
-  @ApiPropertyOptional({ description: 'Left null if not yet assigned (REQ-4.4-03)' })
+  @ApiPropertyOptional({
+    description: 'Left null if not yet assigned (REQ-4.4-03)',
+  })
   @IsOptional()
   @IsString()
   accessionNumber?: string | null;

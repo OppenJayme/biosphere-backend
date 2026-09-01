@@ -6,6 +6,8 @@ import { CreateSpecimenDto } from './create-specimen.dto';
 // DTO since the fields are the same; validation just runs per-row instead
 // of failing the whole request on one bad row.
 export class ImportSpecimenRowDto extends CreateSpecimenDto {
-  @ApiPropertyOptional({ description: 'Original row number, for error reporting' })
+  @ApiPropertyOptional({
+    description: 'Original row number, for error reporting',
+  })
   rowNumber?: number;
 }

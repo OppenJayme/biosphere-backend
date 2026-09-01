@@ -1,6 +1,19 @@
 // src/specimens/specimens.controller.ts
-import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiOkResponse, ApiCreatedResponse } from '@nestjs/swagger';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+} from '@nestjs/common';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiOkResponse,
+  ApiCreatedResponse,
+} from '@nestjs/swagger';
 import { Roles } from 'src/auth/decorators/roles.decorator';
 import { SpecimensService } from './specimens.service';
 import { CreateSpecimenDto } from './dto/create-specimen.dto';
@@ -24,13 +37,17 @@ export class SpecimensController {
   }
 
   @Post('import')
-  @ApiOperation({ summary: 'Import specimen rows from spreadsheet/CSV (REQ-4.4-19)' })
+  @ApiOperation({
+    summary: 'Import specimen rows from spreadsheet/CSV (REQ-4.4-19)',
+  })
   importRows(@Body() rows: ImportSpecimenRowDto[]) {
     return this.service.importRows(rows, 'current-curator-id');
   }
 
   @Get('duplicates/check')
-  @ApiOperation({ summary: 'Check possible duplicates before saving (REQ-4.4-21)' })
+  @ApiOperation({
+    summary: 'Check possible duplicates before saving (REQ-4.4-21)',
+  })
   @ApiOkResponse({ type: [Specimen] })
   checkDuplicates(@Query() dto: CreateSpecimenDto): Specimen[] {
     return this.service.findPossibleDuplicates(dto);
@@ -55,7 +72,9 @@ export class SpecimensController {
   }
 
   @Patch(':id/archive')
-  @ApiOperation({ summary: 'Archive a specimen instead of deleting (REQ-4.4-10)' })
+  @ApiOperation({
+    summary: 'Archive a specimen instead of deleting (REQ-4.4-10)',
+  })
   @ApiOkResponse({ type: Specimen })
   archive(@Param('id') id: string): Specimen {
     return this.service.archive(id, 'current-curator-id');
@@ -64,7 +83,10 @@ export class SpecimensController {
   @Patch(':id/public-display')
   @ApiOperation({ summary: 'Toggle public-display eligibility (REQ-4.4-15)' })
   @ApiOkResponse({ type: Specimen })
-  setPublicDisplay(@Param('id') id: string, @Body('publicDisplay') publicDisplay: boolean): Specimen {
+  setPublicDisplay(
+    @Param('id') id: string,
+    @Body('publicDisplay') publicDisplay: boolean,
+  ): Specimen {
     return this.service.setPublicDisplay(id, publicDisplay);
   }
 }
