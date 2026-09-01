@@ -1,17 +1,14 @@
 import {
+  BadRequestException,
   Inject,
   Injectable,
   InternalServerErrorException,
 } from '@nestjs/common';
+import { randomUUID } from 'crypto';
 import { SupabaseClient } from '@supabase/supabase-js';
-import { SUPABASE_CLIENT } from './supabase-client.provider';
 
-export type StorageBucket =
-  | 'user-avatars'
-  | 'specimen-media'
-  | 'exhibit-media'
-  | 'inquiry-attachments'
-  | 'ar-assets';
+import { SUPABASE_CLIENT } from './supabase-client.provider';
+import { STORAGE_RULES, type StorageBucket } from './storage.config';
 
 @Injectable()
 export class StorageService {
@@ -19,6 +16,44 @@ export class StorageService {
     @Inject(SUPABASE_CLIENT)
     private readonly supabase: SupabaseClient,
   ) {}
+
+  validateFile(bucket: StorageBucket, size: number, mimeType: string): string {
+    const rule = STORAGE_RULES[bucket];
+
+    if (size <= 0) {
+      throw new BadRequestException('File cannot be empty');
+    }
+
+    if (size > rule.maxBytes) {
+      throw new BadRequestException(
+        `File exceeds the maximum size allowed for ${bucket}`,
+      );
+    }
+
+    const extension = rule.mimeTypes[mimeType];
+
+    if (!extension) {
+      throw new BadRequestException(`Unsupported file type for ${bucket}`);
+    }
+
+    return extension;
+  }
+
+  buildObjectPath(
+    bucket: StorageBucket,
+    ownerId: string,
+    extension: string,
+  ): string {
+    if (!/^[0-9a-f-]{36}$/i.test(ownerId)) {
+      throw new BadRequestException('Invalid storage owner ID');
+    }
+
+    if (bucket === 'user-avatars') {
+      return `${ownerId}/avatar.${extension}`;
+    }
+
+    return `${ownerId}/${randomUUID()}.${extension}`;
+  }
 
   async upload(
     bucket: StorageBucket,
