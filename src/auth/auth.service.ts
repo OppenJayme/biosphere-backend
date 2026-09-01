@@ -1,41 +1,49 @@
-import { Inject, Injectable, UnauthorizedException } from "@nestjs/common";
-import type { SupabaseClient } from "@supabase/supabase-js";
-import { SUPABASE_CLIENT } from "src/supabase/supabase-client.provider";
+import { Inject, Injectable, UnauthorizedException } from '@nestjs/common';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import { SUPABASE_CLIENT } from '../supabase/supabase-client.provider';
+import { parseUserRole, type UserRole } from './types/auth.types';
 
 @Injectable()
 export class AuthService {
-    constructor(
-        @Inject(SUPABASE_CLIENT) private readonly supabase: SupabaseClient,
-    ) {}
+  constructor(
+    @Inject(SUPABASE_CLIENT)
+    private readonly supabase: SupabaseClient,
+  ) {}
 
-    async login(email: string, password: string) {
-        const { data, error } = await this.supabase.auth.signInWithPassword({
-            email,
-            password,
-        });
+  async login(email: string, password: string) {
+    const { data, error } = await this.supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
 
-        if (error || !data.session) {
-            throw new UnauthorizedException('Invalid Email or Password');
-        }
-
-        return {
-            access_token: data.session.access_token,
-            user: {
-                id: data.user.id,
-                email: data.user.email,
-                role: (data.user.app_metadata as any)?.role ?? null,
-            },
-        };
+    if (error || !data.session || !data.user) {
+      throw new UnauthorizedException('Invalid email or password');
     }
 
-    async inviteUser(email: string, role: 'curator' | 'developer') {
-        const { data, error } = await this.supabase.auth.admin.inviteUserByEmail(
-            email,
-            { data: { role } },
-        );
+    const roleValue: unknown = data.user.app_metadata.role;
 
-        if (error) throw error;
+    return {
+      access_token: data.session.access_token,
+      user: {
+        id: data.user.id,
+        email: data.user.email ?? null,
+        role: parseUserRole(roleValue),
+      },
+    };
+  }
 
-        return data;
+  async inviteUser(email: string, role: UserRole) {
+    const { data, error } = await this.supabase.auth.admin.inviteUserByEmail(
+      email,
+      {
+        data: { role },
+      },
+    );
+
+    if (error) {
+      throw error;
     }
+
+    return data;
+  }
 }
