@@ -22,7 +22,7 @@ import { ImportSpecimenRowDto } from './dto/import-specimen-row.dto';
 import { Specimen } from './entities/specimen.entity';
 
 @ApiTags('specimens')
-@Roles('curator')
+@Roles('CURATOR')
 @Controller('specimens')
 export class SpecimensController {
   constructor(private readonly service: SpecimensService) {}
