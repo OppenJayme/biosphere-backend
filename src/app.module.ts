@@ -11,7 +11,7 @@ import { TestModule } from 'test/dev-sandbox.module';
 import { InquiriesModule } from './inquiries/inquiries.module';
 import { VisitRequestsModule } from './visit-requests/visit-requests.module';
 import { AuthModule } from './auth/auth.module';
-import { SpecimensModule } from './specimens/specimens.module'; //re-up
+import { SpecimensModule } from './specimens/specimens.module'; 
 
 @Module({
   imports: [
