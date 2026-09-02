@@ -1,34 +1,107 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  ParseUUIDPipe,
+  Patch,
+  Post,
+  UploadedFile,
+  UseInterceptors,
+} from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
+import type { AuthenticatedUser } from '../auth/types/auth.types';
 import { DeveloperService } from './developer.service';
-import { CreateDeveloperDto } from './dto/invite-curator.dto';
-import { UpdateDeveloperDto } from './dto/update-developer.dto';
+import { OnboardCuratorDto } from './dto/onboard-curator.dto';
+import { UpdateCuratorStatusDto } from './dto/update-curator-status.dto';
+import { CreateArAssetDto } from './dto/create-ar-asset.dto';
+import { UpdateArAssetDto } from './dto/update-ar-asset.dto';
+import { MAX_AR_ASSET_SIZE_BYTES } from './developer.constants';
 
+// REQ-4.2-01/08: every route here requires an authenticated Developer.
+// The global SupabaseAuthGuard + RolesGuard (see app.module.ts) enforce
+// this via @Roles — no routine curator-management routes exist on this
+// controller by design (REQ-4.2-06/07).
+@Roles('DEVELOPER')
 @Controller('developer')
 export class DeveloperController {
   constructor(private readonly developerService: DeveloperService) {}
 
-  @Post()
-  create(@Body() createDeveloperDto: CreateDeveloperDto) {
-    return this.developerService.create(createDeveloperDto);
+  // ---- Curator account administration (REQ-4.2-02, REQ-4.2-03) ----
+
+  @Get('curators')
+  listCurators() {
+    return this.developerService.listCuratorAccounts();
   }
 
-  @Get()
-  findAll() {
-    return this.developerService.findAll();
+  @Post('curators/onboard')
+  onboardInitialCurator(
+    @Body() dto: OnboardCuratorDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.developerService.onboardInitialCurator(dto, user.id);
   }
 
-  @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.developerService.findOne(+id);
+  @Patch('curators/:id/status')
+  updateCuratorStatus(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateCuratorStatusDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.developerService.updateCuratorStatus(id, dto, user.id);
   }
 
-  @Patch(':id')
-  update(@Param('id') id: string, @Body() updateDeveloperDto: UpdateDeveloperDto) {
-    return this.developerService.update(+id, updateDeveloperDto);
+  // ---- AR asset deployment (REQ-4.2-04, REQ-4.2-05) ----
+
+  @Post('ar-assets')
+  @UseInterceptors(
+    FileInterceptor('file', { limits: { fileSize: MAX_AR_ASSET_SIZE_BYTES } }),
+  )
+  createArAsset(
+    @UploadedFile() file: Express.Multer.File,
+    @Body() dto: CreateArAssetDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.developerService.createArAsset(file, dto, user.id);
   }
 
-  @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.developerService.remove(+id);
+  @Patch('ar-assets/:id')
+  @UseInterceptors(
+    FileInterceptor('file', { limits: { fileSize: MAX_AR_ASSET_SIZE_BYTES } }),
+  )
+  updateArAsset(
+    @Param('id', ParseUUIDPipe) id: string,
+    @UploadedFile() file: Express.Multer.File | undefined,
+    @Body() dto: UpdateArAssetDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.developerService.updateArAsset(id, file, dto, user.id);
+  }
+
+  @Patch('ar-assets/:id/activate')
+  activateArAsset(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.developerService.setArAssetEnabled(id, true, user.id);
+  }
+
+  @Patch('ar-assets/:id/deactivate')
+  deactivateArAsset(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.developerService.setArAssetEnabled(id, false, user.id);
+  }
+
+  @Delete('ar-assets/:id')
+  removeArAsset(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.developerService.removeArAsset(id, user.id);
   }
 }

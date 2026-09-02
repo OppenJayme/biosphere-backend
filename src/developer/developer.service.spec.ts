@@ -1,18 +1,31 @@
 import { Test, TestingModule } from '@nestjs/testing';
+
+import { DeveloperController } from './developer.controller';
 import { DeveloperService } from './developer.service';
 
-describe('DeveloperService', () => {
-  let service: DeveloperService;
+describe('DeveloperController', () => {
+  let controller: DeveloperController;
 
   beforeEach(async () => {
-    const module: TestingModule = await Test.createTestingModule({
-      providers: [DeveloperService],
-    }).compile();
+    const module: TestingModule =
+      await Test.createTestingModule({
+        controllers: [DeveloperController],
+        providers: [
+          {
+            provide: DeveloperService,
+            useValue: {
+              inviteCurator: jest.fn(),
+            },
+          },
+        ],
+      }).compile();
 
-    service = module.get<DeveloperService>(DeveloperService);
+    controller = module.get<DeveloperController>(
+      DeveloperController,
+    );
   });
 
   it('should be defined', () => {
-    expect(service).toBeDefined();
+    expect(controller).toBeDefined();
   });
 });
