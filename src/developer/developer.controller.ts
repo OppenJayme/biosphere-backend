@@ -21,16 +21,10 @@ import { CreateArAssetDto } from './dto/create-ar-asset.dto';
 import { UpdateArAssetDto } from './dto/update-ar-asset.dto';
 import { MAX_AR_ASSET_SIZE_BYTES } from './developer.constants';
 
-// REQ-4.2-01/08: every route here requires an authenticated Developer.
-// The global SupabaseAuthGuard + RolesGuard (see app.module.ts) enforce
-// this via @Roles — no routine curator-management routes exist on this
-// controller by design (REQ-4.2-06/07).
 @Roles('DEVELOPER')
 @Controller('developer')
 export class DeveloperController {
   constructor(private readonly developerService: DeveloperService) {}
-
-  // ---- Curator account administration (REQ-4.2-02, REQ-4.2-03) ----
 
   @Get('curators')
   listCurators() {

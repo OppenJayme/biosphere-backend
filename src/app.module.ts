@@ -12,7 +12,6 @@ import { InquiriesModule } from './inquiries/inquiries.module';
 import { VisitRequestsModule } from './visit-requests/visit-requests.module';
 import { AuthModule } from './auth/auth.module';
 import { DeveloperModule } from './developer/developer.module';
-import { DeveloperModule } from './developer/developer.module';
 
 @Module({
   imports: [
