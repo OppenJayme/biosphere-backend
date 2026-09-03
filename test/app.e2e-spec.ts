@@ -3,6 +3,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import request from 'supertest';
 import { App } from 'supertest/types';
 import { AppModule } from './../src/app.module';
+import { SUPABASE_CLIENT } from './../src/supabase/supabase.constants';
 
 describe('BioSphere API (e2e)', () => {
   let app: INestApplication<App>;
@@ -10,7 +11,10 @@ describe('BioSphere API (e2e)', () => {
   beforeEach(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
-    }).compile();
+    })
+      .overrideProvider(SUPABASE_CLIENT)
+      .useValue({})
+      .compile();
 
     app = moduleFixture.createNestApplication();
     await app.init();
