@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { SUPABASE_CLIENT } from '../../supabase/supabase-client.provider';
+import { SUPABASE_CLIENT } from '../../supabase/supabase.constants';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
 import { type AuthenticatedRequest, parseUserRole } from '../types/auth.types';
 
