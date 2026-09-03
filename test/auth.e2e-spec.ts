@@ -3,6 +3,7 @@ import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { App } from 'supertest/types';
 import { AppModule } from './../src/app.module';
+import { PrismaService } from './../src/prisma/prisma.service';
 import { SUPABASE_CLIENT } from './../src/supabase/supabase.constants';
 import { TestModule } from './dev-sandbox.module';
 
@@ -49,6 +50,8 @@ describe('Role-based access control (e2e)', () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule, TestModule],
     })
+      .overrideProvider(PrismaService)
+      .useValue({})
       .overrideProvider(SUPABASE_CLIENT)
       .useValue({ auth: { getUser } })
       .compile();

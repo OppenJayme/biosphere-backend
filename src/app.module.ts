@@ -11,6 +11,7 @@ import { RolesGuard } from './auth/guards/roles.guard';
 import { InquiriesModule } from './inquiries/inquiries.module';
 import { VisitRequestsModule } from './visit-requests/visit-requests.module';
 import { AuthModule } from './auth/auth.module';
+import { PrismaModule } from './prisma/prisma.module';
 //import { SpecimensModule } from './specimens/specimens.module';
 //import { StorageLocationsModule } from './storage-locations/storage-locations.module';
 
@@ -18,6 +19,7 @@ import { AuthModule } from './auth/auth.module';
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     SupabaseModule,
+    PrismaModule,
     AuthModule,
     // TestModule,
     // NFR-SEC-15: rate limit public forms. Defaults to 10 req/min per IP,
