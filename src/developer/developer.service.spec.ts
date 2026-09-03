@@ -74,6 +74,7 @@ describe('DeveloperService', () => {
   beforeEach(async () => {
     jest.clearAllMocks();
     prismaMock.auditLog.create.mockResolvedValue({});
+    storageServiceMock.remove.mockResolvedValue(undefined);
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [

@@ -12,7 +12,7 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { Roles } from '../auth/decorators/roles.decorator';
-import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { CurrentUser } from './decorators/current-user.decorator';
 import type { AuthenticatedUser } from '../auth/types/auth.types';
 import { DeveloperService } from './developer.service';
 import { OnboardCuratorDto } from './dto/onboard-curator.dto';

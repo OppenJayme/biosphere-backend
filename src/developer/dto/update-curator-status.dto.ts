@@ -1,4 +1,4 @@
-import { IsIn, IsNotEmpty, IsString, MaxLength } from 'class-validator';
+import { IsIn, IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
 import type { AccountStatus } from '../entities/curator-account.entity';
 
 export class UpdateCuratorStatusDto {
@@ -7,6 +7,7 @@ export class UpdateCuratorStatusDto {
 
   @IsString()
   @IsNotEmpty()
+  @IsOptional()
   @MaxLength(500)
   authorizationReason?: string;
 }

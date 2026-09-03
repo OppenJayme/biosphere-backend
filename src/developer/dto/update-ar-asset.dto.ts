@@ -11,7 +11,7 @@ import {
 export class UpdateArAssetDto {
   @IsOptional()
   @IsUUID()
-  exhibitId!: string;
+  exhibitId?: string;
 
   @IsOptional()
   @IsIn(SUPPORTED_AR_MODEL_FORMATS)
