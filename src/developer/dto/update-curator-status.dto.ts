@@ -1,5 +1,5 @@
 import { IsIn, IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
-import type { AccountStatus } from '../entities/curator-account.entity';
+type AccountStatus = 'ACTIVE' | 'INACTIVE';
 
 export class UpdateCuratorStatusDto {
   @IsIn(['ACTIVE', 'INACTIVE'])
