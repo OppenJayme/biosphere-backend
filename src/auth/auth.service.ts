@@ -1,6 +1,6 @@
 import { Inject, Injectable, UnauthorizedException } from '@nestjs/common';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { SUPABASE_CLIENT } from '../supabase/supabase-client.provider';
+import { SUPABASE_CLIENT } from '../supabase/supabase.constants';
 import { parseUserRole, type UserRole } from './types/auth.types';
 
 @Injectable()

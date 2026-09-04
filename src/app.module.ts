@@ -11,13 +11,16 @@ import { RolesGuard } from './auth/guards/roles.guard';
 import { InquiriesModule } from './inquiries/inquiries.module';
 import { VisitRequestsModule } from './visit-requests/visit-requests.module';
 import { AuthModule } from './auth/auth.module';
-import { DeveloperModule } from './developer/developer.module';
 import { PrismaModule } from './prisma/prisma.module';
+//import { SpecimensModule } from './specimens/specimens.module';
+//import { StorageLocationsModule } from './storage-locations/storage-locations.module';
+import { DeveloperModule } from './developer/developer.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     SupabaseModule,
+    PrismaModule,
     AuthModule,
     PrismaModule,
     // TestModule,
