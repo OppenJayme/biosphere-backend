@@ -1,4 +1,3 @@
-// src/specimens/entities/specimen.entity.ts
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export enum SpecimenStatus {
@@ -7,98 +6,74 @@ export enum SpecimenStatus {
   ARCHIVED = 'ARCHIVED',
 }
 
+export class SpecimenTaxonomy {
+  @ApiPropertyOptional() kingdom?: string;
+  @ApiPropertyOptional() phylum?: string;
+  @ApiPropertyOptional() class?: string;
+  @ApiPropertyOptional() order_name?: string;
+  @ApiPropertyOptional() family?: string;
+  @ApiPropertyOptional() genus?: string;
+  @ApiPropertyOptional() species?: string;
+  @ApiPropertyOptional() habitat?: string;
+  @ApiPropertyOptional() ecological_role?: string;
+  @ApiPropertyOptional() conservation_status?: string;
+}
+
+export class SpecimenProvenance {
+  @ApiPropertyOptional() collector?: string;
+  @ApiPropertyOptional() donor?: string;
+  @ApiPropertyOptional() collection_date?: Date;
+  @ApiPropertyOptional() collection_location?: string;
+  @ApiPropertyOptional() preservation_type?: string;
+  @ApiPropertyOptional() preservation_method?: string;
+}
+
 export class Specimen {
   @ApiProperty()
   id!: string;
 
-  @ApiPropertyOptional({
-    description: 'Nullable until assigned/confirmed (REQ-4.4-03)',
-  })
-  accessionNumber?: string | null;
+  @ApiPropertyOptional({ description: 'Nullable until assigned/confirmed (REQ-4.4-03)' })
+  accession_number?: string | null;
 
   @ApiPropertyOptional()
-  scientificName?: string;
+  specimen_category?: string;
 
   @ApiPropertyOptional()
-  commonName?: string;
+  scientific_name?: string;
 
   @ApiPropertyOptional()
-  kingdom?: string;
+  common_name?: string;
 
   @ApiPropertyOptional()
-  phylum?: string;
-
-  @ApiPropertyOptional()
-  class?: string;
-
-  @ApiPropertyOptional()
-  order?: string;
-
-  @ApiPropertyOptional()
-  family?: string;
-
-  @ApiPropertyOptional()
-  genus?: string;
-
-  @ApiPropertyOptional()
-  species?: string;
-
-  @ApiPropertyOptional()
-  habitat?: string;
-
-  @ApiPropertyOptional()
-  conservationStatus?: string;
-
-  @ApiPropertyOptional()
-  ecologicalRole?: string;
-
-  @ApiPropertyOptional()
-  collector?: string;
-
-  @ApiPropertyOptional()
-  donor?: string;
-
-  @ApiPropertyOptional()
-  collectionDate?: string;
-
-  @ApiPropertyOptional()
-  collectionLocation?: string;
-
-  @ApiPropertyOptional()
-  notes?: string;
+  remarks?: string;
 
   @ApiProperty({ enum: SpecimenStatus, default: SpecimenStatus.UNCATALOGED })
   status!: SpecimenStatus;
 
-  @ApiProperty({
-    default: false,
-    description:
-      'Curator-controlled, does not auto-publish full record (REQ-4.4-16)',
-  })
-  publicDisplay!: boolean;
+  @ApiProperty({ default: false, description: 'Curator-controlled, does not auto-publish full record (REQ-4.4-16)' })
+  public_display_allowed!: boolean;
 
-  @ApiPropertyOptional({
-    type: [String],
-    description:
-      'Missing/invalid required fields, shown to curator (REQ-4.4-08)',
-  })
-  missingFields?: string[];
+  @ApiPropertyOptional({ type: SpecimenTaxonomy })
+  specimen_taxonomy?: SpecimenTaxonomy;
+
+  @ApiPropertyOptional({ type: SpecimenProvenance })
+  specimen_provenance?: SpecimenProvenance;
 
   @ApiProperty()
-  createdBy!: string;
-
-  @ApiProperty()
-  updatedBy!: string;
+  created_by!: string;
 
   @ApiPropertyOptional()
-  archivedBy?: string;
+  updated_by?: string;
 
   @ApiPropertyOptional()
-  archivedAt?: Date | null;
+  archived_by?: string;
+
+  @ApiPropertyOptional()
+  archived_at?: Date | null;
 
   @ApiProperty()
-  createdAt!: Date;
+  created_at!: Date;
 
   @ApiProperty()
-  updatedAt!: Date;
+  updated_at!: Date;
 }
