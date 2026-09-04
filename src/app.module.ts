@@ -14,6 +14,7 @@ import { AuthModule } from './auth/auth.module';
 import { PrismaModule } from './prisma/prisma.module';
 //import { SpecimensModule } from './specimens/specimens.module';
 //import { StorageLocationsModule } from './storage-locations/storage-locations.module';
+import { DeveloperModule } from './developer/developer.module';
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { PrismaModule } from './prisma/prisma.module';
     SupabaseModule,
     PrismaModule,
     AuthModule,
+    PrismaModule,
     // TestModule,
     // NFR-SEC-15: rate limit public forms. Defaults to 10 req/min per IP,
     // applied globally for now — narrow this to just the public POST
@@ -28,6 +30,7 @@ import { PrismaModule } from './prisma/prisma.module';
     ThrottlerModule.forRoot([{ ttl: 60_000, limit: 10 }]),
     InquiriesModule,
     VisitRequestsModule,
+    DeveloperModule,
   ],
   controllers: [AppController],
   providers: [
