@@ -8,7 +8,7 @@ import {
 } from '@nestjs/common';
 import { DeveloperService } from './developer.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { SUPABASE_CLIENT } from '../supabase/supabase-client.provider';
+import { SUPABASE_CLIENT } from 'src/supabase/supabase.constants';
 import { StorageService } from '../supabase/storage.service';
 
 // ---------------------------------------------------------------------------

@@ -66,7 +66,7 @@ export class DeveloperService {
   ): Promise<CuratorAccountEntity> {
     const { data, error } = await this.supabase.auth.admin.inviteUserByEmail(
       dto.email,
-      { data: { role: 'CURATOR' } },
+      { app_metadata: { role: 'CURATOR' } },
     );
 
     if (error || !data?.user) {

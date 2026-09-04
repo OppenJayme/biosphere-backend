@@ -1,5 +1,5 @@
 import { IsIn, IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
-type AccountStatus = 'ACTIVE' | 'INACTIVE';
+import type { AccountStatus } from '@prisma/client';
 
 export class UpdateCuratorStatusDto {
   @IsIn(['ACTIVE', 'INACTIVE'])
@@ -9,5 +9,5 @@ export class UpdateCuratorStatusDto {
   @IsNotEmpty()
   @IsOptional()
   @MaxLength(500)
-  authorizationReason?: string;
+  authorizationReason!: string;
 }

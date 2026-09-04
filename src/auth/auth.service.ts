@@ -36,7 +36,7 @@ export class AuthService {
     const { data, error } = await this.supabase.auth.admin.inviteUserByEmail(
       email,
       {
-        data: { role },
+        app_metadata: { role },
       },
     );
 
