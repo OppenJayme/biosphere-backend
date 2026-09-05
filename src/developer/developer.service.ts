@@ -9,7 +9,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { Prisma } from '@prisma/client';
+import { Prisma } from '../generated/prisma/client';
 import { randomUUID } from 'node:crypto';
 import { extname } from 'node:path';
 import { SUPABASE_CLIENT } from '../supabase/supabase-client.provider';
@@ -296,7 +296,7 @@ export class DeveloperService {
       await this.assertExhibitExists(dto.exhibitId);
     }
 
-    const updateData: Prisma.ArAssetUpdateInput = {};
+    const updateData: Prisma.ar_assetUncheckedUpdateInput = {};
     let previousStoragePath: string | null = null;
 
     if (file) {

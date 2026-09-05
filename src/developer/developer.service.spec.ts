@@ -16,13 +16,13 @@ import { StorageService } from '../supabase/storage.service';
 // ---------------------------------------------------------------------------
 
 const prismaMock = {
-  userAccount: {
+  user_account: {
     findMany: jest.fn(),
     create: jest.fn(),
     findUnique: jest.fn(),
     update: jest.fn(),
   },
-  arAsset: {
+  ar_asset: {
     create: jest.fn(),
     update: jest.fn(),
     delete: jest.fn(),
@@ -31,7 +31,7 @@ const prismaMock = {
   exhibit: {
     findUnique: jest.fn(),
   },
-  auditLog: {
+  audit_log: {
     create: jest.fn(),
   },
 };
@@ -74,7 +74,7 @@ describe('DeveloperService', () => {
 
   beforeEach(async () => {
     jest.clearAllMocks();
-    prismaMock.auditLog.create.mockResolvedValue({});
+    prismaMock.audit_log.create.mockResolvedValue({});
     supabaseMock.auth.admin.updateUserById.mockResolvedValue({ data: {}, error: null });
     storageServiceMock.remove.mockResolvedValue(undefined);
 
@@ -99,11 +99,11 @@ describe('DeveloperService', () => {
   // ===========================================================
   describe('listCuratorAccounts', () => {
     it('queries only CURATOR-role accounts, newest first', async () => {
-      prismaMock.userAccount.findMany.mockResolvedValue([{ id: 'a' }]);
+      prismaMock.user_account.findMany.mockResolvedValue([{ id: 'a' }]);
 
       const result = await service.listCuratorAccounts();
 
-      expect(prismaMock.userAccount.findMany).toHaveBeenCalledWith({
+      expect(prismaMock.user_account.findMany).toHaveBeenCalledWith({
         where: { role: 'CURATOR' },
         orderBy: { createdAt: 'desc' },
       });
@@ -129,7 +129,7 @@ describe('DeveloperService', () => {
         role: 'CURATOR',
         status: 'ACTIVE',
       };
-      prismaMock.userAccount.create.mockResolvedValue(createdAccount);
+      prismaMock.user_account.create.mockResolvedValue(createdAccount);
 
       const result = await service.onboardInitialCurator(dto, ACTING_DEVELOPER_ID);
 
@@ -137,7 +137,7 @@ describe('DeveloperService', () => {
         dto.email,
         { data: { role: 'CURATOR' } },
       );
-      expect(prismaMock.userAccount.create).toHaveBeenCalledWith({
+      expect(prismaMock.user_account.create).toHaveBeenCalledWith({
         data: {
           authUserId: 'auth-user-1',
           fullName: dto.fullName,
@@ -146,7 +146,7 @@ describe('DeveloperService', () => {
         },
       });
       expect(result).toEqual(createdAccount);
-      expect(prismaMock.auditLog.create).toHaveBeenCalledWith(
+      expect(prismaMock.audit_log.create).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
             action: 'ONBOARD_CURATOR',
@@ -167,8 +167,8 @@ describe('DeveloperService', () => {
         service.onboardInitialCurator(dto, ACTING_DEVELOPER_ID),
       ).rejects.toThrow(ConflictException);
 
-      expect(prismaMock.userAccount.create).not.toHaveBeenCalled();
-      expect(prismaMock.auditLog.create).toHaveBeenCalledWith(
+      expect(prismaMock.user_account.create).not.toHaveBeenCalled();
+      expect(prismaMock.audit_log.create).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({ action: 'ONBOARD_CURATOR', status: 'FAILED' }),
         }),
@@ -180,13 +180,13 @@ describe('DeveloperService', () => {
         data: { user: { id: 'auth-user-2' } },
         error: null,
       });
-      prismaMock.userAccount.create.mockRejectedValue(new Error('unique constraint'));
+      prismaMock.user_account.create.mockRejectedValue(new Error('unique constraint'));
 
       await expect(
         service.onboardInitialCurator(dto, ACTING_DEVELOPER_ID),
       ).rejects.toThrow(InternalServerErrorException);
 
-      expect(prismaMock.auditLog.create).toHaveBeenCalledWith(
+      expect(prismaMock.audit_log.create).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({ action: 'ONBOARD_CURATOR', status: 'FAILED' }),
         }),
@@ -201,16 +201,16 @@ describe('DeveloperService', () => {
     const dto = { status: 'INACTIVE' as const, authorizationReason: 'formally authorized' };
 
     it('throws NotFoundException when the account does not exist', async () => {
-      prismaMock.userAccount.findUnique.mockResolvedValue(null);
+      prismaMock.user_account.findUnique.mockResolvedValue(null);
 
       await expect(
         service.updateCuratorStatus('missing-id', dto, ACTING_DEVELOPER_ID),
       ).rejects.toThrow(NotFoundException);
-      expect(prismaMock.userAccount.update).not.toHaveBeenCalled();
+      expect(prismaMock.user_account.update).not.toHaveBeenCalled();
     });
 
     it('throws ForbiddenException and audits DENIED when the target is a Developer account', async () => {
-      prismaMock.userAccount.findUnique.mockResolvedValue({
+      prismaMock.user_account.findUnique.mockResolvedValue({
         id: 'dev-2',
         role: 'DEVELOPER',
       });
@@ -219,8 +219,8 @@ describe('DeveloperService', () => {
         service.updateCuratorStatus('dev-2', dto, ACTING_DEVELOPER_ID),
       ).rejects.toThrow(ForbiddenException);
 
-      expect(prismaMock.userAccount.update).not.toHaveBeenCalled();
-      expect(prismaMock.auditLog.create).toHaveBeenCalledWith(
+      expect(prismaMock.user_account.update).not.toHaveBeenCalled();
+      expect(prismaMock.audit_log.create).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({ action: 'UPDATE_CURATOR_STATUS', status: 'DENIED' }),
         }),
@@ -228,21 +228,21 @@ describe('DeveloperService', () => {
     });
 
     it('updates status and audits SUCCESS for a valid curator account', async () => {
-      prismaMock.userAccount.findUnique.mockResolvedValue({
+      prismaMock.user_account.findUnique.mockResolvedValue({
         id: 'cur-1',
         role: 'CURATOR',
       });
       const updated = { id: 'cur-1', role: 'CURATOR', status: 'INACTIVE' };
-      prismaMock.userAccount.update.mockResolvedValue(updated);
+      prismaMock.user_account.update.mockResolvedValue(updated);
 
       const result = await service.updateCuratorStatus('cur-1', dto, ACTING_DEVELOPER_ID);
 
-      expect(prismaMock.userAccount.update).toHaveBeenCalledWith({
+      expect(prismaMock.user_account.update).toHaveBeenCalledWith({
         where: { id: 'cur-1' },
         data: { status: 'INACTIVE' },
       });
       expect(result).toEqual(updated);
-      expect(prismaMock.auditLog.create).toHaveBeenCalledWith(
+      expect(prismaMock.audit_log.create).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
             action: 'UPDATE_CURATOR_STATUS',
@@ -254,14 +254,14 @@ describe('DeveloperService', () => {
     });
 
     it('throws InternalServerErrorException and audits FAILED when the update fails', async () => {
-      prismaMock.userAccount.findUnique.mockResolvedValue({ id: 'cur-1', role: 'CURATOR' });
-      prismaMock.userAccount.update.mockRejectedValue(new Error('db down'));
+      prismaMock.user_account.findUnique.mockResolvedValue({ id: 'cur-1', role: 'CURATOR' });
+      prismaMock.user_account.update.mockRejectedValue(new Error('db down'));
 
       await expect(
         service.updateCuratorStatus('cur-1', dto, ACTING_DEVELOPER_ID),
       ).rejects.toThrow(InternalServerErrorException);
 
-      expect(prismaMock.auditLog.create).toHaveBeenCalledWith(
+      expect(prismaMock.audit_log.create).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({ action: 'UPDATE_CURATOR_STATUS', status: 'FAILED' }),
         }),
@@ -340,7 +340,7 @@ describe('DeveloperService', () => {
         'model/gltf-binary',
       );
       expect(result).toEqual(createdRow);
-      expect(prismaMock.auditLog.create).toHaveBeenCalledWith(
+      expect(prismaMock.audit_log.create).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({ action: 'CREATE_AR_ASSET', status: 'SUCCESS' }),
         }),
@@ -360,7 +360,7 @@ describe('DeveloperService', () => {
         'ar-assets',
         expect.stringMatching(/^exhibit-1\/.+\.glb$/),
       );
-      expect(prismaMock.auditLog.create).toHaveBeenCalledWith(
+      expect(prismaMock.audit_log.create).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({ action: 'CREATE_AR_ASSET', status: 'FAILED' }),
         }),
@@ -483,7 +483,7 @@ describe('DeveloperService', () => {
       const result = await service.setArAssetEnabled('asset-1', true, ACTING_DEVELOPER_ID);
 
       expect(result.isEnabled).toBe(true);
-      expect(prismaMock.auditLog.create).toHaveBeenCalledWith(
+      expect(prismaMock.audit_log.create).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({ action: 'ACTIVATE_AR_ASSET', status: 'SUCCESS' }),
         }),
@@ -496,7 +496,7 @@ describe('DeveloperService', () => {
 
       await service.setArAssetEnabled('asset-1', false, ACTING_DEVELOPER_ID);
 
-      expect(prismaMock.auditLog.create).toHaveBeenCalledWith(
+      expect(prismaMock.audit_log.create).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({ action: 'DEACTIVATE_AR_ASSET', status: 'SUCCESS' }),
         }),
@@ -511,7 +511,7 @@ describe('DeveloperService', () => {
         service.setArAssetEnabled('asset-1', true, ACTING_DEVELOPER_ID),
       ).rejects.toThrow(InternalServerErrorException);
 
-      expect(prismaMock.auditLog.create).toHaveBeenCalledWith(
+      expect(prismaMock.audit_log.create).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({ action: 'ACTIVATE_AR_ASSET', status: 'FAILED' }),
         }),
@@ -560,7 +560,7 @@ describe('DeveloperService', () => {
       ).rejects.toThrow(InternalServerErrorException);
 
       expect(storageServiceMock.remove).not.toHaveBeenCalled();
-      expect(prismaMock.auditLog.create).toHaveBeenCalledWith(
+      expect(prismaMock.audit_log.create).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({ action: 'REMOVE_AR_ASSET', status: 'FAILED' }),
         }),
@@ -575,7 +575,7 @@ describe('DeveloperService', () => {
     it('still returns the updated asset even if audit_log insert fails', async () => {
       prismaMock.arAsset.findUnique.mockResolvedValue({ id: 'asset-1' });
       prismaMock.arAsset.update.mockResolvedValue({ id: 'asset-1', isEnabled: true });
-      prismaMock.auditLog.create.mockRejectedValue(new Error('audit table unreachable'));
+      prismaMock.audit_log.create.mockRejectedValue(new Error('audit table unreachable'));
 
       const result = await service.setArAssetEnabled('asset-1', true, ACTING_DEVELOPER_ID);
 
