@@ -9,7 +9,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { Prisma } from '../generated/prisma/client';
+import { Prisma, type ar_asset, type user_account } from '../generated/prisma/client';
 import { randomUUID } from 'node:crypto';
 import { extname } from 'node:path';
 import { SUPABASE_CLIENT } from '../supabase/supabase-client.provider';
@@ -37,9 +37,6 @@ export class DeveloperService {
 
   constructor(
     private readonly prisma: PrismaService,
-    // Only used for the Supabase Auth admin API (inviteUserByEmail /
-    // updateUserById), which has no Prisma equivalent since auth.users
-    // isn't Prisma-managed.
     @Inject(SUPABASE_CLIENT) private readonly supabase: SupabaseClient,
     private readonly storageService: StorageService,
   ) {}
@@ -49,10 +46,12 @@ export class DeveloperService {
   // ===========================================================
 
   async listCuratorAccounts(): Promise<CuratorAccountEntity[]> {
-    return this.prisma.user_account.findMany({
+    const rows = await this.prisma.user_account.findMany({
       where: { role: 'CURATOR' },
-      orderBy: { createdAt: 'desc' },
+      orderBy: { created_at: 'desc' },
     });
+
+    return rows.map((row) => this.toCuratorAccountEntity(row));
   }
 
   /**
@@ -107,13 +106,13 @@ export class DeveloperService {
       );
     }
 
-    let accountRow: CuratorAccountEntity;
+    let accountRow: user_account;
 
     try {
       accountRow = await this.prisma.user_account.create({
         data: {
-          authUserId: data.user.id,
-          fullName: dto.fullName,
+          auth_user_id: data.user.id,
+          full_name: dto.fullName,
           role: 'CURATOR',
           status: 'ACTIVE',
         },
@@ -150,7 +149,7 @@ export class DeveloperService {
       details: { email: dto.email },
     });
 
-    return accountRow;
+    return this.toCuratorAccountEntity(accountRow);
   }
 
   /**
@@ -185,7 +184,7 @@ export class DeveloperService {
       );
     }
 
-    let updated: CuratorAccountEntity;
+    let updated: user_account;
 
     try {
       updated = await this.prisma.user_account.update({
@@ -218,7 +217,7 @@ export class DeveloperService {
       },
     });
 
-    return updated;
+    return this.toCuratorAccountEntity(updated);
   }
 
   // ===========================================================
@@ -242,15 +241,15 @@ export class DeveloperService {
       file.mimetype,
     );
 
-    let created: ArAssetEntity;
+    let created: ar_asset;
 
     try {
       created = await this.prisma.ar_asset.create({
         data: {
-          exhibitId: dto.exhibitId,
-          modelUrl: storagePath,
-          modelFormat: dto.modelFormat,
-          isEnabled: dto.isEnabled ?? false,
+          exhibit_id: dto.exhibitId,
+          storage_path: storagePath,
+          model_format: dto.modelFormat,
+          is_enabled: dto.isEnabled ?? false,
         },
       });
     } catch (error) {
@@ -281,7 +280,7 @@ export class DeveloperService {
       details: { exhibitId: dto.exhibitId, modelFormat: dto.modelFormat },
     });
 
-    return created;
+    return this.toArAssetEntity(created);
   }
 
   async updateArAsset(
@@ -313,26 +312,26 @@ export class DeveloperService {
         file.mimetype,
       );
 
-      previousStoragePath = existing.modelUrl;
-      updateData.modelUrl = storagePath;
-      updateData.modelFormat = targetFormat;
+      previousStoragePath = existing.storage_path;
+      updateData.storage_path = storagePath;
+      updateData.model_format = targetFormat;
     } else if (dto.modelFormat) {
-      updateData.modelFormat = dto.modelFormat;
+      updateData.model_format = dto.modelFormat;
     }
 
     if (dto.exhibitId) {
-      updateData.exhibitId = dto.exhibitId;
+      updateData.exhibit_id = dto.exhibitId;
     }
 
     if (dto.isEnabled !== undefined) {
-      updateData.isEnabled = dto.isEnabled;
+      updateData.is_enabled = dto.isEnabled;
     }
 
     if (Object.keys(updateData).length === 0) {
-      return existing;
+      return this.toArAssetEntity(existing);
     }
 
-    let updated: ArAssetEntity;
+    let updated: ar_asset;
 
     try {
       updated = await this.prisma.ar_asset.update({
@@ -370,7 +369,7 @@ export class DeveloperService {
       },
     });
 
-    return updated;
+    return this.toArAssetEntity(updated);
   }
 
   async setArAssetEnabled(
@@ -380,7 +379,7 @@ export class DeveloperService {
   ): Promise<ArAssetEntity> {
     await this.findArAssetOrThrow(id);
 
-    let updated: ArAssetEntity;
+    let updated: ar_asset;
 
     try {
       updated = await this.prisma.ar_asset.update({
@@ -409,7 +408,7 @@ export class DeveloperService {
       status: 'SUCCESS',
     });
 
-    return updated;
+    return this.toArAssetEntity(updated);
   }
 
   async removeArAsset(
@@ -515,6 +514,31 @@ export class DeveloperService {
       return `${error.code}: ${error.message}`;
     }
     return error instanceof Error ? error.message : 'Unknown error';
+  }
+
+  // 
+
+  private toCuratorAccountEntity(row: user_account): CuratorAccountEntity {
+    return {
+      id: row.id,
+      authUserId: row.auth_user_id,
+      fullName: row.full_name,
+      role: row.role,
+      status: row.status,
+      avatarPath: row.avatar_path,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    };
+  }
+
+  private toArAssetEntity(row: ar_asset): ArAssetEntity {
+    return {
+      id: row.id,
+      exhibitId: row.exhibit_id,
+      modelUrl: row.storage_path,
+      modelFormat: row.model_format as ArModelFormat,
+      isEnabled: row.is_enabled,
+    };
   }
 
   /**

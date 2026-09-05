@@ -67,7 +67,9 @@ function fakeFile(overrides: Partial<Express.Multer.File> = {}): Express.Multer.
   };
 }
 
-const ACTING_DEVELOPER_ID = 'dev-uuid-1';
+const ACTING_DEVELOPER_AUTH_ID = 'auth-dev-uuid-1';
+const ACTING_DEVELOPER_ACCOUNT_ID = 'account-dev-uuid-1';
+
 
 describe('DeveloperService', () => {
   let service: DeveloperService;
@@ -77,6 +79,10 @@ describe('DeveloperService', () => {
     prismaMock.audit_log.create.mockResolvedValue({});
     supabaseMock.auth.admin.updateUserById.mockResolvedValue({ data: {}, error: null });
     storageServiceMock.remove.mockResolvedValue(undefined);
+
+    prismaMock.user_account.findUnique.mockResolvedValue({
+      id: ACTING_DEVELOPER_ACCOUNT_ID,
+    })
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -98,8 +104,19 @@ describe('DeveloperService', () => {
   // listCuratorAccounts
   // ===========================================================
   describe('listCuratorAccounts', () => {
-    it('queries only CURATOR-role accounts, newest first', async () => {
-      prismaMock.user_account.findMany.mockResolvedValue([{ id: 'a' }]);
+    it('queries only CURATOR-role accounts, newest first, and maps to camelCase entities', async () => {
+      const row = {
+        id: 'a',
+        auth_user_id: 'auth-a',
+        full_name: 'Curator A',
+        role: 'CURATOR',
+        status: 'ACTIVE',
+        avatar_path: null,
+        created_at: new Date('2026-01-01'),
+        updated_at: new Date('2026-01-01'),
+      };
+      
+      prismaMock.user_account.findMany.mockResolvedValue([row]);
 
       const result = await service.listCuratorAccounts();
 
@@ -107,7 +124,18 @@ describe('DeveloperService', () => {
         where: { role: 'CURATOR' },
         orderBy: { createdAt: 'desc' },
       });
-      expect(result).toEqual([{ id: 'a' }]);
+      expect(result).toEqual([
+         {
+          id: 'a',
+          authUserId: 'auth-a',
+          fullName: 'Curator A',
+          role: 'CURATOR',
+          status: 'ACTIVE',
+          avatarPath: null,
+          createdAt: row.created_at,
+          updatedAt: row.updated_at,
+        },
+      ]);
     });
   });
 
@@ -122,36 +150,50 @@ describe('DeveloperService', () => {
         data: { user: { id: 'auth-user-1' } },
         error: null,
       });
-      const createdAccount = {
+      const createdRow = {
+        id: 'account-1',
+        auth_user_id: 'auth-user-1',
+        full_name: dto.fullName,
+        role: 'CURATOR',
+        status: 'ACTIVE',
+        avatar_path: null,
+        created_at: new Date('2026-01-01'),
+        updated_at: new Date('2026-01-01'),
+      };
+      prismaMock.user_account.create.mockResolvedValue(createdRow);
+
+      const result = await service.onboardInitialCurator(dto, ACTING_DEVELOPER_AUTH_ID);
+
+      expect(supabaseMock.auth.admin.inviteUserByEmail).toHaveBeenCalledWith(dto.email);
+      expect(supabaseMock.auth.admin.updateUserById).toHaveBeenCalledWith(
+        'auth-user-1',
+        { app_metadata: { role: 'CURATOR' } },
+      );
+      expect(prismaMock.user_account.create).toHaveBeenCalledWith({
+        data: {
+          auth_user_id: 'auth-user-1',
+          full_name: dto.fullName,
+          role: 'CURATOR',
+          status: 'ACTIVE',
+        },
+      });
+      expect(result).toEqual({
         id: 'account-1',
         authUserId: 'auth-user-1',
         fullName: dto.fullName,
         role: 'CURATOR',
         status: 'ACTIVE',
-      };
-      prismaMock.user_account.create.mockResolvedValue(createdAccount);
-
-      const result = await service.onboardInitialCurator(dto, ACTING_DEVELOPER_ID);
-
-      expect(supabaseMock.auth.admin.inviteUserByEmail).toHaveBeenCalledWith(
-        dto.email,
-        { data: { role: 'CURATOR' } },
-      );
-      expect(prismaMock.user_account.create).toHaveBeenCalledWith({
-        data: {
-          authUserId: 'auth-user-1',
-          fullName: dto.fullName,
-          role: 'CURATOR',
-          status: 'ACTIVE',
-        },
+        avatarPath: null,
+        createdAt: createdRow.created_at,
+        updatedAt: createdRow.updated_at,
       });
-      expect(result).toEqual(createdAccount);
       expect(prismaMock.audit_log.create).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
             action: 'ONBOARD_CURATOR',
             status: 'SUCCESS',
-            affectedRecordId: 'account-1',
+            affected_record_id: 'account-1',
+            user_id: ACTING_DEVELOPER_ACCOUNT_ID,
           }),
         }),
       );
@@ -164,7 +206,7 @@ describe('DeveloperService', () => {
       });
 
       await expect(
-        service.onboardInitialCurator(dto, ACTING_DEVELOPER_ID),
+        service.onboardInitialCurator(dto, ACTING_DEVELOPER_AUTH_ID),
       ).rejects.toThrow(ConflictException);
 
       expect(prismaMock.user_account.create).not.toHaveBeenCalled();
@@ -183,7 +225,7 @@ describe('DeveloperService', () => {
       prismaMock.user_account.create.mockRejectedValue(new Error('unique constraint'));
 
       await expect(
-        service.onboardInitialCurator(dto, ACTING_DEVELOPER_ID),
+        service.onboardInitialCurator(dto, ACTING_DEVELOPER_AUTH_ID),
       ).rejects.toThrow(InternalServerErrorException);
 
       expect(prismaMock.audit_log.create).toHaveBeenCalledWith(
@@ -201,22 +243,27 @@ describe('DeveloperService', () => {
     const dto = { status: 'INACTIVE' as const, authorizationReason: 'formally authorized' };
 
     it('throws NotFoundException when the account does not exist', async () => {
-      prismaMock.user_account.findUnique.mockResolvedValue(null);
+      prismaMock.user_account.findUnique.mockImplementation(({ where }) =>
+        where?.auth_user_id
+          ? Promise.resolve({ id: ACTING_DEVELOPER_ACCOUNT_ID })
+          : Promise.resolve(null),
+      );
 
       await expect(
-        service.updateCuratorStatus('missing-id', dto, ACTING_DEVELOPER_ID),
+        service.updateCuratorStatus('missing-id', dto, ACTING_DEVELOPER_AUTH_ID),
       ).rejects.toThrow(NotFoundException);
       expect(prismaMock.user_account.update).not.toHaveBeenCalled();
     });
 
     it('throws ForbiddenException and audits DENIED when the target is a Developer account', async () => {
-      prismaMock.user_account.findUnique.mockResolvedValue({
-        id: 'dev-2',
-        role: 'DEVELOPER',
-      });
+      prismaMock.user_account.findUnique.mockImplementation(({ where }) => 
+        where?.auth_user_id
+          ? Promise.resolve({ id: ACTING_DEVELOPER_ACCOUNT_ID })
+          : Promise.resolve({ id: 'dev-2', role: 'DEVELOPER' }),
+      );
 
       await expect(
-        service.updateCuratorStatus('dev-2', dto, ACTING_DEVELOPER_ID),
+        service.updateCuratorStatus('dev-2', dto, ACTING_DEVELOPER_AUTH_ID),
       ).rejects.toThrow(ForbiddenException);
 
       expect(prismaMock.user_account.update).not.toHaveBeenCalled();
@@ -228,20 +275,40 @@ describe('DeveloperService', () => {
     });
 
     it('updates status and audits SUCCESS for a valid curator account', async () => {
-      prismaMock.user_account.findUnique.mockResolvedValue({
+      prismaMock.user_account.findUnique.mockImplementation(({ where }) =>
+        where?.auth_user_id
+          ? Promise.resolve({ id: ACTING_DEVELOPER_ACCOUNT_ID })
+          : Promise.resolve({ id: 'cur-1', role: 'CURATOR' }),
+      );
+      const updatedRow = {
         id: 'cur-1',
+        auth_user_id: 'auth-cur-1',
+        full_name: 'Curator One',
         role: 'CURATOR',
-      });
-      const updated = { id: 'cur-1', role: 'CURATOR', status: 'INACTIVE' };
-      prismaMock.user_account.update.mockResolvedValue(updated);
+        status: 'INACTIVE',
+        avatar_path: null,
+        created_at: new Date('2026-01-01'),
+        updated_at: new Date('2026-01-02'),
+      };
 
-      const result = await service.updateCuratorStatus('cur-1', dto, ACTING_DEVELOPER_ID);
+      prismaMock.user_account.update.mockResolvedValue(updatedRow);
+
+      const result = await service.updateCuratorStatus('cur-1', dto, ACTING_DEVELOPER_AUTH_ID);
 
       expect(prismaMock.user_account.update).toHaveBeenCalledWith({
         where: { id: 'cur-1' },
         data: { status: 'INACTIVE' },
       });
-      expect(result).toEqual(updated);
+      expect(result).toEqual({
+        id: 'cur-1',
+        authUserId: 'auth-cur-1',
+        fullName: 'Curator One',
+        role: 'CURATOR',
+        status: 'INACTIVE',
+        avatarPath: null,
+        createdAt: updatedRow.created_at,
+        updatedAt: updatedRow.updated_at,
+      });
       expect(prismaMock.audit_log.create).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
@@ -254,11 +321,15 @@ describe('DeveloperService', () => {
     });
 
     it('throws InternalServerErrorException and audits FAILED when the update fails', async () => {
-      prismaMock.user_account.findUnique.mockResolvedValue({ id: 'cur-1', role: 'CURATOR' });
+      prismaMock.user_account.findUnique.mockImplementation(({ where }) =>
+        where?.auth_user_id
+          ? Promise.resolve({ id: ACTING_DEVELOPER_ACCOUNT_ID })
+          : Promise.resolve({ id: 'cur-1', role: 'CURATOR' }),
+      );
       prismaMock.user_account.update.mockRejectedValue(new Error('db down'));
 
       await expect(
-        service.updateCuratorStatus('cur-1', dto, ACTING_DEVELOPER_ID),
+        service.updateCuratorStatus('cur-1', dto, ACTING_DEVELOPER_AUTH_ID),
       ).rejects.toThrow(InternalServerErrorException);
 
       expect(prismaMock.audit_log.create).toHaveBeenCalledWith(
@@ -279,7 +350,7 @@ describe('DeveloperService', () => {
       prismaMock.exhibit.findUnique.mockResolvedValue(null);
 
       await expect(
-        service.createArAsset(fakeFile(), dto, ACTING_DEVELOPER_ID),
+        service.createArAsset(fakeFile(), dto, ACTING_DEVELOPER_AUTH_ID),
       ).rejects.toThrow(NotFoundException);
       expect(storageServiceMock.upload).not.toHaveBeenCalled();
     });
@@ -288,7 +359,7 @@ describe('DeveloperService', () => {
       prismaMock.exhibit.findUnique.mockResolvedValue({ id: 'exhibit-1', archivedAt: new Date() });
 
       await expect(
-        service.createArAsset(fakeFile(), dto, ACTING_DEVELOPER_ID),
+        service.createArAsset(fakeFile(), dto, ACTING_DEVELOPER_AUTH_ID),
       ).rejects.toThrow(BadRequestException);
       expect(storageServiceMock.upload).not.toHaveBeenCalled();
     });
@@ -297,7 +368,7 @@ describe('DeveloperService', () => {
       prismaMock.exhibit.findUnique.mockResolvedValue({ id: 'exhibit-1', archivedAt: null });
 
       await expect(
-        service.createArAsset(undefined as never, dto, ACTING_DEVELOPER_ID),
+        service.createArAsset(undefined as never, dto, ACTING_DEVELOPER_AUTH_ID),
       ).rejects.toThrow(BadRequestException);
     });
 
@@ -306,7 +377,7 @@ describe('DeveloperService', () => {
       const oversized = fakeFile({ size: 100 * 1024 * 1024 });
 
       await expect(
-        service.createArAsset(oversized, dto, ACTING_DEVELOPER_ID),
+        service.createArAsset(oversized, dto, ACTING_DEVELOPER_AUTH_ID),
       ).rejects.toThrow(BadRequestException);
     });
 
@@ -315,7 +386,7 @@ describe('DeveloperService', () => {
       const wrongExt = fakeFile({ originalname: 'model.gltf' });
 
       await expect(
-        service.createArAsset(wrongExt, dto, ACTING_DEVELOPER_ID),
+        service.createArAsset(wrongExt, dto, ACTING_DEVELOPER_AUTH_ID),
       ).rejects.toThrow(BadRequestException);
     });
 
@@ -324,14 +395,14 @@ describe('DeveloperService', () => {
       storageServiceMock.upload.mockResolvedValue('exhibit-1/some-path.glb');
       const createdRow = {
         id: 'asset-1',
-        exhibitId: 'exhibit-1',
-        modelUrl: 'exhibit-1/some-path.glb',
-        modelFormat: 'glb',
-        isEnabled: false,
+        exhibit_id: 'exhibit-1',
+        storage_path: 'exhibit-1/some-path.glb',
+        model_format: 'glb',
+        is_enabled: false,
       };
-      prismaMock.arAsset.create.mockResolvedValue(createdRow);
+      prismaMock.ar_asset.create.mockResolvedValue(createdRow);
 
-      const result = await service.createArAsset(fakeFile(), dto, ACTING_DEVELOPER_ID);
+      const result = await service.createArAsset(fakeFile(), dto, ACTING_DEVELOPER_AUTH_ID);
 
       expect(storageServiceMock.upload).toHaveBeenCalledWith(
         'ar-assets',
@@ -339,7 +410,13 @@ describe('DeveloperService', () => {
         expect.any(Buffer),
         'model/gltf-binary',
       );
-      expect(result).toEqual(createdRow);
+      expect(result).toEqual({
+        id: 'asset-1',
+        exhibitId: 'exhibit-1',
+        modelUrl: 'exhibit-1/some-path.glb',
+        modelFormat: 'glb',
+        isEnabled: false,
+      });
       expect(prismaMock.audit_log.create).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({ action: 'CREATE_AR_ASSET', status: 'SUCCESS' }),
@@ -350,10 +427,10 @@ describe('DeveloperService', () => {
     it('cleans up the uploaded file and audits FAILED when the DB insert fails', async () => {
       prismaMock.exhibit.findUnique.mockResolvedValue({ id: 'exhibit-1', archivedAt: null });
       storageServiceMock.upload.mockResolvedValue('exhibit-1/some-path.glb');
-      prismaMock.arAsset.create.mockRejectedValue(new Error('insert failed'));
+      prismaMock.ar_asset.create.mockRejectedValue(new Error('insert failed'));
 
       await expect(
-        service.createArAsset(fakeFile(), dto, ACTING_DEVELOPER_ID),
+        service.createArAsset(fakeFile(), dto, ACTING_DEVELOPER_AUTH_ID),
       ).rejects.toThrow(InternalServerErrorException);
 
       expect(storageServiceMock.remove).toHaveBeenCalledWith(
@@ -372,43 +449,49 @@ describe('DeveloperService', () => {
   // updateArAsset — REQ-4.2-04
   // ===========================================================
   describe('updateArAsset', () => {
-    const existingAsset = {
+    const existingRow = {
       id: 'asset-1',
-      exhibitId: 'exhibit-1',
-      modelUrl: 'exhibit-1/old-path.glb',
-      modelFormat: 'glb',
-      isEnabled: false,
+      exhibit_id: 'exhibit-1',
+      storage_path: 'exhibit-1/old-path.glb',
+      model_format: 'glb',
+      is_enabled: false,
     };
 
     it('throws NotFoundException when the asset does not exist', async () => {
-      prismaMock.arAsset.findUnique.mockResolvedValue(null);
+      prismaMock.ar_asset.findUnique.mockResolvedValue(null);
 
       await expect(
-        service.updateArAsset('missing', undefined, {}, ACTING_DEVELOPER_ID),
+        service.updateArAsset('missing', undefined, {}, ACTING_DEVELOPER_AUTH_ID),
       ).rejects.toThrow(NotFoundException);
     });
 
     it('returns the existing asset unchanged when no file and no fields are given', async () => {
-      prismaMock.arAsset.findUnique.mockResolvedValue(existingAsset);
+      prismaMock.ar_asset.findUnique.mockResolvedValue(existingRow);
 
-      const result = await service.updateArAsset('asset-1', undefined, {}, ACTING_DEVELOPER_ID);
+      const result = await service.updateArAsset('asset-1', undefined, {}, ACTING_DEVELOPER_AUTH_ID);
 
-      expect(result).toEqual(existingAsset);
-      expect(prismaMock.arAsset.update).not.toHaveBeenCalled();
+      expect(result).toEqual({
+        id: 'asset-1',
+        exhibitId: 'exhibit-1',
+        modelUrl: 'exhibit-1/old-path.glb',
+        modelFormat: 'glb',
+        isEnabled: false,
+      });
+      expect(prismaMock.ar_asset.update).not.toHaveBeenCalled();
     });
 
     it('toggles isEnabled only, without touching storage', async () => {
-      prismaMock.arAsset.findUnique.mockResolvedValue(existingAsset);
-      prismaMock.arAsset.update.mockResolvedValue({ ...existingAsset, isEnabled: true });
+      prismaMock.ar_asset.findUnique.mockResolvedValue(existingRow);
+      prismaMock.ar_asset.update.mockResolvedValue({ ...existingRow, isEnabled: true });
 
       const result = await service.updateArAsset(
         'asset-1',
         undefined,
         { isEnabled: true },
-        ACTING_DEVELOPER_ID,
+        ACTING_DEVELOPER_AUTH_ID,
       );
 
-      expect(prismaMock.arAsset.update).toHaveBeenCalledWith({
+      expect(prismaMock.ar_asset.update).toHaveBeenCalledWith({
         where: { id: 'asset-1' },
         data: { isEnabled: true },
       });
@@ -417,20 +500,26 @@ describe('DeveloperService', () => {
     });
 
     it('replaces the file, updates model_url/model_format, and removes the old file', async () => {
-      prismaMock.arAsset.findUnique.mockResolvedValue(existingAsset);
+      prismaMock.ar_asset.findUnique.mockResolvedValue(existingRow);
       storageServiceMock.upload.mockResolvedValue('exhibit-1/new-path.glb');
-      const updatedRow = { ...existingAsset, modelUrl: 'exhibit-1/new-path.glb' };
-      prismaMock.arAsset.update.mockResolvedValue(updatedRow);
+      const updatedRow = { ...existingRow, modelUrl: 'exhibit-1/new-path.glb' };
+      prismaMock.ar_asset.update.mockResolvedValue(updatedRow);
 
       const result = await service.updateArAsset(
         'asset-1',
         fakeFile(),
         {},
-        ACTING_DEVELOPER_ID,
+        ACTING_DEVELOPER_AUTH_ID,
       );
 
       expect(storageServiceMock.upload).toHaveBeenCalled();
-      expect(result).toEqual(updatedRow);
+      expect(result).toEqual({
+        id: 'asset-1',
+        exhibitId: 'exhibit-1',
+        modelUrl: 'exhibit-1/new-path.glb',
+        modelFormat: 'glb',
+        isEnabled: false,
+      });
       expect(storageServiceMock.remove).toHaveBeenCalledWith(
         'ar-assets',
         'exhibit-1/old-path.glb',
@@ -438,19 +527,19 @@ describe('DeveloperService', () => {
     });
 
     it('does not remove the old file if the DB update fails', async () => {
-      prismaMock.arAsset.findUnique.mockResolvedValue(existingAsset);
+      prismaMock.ar_asset.findUnique.mockResolvedValue(existingRow);
       storageServiceMock.upload.mockResolvedValue('exhibit-1/new-path.glb');
-      prismaMock.arAsset.update.mockRejectedValue(new Error('update failed'));
+      prismaMock.ar_asset.update.mockRejectedValue(new Error('update failed'));
 
       await expect(
-        service.updateArAsset('asset-1', fakeFile(), {}, ACTING_DEVELOPER_ID),
+        service.updateArAsset('asset-1', fakeFile(), {}, ACTING_DEVELOPER_AUTH_ID),
       ).rejects.toThrow(InternalServerErrorException);
 
       expect(storageServiceMock.remove).not.toHaveBeenCalled();
     });
 
     it('throws NotFoundException when reassigned to a non-existent exhibit', async () => {
-      prismaMock.arAsset.findUnique.mockResolvedValue(existingAsset);
+      prismaMock.ar_asset.findUnique.mockResolvedValue(existingRow);
       prismaMock.exhibit.findUnique.mockResolvedValue(null);
 
       await expect(
@@ -458,7 +547,7 @@ describe('DeveloperService', () => {
           'asset-1',
           undefined,
           { exhibitId: 'nonexistent-exhibit' },
-          ACTING_DEVELOPER_ID,
+          ACTING_DEVELOPER_AUTH_ID,
         ),
       ).rejects.toThrow(NotFoundException);
     });
@@ -469,19 +558,23 @@ describe('DeveloperService', () => {
   // ===========================================================
   describe('setArAssetEnabled', () => {
     it('throws NotFoundException for an unknown asset', async () => {
-      prismaMock.arAsset.findUnique.mockResolvedValue(null);
+      prismaMock.ar_asset.findUnique.mockResolvedValue(null);
 
       await expect(
-        service.setArAssetEnabled('missing', true, ACTING_DEVELOPER_ID),
+        service.setArAssetEnabled('missing', true, ACTING_DEVELOPER_AUTH_ID),
       ).rejects.toThrow(NotFoundException);
     });
 
     it('activates and audits ACTIVATE_AR_ASSET', async () => {
-      prismaMock.arAsset.findUnique.mockResolvedValue({ id: 'asset-1' });
-      prismaMock.arAsset.update.mockResolvedValue({ id: 'asset-1', isEnabled: true });
+      prismaMock.ar_asset.findUnique.mockResolvedValue({ id: 'asset-1' });
+      prismaMock.ar_asset.update.mockResolvedValue({ id: 'asset-1', isEnabled: true });
 
-      const result = await service.setArAssetEnabled('asset-1', true, ACTING_DEVELOPER_ID);
+      const result = await service.setArAssetEnabled('asset-1', true, ACTING_DEVELOPER_AUTH_ID);
 
+      expect(prismaMock.ar_asset.update).toHaveBeenCalledWith({
+        where: { id: 'asset-1' },
+        data: { is_enabled: true },
+      });
       expect(result.isEnabled).toBe(true);
       expect(prismaMock.audit_log.create).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -491,10 +584,10 @@ describe('DeveloperService', () => {
     });
 
     it('deactivates and audits DEACTIVATE_AR_ASSET', async () => {
-      prismaMock.arAsset.findUnique.mockResolvedValue({ id: 'asset-1' });
-      prismaMock.arAsset.update.mockResolvedValue({ id: 'asset-1', isEnabled: false });
+      prismaMock.ar_asset.findUnique.mockResolvedValue({ id: 'asset-1' });
+      prismaMock.ar_asset.update.mockResolvedValue({ id: 'asset-1', isEnabled: false });
 
-      await service.setArAssetEnabled('asset-1', false, ACTING_DEVELOPER_ID);
+      await service.setArAssetEnabled('asset-1', false, ACTING_DEVELOPER_AUTH_ID);
 
       expect(prismaMock.audit_log.create).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -504,11 +597,11 @@ describe('DeveloperService', () => {
     });
 
     it('throws InternalServerErrorException and audits FAILED when the update fails', async () => {
-      prismaMock.arAsset.findUnique.mockResolvedValue({ id: 'asset-1' });
-      prismaMock.arAsset.update.mockRejectedValue(new Error('db error'));
+      prismaMock.ar_asset.findUnique.mockResolvedValue({ id: 'asset-1' });
+      prismaMock.ar_asset.update.mockRejectedValue(new Error('db error'));
 
       await expect(
-        service.setArAssetEnabled('asset-1', true, ACTING_DEVELOPER_ID),
+        service.setArAssetEnabled('asset-1', true, ACTING_DEVELOPER_AUTH_ID),
       ).rejects.toThrow(InternalServerErrorException);
 
       expect(prismaMock.audit_log.create).toHaveBeenCalledWith(
@@ -524,23 +617,23 @@ describe('DeveloperService', () => {
   // ===========================================================
   describe('removeArAsset', () => {
     it('throws NotFoundException for an unknown asset', async () => {
-      prismaMock.arAsset.findUnique.mockResolvedValue(null);
+      prismaMock.ar_asset.findUnique.mockResolvedValue(null);
 
       await expect(
-        service.removeArAsset('missing', ACTING_DEVELOPER_ID),
+        service.removeArAsset('missing', ACTING_DEVELOPER_AUTH_ID),
       ).rejects.toThrow(NotFoundException);
     });
 
     it('deletes the row, removes the storage object, and audits SUCCESS', async () => {
-      prismaMock.arAsset.findUnique.mockResolvedValue({
+      prismaMock.ar_asset.findUnique.mockResolvedValue({
         id: 'asset-1',
         modelUrl: 'exhibit-1/some-path.glb',
       });
-      prismaMock.arAsset.delete.mockResolvedValue({});
+      prismaMock.ar_asset.delete.mockResolvedValue({});
 
-      const result = await service.removeArAsset('asset-1', ACTING_DEVELOPER_ID);
+      const result = await service.removeArAsset('asset-1', ACTING_DEVELOPER_AUTH_ID);
 
-      expect(prismaMock.arAsset.delete).toHaveBeenCalledWith({ where: { id: 'asset-1' } });
+      expect(prismaMock.ar_asset.delete).toHaveBeenCalledWith({ where: { id: 'asset-1' } });
       expect(storageServiceMock.remove).toHaveBeenCalledWith(
         'ar-assets',
         'exhibit-1/some-path.glb',
@@ -549,14 +642,14 @@ describe('DeveloperService', () => {
     });
 
     it('does not touch storage and audits FAILED when the delete fails', async () => {
-      prismaMock.arAsset.findUnique.mockResolvedValue({
+      prismaMock.ar_asset.findUnique.mockResolvedValue({
         id: 'asset-1',
         modelUrl: 'exhibit-1/some-path.glb',
       });
-      prismaMock.arAsset.delete.mockRejectedValue(new Error('fk violation'));
+      prismaMock.ar_asset.delete.mockRejectedValue(new Error('fk violation'));
 
       await expect(
-        service.removeArAsset('asset-1', ACTING_DEVELOPER_ID),
+        service.removeArAsset('asset-1', ACTING_DEVELOPER_AUTH_ID),
       ).rejects.toThrow(InternalServerErrorException);
 
       expect(storageServiceMock.remove).not.toHaveBeenCalled();
@@ -573,13 +666,24 @@ describe('DeveloperService', () => {
   // ===========================================================
   describe('audit logging failures never mask the primary result', () => {
     it('still returns the updated asset even if audit_log insert fails', async () => {
-      prismaMock.arAsset.findUnique.mockResolvedValue({ id: 'asset-1' });
-      prismaMock.arAsset.update.mockResolvedValue({ id: 'asset-1', isEnabled: true });
+      prismaMock.ar_asset.findUnique.mockResolvedValue({ id: 'asset-1' });
+      prismaMock.ar_asset.update.mockResolvedValue({ id: 'asset-1', isEnabled: true });
       prismaMock.audit_log.create.mockRejectedValue(new Error('audit table unreachable'));
 
-      const result = await service.setArAssetEnabled('asset-1', true, ACTING_DEVELOPER_ID);
+      const result = await service.setArAssetEnabled('asset-1', true, ACTING_DEVELOPER_AUTH_ID);
 
-      expect(result).toEqual({ id: 'asset-1', isEnabled: true });
+      expect(result).toEqual({ id: 'asset-1', exhibitId: undefined, modelUrl: undefined, modelFormat: undefined, isEnabled: true });
+    });
+
+    it('does not throw, and skips the audit write, when the acting user has no matching user_account', async () => {
+      prismaMock.user_account.findUnique.mockResolvedValue(null);
+      prismaMock.ar_asset.findUnique.mockResolvedValue({ id: 'asset-1' });
+      prismaMock.ar_asset.update.mockResolvedValue({ id: 'asset-1', is_enabled: true });
+
+      const result = await service.setArAssetEnabled('asset-1', true, ACTING_DEVELOPER_AUTH_ID);
+
+      expect(prismaMock.audit_log.create).not.toHaveBeenCalled();
+      expect(result.isEnabled).toBe(true);
     });
   });
 });
