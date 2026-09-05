@@ -9,10 +9,13 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { Prisma } from '@prisma/client';
-import { randomUUID } from 'node:crypto';
+import {
+  Prisma,
+  type ar_asset,
+  type user_account,
+} from '../generated/prisma/client';
 import { extname } from 'node:path';
-import { SUPABASE_CLIENT } from '../supabase/supabase-client.provider';
+import { SUPABASE_CLIENT } from '../supabase/supabase.constants';
 import { StorageService } from '../supabase/storage.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { OnboardCuratorDto } from './dto/onboard-curator.dto';
@@ -48,10 +51,12 @@ export class DeveloperService {
   // ===========================================================
 
   async listCuratorAccounts(): Promise<CuratorAccountEntity[]> {
-    return this.prisma.userAccount.findMany({
+    const accounts = await this.prisma.user_account.findMany({
       where: { role: 'CURATOR' },
-      orderBy: { createdAt: 'desc' },
+      orderBy: { created_at: 'desc' },
     });
+
+    return accounts.map((account) => this.toCuratorAccountEntity(account));
   }
 
   /**
@@ -85,14 +90,15 @@ export class DeveloperService {
     let accountRow: CuratorAccountEntity;
 
     try {
-      accountRow = await this.prisma.userAccount.create({
+      const account = await this.prisma.user_account.create({
         data: {
-          authUserId: data.user.id,
-          fullName: dto.fullName,
+          auth_user_id: data.user.id,
+          full_name: dto.fullName,
           role: 'CURATOR',
           status: 'ACTIVE',
         },
       });
+      accountRow = this.toCuratorAccountEntity(account);
     } catch (insertError) {
       // The Supabase auth invite already succeeded at this point. There is
       // no single transaction spanning auth.users + public.user_account, so
@@ -138,7 +144,7 @@ export class DeveloperService {
     dto: UpdateCuratorStatusDto,
     actingDeveloperId: string,
   ): Promise<CuratorAccountEntity> {
-    const existing = await this.prisma.userAccount.findUnique({
+    const existing = await this.prisma.user_account.findUnique({
       where: { id },
     });
 
@@ -163,10 +169,11 @@ export class DeveloperService {
     let updated: CuratorAccountEntity;
 
     try {
-      updated = await this.prisma.userAccount.update({
+      const account = await this.prisma.user_account.update({
         where: { id },
         data: { status: dto.status },
       });
+      updated = this.toCuratorAccountEntity(account);
     } catch (error) {
       await this.recordAudit({
         actingUserId: actingDeveloperId,
@@ -208,11 +215,9 @@ export class DeveloperService {
     await this.assertExhibitExists(dto.exhibitId);
     this.validateArAssetFile(file, dto.modelFormat);
 
-    const storagePath = `${dto.exhibitId}/${randomUUID()}.${dto.modelFormat}`;
-
-    await this.storageService.upload(
+    const storagePath = await this.storageService.upload(
       AR_ASSET_STORAGE_BUCKET,
-      storagePath,
+      dto.exhibitId,
       file.buffer,
       file.mimetype,
     );
@@ -220,14 +225,15 @@ export class DeveloperService {
     let created: ArAssetEntity;
 
     try {
-      created = await this.prisma.arAsset.create({
+      const asset = await this.prisma.ar_asset.create({
         data: {
-          exhibitId: dto.exhibitId,
-          modelUrl: storagePath,
-          modelFormat: dto.modelFormat,
-          isEnabled: dto.isEnabled ?? false,
+          exhibit: { connect: { id: dto.exhibitId } },
+          storage_path: storagePath,
+          model_format: dto.modelFormat,
+          is_enabled: dto.isEnabled ?? false,
         },
       });
+      created = this.toArAssetEntity(asset);
     } catch (error) {
       // Best-effort cleanup so we don't leak an orphaned file if the DB
       // insert failed after the upload succeeded.
@@ -271,28 +277,30 @@ export class DeveloperService {
       await this.assertExhibitExists(dto.exhibitId);
     }
 
-    const updateData: Prisma.ArAssetUpdateInput = {};
+    const updateData: Prisma.ar_assetUpdateInput = {};
     let previousStoragePath: string | null = null;
+    let uploadedStoragePath: string | null = null;
 
     if (file) {
       const targetFormat: ArModelFormat =
-        dto.modelFormat ?? (existing.modelFormat as ArModelFormat);
+        dto.modelFormat ?? existing.modelFormat;
       this.validateArAssetFile(file, targetFormat);
 
       const exhibitId = dto.exhibitId ?? existing.exhibitId;
-      const storagePath = `${exhibitId}/${randomUUID()}.${targetFormat}`;
-      await this.storageService.upload(
+      uploadedStoragePath = await this.storageService.upload(
         AR_ASSET_STORAGE_BUCKET,
-        storagePath,
+        exhibitId,
         file.buffer,
         file.mimetype,
       );
 
       previousStoragePath = existing.modelUrl;
-      updateData.modelUrl = storagePath;
-      updateData.modelFormat = targetFormat;
+      updateData.storage_path = uploadedStoragePath;
+      updateData.model_format = targetFormat;
     } else if (dto.modelFormat) {
-      updateData.modelFormat = dto.modelFormat;
+      throw new BadRequestException(
+        'modelFormat can only be changed when a replacement file is uploaded.',
+      );
     }
 
     if (dto.exhibitId) {
@@ -300,7 +308,7 @@ export class DeveloperService {
     }
 
     if (dto.isEnabled !== undefined) {
-      updateData.isEnabled = dto.isEnabled;
+      updateData.is_enabled = dto.isEnabled;
     }
 
     if (Object.keys(updateData).length === 0) {
@@ -310,11 +318,17 @@ export class DeveloperService {
     let updated: ArAssetEntity;
 
     try {
-      updated = await this.prisma.arAsset.update({
+      const asset = await this.prisma.ar_asset.update({
         where: { id },
         data: updateData,
       });
+      updated = this.toArAssetEntity(asset);
     } catch (error) {
+      if (uploadedStoragePath) {
+        await this.storageService
+          .remove(AR_ASSET_STORAGE_BUCKET, uploadedStoragePath)
+          .catch(() => undefined);
+      }
       await this.recordAudit({
         actingUserId: actingDeveloperId,
         action: 'UPDATE_AR_ASSET',
@@ -338,7 +352,11 @@ export class DeveloperService {
       affectedRecordId: id,
       affectedRecordType: 'ar_asset',
       status: 'SUCCESS',
-      details: { exhibitId: dto.exhibitId, modelFormat: dto.modelFormat, isEnabled: dto.isEnabled },
+      details: {
+        exhibitId: dto.exhibitId,
+        modelFormat: dto.modelFormat,
+        isEnabled: dto.isEnabled,
+      },
     });
 
     return updated;
@@ -354,10 +372,11 @@ export class DeveloperService {
     let updated: ArAssetEntity;
 
     try {
-      updated = await this.prisma.arAsset.update({
+      const asset = await this.prisma.ar_asset.update({
         where: { id },
-        data: { isEnabled },
+        data: { is_enabled: isEnabled },
       });
+      updated = this.toArAssetEntity(asset);
     } catch (error) {
       await this.recordAudit({
         actingUserId: actingDeveloperId,
@@ -390,7 +409,7 @@ export class DeveloperService {
     const existing = await this.findArAssetOrThrow(id);
 
     try {
-      await this.prisma.arAsset.delete({ where: { id } });
+      await this.prisma.ar_asset.delete({ where: { id } });
     } catch (error) {
       await this.recordAudit({
         actingUserId: actingDeveloperId,
@@ -423,13 +442,13 @@ export class DeveloperService {
   // ===========================================================
 
   private async findArAssetOrThrow(id: string): Promise<ArAssetEntity> {
-    const asset = await this.prisma.arAsset.findUnique({ where: { id } });
+    const asset = await this.prisma.ar_asset.findUnique({ where: { id } });
 
     if (!asset) {
       throw new NotFoundException(`No AR asset found with id "${id}".`);
     }
 
-    return asset;
+    return this.toArAssetEntity(asset);
   }
 
   /**
@@ -440,14 +459,14 @@ export class DeveloperService {
   private async assertExhibitExists(exhibitId: string): Promise<void> {
     const exhibit = await this.prisma.exhibit.findUnique({
       where: { id: exhibitId },
-      select: { id: true, archivedAt: true },
+      select: { id: true, archived_at: true },
     });
 
     if (!exhibit) {
       throw new NotFoundException(`No exhibit found with id "${exhibitId}".`);
     }
 
-    if (exhibit.archivedAt) {
+    if (exhibit.archived_at) {
       throw new BadRequestException(
         'AR assets cannot be deployed to an archived exhibit.',
       );
@@ -501,11 +520,13 @@ export class DeveloperService {
     status: AuditStatus;
   }): Promise<void> {
     try {
-      await this.prisma.auditLog.create({
+      await this.prisma.audit_log.create({
         data: {
-          userId: params.actingUserId,
-          affectedRecordId: params.affectedRecordId,
-          affectedRecordType: params.affectedRecordType,
+          user_account: {
+            connect: { auth_user_id: params.actingUserId },
+          },
+          affected_record_id: params.affectedRecordId,
+          affected_record_type: params.affectedRecordType,
           action: params.action,
           module: 'developer',
           details: params.details
@@ -520,5 +541,28 @@ export class DeveloperService {
         error instanceof Error ? error.stack : error,
       );
     }
+  }
+
+  private toCuratorAccountEntity(account: user_account): CuratorAccountEntity {
+    return {
+      id: account.id,
+      authUserId: account.auth_user_id,
+      fullName: account.full_name,
+      role: account.role,
+      status: account.status,
+      avatarPath: account.avatar_path,
+      createdAt: account.created_at,
+      updatedAt: account.updated_at,
+    };
+  }
+
+  private toArAssetEntity(asset: ar_asset): ArAssetEntity {
+    return {
+      id: asset.id,
+      exhibitId: asset.exhibit_id,
+      modelUrl: asset.storage_path,
+      modelFormat: asset.model_format as ArModelFormat,
+      isEnabled: asset.is_enabled,
+    };
   }
 }

@@ -79,3 +79,9 @@ This document records the conventions agreed upon for the BioSphere database. Th
 - Collection names must NOT be implemented as an enum because future collections may be added after system turnover.
 - Storage unit types, specimen condition classifications, preservation methods, and other curator-extensible museum values should not be frozen as PostgreSQL enums unless later confirmed.
 - These values are now considered frozen implementation conventions and should be used consistently in the PostgreSQL schema, Prisma schema, NestJS DTOs/services, API validation, frontend status handling, and tests.
+
+## Prisma Implementation Guide
+
+See [`docs/PRISMA_SCHEMA_GUIDE.md`](docs/PRISMA_SCHEMA_GUIDE.md) for the current
+schema inventory, generated-client import rules, naming contract, safe commands,
+migration workflow, and pull-request checklist.
