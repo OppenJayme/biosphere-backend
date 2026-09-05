@@ -22,7 +22,6 @@ import { DeveloperModule } from './developer/developer.module';
     SupabaseModule,
     PrismaModule,
     AuthModule,
-    PrismaModule,
     // TestModule,
     // NFR-SEC-15: rate limit public forms. Defaults to 10 req/min per IP,
     // applied globally for now — narrow this to just the public POST

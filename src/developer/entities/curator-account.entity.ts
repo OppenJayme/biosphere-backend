@@ -1,4 +1,7 @@
-import type { UserRole, AccountStatus } from '@prisma/client';
+import type {
+  account_status as AccountStatus,
+  user_role as UserRole,
+} from '../../generated/prisma/client';
 
 // Mirrors the Prisma UserAccount model (database/sql/001_user_account.sql).
 export class CuratorAccountEntity {
@@ -9,5 +12,5 @@ export class CuratorAccountEntity {
   status!: AccountStatus;
   avatarPath?: string | null;
   createdAt!: Date;
-  updatedAt?: Date;
+  updatedAt!: Date;
 }

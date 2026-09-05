@@ -9,6 +9,6 @@ export class ArAssetEntity {
   // bucket is private, so consumers must request a signed URL (that's the
   // `ar-assets`/exhibit-page module's responsibility, not this one).
   modelUrl!: string;
-  modelFormat?: ArModelFormat | string;
-  isEnabled?: boolean;
+  modelFormat!: ArModelFormat;
+  isEnabled!: boolean;
 }
