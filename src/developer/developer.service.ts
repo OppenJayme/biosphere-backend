@@ -37,8 +37,9 @@ export class DeveloperService {
 
   constructor(
     private readonly prisma: PrismaService,
-    // Only used for the Supabase Auth admin API (inviteUserByEmail), which
-    // has no Prisma equivalent since auth.users isn't Prisma-managed.
+    // Only used for the Supabase Auth admin API (inviteUserByEmail /
+    // updateUserById), which has no Prisma equivalent since auth.users
+    // isn't Prisma-managed.
     @Inject(SUPABASE_CLIENT) private readonly supabase: SupabaseClient,
     private readonly storageService: StorageService,
   ) {}
@@ -48,7 +49,7 @@ export class DeveloperService {
   // ===========================================================
 
   async listCuratorAccounts(): Promise<CuratorAccountEntity[]> {
-    return this.prisma.userAccount.findMany({
+    return this.prisma.user_account.findMany({
       where: { role: 'CURATOR' },
       orderBy: { createdAt: 'desc' },
     });
@@ -59,6 +60,12 @@ export class DeveloperService {
    * onboarding procedure and sends a secure password-setup invitation.
    * REQ-4.1-17: never sends a current/temporary password — the Supabase
    * invite flow is what lets the curator set their own password.
+   *
+   * Two Supabase Admin API calls are needed because inviteUserByEmail's
+   * options only accept `data` (-> user_metadata, client-editable) and
+   * `redirectTo` — there is no way to set app_metadata (the server-trusted
+   * claim SupabaseAuthGuard reads the role from) in that same call. The
+   * role is set separately via updateUserById right after the invite.
    */
   async onboardInitialCurator(
     dto: OnboardCuratorDto,
@@ -66,7 +73,6 @@ export class DeveloperService {
   ): Promise<CuratorAccountEntity> {
     const { data, error } = await this.supabase.auth.admin.inviteUserByEmail(
       dto.email,
-      { app_metadata: { role: 'CURATOR' } },
     );
 
     if (error || !data?.user) {
@@ -82,10 +88,29 @@ export class DeveloperService {
       );
     }
 
+    const { error: metadataError } =
+      await this.supabase.auth.admin.updateUserById(data.user.id, {
+        app_metadata: { role: 'CURATOR' },
+      });
+
+    if (metadataError) {
+      await this.recordAudit({
+        actingUserId: actingDeveloperId,
+        action: 'ONBOARD_CURATOR',
+        affectedRecordType: 'user_account',
+        status: 'FAILED',
+        details: { email: dto.email, reason: metadataError.message },
+      });
+      throw new InternalServerErrorException(
+        'The onboarding invitation was sent, but the curator role could ' +
+          'not be assigned. Please contact an administrator before retrying.',
+      );
+    }
+
     let accountRow: CuratorAccountEntity;
 
     try {
-      accountRow = await this.prisma.userAccount.create({
+      accountRow = await this.prisma.user_account.create({
         data: {
           authUserId: data.user.id,
           fullName: dto.fullName,
@@ -138,7 +163,7 @@ export class DeveloperService {
     dto: UpdateCuratorStatusDto,
     actingDeveloperId: string,
   ): Promise<CuratorAccountEntity> {
-    const existing = await this.prisma.userAccount.findUnique({
+    const existing = await this.prisma.user_account.findUnique({
       where: { id },
     });
 
@@ -163,7 +188,7 @@ export class DeveloperService {
     let updated: CuratorAccountEntity;
 
     try {
-      updated = await this.prisma.userAccount.update({
+      updated = await this.prisma.user_account.update({
         where: { id },
         data: { status: dto.status },
       });
@@ -220,7 +245,7 @@ export class DeveloperService {
     let created: ArAssetEntity;
 
     try {
-      created = await this.prisma.arAsset.create({
+      created = await this.prisma.ar_asset.create({
         data: {
           exhibitId: dto.exhibitId,
           modelUrl: storagePath,
@@ -296,7 +321,7 @@ export class DeveloperService {
     }
 
     if (dto.exhibitId) {
-      updateData.exhibit = { connect: { id: dto.exhibitId } };
+      updateData.exhibitId = dto.exhibitId;
     }
 
     if (dto.isEnabled !== undefined) {
@@ -310,7 +335,7 @@ export class DeveloperService {
     let updated: ArAssetEntity;
 
     try {
-      updated = await this.prisma.arAsset.update({
+      updated = await this.prisma.ar_asset.update({
         where: { id },
         data: updateData,
       });
@@ -338,7 +363,11 @@ export class DeveloperService {
       affectedRecordId: id,
       affectedRecordType: 'ar_asset',
       status: 'SUCCESS',
-      details: { exhibitId: dto.exhibitId, modelFormat: dto.modelFormat, isEnabled: dto.isEnabled },
+      details: {
+        exhibitId: dto.exhibitId,
+        modelFormat: dto.modelFormat,
+        isEnabled: dto.isEnabled,
+      },
     });
 
     return updated;
@@ -354,7 +383,7 @@ export class DeveloperService {
     let updated: ArAssetEntity;
 
     try {
-      updated = await this.prisma.arAsset.update({
+      updated = await this.prisma.ar_asset.update({
         where: { id },
         data: { isEnabled },
       });
@@ -390,7 +419,7 @@ export class DeveloperService {
     const existing = await this.findArAssetOrThrow(id);
 
     try {
-      await this.prisma.arAsset.delete({ where: { id } });
+      await this.prisma.ar_asset.delete({ where: { id } });
     } catch (error) {
       await this.recordAudit({
         actingUserId: actingDeveloperId,
@@ -423,7 +452,7 @@ export class DeveloperService {
   // ===========================================================
 
   private async findArAssetOrThrow(id: string): Promise<ArAssetEntity> {
-    const asset = await this.prisma.arAsset.findUnique({ where: { id } });
+    const asset = await this.prisma.ar_asset.findUnique({ where: { id } });
 
     if (!asset) {
       throw new NotFoundException(`No AR asset found with id "${id}".`);
@@ -470,7 +499,9 @@ export class DeveloperService {
       );
     }
 
-    const extension = extname(file.originalname).toLowerCase().replace('.', '');
+    const extension = extname(file.originalname)
+      .toLowerCase()
+      .replace('.', '');
 
     if (extension !== modelFormat) {
       throw new BadRequestException(
@@ -491,6 +522,13 @@ export class DeveloperService {
    * deployment actions." A failure to write the audit row is logged loudly
    * but never allowed to mask the outcome of the primary operation, which
    * has already been decided by the time this is called.
+   *
+   * `details` is spread in conditionally rather than passed as
+   * `params.details ?? Prisma.JsonNull` — the newer Prisma client's
+   * `NullableJsonNullValueInput` type doesn't accept `Prisma.JsonNull`
+   * directly in this generator's typings, and there's no need for an
+   * explicit SQL NULL anyway: omitting an optional Json field entirely
+   * already stores NULL.
    */
   private async recordAudit(params: {
     actingUserId: string;
@@ -501,17 +539,17 @@ export class DeveloperService {
     status: AuditStatus;
   }): Promise<void> {
     try {
-      await this.prisma.auditLog.create({
+      await this.prisma.audit_log.create({
         data: {
           userId: params.actingUserId,
           affectedRecordId: params.affectedRecordId,
           affectedRecordType: params.affectedRecordType,
           action: params.action,
           module: 'developer',
-          details: params.details
-            ? (params.details as Prisma.InputJsonValue)
-            : Prisma.JsonNull,
           status: params.status,
+          ...(params.details
+            ? { details: params.details as Prisma.InputJsonValue }
+            : {}),
         },
       });
     } catch (error) {

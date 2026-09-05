@@ -8,7 +8,7 @@ import {
 } from '@nestjs/common';
 import { DeveloperService } from './developer.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { SUPABASE_CLIENT } from 'src/supabase/supabase.constants';
+import { SUPABASE_CLIENT } from '../supabase/supabase.constants';
 import { StorageService } from '../supabase/storage.service';
 
 // ---------------------------------------------------------------------------
@@ -40,6 +40,7 @@ const supabaseMock = {
   auth: {
     admin: {
       inviteUserByEmail: jest.fn(),
+      updateUserById: jest.fn(),
     },
   },
 };
@@ -74,6 +75,7 @@ describe('DeveloperService', () => {
   beforeEach(async () => {
     jest.clearAllMocks();
     prismaMock.auditLog.create.mockResolvedValue({});
+    supabaseMock.auth.admin.updateUserById.mockResolvedValue({ data: {}, error: null });
     storageServiceMock.remove.mockResolvedValue(undefined);
 
     const module: TestingModule = await Test.createTestingModule({
