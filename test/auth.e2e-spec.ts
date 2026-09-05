@@ -10,31 +10,29 @@ import { TestModule } from './dev-sandbox.module';
 describe('Role-based access control (e2e)', () => {
   const curatorToken = 'curator-test-token';
   const developerToken = 'developer-test-token';
+  const inactiveToken = 'inactive-test-token';
+  const unprovisionedToken = 'unprovisioned-test-token';
 
   let app: INestApplication<App>;
 
   beforeEach(async () => {
     const getUser = jest.fn((token: string) => {
-      if (token === curatorToken) {
-        return {
-          data: {
-            user: {
-              id: 'curator-user-id',
-              email: 'curator@example.com',
-              app_metadata: { role: 'CURATOR' },
-            },
-          },
-          error: null,
-        };
-      }
+      if (
+        token === curatorToken ||
+        token === developerToken ||
+        token === inactiveToken ||
+        token === unprovisionedToken
+      ) {
+        const authUserId = token.replace('-test-token', '-user-id');
 
-      if (token === developerToken) {
         return {
           data: {
             user: {
-              id: 'developer-user-id',
-              email: 'developer@example.com',
-              app_metadata: { role: 'DEVELOPER' },
+              id: authUserId,
+              email: `${token.replace('-test-token', '')}@example.com`,
+              // Deliberately incorrect: authorization must use the role in
+              // public.user_account, not potentially stale token metadata.
+              app_metadata: { role: 'CURATOR' },
             },
           },
           error: null,
@@ -47,11 +45,35 @@ describe('Role-based access control (e2e)', () => {
       };
     });
 
+    const findUnique = jest.fn(
+      ({ where }: { where: { auth_user_id: string } }) => {
+        const accounts = {
+          'curator-user-id': {
+            id: 'curator-account-id',
+            role: 'CURATOR',
+            status: 'ACTIVE',
+          },
+          'developer-user-id': {
+            id: 'developer-account-id',
+            role: 'DEVELOPER',
+            status: 'ACTIVE',
+          },
+          'inactive-user-id': {
+            id: 'inactive-account-id',
+            role: 'CURATOR',
+            status: 'INACTIVE',
+          },
+        } as const;
+
+        return accounts[where.auth_user_id as keyof typeof accounts] ?? null;
+      },
+    );
+
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule, TestModule],
     })
       .overrideProvider(PrismaService)
-      .useValue({})
+      .useValue({ user_account: { findUnique } })
       .overrideProvider(SUPABASE_CLIENT)
       .useValue({ auth: { getUser } })
       .compile();
@@ -105,5 +127,21 @@ describe('Role-based access control (e2e)', () => {
       .post('/test/curator-table')
       .send({ note: 'e2e test' })
       .expect(401);
+  });
+
+  it('rejects an inactive BioSphere account', () => {
+    return request(app.getHttpServer())
+      .post('/test/curator-table')
+      .set('Authorization', `Bearer ${inactiveToken}`)
+      .send({ note: 'e2e test' })
+      .expect(403);
+  });
+
+  it('rejects a Supabase user without a BioSphere account', () => {
+    return request(app.getHttpServer())
+      .post('/test/curator-table')
+      .set('Authorization', `Bearer ${unprovisionedToken}`)
+      .send({ note: 'e2e test' })
+      .expect(403);
   });
 });

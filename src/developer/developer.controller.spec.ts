@@ -22,6 +22,7 @@ const developerServiceMock = {
 
 const currentUser: AuthenticatedUser = {
   id: 'dev-uuid-1',
+  accountId: 'dev-account-uuid-1',
   email: 'developer@example.com',
   role: 'DEVELOPER',
 };

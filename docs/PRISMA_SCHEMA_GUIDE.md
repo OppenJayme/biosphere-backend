@@ -77,10 +77,12 @@ the frontend. For example, map `auth_user_id` to `authUserId` and
 `storage_path` to `modelUrl` in a response entity.
 
 `AuthenticatedUser.id` comes from Supabase and is an `auth.users.id` value.
-It is not the same value as `public.user_account.id`. When a relation expects a
-BioSphere account ID (for example `audit_log.user_id`), connect or look up the
-account through the unique `user_account.auth_user_id`; never write the Auth ID
-directly into a `user_account.id` foreign key.
+`AuthenticatedUser.accountId` is the matching `public.user_account.id` loaded
+by the authentication layer. When a relation expects a BioSphere account ID
+(for example `storage_movement_history.moved_by`), use `accountId`; never write
+the Supabase Auth ID directly into a `user_account.id` foreign key. The
+authentication layer also rejects missing and inactive BioSphere accounts and
+uses `user_account.role` as the authoritative application role.
 
 Changing the Prisma schema to PascalCase/camelCase with `@map` and `@@map`
 could be considered later as a separate, team-reviewed refactor. Do not mix
