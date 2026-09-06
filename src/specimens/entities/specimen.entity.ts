@@ -1,4 +1,3 @@
-// src/specimens/entities/specimen.entity.ts
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export enum SpecimenStatus {
@@ -7,94 +6,65 @@ export enum SpecimenStatus {
   ARCHIVED = 'ARCHIVED',
 }
 
+export enum SpecimenGender {
+  MALE = 'MALE',
+  FEMALE = 'FEMALE',
+  UNKNOWN = 'UNKNOWN',
+  NOT_APPLICABLE = 'NOT_APPLICABLE',
+}
+
 export class Specimen {
   @ApiProperty()
   id!: string;
 
+  @ApiPropertyOptional({ nullable: true })
+  collectionId!: string | null;
+
   @ApiPropertyOptional({
-    description: 'Nullable until assigned/confirmed (REQ-4.4-03)',
+    description: 'Nullable until assigned or confirmed (REQ-4.4-03)',
+    nullable: true,
   })
-  accessionNumber?: string | null;
+  accessionNumber!: string | null;
 
-  @ApiPropertyOptional()
-  scientificName?: string;
+  @ApiPropertyOptional({ nullable: true })
+  specimenCategory!: string | null;
 
-  @ApiPropertyOptional()
-  commonName?: string;
+  @ApiPropertyOptional({ nullable: true })
+  scientificName!: string | null;
 
-  @ApiPropertyOptional()
-  kingdom?: string;
+  @ApiPropertyOptional({ nullable: true })
+  commonName!: string | null;
 
-  @ApiPropertyOptional()
-  phylum?: string;
+  @ApiPropertyOptional({ enum: SpecimenGender, nullable: true })
+  gender!: SpecimenGender | null;
 
-  @ApiPropertyOptional()
-  class?: string;
+  @ApiPropertyOptional({ nullable: true })
+  classificationStatus!: string | null;
 
-  @ApiPropertyOptional()
-  order?: string;
-
-  @ApiPropertyOptional()
-  family?: string;
-
-  @ApiPropertyOptional()
-  genus?: string;
-
-  @ApiPropertyOptional()
-  species?: string;
-
-  @ApiPropertyOptional()
-  habitat?: string;
-
-  @ApiPropertyOptional()
-  conservationStatus?: string;
-
-  @ApiPropertyOptional()
-  ecologicalRole?: string;
-
-  @ApiPropertyOptional()
-  collector?: string;
-
-  @ApiPropertyOptional()
-  donor?: string;
-
-  @ApiPropertyOptional()
-  collectionDate?: string;
-
-  @ApiPropertyOptional()
-  collectionLocation?: string;
-
-  @ApiPropertyOptional()
-  notes?: string;
-
-  @ApiProperty({ enum: SpecimenStatus, default: SpecimenStatus.UNCATALOGED })
+  @ApiProperty({ enum: SpecimenStatus })
   status!: SpecimenStatus;
 
   @ApiProperty({
     default: false,
     description:
-      'Curator-controlled, does not auto-publish full record (REQ-4.4-16)',
+      'Curator-controlled eligibility; it does not publish the full record',
   })
   publicDisplay!: boolean;
 
-  @ApiPropertyOptional({
-    type: [String],
-    description:
-      'Missing/invalid required fields, shown to curator (REQ-4.4-08)',
-  })
-  missingFields?: string[];
+  @ApiPropertyOptional({ nullable: true })
+  remarks!: string | null;
 
   @ApiProperty()
   createdBy!: string;
 
-  @ApiProperty()
-  updatedBy!: string;
+  @ApiPropertyOptional({ nullable: true })
+  updatedBy!: string | null;
 
-  @ApiPropertyOptional()
-  archivedBy?: string;
+  @ApiPropertyOptional({ nullable: true })
+  archivedBy!: string | null;
 
-  @ApiPropertyOptional()
-  archivedAt?: Date | null;
+  @ApiPropertyOptional({ nullable: true })
+  archivedAt!: Date | null;
 
   @ApiProperty()
   createdAt!: Date;

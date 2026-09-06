@@ -1,142 +1,438 @@
-// src/specimens/specimens.service.ts
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { randomUUID } from 'node:crypto';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { Prisma, type specimen } from '../generated/prisma/client';
+import { PrismaService } from '../prisma/prisma.service';
 import { CreateSpecimenDto } from './dto/create-specimen.dto';
+import { SetPublicDisplayDto } from './dto/set-public-display.dto';
 import { UpdateSpecimenDto } from './dto/update-specimen.dto';
-import { ImportSpecimenRowDto } from './dto/import-specimen-row.dto';
-import { Specimen, SpecimenStatus } from './entities/specimen.entity';
+import {
+  Specimen,
+  SpecimenGender,
+  SpecimenStatus,
+} from './entities/specimen.entity';
 
-// REQ-4.4-06/07: fields that must all be valid/present for a record to
-// become Cataloged. Adjust once the curator-approved field list (§4.4.4)
-// is finalized — this is the confirmed subset from the SRS.
-const REQUIRED_FOR_CATALOGED: (keyof CreateSpecimenDto)[] = [
-  'scientificName',
-  'commonName',
-  'kingdom',
-  'phylum',
-  'class',
-  'order',
-  'family',
-  'genus',
-  'species',
-];
-
-export interface ImportRowResult {
-  rowNumber?: number;
-  status: 'created' | 'possible_duplicate' | 'error';
-  specimen?: Specimen;
-  errors?: string[];
+interface RevisionChange {
+  fieldChanged: string;
+  oldValue: string | boolean | null;
+  newValue: string | boolean | null;
 }
 
-// In-memory placeholder store. Replace with PrismaService once the
-// database is provisioned — see docs/backend-architecture.md §3.
 @Injectable()
 export class SpecimensService {
-  private readonly specimens: Specimen[] = [];
+  constructor(private readonly prisma: PrismaService) {}
 
-  create(dto: CreateSpecimenDto, actingCuratorId: string): Specimen {
-    const missingFields = this.getMissingFields(dto);
-    const specimen: Specimen = {
-      id: randomUUID(),
-      status: missingFields.length
-        ? SpecimenStatus.UNCATALOGED
-        : SpecimenStatus.CATALOGED,
-      publicDisplay: false,
-      missingFields,
-      createdBy: actingCuratorId,
-      updatedBy: actingCuratorId,
-      archivedAt: null,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      accessionNumber: dto.accessionNumber ?? null,
-      ...dto,
-    };
-    this.specimens.push(specimen);
-    return specimen;
-  }
+  async create(
+    dto: CreateSpecimenDto,
+    actingCuratorAccountId: string,
+  ): Promise<Specimen> {
+    return this.prisma.$transaction(async (transaction) => {
+      if (dto.collectionId) {
+        await this.assertCollectionExists(transaction, dto.collectionId);
+      }
 
-  findAll(): Specimen[] {
-    return this.specimens.filter((s) => s.status !== SpecimenStatus.ARCHIVED);
-  }
+      const created = await transaction.specimen.create({
+        data: {
+          collection_id: dto.collectionId,
+          created_by: actingCuratorAccountId,
+          updated_by: actingCuratorAccountId,
+          accession_number: dto.accessionNumber,
+          specimen_category: dto.specimenCategory,
+          scientific_name: dto.scientificName,
+          common_name: dto.commonName,
+          gender: dto.gender,
+          classification_status: dto.classificationStatus,
+          status: 'UNCATALOGED',
+          public_display_allowed: false,
+          remarks: dto.remarks,
+        },
+      });
 
-  findOne(id: string): Specimen {
-    const specimen = this.specimens.find((s) => s.id === id);
-    if (!specimen) throw new NotFoundException(`Specimen ${id} not found`);
-    return specimen;
-  }
+      await this.recordAudit(transaction, {
+        userId: actingCuratorAccountId,
+        specimenId: created.id,
+        action: 'CREATE_SPECIMEN',
+        details: { status: created.status },
+      });
 
-  update(
-    id: string,
-    dto: UpdateSpecimenDto,
-    actingCuratorId: string,
-  ): Specimen {
-    const specimen = this.findOne(id);
-    Object.assign(specimen, dto);
-    specimen.updatedBy = actingCuratorId;
-    specimen.updatedAt = new Date();
-
-    // REQ-4.4-06/07: re-derive status after every edit
-    specimen.missingFields = this.getMissingFields(specimen);
-    if (specimen.status !== SpecimenStatus.ARCHIVED) {
-      specimen.status = specimen.missingFields.length
-        ? SpecimenStatus.UNCATALOGED
-        : SpecimenStatus.CATALOGED;
-    }
-    return specimen;
-  }
-
-  // REQ-4.4-10: archive instead of delete
-  archive(id: string, actingCuratorId: string): Specimen {
-    const specimen = this.findOne(id);
-    specimen.status = SpecimenStatus.ARCHIVED;
-    specimen.archivedBy = actingCuratorId;
-    specimen.archivedAt = new Date();
-    specimen.publicDisplay = false; // REQ-4.4-11: archived records can't stay public-eligible
-    return specimen;
-  }
-
-  // REQ-4.4-15/16: toggle public-display eligibility, only for Cataloged records
-  setPublicDisplay(id: string, publicDisplay: boolean): Specimen {
-    const specimen = this.findOne(id);
-    if (specimen.status !== SpecimenStatus.CATALOGED) {
-      throw new NotFoundException(
-        `Specimen ${id} must be Cataloged before it can be marked for public display`,
-      );
-    }
-    specimen.publicDisplay = publicDisplay;
-    return specimen;
-  }
-
-  // REQ-4.4-21: warn on possible duplicates — simple heuristic for now
-  // (same scientific name + same collector). Refine once curator feedback
-  // on false-positive rate comes in.
-  findPossibleDuplicates(dto: CreateSpecimenDto): Specimen[] {
-    if (!dto.scientificName) return [];
-    return this.specimens.filter(
-      (s) =>
-        s.status !== SpecimenStatus.ARCHIVED &&
-        s.scientificName?.toLowerCase() === dto.scientificName?.toLowerCase() &&
-        s.collector === dto.collector,
-    );
-  }
-
-  // REQ-4.4-19/20/22: import rows one at a time; never auto-merge duplicates
-  importRows(
-    rows: ImportSpecimenRowDto[],
-    actingCuratorId: string,
-  ): ImportRowResult[] {
-    return rows.map((row) => {
-      const duplicates = this.findPossibleDuplicates(row);
-      const specimen = this.create(row, actingCuratorId);
-      return {
-        rowNumber: row.rowNumber,
-        status: duplicates.length ? 'possible_duplicate' : 'created',
-        specimen,
-      };
+      return this.toEntity(created);
     });
   }
 
-  private getMissingFields(dto: Partial<CreateSpecimenDto>): string[] {
-    return REQUIRED_FOR_CATALOGED.filter((field) => !dto[field]);
+  async findAll(): Promise<Specimen[]> {
+    const specimens = await this.prisma.specimen.findMany({
+      where: { status: { not: 'ARCHIVED' } },
+      orderBy: { created_at: 'desc' },
+    });
+
+    return specimens.map((item) => this.toEntity(item));
+  }
+
+  async findOne(id: string): Promise<Specimen> {
+    return this.toEntity(await this.findOneOrThrow(id));
+  }
+
+  async update(
+    id: string,
+    dto: UpdateSpecimenDto,
+    actingCuratorAccountId: string,
+  ): Promise<Specimen> {
+    return this.prisma.$transaction(async (transaction) => {
+      const existing = await transaction.specimen.findUnique({
+        where: { id },
+      });
+      this.assertExists(existing, id);
+      this.assertEditable(existing);
+
+      if (dto.collectionId) {
+        await this.assertCollectionExists(transaction, dto.collectionId);
+      }
+
+      const data: Prisma.specimenUncheckedUpdateInput = {};
+      const changes: RevisionChange[] = [];
+
+      if (
+        dto.collectionId !== undefined &&
+        dto.collectionId !== existing.collection_id
+      ) {
+        data.collection_id = dto.collectionId;
+        changes.push({
+          fieldChanged: 'collection_id',
+          oldValue: existing.collection_id,
+          newValue: dto.collectionId,
+        });
+      }
+
+      if (
+        dto.accessionNumber !== undefined &&
+        dto.accessionNumber !== existing.accession_number
+      ) {
+        data.accession_number = dto.accessionNumber;
+        changes.push({
+          fieldChanged: 'accession_number',
+          oldValue: existing.accession_number,
+          newValue: dto.accessionNumber,
+        });
+      }
+
+      if (
+        dto.specimenCategory !== undefined &&
+        dto.specimenCategory !== existing.specimen_category
+      ) {
+        data.specimen_category = dto.specimenCategory;
+        changes.push({
+          fieldChanged: 'specimen_category',
+          oldValue: existing.specimen_category,
+          newValue: dto.specimenCategory,
+        });
+      }
+
+      if (
+        dto.scientificName !== undefined &&
+        dto.scientificName !== existing.scientific_name
+      ) {
+        data.scientific_name = dto.scientificName;
+        changes.push({
+          fieldChanged: 'scientific_name',
+          oldValue: existing.scientific_name,
+          newValue: dto.scientificName,
+        });
+      }
+
+      if (
+        dto.commonName !== undefined &&
+        dto.commonName !== existing.common_name
+      ) {
+        data.common_name = dto.commonName;
+        changes.push({
+          fieldChanged: 'common_name',
+          oldValue: existing.common_name,
+          newValue: dto.commonName,
+        });
+      }
+
+      if (dto.gender !== undefined && dto.gender !== existing.gender) {
+        data.gender = dto.gender;
+        changes.push({
+          fieldChanged: 'gender',
+          oldValue: existing.gender,
+          newValue: dto.gender,
+        });
+      }
+
+      if (
+        dto.classificationStatus !== undefined &&
+        dto.classificationStatus !== existing.classification_status
+      ) {
+        data.classification_status = dto.classificationStatus;
+        changes.push({
+          fieldChanged: 'classification_status',
+          oldValue: existing.classification_status,
+          newValue: dto.classificationStatus,
+        });
+      }
+
+      if (dto.remarks !== undefined && dto.remarks !== existing.remarks) {
+        data.remarks = dto.remarks;
+        changes.push({
+          fieldChanged: 'remarks',
+          oldValue: existing.remarks,
+          newValue: dto.remarks,
+        });
+      }
+
+      if (changes.length === 0) {
+        throw new BadRequestException(
+          'At least one specimen core field must change.',
+        );
+      }
+
+      const updated = await transaction.specimen.update({
+        where: { id },
+        data: {
+          ...data,
+          updated_by: actingCuratorAccountId,
+          updated_at: new Date(),
+        },
+      });
+
+      await this.recordRevisions(
+        transaction,
+        id,
+        actingCuratorAccountId,
+        changes,
+      );
+      await this.recordAudit(transaction, {
+        userId: actingCuratorAccountId,
+        specimenId: id,
+        action: 'UPDATE_SPECIMEN',
+        details: { fields: changes.map((change) => change.fieldChanged) },
+      });
+
+      return this.toEntity(updated);
+    });
+  }
+
+  async archive(id: string, actingCuratorAccountId: string): Promise<Specimen> {
+    return this.prisma.$transaction(async (transaction) => {
+      const existing = await transaction.specimen.findUnique({
+        where: { id },
+      });
+      this.assertExists(existing, id);
+
+      if (existing.status === 'ARCHIVED' || existing.archived_at) {
+        return this.toEntity(existing);
+      }
+
+      const activeLots = await transaction.specimen_lot.count({
+        where: { specimen_id: id, is_active: true },
+      });
+      if (activeLots > 0) {
+        throw new BadRequestException(
+          "Deactivate or resolve this specimen's active lots before archiving.",
+        );
+      }
+
+      const archivedAt = new Date();
+      const archived = await transaction.specimen.update({
+        where: { id },
+        data: {
+          status: 'ARCHIVED',
+          public_display_allowed: false,
+          archived_by: actingCuratorAccountId,
+          archived_at: archivedAt,
+          updated_by: actingCuratorAccountId,
+          updated_at: archivedAt,
+        },
+      });
+
+      const changes: RevisionChange[] = [
+        {
+          fieldChanged: 'status',
+          oldValue: existing.status,
+          newValue: 'ARCHIVED',
+        },
+      ];
+      if (existing.public_display_allowed) {
+        changes.push({
+          fieldChanged: 'public_display_allowed',
+          oldValue: true,
+          newValue: false,
+        });
+      }
+
+      await this.recordRevisions(
+        transaction,
+        id,
+        actingCuratorAccountId,
+        changes,
+      );
+      await this.recordAudit(transaction, {
+        userId: actingCuratorAccountId,
+        specimenId: id,
+        action: 'ARCHIVE_SPECIMEN',
+        details: { previousStatus: existing.status },
+      });
+
+      return this.toEntity(archived);
+    });
+  }
+
+  async setPublicDisplay(
+    id: string,
+    dto: SetPublicDisplayDto,
+    actingCuratorAccountId: string,
+  ): Promise<Specimen> {
+    return this.prisma.$transaction(async (transaction) => {
+      const existing = await transaction.specimen.findUnique({
+        where: { id },
+      });
+      this.assertExists(existing, id);
+      this.assertEditable(existing);
+
+      if (dto.publicDisplay && existing.status !== 'CATALOGED') {
+        throw new BadRequestException(
+          'Only Cataloged specimens can be eligible for public display.',
+        );
+      }
+
+      if (dto.publicDisplay === existing.public_display_allowed) {
+        return this.toEntity(existing);
+      }
+
+      const updated = await transaction.specimen.update({
+        where: { id },
+        data: {
+          public_display_allowed: dto.publicDisplay,
+          updated_by: actingCuratorAccountId,
+          updated_at: new Date(),
+        },
+      });
+
+      const changes: RevisionChange[] = [
+        {
+          fieldChanged: 'public_display_allowed',
+          oldValue: existing.public_display_allowed,
+          newValue: dto.publicDisplay,
+        },
+      ];
+      await this.recordRevisions(
+        transaction,
+        id,
+        actingCuratorAccountId,
+        changes,
+      );
+      await this.recordAudit(transaction, {
+        userId: actingCuratorAccountId,
+        specimenId: id,
+        action: 'SET_SPECIMEN_PUBLIC_DISPLAY',
+        details: { publicDisplay: dto.publicDisplay },
+      });
+
+      return this.toEntity(updated);
+    });
+  }
+
+  private async findOneOrThrow(id: string): Promise<specimen> {
+    const item = await this.prisma.specimen.findUnique({ where: { id } });
+    this.assertExists(item, id);
+    return item;
+  }
+
+  private assertExists(
+    item: specimen | null,
+    id: string,
+  ): asserts item is specimen {
+    if (!item) {
+      throw new NotFoundException(`Specimen ${id} not found`);
+    }
+  }
+
+  private assertEditable(item: specimen): void {
+    if (item.status === 'ARCHIVED' || item.archived_at) {
+      throw new BadRequestException('Archived specimens cannot be changed.');
+    }
+  }
+
+  private async assertCollectionExists(
+    transaction: Prisma.TransactionClient,
+    collectionId: string,
+  ): Promise<void> {
+    const collection = await transaction.collection.findUnique({
+      where: { id: collectionId },
+      select: { id: true },
+    });
+    if (!collection) {
+      throw new NotFoundException(`Collection ${collectionId} not found`);
+    }
+  }
+
+  private async recordRevisions(
+    transaction: Prisma.TransactionClient,
+    specimenId: string,
+    changedBy: string,
+    changes: RevisionChange[],
+  ): Promise<void> {
+    await transaction.specimen_revision_history.createMany({
+      data: changes.map((change) => ({
+        specimen_id: specimenId,
+        changed_by: changedBy,
+        field_changed: change.fieldChanged,
+        old_value: this.historyValue(change.oldValue),
+        new_value: this.historyValue(change.newValue),
+        source_section: 'specimen_core',
+      })),
+    });
+  }
+
+  private async recordAudit(
+    transaction: Prisma.TransactionClient,
+    params: {
+      userId: string;
+      specimenId: string;
+      action: string;
+      details: Prisma.InputJsonValue;
+    },
+  ): Promise<void> {
+    await transaction.audit_log.create({
+      data: {
+        user_id: params.userId,
+        affected_record_id: params.specimenId,
+        affected_record_type: 'specimen',
+        action: params.action,
+        module: 'specimens',
+        details: params.details,
+        status: 'SUCCESS',
+      },
+    });
+  }
+
+  private historyValue(value: string | boolean | null): string | null {
+    if (value === null) return null;
+    return typeof value === 'boolean' ? String(value) : value;
+  }
+
+  private toEntity(item: specimen): Specimen {
+    return {
+      id: item.id,
+      collectionId: item.collection_id,
+      accessionNumber: item.accession_number,
+      specimenCategory: item.specimen_category,
+      scientificName: item.scientific_name,
+      commonName: item.common_name,
+      gender: item.gender as SpecimenGender | null,
+      classificationStatus: item.classification_status,
+      status: item.status as SpecimenStatus,
+      publicDisplay: item.public_display_allowed,
+      remarks: item.remarks,
+      createdBy: item.created_by,
+      updatedBy: item.updated_by,
+      archivedBy: item.archived_by,
+      archivedAt: item.archived_at,
+      createdAt: item.created_at,
+      updatedAt: item.updated_at,
+    };
   }
 }
