@@ -85,3 +85,6 @@ This document records the conventions agreed upon for the BioSphere database. Th
 See [`docs/PRISMA_SCHEMA_GUIDE.md`](docs/PRISMA_SCHEMA_GUIDE.md) for the current
 schema inventory, generated-client import rules, naming contract, safe commands,
 migration workflow, and pull-request checklist.
+
+See [`docs/STORAGE_LOCATIONS_GUIDE.md`](docs/STORAGE_LOCATIONS_GUIDE.md) for the
+storage-unit field mapping, hierarchy, movement-history, and archive rules.

@@ -11,8 +11,8 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
-import { CurrentUser } from './decorators/current-user.decorator';
 import type { AuthenticatedUser } from '../auth/types/auth.types';
 import { DeveloperService } from './developer.service';
 import { OnboardCuratorDto } from './dto/onboard-curator.dto';

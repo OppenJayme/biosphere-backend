@@ -2,14 +2,13 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsBoolean,
-  IsEnum,
   IsInt,
   IsNotEmpty,
   IsOptional,
   IsString,
+  IsUUID,
   Min,
 } from 'class-validator';
-import { StorageUnitType } from '../entities/storage-unit.entity';
 
 export class CreateStorageUnitDto {
   @ApiProperty({ example: 'Cabinet A-3' })
@@ -17,15 +16,33 @@ export class CreateStorageUnitDto {
   @IsNotEmpty()
   label!: string;
 
-  @ApiProperty({ enum: StorageUnitType })
-  @IsEnum(StorageUnitType)
-  type!: StorageUnitType;
+  @ApiProperty({
+    example: 'CABINET',
+    description: 'Curator-managed structural classification',
+  })
+  @IsString()
+  @IsNotEmpty()
+  unitType!: string;
+
+  @ApiProperty({
+    example: 'DRY_STORAGE',
+    description: 'Curator-managed storage classification',
+  })
+  @IsString()
+  @IsNotEmpty()
+  storageType!: string;
+
+  @ApiPropertyOptional({ example: '120 cm x 60 cm x 200 cm' })
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  size?: string;
 
   @ApiPropertyOptional({
     description: 'Parent storage unit id, omit for a top-level room/gallery',
   })
   @IsOptional()
-  @IsString()
+  @IsUUID()
   parentId?: string;
 
   @ApiPropertyOptional({ default: false })
