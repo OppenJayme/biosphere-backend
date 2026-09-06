@@ -1,4 +1,10 @@
-import { IsIn, IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
+import {
+  IsIn,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  MaxLength,
+} from 'class-validator';
 import type { AccountStatus } from '@prisma/client';
 
 export class UpdateCuratorStatusDto {

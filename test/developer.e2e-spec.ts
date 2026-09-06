@@ -117,15 +117,23 @@ describe('Developer module (e2e)', () => {
 
   afterAll(async () => {
     await prisma.arAsset.deleteMany({ where: { exhibitId: fixtureExhibitId } });
-    await prisma.exhibit.delete({ where: { id: fixtureExhibitId } }).catch(() => undefined);
-    await prisma.specimen.delete({ where: { id: fixtureSpecimenId } }).catch(() => undefined);
-    await prisma.collection.delete({ where: { id: fixtureCollectionId } }).catch(() => undefined);
+    await prisma.exhibit
+      .delete({ where: { id: fixtureExhibitId } })
+      .catch(() => undefined);
+    await prisma.specimen
+      .delete({ where: { id: fixtureSpecimenId } })
+      .catch(() => undefined);
+    await prisma.collection
+      .delete({ where: { id: fixtureCollectionId } })
+      .catch(() => undefined);
     await prisma.$disconnect();
   });
 
   describe('role-based access control (REQ-4.2-01/08)', () => {
     it('rejects requests with no token', () => {
-      return request(app.getHttpServer()).get('/developer/curators').expect(401);
+      return request(app.getHttpServer())
+        .get('/developer/curators')
+        .expect(401);
     });
 
     it('blocks a curator from every developer route', async () => {

@@ -34,7 +34,9 @@ describe('DeveloperController', () => {
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [DeveloperController],
-      providers: [{ provide: DeveloperService, useValue: developerServiceMock }],
+      providers: [
+        { provide: DeveloperService, useValue: developerServiceMock },
+      ],
     }).compile();
 
     controller = module.get<DeveloperController>(DeveloperController);
@@ -55,7 +57,9 @@ describe('DeveloperController', () => {
 
   it('onboardInitialCurator passes the DTO and acting user id', async () => {
     const dto = { email: 'new@example.com', fullName: 'New Curator' };
-    developerServiceMock.onboardInitialCurator.mockResolvedValue({ id: 'account-1' });
+    developerServiceMock.onboardInitialCurator.mockResolvedValue({
+      id: 'account-1',
+    });
 
     const result = await controller.onboardInitialCurator(dto, currentUser);
 
@@ -70,7 +74,11 @@ describe('DeveloperController', () => {
     const dto = { status: 'INACTIVE' as const, authorizationReason: 'test' };
     developerServiceMock.updateCuratorStatus.mockResolvedValue({ id: 'cur-1' });
 
-    const result = await controller.updateCuratorStatus('cur-1', dto, currentUser);
+    const result = await controller.updateCuratorStatus(
+      'cur-1',
+      dto,
+      currentUser,
+    );
 
     expect(developerServiceMock.updateCuratorStatus).toHaveBeenCalledWith(
       'cur-1',
@@ -115,7 +123,10 @@ describe('DeveloperController', () => {
   });
 
   it('activateArAsset calls setArAssetEnabled(id, true, userId)', async () => {
-    developerServiceMock.setArAssetEnabled.mockResolvedValue({ id: 'asset-1', isEnabled: true });
+    developerServiceMock.setArAssetEnabled.mockResolvedValue({
+      id: 'asset-1',
+      isEnabled: true,
+    });
 
     const result = await controller.activateArAsset('asset-1', currentUser);
 
@@ -128,7 +139,10 @@ describe('DeveloperController', () => {
   });
 
   it('deactivateArAsset calls setArAssetEnabled(id, false, userId)', async () => {
-    developerServiceMock.setArAssetEnabled.mockResolvedValue({ id: 'asset-1', isEnabled: false });
+    developerServiceMock.setArAssetEnabled.mockResolvedValue({
+      id: 'asset-1',
+      isEnabled: false,
+    });
 
     const result = await controller.deactivateArAsset('asset-1', currentUser);
 
@@ -141,7 +155,10 @@ describe('DeveloperController', () => {
   });
 
   it('removeArAsset delegates to the service', async () => {
-    developerServiceMock.removeArAsset.mockResolvedValue({ id: 'asset-1', removed: true });
+    developerServiceMock.removeArAsset.mockResolvedValue({
+      id: 'asset-1',
+      removed: true,
+    });
 
     const result = await controller.removeArAsset('asset-1', currentUser);
 

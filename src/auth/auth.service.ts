@@ -33,18 +33,17 @@ export class AuthService {
   }
 
   async inviteUser(email: string, role: UserRole) {
-    const { data, error } = await this.supabase.auth.admin.inviteUserByEmail(email);
+    const { data, error } =
+      await this.supabase.auth.admin.inviteUserByEmail(email);
 
     if (error || !data?.user) {
       throw error ?? new Error('Invite failed: No User Returned');
     }
 
-    const { data: updated, error: updateError } = await this.supabase.auth.admin.updateUserById(
-      data.user.id,
-      {
+    const { data: updated, error: updateError } =
+      await this.supabase.auth.admin.updateUserById(data.user.id, {
         app_metadata: { role },
-      }
-    );
+      });
 
     if (updateError) {
       throw updateError;

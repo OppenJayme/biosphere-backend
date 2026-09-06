@@ -1,17 +1,36 @@
-import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, InternalServerErrorException, Logger, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  Inject,
+  Injectable,
+  InternalServerErrorException,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { Prisma, type ar_asset, type user_account } from '../generated/prisma/client';
+import {
+  Prisma,
+  type ar_asset,
+  type user_account,
+} from '../generated/prisma/client';
 import { extname } from 'node:path';
 import { SUPABASE_CLIENT } from '../supabase/supabase-client.provider';
 import { StorageService } from '../supabase/storage.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { OnboardCuratorDto } from './dto/onboard-curator.dto';
 import { UpdateCuratorStatusDto } from './dto/update-curator-status.dto';
-import { CreateArAssetDto, type ArModelFormat, } from './dto/create-ar-asset.dto';
+import {
+  CreateArAssetDto,
+  type ArModelFormat,
+} from './dto/create-ar-asset.dto';
 import { UpdateArAssetDto } from './dto/update-ar-asset.dto';
 import { CuratorAccountEntity } from './entities/curator-account.entity';
 import { ArAssetEntity } from './entities/ar-asset.entity';
-import { AR_ASSET_STORAGE_BUCKET, MAX_AR_ASSET_SIZE_BYTES } from './developer.constants';
+import {
+  AR_ASSET_STORAGE_BUCKET,
+  MAX_AR_ASSET_SIZE_BYTES,
+} from './developer.constants';
 
 type AuditStatus = 'SUCCESS' | 'FAILED' | 'DENIED';
 
@@ -451,9 +470,7 @@ export class DeveloperService {
       );
     }
 
-    const extension = extname(file.originalname)
-      .toLowerCase()
-      .replace('.', '');
+    const extension = extname(file.originalname).toLowerCase().replace('.', '');
 
     if (extension !== modelFormat) {
       throw new BadRequestException(
