@@ -122,7 +122,7 @@ describe('DeveloperService', () => {
 
       expect(prismaMock.user_account.findMany).toHaveBeenCalledWith({
         where: { role: 'CURATOR' },
-        orderBy: { createdAt: 'desc' },
+        orderBy: { created_at: 'desc' },
       });
       expect(result).toEqual([
          {
@@ -356,7 +356,7 @@ describe('DeveloperService', () => {
     });
 
     it('throws BadRequestException when the exhibit is archived', async () => {
-      prismaMock.exhibit.findUnique.mockResolvedValue({ id: 'exhibit-1', archivedAt: new Date() });
+      prismaMock.exhibit.findUnique.mockResolvedValue({ id: 'exhibit-1', archived_at: new Date() });
 
       await expect(
         service.createArAsset(fakeFile(), dto, ACTING_DEVELOPER_AUTH_ID),
@@ -482,7 +482,7 @@ describe('DeveloperService', () => {
 
     it('toggles isEnabled only, without touching storage', async () => {
       prismaMock.ar_asset.findUnique.mockResolvedValue(existingRow);
-      prismaMock.ar_asset.update.mockResolvedValue({ ...existingRow, isEnabled: true });
+      prismaMock.ar_asset.update.mockResolvedValue({ ...existingRow, is_enabled: true });
 
       const result = await service.updateArAsset(
         'asset-1',
@@ -493,7 +493,7 @@ describe('DeveloperService', () => {
 
       expect(prismaMock.ar_asset.update).toHaveBeenCalledWith({
         where: { id: 'asset-1' },
-        data: { isEnabled: true },
+        data: { is_enabled: true },
       });
       expect(storageServiceMock.upload).not.toHaveBeenCalled();
       expect(result.isEnabled).toBe(true);
@@ -502,7 +502,7 @@ describe('DeveloperService', () => {
     it('replaces the file, updates model_url/model_format, and removes the old file', async () => {
       prismaMock.ar_asset.findUnique.mockResolvedValue(existingRow);
       storageServiceMock.upload.mockResolvedValue('exhibit-1/new-path.glb');
-      const updatedRow = { ...existingRow, modelUrl: 'exhibit-1/new-path.glb' };
+      const updatedRow = { ...existingRow, storage_path: 'exhibit-1/new-path.glb' };
       prismaMock.ar_asset.update.mockResolvedValue(updatedRow);
 
       const result = await service.updateArAsset(
@@ -526,7 +526,7 @@ describe('DeveloperService', () => {
       );
     });
 
-    it('does not remove the old file if the DB update fails', async () => {
+    it('does not remove the old file if the DB update fails', async ()=> {
       prismaMock.ar_asset.findUnique.mockResolvedValue(existingRow);
       storageServiceMock.upload.mockResolvedValue('exhibit-1/new-path.glb');
       prismaMock.ar_asset.update.mockRejectedValue(new Error('update failed'));
@@ -567,7 +567,7 @@ describe('DeveloperService', () => {
 
     it('activates and audits ACTIVATE_AR_ASSET', async () => {
       prismaMock.ar_asset.findUnique.mockResolvedValue({ id: 'asset-1' });
-      prismaMock.ar_asset.update.mockResolvedValue({ id: 'asset-1', isEnabled: true });
+      prismaMock.ar_asset.update.mockResolvedValue({ id: 'asset-1', is_enabled: true });
 
       const result = await service.setArAssetEnabled('asset-1', true, ACTING_DEVELOPER_AUTH_ID);
 
@@ -627,7 +627,7 @@ describe('DeveloperService', () => {
     it('deletes the row, removes the storage object, and audits SUCCESS', async () => {
       prismaMock.ar_asset.findUnique.mockResolvedValue({
         id: 'asset-1',
-        modelUrl: 'exhibit-1/some-path.glb',
+        storage_path: 'exhibit-1/some-path.glb',
       });
       prismaMock.ar_asset.delete.mockResolvedValue({});
 
@@ -667,7 +667,7 @@ describe('DeveloperService', () => {
   describe('audit logging failures never mask the primary result', () => {
     it('still returns the updated asset even if audit_log insert fails', async () => {
       prismaMock.ar_asset.findUnique.mockResolvedValue({ id: 'asset-1' });
-      prismaMock.ar_asset.update.mockResolvedValue({ id: 'asset-1', isEnabled: true });
+      prismaMock.ar_asset.update.mockResolvedValue({ id: 'asset-1', is_enabled: true });
       prismaMock.audit_log.create.mockRejectedValue(new Error('audit table unreachable'));
 
       const result = await service.setArAssetEnabled('asset-1', true, ACTING_DEVELOPER_AUTH_ID);

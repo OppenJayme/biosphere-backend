@@ -1,33 +1,17 @@
-import {
-  BadRequestException,
-  ConflictException,
-  ForbiddenException,
-  Inject,
-  Injectable,
-  InternalServerErrorException,
-  Logger,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, InternalServerErrorException, Logger, NotFoundException } from '@nestjs/common';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { Prisma, type ar_asset, type user_account } from '../generated/prisma/client';
-import { randomUUID } from 'node:crypto';
 import { extname } from 'node:path';
 import { SUPABASE_CLIENT } from '../supabase/supabase-client.provider';
 import { StorageService } from '../supabase/storage.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { OnboardCuratorDto } from './dto/onboard-curator.dto';
 import { UpdateCuratorStatusDto } from './dto/update-curator-status.dto';
-import {
-  CreateArAssetDto,
-  type ArModelFormat,
-} from './dto/create-ar-asset.dto';
+import { CreateArAssetDto, type ArModelFormat, } from './dto/create-ar-asset.dto';
 import { UpdateArAssetDto } from './dto/update-ar-asset.dto';
 import { CuratorAccountEntity } from './entities/curator-account.entity';
 import { ArAssetEntity } from './entities/ar-asset.entity';
-import {
-  AR_ASSET_STORAGE_BUCKET,
-  MAX_AR_ASSET_SIZE_BYTES,
-} from './developer.constants';
+import { AR_ASSET_STORAGE_BUCKET, MAX_AR_ASSET_SIZE_BYTES } from './developer.constants';
 
 type AuditStatus = 'SUCCESS' | 'FAILED' | 'DENIED';
 
@@ -54,18 +38,6 @@ export class DeveloperService {
     return rows.map((row) => this.toCuratorAccountEntity(row));
   }
 
-  /**
-   * REQ-4.2-02: provisions a curator account through the approved
-   * onboarding procedure and sends a secure password-setup invitation.
-   * REQ-4.1-17: never sends a current/temporary password — the Supabase
-   * invite flow is what lets the curator set their own password.
-   *
-   * Two Supabase Admin API calls are needed because inviteUserByEmail's
-   * options only accept `data` (-> user_metadata, client-editable) and
-   * `redirectTo` — there is no way to set app_metadata (the server-trusted
-   * claim SupabaseAuthGuard reads the role from) in that same call. The
-   * role is set separately via updateUserById right after the invite.
-   */
   async onboardInitialCurator(
     dto: OnboardCuratorDto,
     actingDeveloperId: string,
@@ -76,7 +48,7 @@ export class DeveloperService {
 
     if (error || !data?.user) {
       await this.recordAudit({
-        actingUserId: actingDeveloperId,
+        actingAuthUserId: actingDeveloperId,
         action: 'ONBOARD_CURATOR',
         affectedRecordType: 'user_account',
         status: 'FAILED',
@@ -94,7 +66,7 @@ export class DeveloperService {
 
     if (metadataError) {
       await this.recordAudit({
-        actingUserId: actingDeveloperId,
+        actingAuthUserId: actingDeveloperId,
         action: 'ONBOARD_CURATOR',
         affectedRecordType: 'user_account',
         status: 'FAILED',
@@ -118,17 +90,13 @@ export class DeveloperService {
         },
       });
     } catch (insertError) {
-      // The Supabase auth invite already succeeded at this point. There is
-      // no single transaction spanning auth.users + public.user_account, so
-      // this is logged loudly rather than silently retried — an operator
-      // needs to reconcile the orphaned auth invite manually.
       this.logger.error(
         `Auth invite sent to ${dto.email} but the user_account record ` +
           'could not be created — manual reconciliation required.',
         insertError instanceof Error ? insertError.stack : insertError,
       );
       await this.recordAudit({
-        actingUserId: actingDeveloperId,
+        actingAuthUserId: actingDeveloperId,
         action: 'ONBOARD_CURATOR',
         affectedRecordType: 'user_account',
         status: 'FAILED',
@@ -141,7 +109,7 @@ export class DeveloperService {
     }
 
     await this.recordAudit({
-      actingUserId: actingDeveloperId,
+      actingAuthUserId: actingDeveloperId,
       action: 'ONBOARD_CURATOR',
       affectedRecordId: accountRow.id,
       affectedRecordType: 'user_account',
@@ -152,11 +120,6 @@ export class DeveloperService {
     return this.toCuratorAccountEntity(accountRow);
   }
 
-  /**
-   * REQ-4.2-03: activate/deactivate a curator account only under formal
-   * authorization. Also enforces that a Developer may not touch another
-   * Developer account through this restricted path — only curator accounts.
-   */
   async updateCuratorStatus(
     id: string,
     dto: UpdateCuratorStatusDto,
@@ -172,7 +135,7 @@ export class DeveloperService {
 
     if (existing.role !== 'CURATOR') {
       await this.recordAudit({
-        actingUserId: actingDeveloperId,
+        actingAuthUserId: actingDeveloperId,
         action: 'UPDATE_CURATOR_STATUS',
         affectedRecordId: id,
         affectedRecordType: 'user_account',
@@ -193,7 +156,7 @@ export class DeveloperService {
       });
     } catch (error) {
       await this.recordAudit({
-        actingUserId: actingDeveloperId,
+        actingAuthUserId: actingDeveloperId,
         action: 'UPDATE_CURATOR_STATUS',
         affectedRecordId: id,
         affectedRecordType: 'user_account',
@@ -206,7 +169,7 @@ export class DeveloperService {
     }
 
     await this.recordAudit({
-      actingUserId: actingDeveloperId,
+      actingAuthUserId: actingDeveloperId,
       action: 'UPDATE_CURATOR_STATUS',
       affectedRecordId: id,
       affectedRecordType: 'user_account',
@@ -232,11 +195,9 @@ export class DeveloperService {
     await this.assertExhibitExists(dto.exhibitId);
     this.validateArAssetFile(file, dto.modelFormat);
 
-    const storagePath = `${dto.exhibitId}/${randomUUID()}.${dto.modelFormat}`;
-
-    await this.storageService.upload(
+    const storagePath = await this.storageService.upload(
       AR_ASSET_STORAGE_BUCKET,
-      storagePath,
+      dto.exhibitId,
       file.buffer,
       file.mimetype,
     );
@@ -253,14 +214,12 @@ export class DeveloperService {
         },
       });
     } catch (error) {
-      // Best-effort cleanup so we don't leak an orphaned file if the DB
-      // insert failed after the upload succeeded.
       await this.storageService
         .remove(AR_ASSET_STORAGE_BUCKET, storagePath)
         .catch(() => undefined);
 
       await this.recordAudit({
-        actingUserId: actingDeveloperId,
+        actingAuthUserId: actingDeveloperId,
         action: 'CREATE_AR_ASSET',
         affectedRecordType: 'ar_asset',
         status: 'FAILED',
@@ -272,7 +231,7 @@ export class DeveloperService {
     }
 
     await this.recordAudit({
-      actingUserId: actingDeveloperId,
+      actingAuthUserId: actingDeveloperId,
       action: 'CREATE_AR_ASSET',
       affectedRecordId: created.id,
       affectedRecordType: 'ar_asset',
@@ -300,14 +259,13 @@ export class DeveloperService {
 
     if (file) {
       const targetFormat: ArModelFormat =
-        dto.modelFormat ?? (existing.modelFormat as ArModelFormat);
+        dto.modelFormat ?? (existing.model_format as ArModelFormat);
       this.validateArAssetFile(file, targetFormat);
 
-      const exhibitId = dto.exhibitId ?? existing.exhibitId;
-      const storagePath = `${exhibitId}/${randomUUID()}.${targetFormat}`;
-      await this.storageService.upload(
+      const exhibitId = dto.exhibitId ?? existing.exhibit_id;
+      const storagePath = await this.storageService.upload(
         AR_ASSET_STORAGE_BUCKET,
-        storagePath,
+        exhibitId,
         file.buffer,
         file.mimetype,
       );
@@ -340,7 +298,7 @@ export class DeveloperService {
       });
     } catch (error) {
       await this.recordAudit({
-        actingUserId: actingDeveloperId,
+        actingAuthUserId: actingDeveloperId,
         action: 'UPDATE_AR_ASSET',
         affectedRecordId: id,
         affectedRecordType: 'ar_asset',
@@ -357,7 +315,7 @@ export class DeveloperService {
     }
 
     await this.recordAudit({
-      actingUserId: actingDeveloperId,
+      actingAuthUserId: actingDeveloperId,
       action: 'UPDATE_AR_ASSET',
       affectedRecordId: id,
       affectedRecordType: 'ar_asset',
@@ -384,11 +342,11 @@ export class DeveloperService {
     try {
       updated = await this.prisma.ar_asset.update({
         where: { id },
-        data: { isEnabled },
+        data: { is_enabled: isEnabled },
       });
     } catch (error) {
       await this.recordAudit({
-        actingUserId: actingDeveloperId,
+        actingAuthUserId: actingDeveloperId,
         action: isEnabled ? 'ACTIVATE_AR_ASSET' : 'DEACTIVATE_AR_ASSET',
         affectedRecordId: id,
         affectedRecordType: 'ar_asset',
@@ -401,7 +359,7 @@ export class DeveloperService {
     }
 
     await this.recordAudit({
-      actingUserId: actingDeveloperId,
+      actingAuthUserId: actingDeveloperId,
       action: isEnabled ? 'ACTIVATE_AR_ASSET' : 'DEACTIVATE_AR_ASSET',
       affectedRecordId: id,
       affectedRecordType: 'ar_asset',
@@ -421,7 +379,7 @@ export class DeveloperService {
       await this.prisma.ar_asset.delete({ where: { id } });
     } catch (error) {
       await this.recordAudit({
-        actingUserId: actingDeveloperId,
+        actingAuthUserId: actingDeveloperId,
         action: 'REMOVE_AR_ASSET',
         affectedRecordId: id,
         affectedRecordType: 'ar_asset',
@@ -432,11 +390,11 @@ export class DeveloperService {
     }
 
     await this.storageService
-      .remove(AR_ASSET_STORAGE_BUCKET, existing.modelUrl)
+      .remove(AR_ASSET_STORAGE_BUCKET, existing.storage_path)
       .catch(() => undefined);
 
     await this.recordAudit({
-      actingUserId: actingDeveloperId,
+      actingAuthUserId: actingDeveloperId,
       action: 'REMOVE_AR_ASSET',
       affectedRecordId: id,
       affectedRecordType: 'ar_asset',
@@ -450,7 +408,7 @@ export class DeveloperService {
   // Helpers
   // ===========================================================
 
-  private async findArAssetOrThrow(id: string): Promise<ArAssetEntity> {
+  private async findArAssetOrThrow(id: string): Promise<ar_asset> {
     const asset = await this.prisma.ar_asset.findUnique({ where: { id } });
 
     if (!asset) {
@@ -460,22 +418,17 @@ export class DeveloperService {
     return asset;
   }
 
-  /**
-   * Read-only existence/eligibility check. The Developer module never
-   * writes to `exhibit` — REQ-4.2-06/07 keep exhibit content management
-   * inside the curator-facing exhibits module.
-   */
   private async assertExhibitExists(exhibitId: string): Promise<void> {
     const exhibit = await this.prisma.exhibit.findUnique({
       where: { id: exhibitId },
-      select: { id: true, archivedAt: true },
+      select: { id: true, archived_at: true },
     });
 
     if (!exhibit) {
       throw new NotFoundException(`No exhibit found with id "${exhibitId}".`);
     }
 
-    if (exhibit.archivedAt) {
+    if (exhibit.archived_at) {
       throw new BadRequestException(
         'AR assets cannot be deployed to an archived exhibit.',
       );
@@ -516,8 +469,6 @@ export class DeveloperService {
     return error instanceof Error ? error.message : 'Unknown error';
   }
 
-  // 
-
   private toCuratorAccountEntity(row: user_account): CuratorAccountEntity {
     return {
       id: row.id,
@@ -541,21 +492,8 @@ export class DeveloperService {
     };
   }
 
-  /**
-   * REQ-4.2-09: "The system shall audit all developer account and AR
-   * deployment actions." A failure to write the audit row is logged loudly
-   * but never allowed to mask the outcome of the primary operation, which
-   * has already been decided by the time this is called.
-   *
-   * `details` is spread in conditionally rather than passed as
-   * `params.details ?? Prisma.JsonNull` — the newer Prisma client's
-   * `NullableJsonNullValueInput` type doesn't accept `Prisma.JsonNull`
-   * directly in this generator's typings, and there's no need for an
-   * explicit SQL NULL anyway: omitting an optional Json field entirely
-   * already stores NULL.
-   */
   private async recordAudit(params: {
-    actingUserId: string;
+    actingAuthUserId: string;
     action: string;
     affectedRecordId?: string;
     affectedRecordType?: string;
@@ -563,11 +501,24 @@ export class DeveloperService {
     status: AuditStatus;
   }): Promise<void> {
     try {
+      const actingAccount = await this.prisma.user_account.findUnique({
+        where: { auth_user_id: params.actingAuthUserId },
+        select: { id: true },
+      });
+
+      if (!actingAccount) {
+        this.logger.error(
+          `No user_account found for auth user "${params.actingAuthUserId}" ` +
+            `— skipping audit log for action "${params.action}".`,
+        );
+        return;
+      }
+
       await this.prisma.audit_log.create({
         data: {
-          userId: params.actingUserId,
-          affectedRecordId: params.affectedRecordId,
-          affectedRecordType: params.affectedRecordType,
+          user_id: actingAccount.id,
+          affected_record_id: params.affectedRecordId,
+          affected_record_type: params.affectedRecordType,
           action: params.action,
           module: 'developer',
           status: params.status,
