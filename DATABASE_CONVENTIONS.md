@@ -88,3 +88,6 @@ migration workflow, and pull-request checklist.
 
 See [`docs/STORAGE_LOCATIONS_GUIDE.md`](docs/STORAGE_LOCATIONS_GUIDE.md) for the
 storage-unit field mapping, hierarchy, movement-history, and archive rules.
+
+See [`docs/SPECIMEN_CORE_GUIDE.md`](docs/SPECIMEN_CORE_GUIDE.md) for the
+specimen-core API mapping, lifecycle boundaries, history, and archive rules.

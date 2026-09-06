@@ -12,7 +12,7 @@ import { InquiriesModule } from './inquiries/inquiries.module';
 import { VisitRequestsModule } from './visit-requests/visit-requests.module';
 import { AuthModule } from './auth/auth.module';
 import { PrismaModule } from './prisma/prisma.module';
-//import { SpecimensModule } from './specimens/specimens.module';
+import { SpecimensModule } from './specimens/specimens.module';
 import { StorageLocationsModule } from './storage-locations/storage-locations.module';
 import { DeveloperModule } from './developer/developer.module';
 
@@ -31,6 +31,7 @@ import { DeveloperModule } from './developer/developer.module';
     VisitRequestsModule,
     DeveloperModule,
     StorageLocationsModule,
+    SpecimensModule,
   ],
   controllers: [AppController],
   providers: [
