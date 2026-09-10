@@ -108,7 +108,6 @@ export class DeveloperService {
           status: 'ACTIVE',
         },
       });
-      accountRow = this.toCuratorAccountEntity(account);
     } catch (insertError) {
       this.logger.error(
         `Auth invite sent to ${dto.email} but the user_account record ` +
@@ -174,7 +173,6 @@ export class DeveloperService {
         where: { id },
         data: { status: dto.status },
       });
-      updated = this.toCuratorAccountEntity(account);
     } catch (error) {
       await this.recordAudit({
         actingAuthUserId: actingDeveloperId,
@@ -234,7 +232,6 @@ export class DeveloperService {
           is_enabled: dto.isEnabled ?? false,
         },
       });
-      created = this.toArAssetEntity(asset);
     } catch (error) {
       await this.storageService
         .remove(AR_ASSET_STORAGE_BUCKET, storagePath)
@@ -278,7 +275,6 @@ export class DeveloperService {
 
     const updateData: Prisma.ar_assetUncheckedUpdateInput = {};
     let previousStoragePath: string | null = null;
-    let uploadedStoragePath: string | null = null;
 
     if (file) {
       const targetFormat: ArModelFormat =
@@ -297,7 +293,9 @@ export class DeveloperService {
       updateData.storage_path = storagePath;
       updateData.model_format = targetFormat;
     } else if (dto.modelFormat) {
-      updateData.model_format = dto.modelFormat;
+      throw new BadRequestException(
+        'modelFormat can only change when a replacement file is uploaded.',
+      );
     }
 
     if (dto.exhibitId) {
@@ -319,11 +317,10 @@ export class DeveloperService {
         where: { id },
         data: updateData,
       });
-      updated = this.toArAssetEntity(asset);
     } catch (error) {
-      if (uploadedStoragePath) {
+      if (file) {
         await this.storageService
-          .remove(AR_ASSET_STORAGE_BUCKET, uploadedStoragePath)
+          .remove(AR_ASSET_STORAGE_BUCKET, updateData.storage_path as string)
           .catch(() => undefined);
       }
       await this.recordAudit({
@@ -373,7 +370,6 @@ export class DeveloperService {
         where: { id },
         data: { is_enabled: isEnabled },
       });
-      updated = this.toArAssetEntity(asset);
     } catch (error) {
       await this.recordAudit({
         actingAuthUserId: actingDeveloperId,
@@ -445,7 +441,7 @@ export class DeveloperService {
       throw new NotFoundException(`No AR asset found with id "${id}".`);
     }
 
-    return this.toArAssetEntity(asset);
+    return asset;
   }
 
   private async assertExhibitExists(exhibitId: string): Promise<void> {

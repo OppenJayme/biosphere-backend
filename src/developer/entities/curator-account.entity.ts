@@ -8,8 +8,8 @@ export class CuratorAccountEntity {
   id!: string;
   authUserId!: string;
   fullName!: string;
-  role!: user_role;
-  status!: account_status;
+  role!: UserRole;
+  status!: AccountStatus;
   avatarPath?: string | null;
   createdAt!: Date;
   updatedAt!: Date;

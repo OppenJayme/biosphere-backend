@@ -249,10 +249,6 @@ describe('DeveloperService', () => {
             action: 'ONBOARD_CURATOR',
             status: 'FAILED',
           }),
-          data: expect.objectContaining({
-            action: 'ONBOARD_CURATOR',
-            status: 'FAILED',
-          }),
         }),
       );
     });
@@ -262,10 +258,6 @@ describe('DeveloperService', () => {
   // updateCuratorStatus — REQ-4.2-03
   // ===========================================================
   describe('updateCuratorStatus', () => {
-    const dto = {
-      status: 'INACTIVE' as const,
-      authorizationReason: 'formally authorized',
-    };
     const dto = {
       status: 'INACTIVE' as const,
       authorizationReason: 'formally authorized',
@@ -623,7 +615,7 @@ describe('DeveloperService', () => {
       );
     });
 
-    it('does not remove the old file if the DB update fails', async () => {
+    it('removes the new file but preserves the old file if the DB update fails', async () => {
       prismaMock.ar_asset.findUnique.mockResolvedValue(existingRow);
       storageServiceMock.upload.mockResolvedValue('exhibit-1/new-path.glb');
       prismaMock.ar_asset.update.mockRejectedValue(new Error('update failed'));
@@ -637,7 +629,14 @@ describe('DeveloperService', () => {
         ),
       ).rejects.toThrow(InternalServerErrorException);
 
-      expect(storageServiceMock.remove).not.toHaveBeenCalled();
+      expect(storageServiceMock.remove).toHaveBeenCalledWith(
+        'ar-assets',
+        'exhibit-1/new-path.glb',
+      );
+      expect(storageServiceMock.remove).not.toHaveBeenCalledWith(
+        'ar-assets',
+        'exhibit-1/old-path.glb',
+      );
     });
 
     it('throws NotFoundException when reassigned to a non-existent exhibit', async () => {
