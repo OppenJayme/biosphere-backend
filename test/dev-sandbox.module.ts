@@ -1,8 +1,9 @@
 // Auth Tester
-import { Module } from '@nestjs/common';
-import { TestController } from './dev-sandbox.controller';
+import { Module } from "@nestjs/common";
+import { TestController } from "./test.controller";
 
 @Module({
-  controllers: [TestController],
+    controllers: [TestController],
 })
+
 export class TestModule {}
