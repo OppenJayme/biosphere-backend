@@ -2,47 +2,81 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { App } from 'supertest/types';
-import { createClient } from '@supabase/supabase-js';
 import { AppModule } from './../src/app.module';
-import * as dotenv from 'dotenv';
-dotenv.config();
+import { PrismaService } from './../src/prisma/prisma.service';
+import { SUPABASE_CLIENT } from './../src/supabase/supabase.constants';
+import { TestModule } from './dev-sandbox.module';
 
 describe('Role-based access control (e2e)', () => {
+  const curatorToken = 'curator-test-token';
+  const developerToken = 'developer-test-token';
+  const inactiveToken = 'inactive-test-token';
+  const unprovisionedToken = 'unprovisioned-test-token';
+
   let app: INestApplication<App>;
-  let curatorToken: string;
-  let developerToken: string;
-
-  beforeAll(async () => {
-    // Separate client using the ANON key — this is a real user login,
-    // not an admin action, so service-role is not appropriate here.
-    const supabase = createClient(
-      process.env.SUPABASE_URL!,
-      process.env.SUPABASE_ANON_KEY!,
-    );
-
-    const curatorLogin = await supabase.auth.signInWithPassword({
-      email: process.env.TEST_CURATOR_EMAIL!,
-      password: process.env.TEST_CURATOR_PASSWORD!,
-    });
-    curatorToken = curatorLogin.data.session?.access_token ?? '';
-
-    const developerLogin = await supabase.auth.signInWithPassword({
-      email: process.env.TEST_DEVELOPER_EMAIL!,
-      password: process.env.TEST_DEVELOPER_PASSWORD!,
-    });
-    developerToken = developerLogin.data.session?.access_token ?? '';
-
-    if (!curatorToken || !developerToken) {
-      throw new Error(
-        'Failed to obtain test tokens — check that TEST_CURATOR_* / TEST_DEVELOPER_* accounts exist in Supabase',
-      );
-    }
-  });
 
   beforeEach(async () => {
+    const getUser = jest.fn((token: string) => {
+      if (
+        token === curatorToken ||
+        token === developerToken ||
+        token === inactiveToken ||
+        token === unprovisionedToken
+      ) {
+        const authUserId = token.replace('-test-token', '-user-id');
+
+        return {
+          data: {
+            user: {
+              id: authUserId,
+              email: `${token.replace('-test-token', '')}@example.com`,
+              // Deliberately incorrect: authorization must use the role in
+              // public.user_account, not potentially stale token metadata.
+              app_metadata: { role: 'CURATOR' },
+            },
+          },
+          error: null,
+        };
+      }
+
+      return {
+        data: { user: null },
+        error: { message: 'Invalid token' },
+      };
+    });
+
+    const findUnique = jest.fn(
+      ({ where }: { where: { auth_user_id: string } }) => {
+        const accounts = {
+          'curator-user-id': {
+            id: 'curator-account-id',
+            role: 'CURATOR',
+            status: 'ACTIVE',
+          },
+          'developer-user-id': {
+            id: 'developer-account-id',
+            role: 'DEVELOPER',
+            status: 'ACTIVE',
+          },
+          'inactive-user-id': {
+            id: 'inactive-account-id',
+            role: 'CURATOR',
+            status: 'INACTIVE',
+          },
+        } as const;
+
+        return accounts[where.auth_user_id as keyof typeof accounts] ?? null;
+      },
+    );
+
     const moduleFixture: TestingModule = await Test.createTestingModule({
-      imports: [AppModule],
-    }).compile();
+      imports: [AppModule, TestModule],
+    })
+      .overrideProvider(PrismaService)
+      .useValue({ user_account: { findUnique } })
+      .overrideProvider(SUPABASE_CLIENT)
+      .useValue({ auth: { getUser } })
+      .compile();
 
     app = moduleFixture.createNestApplication();
     await app.init();
@@ -93,5 +127,21 @@ describe('Role-based access control (e2e)', () => {
       .post('/test/curator-table')
       .send({ note: 'e2e test' })
       .expect(401);
+  });
+
+  it('rejects an inactive BioSphere account', () => {
+    return request(app.getHttpServer())
+      .post('/test/curator-table')
+      .set('Authorization', `Bearer ${inactiveToken}`)
+      .send({ note: 'e2e test' })
+      .expect(403);
+  });
+
+  it('rejects a Supabase user without a BioSphere account', () => {
+    return request(app.getHttpServer())
+      .post('/test/curator-table')
+      .set('Authorization', `Bearer ${unprovisionedToken}`)
+      .send({ note: 'e2e test' })
+      .expect(403);
   });
 });
