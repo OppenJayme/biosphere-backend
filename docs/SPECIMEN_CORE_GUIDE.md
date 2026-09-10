@@ -32,7 +32,8 @@ are intentionally outside this core slice. Their fields must not be flattened
 into the `specimen` table or accepted by this API before their dedicated
 modules are implemented. Taxonomy and provenance are implemented as their own
 nested resources; see `docs/SPECIMEN_TAXONOMY_GUIDE.md` and
-`docs/SPECIMEN_PROVENANCE_GUIDE.md`.
+`docs/SPECIMEN_PROVENANCE_GUIDE.md`. Specimen lots and calculated quantity are
+implemented separately; see `docs/SPECIMEN_LOTS_GUIDE.md`.
 
 ## Status boundary
 
