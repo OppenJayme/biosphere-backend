@@ -30,8 +30,9 @@ tables through Prisma. It does not introduce or alter database structures.
 Taxonomy, provenance, lots, media, tags, bulk import, and duplicate detection
 are intentionally outside this core slice. Their fields must not be flattened
 into the `specimen` table or accepted by this API before their dedicated
-modules are implemented. Taxonomy is implemented as its own nested resource;
-see `docs/SPECIMEN_TAXONOMY_GUIDE.md`.
+modules are implemented. Taxonomy and provenance are implemented as their own
+nested resources; see `docs/SPECIMEN_TAXONOMY_GUIDE.md` and
+`docs/SPECIMEN_PROVENANCE_GUIDE.md`.
 
 ## Status boundary
 
