@@ -1,16 +1,6 @@
 // src/storage-locations/entities/storage-unit.entity.ts
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
-export enum StorageUnitType {
-  ROOM = 'ROOM',
-  CABINET = 'CABINET',
-  DRAWER = 'DRAWER',
-  SHELF = 'SHELF',
-  BOX = 'BOX',
-  VIAL = 'VIAL',
-  OTHER = 'OTHER',
-}
-
 export class StorageUnit {
   @ApiProperty()
   id!: string;
@@ -18,8 +8,14 @@ export class StorageUnit {
   @ApiProperty()
   label!: string;
 
-  @ApiProperty({ enum: StorageUnitType })
-  type!: StorageUnitType;
+  @ApiProperty()
+  unitType!: string;
+
+  @ApiProperty()
+  storageType!: string;
+
+  @ApiPropertyOptional()
+  size!: string | null;
 
   @ApiPropertyOptional({ description: 'Null for a top-level room/gallery' })
   parentId?: string | null;
@@ -28,11 +24,14 @@ export class StorageUnit {
   holdsSpecimens!: boolean;
 
   @ApiPropertyOptional()
-  capacity?: number;
+  capacity!: number | null;
 
   @ApiPropertyOptional()
-  archivedAt?: Date | null;
+  archivedAt!: Date | null;
 
   @ApiProperty()
   createdAt!: Date;
+
+  @ApiProperty()
+  updatedAt!: Date;
 }

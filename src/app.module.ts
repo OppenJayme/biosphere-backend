@@ -12,8 +12,8 @@ import { InquiriesModule } from './inquiries/inquiries.module';
 import { VisitRequestsModule } from './visit-requests/visit-requests.module';
 import { AuthModule } from './auth/auth.module';
 import { PrismaModule } from './prisma/prisma.module';
-//import { SpecimensModule } from './specimens/specimens.module';
-//import { StorageLocationsModule } from './storage-locations/storage-locations.module';
+import { SpecimensModule } from './specimens/specimens.module';
+import { StorageLocationsModule } from './storage-locations/storage-locations.module';
 import { DeveloperModule } from './developer/developer.module';
 
 @Module({
@@ -22,7 +22,6 @@ import { DeveloperModule } from './developer/developer.module';
     SupabaseModule,
     PrismaModule,
     AuthModule,
-    PrismaModule,
     // TestModule,
     // NFR-SEC-15: rate limit public forms. Defaults to 10 req/min per IP,
     // applied globally for now — narrow this to just the public POST
@@ -31,6 +30,8 @@ import { DeveloperModule } from './developer/developer.module';
     InquiriesModule,
     VisitRequestsModule,
     DeveloperModule,
+    StorageLocationsModule,
+    SpecimensModule,
   ],
   controllers: [AppController],
   providers: [

@@ -1,9 +1,11 @@
+/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access -- Supertest response bodies are typed as any. */
 import { INestApplication } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import request from 'supertest';
 import { App } from 'supertest/types';
-import { createClient } from '@supabase/supabase-js';
-import { PrismaClient } from '@prisma/client';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { PrismaPg } from '@prisma/adapter-pg';
+import { PrismaClient } from '../src/generated/prisma/client';
 import { randomUUID } from 'node:crypto';
 import * as dotenv from 'dotenv';
 import { AppModule } from './../src/app.module';
@@ -21,12 +23,19 @@ dotenv.config();
 // chain, plus any onboarded curator account) is torn down in afterAll.
 // -----------------------------------------------------------------------
 
-describe('Developer module (e2e)', () => {
+const describeLiveDeveloperE2e =
+  process.env.RUN_LIVE_DEVELOPER_E2E === 'true' ? describe : describe.skip;
+const VALID_GLB_HEADER = Buffer.from([
+  0x67, 0x6c, 0x54, 0x46, 0x02, 0x00, 0x00, 0x00, 0x0c, 0x00, 0x00, 0x00,
+]);
+
+describeLiveDeveloperE2e('Developer module (live e2e)', () => {
   let app: INestApplication<App>;
   let curatorToken: string;
   let developerToken: string;
+  let supabaseAdmin: SupabaseClient;
 
-  const prisma = new PrismaClient();
+  let prisma: PrismaClient;
 
   let fixtureCuratorAccountId: string;
   let fixtureCollectionId: string;
@@ -34,10 +43,28 @@ describe('Developer module (e2e)', () => {
   let fixtureExhibitId: string;
 
   beforeAll(async () => {
-    const supabase = createClient(
-      process.env.SUPABASE_URL!,
-      process.env.SUPABASE_ANON_KEY!,
-    );
+    const connectionString = process.env.DATABASE_URL;
+    const supabaseUrl = process.env.SUPABASE_URL;
+    const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
+    const supabaseSecretKey = process.env.SUPABASE_SECRET_KEY;
+    if (
+      !connectionString ||
+      !supabaseUrl ||
+      !supabaseAnonKey ||
+      !supabaseSecretKey
+    ) {
+      throw new Error(
+        'DATABASE_URL, SUPABASE_URL, SUPABASE_ANON_KEY, and ' +
+          'SUPABASE_SECRET_KEY are required when RUN_LIVE_DEVELOPER_E2E=true.',
+      );
+    }
+
+    prisma = new PrismaClient({
+      adapter: new PrismaPg({ connectionString }),
+    });
+
+    const supabase = createClient(supabaseUrl, supabaseAnonKey);
+    supabaseAdmin = createClient(supabaseUrl, supabaseSecretKey);
 
     const curatorLogin = await supabase.auth.signInWithPassword({
       email: process.env.TEST_CURATOR_EMAIL!,
@@ -59,8 +86,8 @@ describe('Developer module (e2e)', () => {
       );
     }
 
-    const curatorAccount = await prisma.userAccount.findUnique({
-      where: { authUserId: curatorAuthUserId },
+    const curatorAccount = await prisma.user_account.findUnique({
+      where: { auth_user_id: curatorAuthUserId },
     });
 
     if (!curatorAccount) {
@@ -75,27 +102,27 @@ describe('Developer module (e2e)', () => {
     // real exhibit to attach to. Nothing about this fixture is exercised
     // by the Developer module itself — it only reads exhibit.archived_at.
     const collection = await prisma.collection.create({
-      data: { collectionName: `E2E Developer Suite ${randomUUID()}` },
+      data: { collection_name: `E2E Developer Suite ${randomUUID()}` },
     });
     fixtureCollectionId = collection.id;
 
     const specimen = await prisma.specimen.create({
       data: {
-        collectionId: fixtureCollectionId,
-        createdById: fixtureCuratorAccountId,
-        scientificName: 'Testus fixturus',
-        commonName: 'E2E fixture specimen',
+        collection_id: fixtureCollectionId,
+        created_by: fixtureCuratorAccountId,
+        scientific_name: 'Testus fixturus',
+        common_name: 'E2E fixture specimen',
         status: 'CATALOGED',
-        publicDisplayAllowed: true,
+        public_display_allowed: true,
       },
     });
     fixtureSpecimenId = specimen.id;
 
     const exhibit = await prisma.exhibit.create({
       data: {
-        specimenId: fixtureSpecimenId,
-        createdById: fixtureCuratorAccountId,
-        publicSlug: `e2e-developer-${randomUUID()}`,
+        specimen_id: fixtureSpecimenId,
+        created_by: fixtureCuratorAccountId,
+        public_slug: `e2e-developer-${randomUUID()}`,
         status: 'UNPUBLISHED',
       },
     });
@@ -153,7 +180,7 @@ describe('Developer module (e2e)', () => {
         .set('Authorization', `Bearer ${curatorToken}`)
         .field('exhibitId', fixtureExhibitId)
         .field('modelFormat', 'glb')
-        .attach('file', Buffer.from('fake glb bytes'), 'model.glb')
+        .attach('file', VALID_GLB_HEADER, 'model.glb')
         .expect(403);
     });
 
@@ -168,11 +195,17 @@ describe('Developer module (e2e)', () => {
   describe('curator account administration (REQ-4.2-02/03)', () => {
     const testEmail = `e2e-onboard-${randomUUID()}@example.com`;
     let onboardedAccountId: string;
+    let onboardedAuthUserId: string;
 
     afterAll(async () => {
       if (onboardedAccountId) {
-        await prisma.userAccount
+        await prisma.user_account
           .delete({ where: { id: onboardedAccountId } })
+          .catch(() => undefined);
+      }
+      if (onboardedAuthUserId) {
+        await supabaseAdmin.auth.admin
+          .deleteUser(onboardedAuthUserId)
           .catch(() => undefined);
       }
     });
@@ -198,6 +231,7 @@ describe('Developer module (e2e)', () => {
         status: 'ACTIVE',
       });
       onboardedAccountId = res.body.id;
+      onboardedAuthUserId = res.body.authUserId;
     });
 
     it('404s when changing status on an unknown account id', () => {
@@ -209,7 +243,7 @@ describe('Developer module (e2e)', () => {
     });
 
     it('403s when attempting to change a Developer account status', async () => {
-      const developerAccount = await prisma.userAccount.findFirst({
+      const developerAccount = await prisma.user_account.findFirst({
         where: { role: 'DEVELOPER' },
       });
       if (!developerAccount) {
@@ -253,7 +287,7 @@ describe('Developer module (e2e)', () => {
         .set('Authorization', `Bearer ${developerToken}`)
         .field('exhibitId', randomUUID())
         .field('modelFormat', 'glb')
-        .attach('file', Buffer.from('fake glb bytes'), 'model.glb')
+        .attach('file', VALID_GLB_HEADER, 'model.glb')
         .expect(404);
     });
 
@@ -273,7 +307,7 @@ describe('Developer module (e2e)', () => {
         .set('Authorization', `Bearer ${developerToken}`)
         .field('exhibitId', fixtureExhibitId)
         .field('modelFormat', 'glb')
-        .attach('file', Buffer.from('fake glb bytes'), 'model.glb')
+        .attach('file', VALID_GLB_HEADER, 'model.glb')
         .expect(201);
 
       expect(res.body).toMatchObject({

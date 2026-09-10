@@ -127,6 +127,7 @@ describe('DeveloperService', () => {
       expect(prismaMock.user_account.findMany).toHaveBeenCalledWith({
         where: { role: 'CURATOR' },
         orderBy: { created_at: 'desc' },
+        orderBy: { created_at: 'desc' },
       });
       expect(result).toEqual([
         {
@@ -248,6 +249,10 @@ describe('DeveloperService', () => {
             action: 'ONBOARD_CURATOR',
             status: 'FAILED',
           }),
+          data: expect.objectContaining({
+            action: 'ONBOARD_CURATOR',
+            status: 'FAILED',
+          }),
         }),
       );
     });
@@ -257,6 +262,10 @@ describe('DeveloperService', () => {
   // updateCuratorStatus — REQ-4.2-03
   // ===========================================================
   describe('updateCuratorStatus', () => {
+    const dto = {
+      status: 'INACTIVE' as const,
+      authorizationReason: 'formally authorized',
+    };
     const dto = {
       status: 'INACTIVE' as const,
       authorizationReason: 'formally authorized',

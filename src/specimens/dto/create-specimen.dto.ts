@@ -1,97 +1,71 @@
-// src/specimens/dto/create-specimen.dto.ts
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsOptional, IsString } from 'class-validator';
+import {
+  IsEnum,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  IsUUID,
+  MaxLength,
+} from 'class-validator';
+import { SpecimenGender } from '../entities/specimen.entity';
 
 export class CreateSpecimenDto {
   @ApiPropertyOptional({
-    description: 'Left null if not yet assigned (REQ-4.4-03)',
+    description: 'Existing collection UUID, or null while unassigned',
+    nullable: true,
+  })
+  @IsOptional()
+  @IsUUID()
+  collectionId?: string | null;
+
+  @ApiPropertyOptional({
+    description: 'Nullable until assigned or confirmed (REQ-4.4-03)',
+    nullable: true,
   })
   @IsOptional()
   @IsString()
+  @IsNotEmpty()
+  @MaxLength(100)
   accessionNumber?: string | null;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ nullable: true })
   @IsOptional()
   @IsString()
-  scientificName?: string;
+  @IsNotEmpty()
+  @MaxLength(100)
+  specimenCategory?: string | null;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ nullable: true })
   @IsOptional()
   @IsString()
-  commonName?: string;
+  @IsNotEmpty()
+  @MaxLength(255)
+  scientificName?: string | null;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ nullable: true })
   @IsOptional()
   @IsString()
-  kingdom?: string;
+  @IsNotEmpty()
+  @MaxLength(255)
+  commonName?: string | null;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ enum: SpecimenGender, nullable: true })
   @IsOptional()
-  @IsString()
-  phylum?: string;
+  @IsEnum(SpecimenGender)
+  gender?: SpecimenGender | null;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({
+    description: 'Curator-entered or curator-approved classification status',
+    nullable: true,
+  })
   @IsOptional()
   @IsString()
-  class?: string;
+  @IsNotEmpty()
+  classificationStatus?: string | null;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ nullable: true })
   @IsOptional()
   @IsString()
-  order?: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  family?: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  genus?: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  species?: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  habitat?: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  conservationStatus?: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  ecologicalRole?: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  collector?: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  donor?: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  collectionDate?: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  collectionLocation?: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  notes?: string;
+  @IsNotEmpty()
+  remarks?: string | null;
 }
