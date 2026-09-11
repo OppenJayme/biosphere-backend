@@ -31,6 +31,7 @@ export class AuthService {
 
     return {
       access_token: data.session.access_token,
+      refresh_token: data.session.refresh_token,
       user,
     };
   }

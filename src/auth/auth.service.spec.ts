@@ -50,7 +50,10 @@ describe('AuthService', () => {
   it('returns the active BioSphere account id and database role on login', async () => {
     supabaseMock.auth.signInWithPassword.mockResolvedValue({
       data: {
-        session: { access_token: 'access-token' },
+        session: {
+          access_token: 'access-token',
+          refresh_token: 'refresh-token',
+        },
         user: authUser,
       },
       error: null,
@@ -65,6 +68,7 @@ describe('AuthService', () => {
       service.login('curator@example.com', 'password'),
     ).resolves.toEqual({
       access_token: 'access-token',
+      refresh_token: 'refresh-token',
       user: {
         id: 'auth-user-1',
         accountId: 'account-1',
