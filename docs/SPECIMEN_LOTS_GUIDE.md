@@ -107,6 +107,40 @@ total and cannot be invoked as untracked direct quantity edits. The frozen
 `SPLIT` and `MERGE` transaction values remain available if the museum later
 approves separate standalone split/merge commands with their own semantics.
 
+## Quantity-adjustment workflow
+
+Authorized quantity changes use a dedicated command and never expose a direct
+quantity edit. The request supplies a frozen `adjustmentType`, a signed
+`quantityDelta`, the curator's `expectedQuantity`, and a required reason:
+
+- `ADDITION` requires a positive delta.
+- `REMOVAL`, `TRANSFER_OUT`, `DEACCESSION`, `MISSING_LOSS`, and `DESTRUCTION`
+  require a negative delta.
+- `DATA_CORRECTION` accepts either sign because a verified count can correct
+  inventory upward or downward.
+- Positive adjustments require the lot's current storage unit to remain active
+  and configured to hold specimens. Reductions remain possible so inventory
+  can be removed safely from a location that was later reconfigured.
+- `expectedQuantity` must match the current active lot quantity. A stale screen
+  or replayed request receives `409 Conflict` and must reload before the
+  curator decides whether to try again.
+- A zero delta, overdraw, PostgreSQL integer overflow, archived specimen, or
+  inactive lot is rejected.
+- Reducing the complete active quantity marks the lot inactive. Its stored
+  quantity remains unchanged as historical state, while the response reports
+  a resulting active quantity of zero.
+
+Every accepted change records a `QUANTITY_ADJUSTMENT` transaction. The
+transaction keeps `quantity_affected` positive and uses source/target lot IDs
+to express direction: increases reference the target lot; decreases reference
+the source lot. The lot mutation, transaction, specimen revision, parent
+attribution, and audit event are atomic and use the same serializable retry and
+stale-write protections as movements.
+
+`TRANSFER_OUT` only means that specimens physically leave the USC Biological
+Museum collection. Internal storage relocation must use the movement endpoint
+and cannot change the total quantity.
+
 ## Retrieval
 
 - Active lot listing uses stable creation order.
@@ -125,12 +159,11 @@ approves separate standalone split/merge commands with their own semantics.
 - `GET /specimens/:specimenId/lots/:lotId/transactions?page=1&limit=50`
 - `POST /specimens/:specimenId/lots/:lotId/movements`
 - `POST /specimens/:specimenId/lots/:lotId/condition-changes`
+- `POST /specimens/:specimenId/lots/:lotId/quantity-adjustments`
 - `PATCH /specimens/:specimenId/lots/:lotId/notes`
 
-Quantity-changing additions, removals, transfers out, deaccessions,
-missing/loss events, destruction, and data corrections remain reserved for the
-separate authorized quantity-adjustment workflow. They must not be represented
-as internal storage movements or condition changes.
+Quantity adjustments must not be represented as internal storage movements or
+condition changes.
 
 Automatic catalog promotion remains deferred until the curator-approved
 completeness rules for core, taxonomy, provenance, and lots are frozen.

@@ -779,6 +779,428 @@ describe('SpecimenLotsService', () => {
     expect(result.targetLot.quantity).toBe(5);
   });
 
+  it('adds quantity with target-side history and complete audit attribution', async () => {
+    const existing = lotRecord({ quantity: 10 });
+    const updated = lotRecord({ quantity: 15 });
+    lotDelegate.findFirst
+      .mockResolvedValueOnce(existing)
+      .mockResolvedValueOnce(updated);
+    lotTransactionDelegate.create.mockResolvedValueOnce(
+      transactionRecord({
+        source_lot_id: null,
+        target_lot_id: LOT_ID,
+        quantity_affected: 5,
+        adjustment_type: 'ADDITION',
+        reason: 'Newly verified specimens',
+      }),
+    );
+
+    const result = await service.adjustQuantity(
+      SPECIMEN_ID,
+      LOT_ID,
+      {
+        adjustmentType: 'ADDITION',
+        quantityDelta: 5,
+        expectedQuantity: 10,
+        reason: 'Newly verified specimens',
+      },
+      ACCOUNT_ID,
+    );
+
+    expect(lotDelegate.updateMany).toHaveBeenCalledWith({
+      where: {
+        id: LOT_ID,
+        specimen_id: SPECIMEN_ID,
+        is_active: true,
+        quantity: 10,
+      },
+      data: {
+        quantity: 15,
+        updated_by: ACCOUNT_ID,
+        updated_at: expect.any(Date),
+      },
+    });
+    expect(lotTransactionDelegate.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        source_lot_id: null,
+        target_lot_id: LOT_ID,
+        transaction_type: 'QUANTITY_ADJUSTMENT',
+        quantity_affected: 5,
+        adjustment_type: 'ADDITION',
+        reason: 'Newly verified specimens',
+      }),
+    });
+    expect(revisionDelegate.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        field_changed: 'quantity',
+        old_value: '10',
+        new_value: '15',
+        reason: 'Newly verified specimens',
+      }),
+    });
+    expect(auditDelegate.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        action: 'ADJUST_SPECIMEN_LOT_QUANTITY',
+        details: expect.objectContaining({
+          quantityDelta: 5,
+          previousQuantity: 10,
+          resultingQuantity: 15,
+        }),
+      }),
+    });
+    expect(result).toEqual(
+      expect.objectContaining({
+        adjustmentType: 'ADDITION',
+        quantityDelta: 5,
+        previousQuantity: 10,
+        resultingQuantity: 15,
+        lotDeactivated: false,
+      }),
+    );
+    expect(storageUnitDelegate.findUnique).toHaveBeenCalledWith({
+      where: { id: STORAGE_UNIT_ID },
+      select: { id: true, holds_specimens: true, archived_at: true },
+    });
+  });
+
+  it('rejects increases in storage that no longer accepts specimens', async () => {
+    lotDelegate.findFirst.mockResolvedValueOnce(lotRecord({ quantity: 10 }));
+    storageUnitDelegate.findUnique.mockResolvedValueOnce({
+      id: STORAGE_UNIT_ID,
+      holds_specimens: false,
+      archived_at: null,
+    });
+
+    await expect(
+      service.adjustQuantity(
+        SPECIMEN_ID,
+        LOT_ID,
+        {
+          adjustmentType: 'ADDITION',
+          quantityDelta: 1,
+          expectedQuantity: 10,
+          reason: 'New specimens received',
+        },
+        ACCOUNT_ID,
+      ),
+    ).rejects.toThrow(BadRequestException);
+    expect(lotDelegate.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('rejects a stale expected quantity before applying an adjustment', async () => {
+    lotDelegate.findFirst.mockResolvedValueOnce(lotRecord({ quantity: 10 }));
+
+    await expect(
+      service.adjustQuantity(
+        SPECIMEN_ID,
+        LOT_ID,
+        {
+          adjustmentType: 'REMOVAL',
+          quantityDelta: -2,
+          expectedQuantity: 12,
+          reason: 'Remove duplicate records',
+        },
+        ACCOUNT_ID,
+      ),
+    ).rejects.toThrow(ConflictException);
+    expect(storageUnitDelegate.findUnique).not.toHaveBeenCalled();
+    expect(lotDelegate.updateMany).not.toHaveBeenCalled();
+    expect(lotTransactionDelegate.create).not.toHaveBeenCalled();
+  });
+
+  it('partially removes quantity with source-side history', async () => {
+    const existing = lotRecord({ quantity: 10 });
+    const updated = lotRecord({ quantity: 7 });
+    lotDelegate.findFirst
+      .mockResolvedValueOnce(existing)
+      .mockResolvedValueOnce(updated);
+    lotTransactionDelegate.create.mockResolvedValueOnce(
+      transactionRecord({
+        source_lot_id: LOT_ID,
+        target_lot_id: null,
+        quantity_affected: 3,
+        adjustment_type: 'REMOVAL',
+      }),
+    );
+
+    const result = await service.adjustQuantity(
+      SPECIMEN_ID,
+      LOT_ID,
+      {
+        adjustmentType: 'REMOVAL',
+        quantityDelta: -3,
+        expectedQuantity: 10,
+        reason: 'Duplicate count removed',
+      },
+      ACCOUNT_ID,
+    );
+
+    expect(lotDelegate.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ quantity: 7 }),
+      }),
+    );
+    expect(lotTransactionDelegate.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        source_lot_id: LOT_ID,
+        target_lot_id: null,
+        quantity_affected: 3,
+        adjustment_type: 'REMOVAL',
+      }),
+    });
+    expect(result.resultingQuantity).toBe(7);
+    expect(result.lotDeactivated).toBe(false);
+    expect(storageUnitDelegate.findUnique).not.toHaveBeenCalled();
+  });
+
+  it('deactivates a fully depleted lot while retaining its stored historical quantity', async () => {
+    const existing = lotRecord({ quantity: 10 });
+    const updated = lotRecord({ quantity: 10, is_active: false });
+    lotDelegate.findFirst
+      .mockResolvedValueOnce(existing)
+      .mockResolvedValueOnce(updated);
+    lotTransactionDelegate.create.mockResolvedValueOnce(
+      transactionRecord({
+        source_lot_id: LOT_ID,
+        target_lot_id: null,
+        quantity_affected: 10,
+        adjustment_type: 'DEACCESSION',
+      }),
+    );
+
+    const result = await service.adjustQuantity(
+      SPECIMEN_ID,
+      LOT_ID,
+      {
+        adjustmentType: 'DEACCESSION',
+        quantityDelta: -10,
+        expectedQuantity: 10,
+        reason: 'Approved deaccession',
+      },
+      ACCOUNT_ID,
+    );
+
+    expect(lotDelegate.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: {
+          is_active: false,
+          updated_by: ACCOUNT_ID,
+          updated_at: expect.any(Date),
+        },
+      }),
+    );
+    expect(result.resultingQuantity).toBe(0);
+    expect(result.lot.quantity).toBe(10);
+    expect(result.lot.isActive).toBe(false);
+    expect(result.lotDeactivated).toBe(true);
+  });
+
+  it('allows a verified data correction to adjust quantity downward', async () => {
+    const existing = lotRecord({ quantity: 10 });
+    const updated = lotRecord({ quantity: 8 });
+    lotDelegate.findFirst
+      .mockResolvedValueOnce(existing)
+      .mockResolvedValueOnce(updated);
+    lotTransactionDelegate.create.mockResolvedValueOnce(
+      transactionRecord({
+        source_lot_id: LOT_ID,
+        target_lot_id: null,
+        quantity_affected: 2,
+        adjustment_type: 'DATA_CORRECTION',
+        reason: 'Verified physical recount',
+      }),
+    );
+
+    const result = await service.adjustQuantity(
+      SPECIMEN_ID,
+      LOT_ID,
+      {
+        adjustmentType: 'DATA_CORRECTION',
+        quantityDelta: -2,
+        expectedQuantity: 10,
+        reason: 'Verified physical recount',
+      },
+      ACCOUNT_ID,
+    );
+
+    expect(lotTransactionDelegate.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        source_lot_id: LOT_ID,
+        target_lot_id: null,
+        quantity_affected: 2,
+        adjustment_type: 'DATA_CORRECTION',
+      }),
+    });
+    expect(result.resultingQuantity).toBe(8);
+  });
+
+  it('enforces adjustment direction, quantity bounds, and active-lot state', async () => {
+    await expect(
+      service.adjustQuantity(
+        SPECIMEN_ID,
+        LOT_ID,
+        {
+          adjustmentType: 'ADDITION',
+          quantityDelta: -1,
+          expectedQuantity: 10,
+          reason: 'Invalid direction',
+        },
+        ACCOUNT_ID,
+      ),
+    ).rejects.toThrow(BadRequestException);
+    await expect(
+      service.adjustQuantity(
+        SPECIMEN_ID,
+        LOT_ID,
+        {
+          adjustmentType: 'DESTRUCTION',
+          quantityDelta: 1,
+          expectedQuantity: 10,
+          reason: 'Invalid direction',
+        },
+        ACCOUNT_ID,
+      ),
+    ).rejects.toThrow(BadRequestException);
+
+    lotDelegate.findFirst.mockResolvedValueOnce(lotRecord({ quantity: 2 }));
+    await expect(
+      service.adjustQuantity(
+        SPECIMEN_ID,
+        LOT_ID,
+        {
+          adjustmentType: 'MISSING_LOSS',
+          quantityDelta: -3,
+          expectedQuantity: 2,
+          reason: 'Inventory check',
+        },
+        ACCOUNT_ID,
+      ),
+    ).rejects.toThrow(BadRequestException);
+
+    lotDelegate.findFirst.mockResolvedValueOnce(
+      lotRecord({ quantity: 2_147_483_647 }),
+    );
+    await expect(
+      service.adjustQuantity(
+        SPECIMEN_ID,
+        LOT_ID,
+        {
+          adjustmentType: 'DATA_CORRECTION',
+          quantityDelta: 1,
+          expectedQuantity: 2_147_483_647,
+          reason: 'Correct verified count',
+        },
+        ACCOUNT_ID,
+      ),
+    ).rejects.toThrow(BadRequestException);
+
+    lotDelegate.findFirst.mockResolvedValueOnce(
+      lotRecord({ is_active: false }),
+    );
+    await expect(
+      service.adjustQuantity(
+        SPECIMEN_ID,
+        LOT_ID,
+        {
+          adjustmentType: 'DATA_CORRECTION',
+          quantityDelta: -1,
+          expectedQuantity: 10,
+          reason: 'Correct verified count',
+        },
+        ACCOUNT_ID,
+      ),
+    ).rejects.toThrow(BadRequestException);
+    expect(lotDelegate.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('rejects a stale concurrent quantity adjustment', async () => {
+    lotDelegate.findFirst.mockResolvedValueOnce(lotRecord({ quantity: 10 }));
+    lotDelegate.updateMany.mockResolvedValueOnce({ count: 0 });
+
+    await expect(
+      service.adjustQuantity(
+        SPECIMEN_ID,
+        LOT_ID,
+        {
+          adjustmentType: 'TRANSFER_OUT',
+          quantityDelta: -2,
+          expectedQuantity: 10,
+          reason: 'Approved external transfer',
+        },
+        ACCOUNT_ID,
+      ),
+    ).rejects.toThrow(ConflictException);
+    expect(lotTransactionDelegate.create).not.toHaveBeenCalled();
+  });
+
+  it('retries a serialization failure without duplicating an adjustment', async () => {
+    transactionMock
+      .mockRejectedValueOnce(
+        new Prisma.PrismaClientKnownRequestError('Write conflict', {
+          code: 'P2034',
+          clientVersion: '7.10.0',
+        }),
+      )
+      .mockImplementationOnce(
+        (callback: (transaction: typeof prismaMock) => unknown) =>
+          Promise.resolve(callback(prismaMock)),
+      );
+    lotDelegate.findFirst
+      .mockResolvedValueOnce(lotRecord({ quantity: 10 }))
+      .mockResolvedValueOnce(lotRecord({ quantity: 8 }));
+    lotTransactionDelegate.create.mockResolvedValueOnce(
+      transactionRecord({
+        source_lot_id: LOT_ID,
+        target_lot_id: null,
+        quantity_affected: 2,
+        adjustment_type: 'REMOVAL',
+      }),
+    );
+
+    await expect(
+      service.adjustQuantity(
+        SPECIMEN_ID,
+        LOT_ID,
+        {
+          adjustmentType: 'REMOVAL',
+          quantityDelta: -2,
+          expectedQuantity: 10,
+          reason: 'Verified duplicate count',
+        },
+        ACCOUNT_ID,
+      ),
+    ).resolves.toEqual(expect.objectContaining({ resultingQuantity: 8 }));
+    expect(transactionMock).toHaveBeenCalledTimes(2);
+    expect(lotDelegate.updateMany).toHaveBeenCalledTimes(1);
+    expect(lotTransactionDelegate.create).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns Conflict after the serializable retry limit is exhausted', async () => {
+    transactionMock.mockRejectedValue(
+      new Prisma.PrismaClientKnownRequestError('Write conflict', {
+        code: 'P2034',
+        clientVersion: '7.10.0',
+      }),
+    );
+
+    await expect(
+      service.adjustQuantity(
+        SPECIMEN_ID,
+        LOT_ID,
+        {
+          adjustmentType: 'REMOVAL',
+          quantityDelta: -2,
+          expectedQuantity: 10,
+          reason: 'Verified duplicate count',
+        },
+        ACCOUNT_ID,
+      ),
+    ).rejects.toThrow(ConflictException);
+    expect(transactionMock).toHaveBeenCalledTimes(3);
+    expect(lotDelegate.updateMany).not.toHaveBeenCalled();
+    expect(lotTransactionDelegate.create).not.toHaveBeenCalled();
+  });
+
   it('updates notes atomically without exposing quantity, condition, or location edits', async () => {
     lotDelegate.findFirst.mockResolvedValue(lotRecord());
     lotDelegate.update.mockResolvedValue(

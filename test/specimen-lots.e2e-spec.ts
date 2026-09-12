@@ -502,6 +502,217 @@ describe('Specimen lots (e2e)', () => {
     });
   });
 
+  it('validates controlled quantity-adjustment requests', async () => {
+    lotRecord = {
+      id: lotId,
+      specimen_id: specimenId,
+      storage_unit_id: storageUnitId,
+      condition_class: 'GOOD',
+      quantity: 10,
+      storage_notes: null,
+      is_active: true,
+      created_by: curatorAccountId,
+      updated_by: curatorAccountId,
+      created_at: testDate,
+      updated_at: testDate,
+    };
+
+    const endpoint = `/specimens/${specimenId}/lots/${lotId}/quantity-adjustments`;
+    await request(app.getHttpServer())
+      .post(endpoint)
+      .set('Authorization', `Bearer ${developerToken}`)
+      .send({
+        adjustmentType: 'REMOVAL',
+        quantityDelta: -1,
+        expectedQuantity: 10,
+        reason: 'Not authorized',
+      })
+      .expect(403);
+
+    await request(app.getHttpServer())
+      .post(endpoint)
+      .set('Authorization', `Bearer ${curatorToken}`)
+      .send({
+        adjustmentType: 'NOT_REAL',
+        quantityDelta: -1,
+        expectedQuantity: 10,
+        reason: 'Invalid type',
+      })
+      .expect(400);
+
+    await request(app.getHttpServer())
+      .post(endpoint)
+      .set('Authorization', `Bearer ${curatorToken}`)
+      .send({
+        adjustmentType: 'REMOVAL',
+        quantityDelta: -1,
+        reason: 'Missing optimistic quantity',
+      })
+      .expect(400);
+
+    await request(app.getHttpServer())
+      .post(endpoint)
+      .set('Authorization', `Bearer ${curatorToken}`)
+      .send({
+        adjustmentType: 'REMOVAL',
+        quantityDelta: '-1',
+        expectedQuantity: 10,
+        reason: 'String quantities are rejected',
+      })
+      .expect(400);
+
+    await request(app.getHttpServer())
+      .post(endpoint)
+      .set('Authorization', `Bearer ${curatorToken}`)
+      .send({
+        adjustmentType: 'REMOVAL',
+        quantityDelta: -1.5,
+        expectedQuantity: 10,
+        reason: 'Fractional quantities are rejected',
+      })
+      .expect(400);
+
+    await request(app.getHttpServer())
+      .post(endpoint)
+      .set('Authorization', `Bearer ${curatorToken}`)
+      .send({
+        adjustmentType: 'REMOVAL',
+        quantityDelta: 0,
+        expectedQuantity: 10,
+        reason: 'No change',
+      })
+      .expect(400);
+
+    await request(app.getHttpServer())
+      .post(endpoint)
+      .set('Authorization', `Bearer ${curatorToken}`)
+      .send({
+        adjustmentType: 'REMOVAL',
+        quantityDelta: -1,
+        expectedQuantity: 10,
+        reason: '   ',
+      })
+      .expect(400);
+
+    await request(app.getHttpServer())
+      .post(endpoint)
+      .set('Authorization', `Bearer ${curatorToken}`)
+      .send({
+        adjustmentType: 'ADDITION',
+        quantityDelta: 1,
+        expectedQuantity: 10,
+        reason: 'Verified addition',
+        directQuantityOverride: true,
+      })
+      .expect(400);
+
+    expect(lotDelegate.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('returns Conflict when the curator submits a stale lot quantity', async () => {
+    lotRecord = {
+      id: lotId,
+      specimen_id: specimenId,
+      storage_unit_id: storageUnitId,
+      condition_class: 'GOOD',
+      quantity: 10,
+      storage_notes: null,
+      is_active: true,
+      created_by: curatorAccountId,
+      updated_by: curatorAccountId,
+      created_at: testDate,
+      updated_at: testDate,
+    };
+
+    await request(app.getHttpServer())
+      .post(`/specimens/${specimenId}/lots/${lotId}/quantity-adjustments`)
+      .set('Authorization', `Bearer ${curatorToken}`)
+      .send({
+        adjustmentType: 'REMOVAL',
+        quantityDelta: -2,
+        expectedQuantity: 12,
+        reason: 'Stale screen adjustment',
+      })
+      .expect(409);
+
+    expect(lotDelegate.updateMany).not.toHaveBeenCalled();
+    expect(transactionDelegate.create).not.toHaveBeenCalled();
+  });
+
+  it('reduces quantity through the controlled endpoint with full history', async () => {
+    const existing = {
+      id: lotId,
+      specimen_id: specimenId,
+      storage_unit_id: storageUnitId,
+      condition_class: 'GOOD',
+      quantity: 10,
+      storage_notes: null,
+      is_active: true,
+      created_by: curatorAccountId,
+      updated_by: curatorAccountId,
+      created_at: testDate,
+      updated_at: testDate,
+    };
+    const updated = { ...existing, quantity: 8 };
+    lotRecord = existing;
+    lotDelegate.findFirst
+      .mockImplementationOnce(() => existing)
+      .mockImplementationOnce(() => updated);
+    transactionDelegate.create.mockImplementationOnce(() => ({
+      id: transactionId,
+      source_lot_id: lotId,
+      target_lot_id: null,
+      transaction_type: 'QUANTITY_ADJUSTMENT',
+      quantity_affected: 2,
+      adjustment_type: 'TRANSFER_OUT',
+      reason: 'Approved research transfer',
+      performed_by: curatorAccountId,
+      created_at: testDate,
+    }));
+
+    const response = await request(app.getHttpServer())
+      .post(`/specimens/${specimenId}/lots/${lotId}/quantity-adjustments`)
+      .set('Authorization', `Bearer ${curatorToken}`)
+      .send({
+        adjustmentType: 'TRANSFER_OUT',
+        quantityDelta: -2,
+        expectedQuantity: 10,
+        reason: ' Approved research transfer ',
+      })
+      .expect(201);
+
+    expect(response.body).toEqual(
+      expect.objectContaining({
+        adjustmentType: 'TRANSFER_OUT',
+        quantityDelta: -2,
+        previousQuantity: 10,
+        resultingQuantity: 8,
+        lot: expect.objectContaining({ id: lotId, quantity: 8 }),
+        transaction: expect.objectContaining({
+          sourceLotId: lotId,
+          targetLotId: null,
+          transactionType: 'QUANTITY_ADJUSTMENT',
+          quantityAffected: 2,
+          adjustmentType: 'TRANSFER_OUT',
+          reason: 'Approved research transfer',
+        }),
+        lotDeactivated: false,
+      }),
+    );
+    expect(revisionDelegate.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        field_changed: 'quantity',
+        old_value: '10',
+        new_value: '8',
+      }),
+    });
+    expect(auditDelegate.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        action: 'ADJUST_SPECIMEN_LOT_QUANTITY',
+      }),
+    });
+  });
+
   it('updates only notes and rejects direct quantity edits', async () => {
     lotRecord = {
       id: lotId,
