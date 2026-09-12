@@ -51,6 +51,7 @@ export class AuthService {
       email,
       {
         data: { role },
+        redirectTo: `${process.env.FRONTEND_URL}/login/accept-invite`,
       },
     );
 

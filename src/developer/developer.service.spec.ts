@@ -185,7 +185,10 @@ describe('DeveloperService', () => {
 
       expect(supabaseMock.auth.admin.inviteUserByEmail).toHaveBeenCalledWith(
         dto.email,
-        { data: { role: 'CURATOR' } },
+        {
+          data: { role: 'CURATOR' },
+          redirectTo: `${process.env.FRONTEND_URL}/login/accept-invite`,
+        },
       );
       expect(prismaMock.userAccount.create).toHaveBeenCalledWith({
         data: {
