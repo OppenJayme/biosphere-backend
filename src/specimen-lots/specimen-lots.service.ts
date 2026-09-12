@@ -11,9 +11,12 @@ import {
   type specimen_lot_transaction,
 } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { ChangeSpecimenLotConditionDto } from './dto/change-specimen-lot-condition.dto';
 import { CreateSpecimenLotDto } from './dto/create-specimen-lot.dto';
 import { ListLotTransactionsQueryDto } from './dto/list-lot-transactions-query.dto';
+import { MoveSpecimenLotDto } from './dto/move-specimen-lot.dto';
 import { UpdateSpecimenLotNotesDto } from './dto/update-specimen-lot-notes.dto';
+import { SpecimenLotOperationResult } from './entities/specimen-lot-operation-result.entity';
 import {
   LotTransactionType,
   QuantityAdjustmentType,
@@ -22,6 +25,24 @@ import {
 } from './entities/specimen-lot-transaction.entity';
 import { SpecimenLotSummary } from './entities/specimen-lot-summary.entity';
 import { SpecimenLot } from './entities/specimen-lot.entity';
+
+const POSTGRES_INTEGER_MAX = 2_147_483_647;
+const SERIALIZABLE_RETRY_LIMIT = 3;
+
+type LotDimensionOperation =
+  LotTransactionType.MOVEMENT | LotTransactionType.CONDITION_CHANGE;
+
+type LotDimensionChange = {
+  operation: LotDimensionOperation;
+  targetStorageUnitId: string;
+  targetConditionClass: string;
+  quantity: number;
+  reason?: string | null;
+  revisionField: 'storage_unit_id' | 'condition_class';
+  revisionOldValue: string;
+  revisionNewValue: string;
+  newLotStorageNotes: string | null;
+};
 
 @Injectable()
 export class SpecimenLotsService {
@@ -176,6 +197,104 @@ export class SpecimenLotsService {
     };
   }
 
+  async move(
+    specimenId: string,
+    lotId: string,
+    dto: MoveSpecimenLotDto,
+    actingCuratorAccountId: string,
+  ): Promise<SpecimenLotOperationResult> {
+    return this.runSerializableLotMutation(async (transaction) => {
+      const specimenRecord = await this.findSpecimenOrThrow(
+        transaction,
+        specimenId,
+      );
+      this.assertSpecimenEditable(specimenRecord);
+      const source = await this.findLotOrThrow(transaction, specimenId, lotId);
+      this.assertLotActive(source);
+
+      if (dto.targetStorageUnitId === source.storage_unit_id) {
+        throw new BadRequestException(
+          'The lot is already assigned to that storage unit.',
+        );
+      }
+
+      await this.assertAssignableStorageUnit(
+        transaction,
+        dto.targetStorageUnitId,
+      );
+
+      return this.applyDimensionChange(
+        transaction,
+        specimenId,
+        source,
+        {
+          operation: LotTransactionType.MOVEMENT,
+          targetStorageUnitId: dto.targetStorageUnitId,
+          targetConditionClass: source.condition_class,
+          quantity: dto.quantity,
+          reason: dto.reason,
+          revisionField: 'storage_unit_id',
+          revisionOldValue: source.storage_unit_id,
+          revisionNewValue: dto.targetStorageUnitId,
+          // Storage notes describe the old physical placement and should not
+          // silently follow a lot into a different storage unit.
+          newLotStorageNotes: null,
+        },
+        actingCuratorAccountId,
+      );
+    });
+  }
+
+  async changeCondition(
+    specimenId: string,
+    lotId: string,
+    dto: ChangeSpecimenLotConditionDto,
+    actingCuratorAccountId: string,
+  ): Promise<SpecimenLotOperationResult> {
+    return this.runSerializableLotMutation(async (transaction) => {
+      const specimenRecord = await this.findSpecimenOrThrow(
+        transaction,
+        specimenId,
+      );
+      this.assertSpecimenEditable(specimenRecord);
+      const source = await this.findLotOrThrow(transaction, specimenId, lotId);
+      this.assertLotActive(source);
+
+      if (dto.targetConditionClass === source.condition_class) {
+        throw new BadRequestException(
+          'The lot already has that condition classification.',
+        );
+      }
+
+      // A condition change can create a replacement lot at the same physical
+      // location, so that location must still be active and usable.
+      await this.assertAssignableStorageUnit(
+        transaction,
+        source.storage_unit_id,
+      );
+
+      return this.applyDimensionChange(
+        transaction,
+        specimenId,
+        source,
+        {
+          operation: LotTransactionType.CONDITION_CHANGE,
+          targetStorageUnitId: source.storage_unit_id,
+          targetConditionClass: dto.targetConditionClass,
+          quantity: dto.quantity,
+          reason: dto.reason,
+          revisionField: 'condition_class',
+          revisionOldValue: source.condition_class,
+          revisionNewValue: dto.targetConditionClass,
+          // The physical location is unchanged, so its storage notes remain
+          // meaningful when a new target lot is created.
+          newLotStorageNotes: source.storage_notes,
+        },
+        actingCuratorAccountId,
+      );
+    });
+  }
+
   async updateNotes(
     specimenId: string,
     lotId: string,
@@ -234,6 +353,196 @@ export class SpecimenLotsService {
 
       return this.toEntity(updated);
     });
+  }
+
+  private async applyDimensionChange(
+    transaction: Prisma.TransactionClient,
+    specimenId: string,
+    source: specimen_lot,
+    change: LotDimensionChange,
+    actingCuratorAccountId: string,
+  ): Promise<SpecimenLotOperationResult> {
+    if (change.quantity > source.quantity) {
+      throw new BadRequestException(
+        `Quantity ${change.quantity} exceeds the source lot quantity of ${source.quantity}.`,
+      );
+    }
+
+    const matchingTarget = await transaction.specimen_lot.findFirst({
+      where: {
+        specimen_id: specimenId,
+        storage_unit_id: change.targetStorageUnitId,
+        condition_class: change.targetConditionClass,
+        is_active: true,
+        id: { not: source.id },
+      },
+    });
+
+    if (
+      matchingTarget &&
+      matchingTarget.quantity > POSTGRES_INTEGER_MAX - change.quantity
+    ) {
+      throw new BadRequestException(
+        'This operation would exceed the maximum supported lot quantity.',
+      );
+    }
+
+    const changedAt = new Date();
+    const sourceDeactivated = change.quantity === source.quantity;
+    const sourceMutation = await transaction.specimen_lot.updateMany({
+      where: {
+        id: source.id,
+        specimen_id: specimenId,
+        is_active: true,
+        // Match the exact value read earlier so a concurrent quantity change
+        // can never be silently decremented from a stale snapshot.
+        quantity: source.quantity,
+      },
+      data: sourceDeactivated
+        ? {
+            is_active: false,
+            updated_by: actingCuratorAccountId,
+            updated_at: changedAt,
+          }
+        : {
+            quantity: { decrement: change.quantity },
+            updated_by: actingCuratorAccountId,
+            updated_at: changedAt,
+          },
+    });
+
+    if (sourceMutation.count !== 1) {
+      throw this.concurrentLotConflict();
+    }
+
+    let target: specimen_lot;
+    if (matchingTarget) {
+      const targetMutation = await transaction.specimen_lot.updateMany({
+        where: {
+          id: matchingTarget.id,
+          specimen_id: specimenId,
+          is_active: true,
+          quantity: { lte: POSTGRES_INTEGER_MAX - change.quantity },
+        },
+        data: {
+          quantity: { increment: change.quantity },
+          updated_by: actingCuratorAccountId,
+          updated_at: changedAt,
+        },
+      });
+      if (targetMutation.count !== 1) {
+        throw this.concurrentLotConflict();
+      }
+      target = await this.findLotOrThrow(
+        transaction,
+        specimenId,
+        matchingTarget.id,
+      );
+    } else {
+      target = await transaction.specimen_lot.create({
+        data: {
+          specimen_id: specimenId,
+          storage_unit_id: change.targetStorageUnitId,
+          condition_class: change.targetConditionClass,
+          quantity: change.quantity,
+          storage_notes: change.newLotStorageNotes,
+          is_active: true,
+          created_by: actingCuratorAccountId,
+          updated_by: actingCuratorAccountId,
+          created_at: changedAt,
+          updated_at: changedAt,
+        },
+      });
+    }
+
+    const sourceAfterChange = await this.findLotOrThrow(
+      transaction,
+      specimenId,
+      source.id,
+    );
+    const transactionRecord = await transaction.specimen_lot_transaction.create(
+      {
+        data: {
+          source_lot_id: source.id,
+          target_lot_id: target.id,
+          transaction_type: change.operation,
+          quantity_affected: change.quantity,
+          adjustment_type: null,
+          reason: change.reason,
+          performed_by: actingCuratorAccountId,
+          created_at: changedAt,
+        },
+      },
+    );
+
+    await this.touchSpecimen(
+      transaction,
+      specimenId,
+      actingCuratorAccountId,
+      changedAt,
+    );
+    await transaction.specimen_revision_history.create({
+      data: {
+        specimen_id: specimenId,
+        changed_by: actingCuratorAccountId,
+        field_changed: change.revisionField,
+        old_value: change.revisionOldValue,
+        new_value: change.revisionNewValue,
+        reason: change.reason,
+        changed_at: changedAt,
+        source_section: 'specimen_lot',
+      },
+    });
+    await this.recordAudit(transaction, {
+      userId: actingCuratorAccountId,
+      lotId: source.id,
+      action:
+        change.operation === LotTransactionType.MOVEMENT
+          ? 'MOVE_SPECIMEN_LOT'
+          : 'CHANGE_SPECIMEN_LOT_CONDITION',
+      details: {
+        specimenId,
+        sourceLotId: source.id,
+        targetLotId: target.id,
+        quantity: change.quantity,
+        fromStorageUnitId: source.storage_unit_id,
+        toStorageUnitId: change.targetStorageUnitId,
+        fromConditionClass: source.condition_class,
+        toConditionClass: change.targetConditionClass,
+        sourceDeactivated,
+        mergedIntoExistingTarget: Boolean(matchingTarget),
+      },
+    });
+
+    return {
+      operation: change.operation,
+      sourceLot: this.toEntity(sourceAfterChange),
+      targetLot: this.toEntity(target),
+      transaction: this.toTransactionEntity(transactionRecord),
+      sourceDeactivated,
+      mergedIntoExistingTarget: Boolean(matchingTarget),
+    };
+  }
+
+  private async runSerializableLotMutation<T>(
+    operation: (transaction: Prisma.TransactionClient) => Promise<T>,
+  ): Promise<T> {
+    for (let attempt = 1; attempt <= SERIALIZABLE_RETRY_LIMIT; attempt += 1) {
+      try {
+        return await this.prisma.$transaction(operation, {
+          isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+        });
+      } catch (error) {
+        if (!this.isRetryableTransactionError(error)) {
+          throw error;
+        }
+        if (attempt === SERIALIZABLE_RETRY_LIMIT) {
+          throw this.concurrentLotConflict();
+        }
+      }
+    }
+
+    throw this.concurrentLotConflict();
   }
 
   private async findSpecimenOrThrow(
@@ -313,6 +622,19 @@ export class SpecimenLotsService {
     return (
       error instanceof Prisma.PrismaClientKnownRequestError &&
       error.code === 'P2002'
+    );
+  }
+
+  private isRetryableTransactionError(error: unknown): boolean {
+    return (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      (error.code === 'P2002' || error.code === 'P2034')
+    );
+  }
+
+  private concurrentLotConflict(): ConflictException {
+    return new ConflictException(
+      'This specimen lot changed during the operation. Reload the current lots and try again.',
     );
   }
 
