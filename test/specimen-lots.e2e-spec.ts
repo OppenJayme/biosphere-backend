@@ -17,6 +17,8 @@ describe('Specimen lots (e2e)', () => {
   const storageUnitId = '55555555-5555-4555-8555-555555555555';
   const lotId = '66666666-6666-4666-8666-666666666666';
   const transactionId = '77777777-7777-4777-8777-777777777777';
+  const targetStorageUnitId = '99999999-9999-4999-8999-999999999999';
+  const targetLotId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
   const testDate = new Date('2026-01-01T00:00:00.000Z');
 
   let app: INestApplication<App>;
@@ -29,6 +31,7 @@ describe('Specimen lots (e2e)', () => {
     findFirst: jest.Mock;
     findMany: jest.Mock;
     update: jest.Mock;
+    updateMany: jest.Mock;
   };
   let transactionDelegate: {
     count: jest.Mock;
@@ -85,6 +88,7 @@ describe('Specimen lots (e2e)', () => {
         lotRecord = { ...lotRecord, ...data };
         return lotRecord;
       }),
+      updateMany: jest.fn(() => ({ count: 1 })),
     };
     transactionDelegate = {
       count: jest.fn(() => 1),
@@ -375,6 +379,126 @@ describe('Specimen lots (e2e)', () => {
       page: 1,
       limit: 25,
       total: 1,
+    });
+  });
+
+  it('validates movement and condition-change commands', async () => {
+    lotRecord = {
+      id: lotId,
+      specimen_id: specimenId,
+      storage_unit_id: storageUnitId,
+      condition_class: 'GOOD',
+      quantity: 10,
+      storage_notes: null,
+      is_active: true,
+      created_by: curatorAccountId,
+      updated_by: curatorAccountId,
+      created_at: testDate,
+      updated_at: testDate,
+    };
+
+    await request(app.getHttpServer())
+      .post(`/specimens/${specimenId}/lots/${lotId}/movements`)
+      .set('Authorization', `Bearer ${curatorToken}`)
+      .send({ targetStorageUnitId: 'not-a-uuid', quantity: 1 })
+      .expect(400);
+
+    await request(app.getHttpServer())
+      .post(`/specimens/${specimenId}/lots/${lotId}/movements`)
+      .set('Authorization', `Bearer ${curatorToken}`)
+      .send({ targetStorageUnitId, quantity: 0 })
+      .expect(400);
+
+    await request(app.getHttpServer())
+      .post(`/specimens/${specimenId}/lots/${lotId}/condition-changes`)
+      .set('Authorization', `Bearer ${curatorToken}`)
+      .send({ targetConditionClass: '   ', quantity: 1 })
+      .expect(400);
+
+    await request(app.getHttpServer())
+      .post(`/specimens/${specimenId}/lots/${lotId}/condition-changes`)
+      .set('Authorization', `Bearer ${curatorToken}`)
+      .send({
+        targetConditionClass: 'FAIR',
+        quantity: 1,
+        directQuantityOverride: true,
+      })
+      .expect(400);
+
+    expect(lotDelegate.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('moves part of a lot through the controlled curator endpoint', async () => {
+    const source = {
+      id: lotId,
+      specimen_id: specimenId,
+      storage_unit_id: storageUnitId,
+      condition_class: 'GOOD',
+      quantity: 10,
+      storage_notes: 'Old cabinet note',
+      is_active: true,
+      created_by: curatorAccountId,
+      updated_by: curatorAccountId,
+      created_at: testDate,
+      updated_at: testDate,
+    };
+    const sourceAfter = { ...source, quantity: 6 };
+    const target = {
+      ...source,
+      id: targetLotId,
+      storage_unit_id: targetStorageUnitId,
+      quantity: 4,
+      storage_notes: null,
+    };
+    lotRecord = source;
+    lotDelegate.findFirst
+      .mockImplementationOnce(() => source)
+      .mockImplementationOnce(() => null)
+      .mockImplementationOnce(() => sourceAfter);
+    lotDelegate.create.mockImplementationOnce(() => target);
+    transactionDelegate.create.mockImplementationOnce(() => ({
+      id: transactionId,
+      source_lot_id: lotId,
+      target_lot_id: targetLotId,
+      transaction_type: 'MOVEMENT',
+      quantity_affected: 4,
+      adjustment_type: null,
+      reason: 'Move to a safer cabinet',
+      performed_by: curatorAccountId,
+      created_at: testDate,
+    }));
+
+    const response = await request(app.getHttpServer())
+      .post(`/specimens/${specimenId}/lots/${lotId}/movements`)
+      .set('Authorization', `Bearer ${curatorToken}`)
+      .send({
+        targetStorageUnitId,
+        quantity: 4,
+        reason: ' Move to a safer cabinet ',
+      })
+      .expect(201);
+
+    expect(response.body).toEqual(
+      expect.objectContaining({
+        operation: 'MOVEMENT',
+        sourceLot: expect.objectContaining({ id: lotId, quantity: 6 }),
+        targetLot: expect.objectContaining({
+          id: targetLotId,
+          storageUnitId: targetStorageUnitId,
+          quantity: 4,
+        }),
+        transaction: expect.objectContaining({
+          transactionType: 'MOVEMENT',
+          quantityAffected: 4,
+          reason: 'Move to a safer cabinet',
+        }),
+        sourceDeactivated: false,
+        mergedIntoExistingTarget: false,
+      }),
+    );
+    expect(revisionDelegate.create).toHaveBeenCalled();
+    expect(auditDelegate.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ action: 'MOVE_SPECIMEN_LOT' }),
     });
   });
 

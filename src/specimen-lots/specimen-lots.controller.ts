@@ -19,9 +19,12 @@ import {
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
 import type { AuthenticatedUser } from '../auth/types/auth.types';
+import { ChangeSpecimenLotConditionDto } from './dto/change-specimen-lot-condition.dto';
 import { CreateSpecimenLotDto } from './dto/create-specimen-lot.dto';
 import { ListLotTransactionsQueryDto } from './dto/list-lot-transactions-query.dto';
+import { MoveSpecimenLotDto } from './dto/move-specimen-lot.dto';
 import { UpdateSpecimenLotNotesDto } from './dto/update-specimen-lot-notes.dto';
+import { SpecimenLotOperationResult } from './entities/specimen-lot-operation-result.entity';
 import { SpecimenLotTransactionPage } from './entities/specimen-lot-transaction.entity';
 import { SpecimenLotSummary } from './entities/specimen-lot-summary.entity';
 import { SpecimenLot } from './entities/specimen-lot.entity';
@@ -83,6 +86,32 @@ export class SpecimenLotsController {
     @Param('lotId', ParseUUIDPipe) lotId: string,
   ): Promise<SpecimenLot> {
     return this.service.findOne(specimenId, lotId);
+  }
+
+  @Post(':lotId/movements')
+  @ApiOperation({ summary: 'Move all or part of an active specimen lot' })
+  @ApiCreatedResponse({ type: SpecimenLotOperationResult })
+  move(
+    @Param('specimenId', ParseUUIDPipe) specimenId: string,
+    @Param('lotId', ParseUUIDPipe) lotId: string,
+    @Body() dto: MoveSpecimenLotDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<SpecimenLotOperationResult> {
+    return this.service.move(specimenId, lotId, dto, user.accountId);
+  }
+
+  @Post(':lotId/condition-changes')
+  @ApiOperation({
+    summary: 'Change the condition of all or part of an active specimen lot',
+  })
+  @ApiCreatedResponse({ type: SpecimenLotOperationResult })
+  changeCondition(
+    @Param('specimenId', ParseUUIDPipe) specimenId: string,
+    @Param('lotId', ParseUUIDPipe) lotId: string,
+    @Body() dto: ChangeSpecimenLotConditionDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<SpecimenLotOperationResult> {
+    return this.service.changeCondition(specimenId, lotId, dto, user.accountId);
   }
 
   @Patch(':lotId/notes')

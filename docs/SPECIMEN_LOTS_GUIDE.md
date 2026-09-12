@@ -68,6 +68,45 @@ museum has not frozen whether it represents individual specimens, lots,
 physical slots, volume, or another measure. The existing positive capacity
 value is preserved without inventing a capacity interpretation.
 
+## Movement and condition-change workflows
+
+Storage movements and condition changes are command-style operations rather
+than direct lot edits. Each operation:
+
+- requires an active specimen and active source lot;
+- accepts a positive quantity no greater than the source lot quantity;
+- keeps the total quantity across active lots unchanged;
+- creates a new target lot when no active destination lot matches;
+- adds quantity to the matching active target when one already exists;
+- reduces the source lot for a partial operation;
+- marks the source lot inactive for a full operation while retaining its
+  historical quantity and relationships;
+- records exactly one primary `MOVEMENT` or `CONDITION_CHANGE` lot transaction
+  with source, target, quantity, curator, timestamp, and optional reason;
+- records specimen revision history, parent-specimen attribution, and an audit
+  event in the same database transaction.
+
+A movement requires a different active storage unit with
+`holds_specimens = true`. Storage notes are location-specific and therefore do
+not silently copy onto a newly created movement target. A curator can add new
+location notes afterward through the controlled notes endpoint.
+
+A condition change requires a different, non-empty curator-managed condition
+classification. Because the physical location stays the same, a newly created
+condition target retains the source lot's storage notes.
+
+The source decrement/deactivation and target creation/increment use a
+serializable Prisma transaction. Concurrent serialization or active-target
+uniqueness races are retried up to three times. Guarded writes reject stale
+source quantities, inactive lots, and target integer overflow instead of
+risking an overdraw or duplicate active lot.
+
+Partial splitting and matching-target merging are structural outcomes of the
+primary movement or condition-change command. They do not change the specimen
+total and cannot be invoked as untracked direct quantity edits. The frozen
+`SPLIT` and `MERGE` transaction values remain available if the museum later
+approves separate standalone split/merge commands with their own semantics.
+
 ## Retrieval
 
 - Active lot listing uses stable creation order.
@@ -84,7 +123,14 @@ value is preserved without inventing a capacity interpretation.
 - `GET /specimens/:specimenId/lots/summary`
 - `GET /specimens/:specimenId/lots/:lotId`
 - `GET /specimens/:specimenId/lots/:lotId/transactions?page=1&limit=50`
+- `POST /specimens/:specimenId/lots/:lotId/movements`
+- `POST /specimens/:specimenId/lots/:lotId/condition-changes`
 - `PATCH /specimens/:specimenId/lots/:lotId/notes`
+
+Quantity-changing additions, removals, transfers out, deaccessions,
+missing/loss events, destruction, and data corrections remain reserved for the
+separate authorized quantity-adjustment workflow. They must not be represented
+as internal storage movements or condition changes.
 
 Automatic catalog promotion remains deferred until the curator-approved
 completeness rules for core, taxonomy, provenance, and lots are frozen.
