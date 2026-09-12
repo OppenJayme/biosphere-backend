@@ -11,12 +11,14 @@ import {
   type specimen_lot_transaction,
 } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { AdjustSpecimenLotQuantityDto } from './dto/adjust-specimen-lot-quantity.dto';
 import { ChangeSpecimenLotConditionDto } from './dto/change-specimen-lot-condition.dto';
 import { CreateSpecimenLotDto } from './dto/create-specimen-lot.dto';
 import { ListLotTransactionsQueryDto } from './dto/list-lot-transactions-query.dto';
 import { MoveSpecimenLotDto } from './dto/move-specimen-lot.dto';
 import { UpdateSpecimenLotNotesDto } from './dto/update-specimen-lot-notes.dto';
 import { SpecimenLotOperationResult } from './entities/specimen-lot-operation-result.entity';
+import { SpecimenLotQuantityAdjustmentResult } from './entities/specimen-lot-quantity-adjustment-result.entity';
 import {
   LotTransactionType,
   QuantityAdjustmentType,
@@ -28,6 +30,13 @@ import { SpecimenLot } from './entities/specimen-lot.entity';
 
 const POSTGRES_INTEGER_MAX = 2_147_483_647;
 const SERIALIZABLE_RETRY_LIMIT = 3;
+const DECREASE_ONLY_ADJUSTMENTS = new Set<QuantityAdjustmentType>([
+  QuantityAdjustmentType.REMOVAL,
+  QuantityAdjustmentType.TRANSFER_OUT,
+  QuantityAdjustmentType.DEACCESSION,
+  QuantityAdjustmentType.MISSING_LOSS,
+  QuantityAdjustmentType.DESTRUCTION,
+]);
 
 type LotDimensionOperation =
   LotTransactionType.MOVEMENT | LotTransactionType.CONDITION_CHANGE;
@@ -292,6 +301,143 @@ export class SpecimenLotsService {
         },
         actingCuratorAccountId,
       );
+    });
+  }
+
+  async adjustQuantity(
+    specimenId: string,
+    lotId: string,
+    dto: AdjustSpecimenLotQuantityDto,
+    actingCuratorAccountId: string,
+  ): Promise<SpecimenLotQuantityAdjustmentResult> {
+    this.assertAdjustmentDirection(dto.adjustmentType, dto.quantityDelta);
+
+    return this.runSerializableLotMutation(async (transaction) => {
+      const specimenRecord = await this.findSpecimenOrThrow(
+        transaction,
+        specimenId,
+      );
+      this.assertSpecimenEditable(specimenRecord);
+      const existing = await this.findLotOrThrow(
+        transaction,
+        specimenId,
+        lotId,
+      );
+      this.assertLotActive(existing);
+
+      if (existing.quantity !== dto.expectedQuantity) {
+        throw new ConflictException(
+          `The lot quantity is ${existing.quantity}, not the expected ${dto.expectedQuantity}. Reload the lot and review the adjustment before trying again.`,
+        );
+      }
+
+      // Increasing inventory is equivalent to assigning more specimens to
+      // this location. Reductions remain allowed so an invalid legacy
+      // placement can still be emptied and retired safely.
+      if (dto.quantityDelta > 0) {
+        await this.assertAssignableStorageUnit(
+          transaction,
+          existing.storage_unit_id,
+        );
+      }
+
+      const resultingQuantity = existing.quantity + dto.quantityDelta;
+      if (resultingQuantity < 0) {
+        throw new BadRequestException(
+          `Adjustment exceeds the active lot quantity of ${existing.quantity}.`,
+        );
+      }
+      if (resultingQuantity > POSTGRES_INTEGER_MAX) {
+        throw new BadRequestException(
+          'This adjustment would exceed the maximum supported lot quantity.',
+        );
+      }
+
+      const changedAt = new Date();
+      const lotDeactivated = resultingQuantity === 0;
+      const mutation = await transaction.specimen_lot.updateMany({
+        where: {
+          id: lotId,
+          specimen_id: specimenId,
+          is_active: true,
+          quantity: existing.quantity,
+        },
+        data: lotDeactivated
+          ? {
+              is_active: false,
+              updated_by: actingCuratorAccountId,
+              updated_at: changedAt,
+            }
+          : {
+              quantity: resultingQuantity,
+              updated_by: actingCuratorAccountId,
+              updated_at: changedAt,
+            },
+      });
+      if (mutation.count !== 1) {
+        throw this.concurrentLotConflict();
+      }
+
+      const updated = await this.findLotOrThrow(transaction, specimenId, lotId);
+      const quantityAffected = Math.abs(dto.quantityDelta);
+      const isIncrease = dto.quantityDelta > 0;
+      const transactionRecord =
+        await transaction.specimen_lot_transaction.create({
+          data: {
+            source_lot_id: isIncrease ? null : lotId,
+            target_lot_id: isIncrease ? lotId : null,
+            transaction_type: LotTransactionType.QUANTITY_ADJUSTMENT,
+            quantity_affected: quantityAffected,
+            adjustment_type: dto.adjustmentType,
+            reason: dto.reason,
+            performed_by: actingCuratorAccountId,
+            created_at: changedAt,
+          },
+        });
+
+      await this.touchSpecimen(
+        transaction,
+        specimenId,
+        actingCuratorAccountId,
+        changedAt,
+      );
+      await transaction.specimen_revision_history.create({
+        data: {
+          specimen_id: specimenId,
+          changed_by: actingCuratorAccountId,
+          field_changed: 'quantity',
+          old_value: String(existing.quantity),
+          new_value: String(resultingQuantity),
+          reason: dto.reason,
+          changed_at: changedAt,
+          source_section: 'specimen_lot',
+        },
+      });
+      await this.recordAudit(transaction, {
+        userId: actingCuratorAccountId,
+        lotId,
+        action: 'ADJUST_SPECIMEN_LOT_QUANTITY',
+        details: {
+          specimenId,
+          lotId,
+          adjustmentType: dto.adjustmentType,
+          quantityDelta: dto.quantityDelta,
+          quantityAffected,
+          previousQuantity: existing.quantity,
+          resultingQuantity,
+          lotDeactivated,
+        },
+      });
+
+      return {
+        adjustmentType: dto.adjustmentType,
+        quantityDelta: dto.quantityDelta,
+        previousQuantity: existing.quantity,
+        resultingQuantity,
+        lot: this.toEntity(updated),
+        transaction: this.toTransactionEntity(transactionRecord),
+        lotDeactivated,
+      };
     });
   }
 
@@ -608,6 +754,25 @@ export class SpecimenLotsService {
   private assertLotActive(item: specimen_lot): void {
     if (!item.is_active) {
       throw new BadRequestException('Inactive specimen lots cannot be edited.');
+    }
+  }
+
+  private assertAdjustmentDirection(
+    adjustmentType: QuantityAdjustmentType,
+    quantityDelta: number,
+  ): void {
+    if (
+      adjustmentType === QuantityAdjustmentType.ADDITION &&
+      quantityDelta < 0
+    ) {
+      throw new BadRequestException(
+        'ADDITION requires a positive quantityDelta.',
+      );
+    }
+    if (DECREASE_ONLY_ADJUSTMENTS.has(adjustmentType) && quantityDelta > 0) {
+      throw new BadRequestException(
+        `${adjustmentType} requires a negative quantityDelta.`,
+      );
     }
   }
 
