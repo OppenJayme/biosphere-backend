@@ -71,7 +71,10 @@ export class DeveloperService {
   ): Promise<CuratorAccountEntity> {
     const { data, error } = await this.supabase.auth.admin.inviteUserByEmail(
       dto.email,
-      { data: { role: 'CURATOR' } },
+      {
+        data: { role: 'CURATOR' },
+        redirectTo: `${process.env.FRONTEND_URL}/login/accept-invite`,
+      },
     );
 
     if (error || !data?.user) {

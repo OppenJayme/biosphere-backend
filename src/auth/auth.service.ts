@@ -31,6 +31,7 @@ export class AuthService {
 
     return {
       access_token: data.session.access_token,
+      refresh_token: data.session.refresh_token,
       user,
     };
   }
@@ -45,11 +46,27 @@ export class AuthService {
     return this.resolveActiveAccount(data.user);
   }
 
+  async forgotPassword(email: string) {
+    const { error } = await this.supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${process.env.FRONTEND_URL}/login/reset-password`,
+    });
+
+    if (error) {
+      throw error;
+    }
+
+    return {
+      message:
+        'If an account exists for this email, a reset link has been sent.',
+    };
+  }
+
   async inviteUser(email: string, role: UserRole) {
     const { data, error } = await this.supabase.auth.admin.inviteUserByEmail(
       email,
       {
         data: { role },
+        redirectTo: `${process.env.FRONTEND_URL}/login/accept-invite`,
       },
     );
 
