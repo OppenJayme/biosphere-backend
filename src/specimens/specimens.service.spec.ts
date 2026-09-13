@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-unsafe-assignment -- Jest asymmetric matchers are typed as any. */
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
+import { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { SpecimenGender, SpecimenStatus } from './entities/specimen.entity';
 import { SpecimensService } from './specimens.service';
@@ -121,6 +122,29 @@ describe('SpecimensService', () => {
         status: SpecimenStatus.UNCATALOGED,
       }),
     );
+  });
+
+  it('creates an offline draft through the same core writer with sync audit metadata', async () => {
+    specimenDelegate.create.mockResolvedValue(specimenRecord());
+
+    await expect(
+      service.createOfflineDraft(
+        prismaMock as unknown as Prisma.TransactionClient,
+        { specimenCategory: 'ZOOLOGY' },
+        ACCOUNT_ID,
+        '55555555-5555-4555-8555-555555555555',
+      ),
+    ).resolves.toHaveProperty('status', SpecimenStatus.UNCATALOGED);
+
+    expect(auditDelegate.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        action: 'SYNC_OFFLINE_SPECIMEN_DRAFT',
+        details: {
+          status: 'UNCATALOGED',
+          clientDraftId: '55555555-5555-4555-8555-555555555555',
+        },
+      }),
+    });
   });
 
   it('rejects a missing collection before creating the specimen', async () => {

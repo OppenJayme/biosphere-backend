@@ -28,37 +28,38 @@ export class SpecimensService {
     dto: CreateSpecimenDto,
     actingCuratorAccountId: string,
   ): Promise<Specimen> {
-    return this.prisma.$transaction(async (transaction) => {
-      if (dto.collectionId) {
-        await this.assertCollectionExists(transaction, dto.collectionId);
-      }
+    return this.prisma.$transaction((transaction) =>
+      this.createUncatalogedRecord(
+        transaction,
+        dto,
+        actingCuratorAccountId,
+        'CREATE_SPECIMEN',
+      ),
+    );
+  }
 
-      const created = await transaction.specimen.create({
-        data: {
-          collection_id: dto.collectionId,
-          created_by: actingCuratorAccountId,
-          updated_by: actingCuratorAccountId,
-          accession_number: dto.accessionNumber,
-          specimen_category: dto.specimenCategory,
-          scientific_name: dto.scientificName,
-          common_name: dto.commonName,
-          gender: dto.gender,
-          classification_status: dto.classificationStatus,
-          status: 'UNCATALOGED',
-          public_display_allowed: false,
-          remarks: dto.remarks,
-        },
-      });
+  createOfflineDraft(
+    transaction: Prisma.TransactionClient,
+    dto: CreateSpecimenDto,
+    actingCuratorAccountId: string,
+    clientDraftId: string,
+  ): Promise<Specimen> {
+    return this.createUncatalogedRecord(
+      transaction,
+      dto,
+      actingCuratorAccountId,
+      'SYNC_OFFLINE_SPECIMEN_DRAFT',
+      { clientDraftId },
+    );
+  }
 
-      await this.recordAudit(transaction, {
-        userId: actingCuratorAccountId,
-        specimenId: created.id,
-        action: 'CREATE_SPECIMEN',
-        details: { status: created.status },
-      });
-
-      return this.toEntity(created);
-    });
+  async findOneInTransaction(
+    transaction: Prisma.TransactionClient,
+    id: string,
+  ): Promise<Specimen> {
+    const item = await transaction.specimen.findUnique({ where: { id } });
+    this.assertExists(item, id);
+    return this.toEntity(item);
   }
 
   async findAll(): Promise<Specimen[]> {
@@ -339,6 +340,44 @@ export class SpecimensService {
     const item = await this.prisma.specimen.findUnique({ where: { id } });
     this.assertExists(item, id);
     return item;
+  }
+
+  private async createUncatalogedRecord(
+    transaction: Prisma.TransactionClient,
+    dto: CreateSpecimenDto,
+    actingCuratorAccountId: string,
+    auditAction: string,
+    extraAuditDetails: Prisma.InputJsonObject = {},
+  ): Promise<Specimen> {
+    if (dto.collectionId) {
+      await this.assertCollectionExists(transaction, dto.collectionId);
+    }
+
+    const created = await transaction.specimen.create({
+      data: {
+        collection_id: dto.collectionId,
+        created_by: actingCuratorAccountId,
+        updated_by: actingCuratorAccountId,
+        accession_number: dto.accessionNumber,
+        specimen_category: dto.specimenCategory,
+        scientific_name: dto.scientificName,
+        common_name: dto.commonName,
+        gender: dto.gender,
+        classification_status: dto.classificationStatus,
+        status: 'UNCATALOGED',
+        public_display_allowed: false,
+        remarks: dto.remarks,
+      },
+    });
+
+    await this.recordAudit(transaction, {
+      userId: actingCuratorAccountId,
+      specimenId: created.id,
+      action: auditAction,
+      details: { status: created.status, ...extraAuditDetails },
+    });
+
+    return this.toEntity(created);
   }
 
   private assertExists(
