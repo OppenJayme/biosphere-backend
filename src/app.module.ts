@@ -18,6 +18,7 @@ import { StorageLocationsModule } from './storage-locations/storage-locations.mo
 import { DeveloperModule } from './developer/developer.module';
 import { FaqModule } from './faq/faq.module';
 import { AuditModule } from './audit/audit.module';
+import { OfflineSyncModule } from './offline-sync/offline-sync.module';
 
 @Module({
   imports: [
@@ -38,6 +39,7 @@ import { AuditModule } from './audit/audit.module';
     SpecimenLotsModule,
     FaqModule,
     AuditModule,
+    OfflineSyncModule,
   ],
   controllers: [AppController],
   providers: [

@@ -1,4 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
+import { Transform } from 'class-transformer';
 import {
   IsEnum,
   IsNotEmpty,
@@ -7,6 +8,7 @@ import {
   IsUUID,
   MaxLength,
 } from 'class-validator';
+import { trimString } from '../../common/transforms/trim-string.transform';
 import { SpecimenGender } from '../entities/specimen.entity';
 
 export class CreateSpecimenDto {
@@ -23,6 +25,7 @@ export class CreateSpecimenDto {
     nullable: true,
   })
   @IsOptional()
+  @Transform(trimString)
   @IsString()
   @IsNotEmpty()
   @MaxLength(100)
@@ -30,6 +33,7 @@ export class CreateSpecimenDto {
 
   @ApiPropertyOptional({ nullable: true })
   @IsOptional()
+  @Transform(trimString)
   @IsString()
   @IsNotEmpty()
   @MaxLength(100)
@@ -37,6 +41,7 @@ export class CreateSpecimenDto {
 
   @ApiPropertyOptional({ nullable: true })
   @IsOptional()
+  @Transform(trimString)
   @IsString()
   @IsNotEmpty()
   @MaxLength(255)
@@ -44,6 +49,7 @@ export class CreateSpecimenDto {
 
   @ApiPropertyOptional({ nullable: true })
   @IsOptional()
+  @Transform(trimString)
   @IsString()
   @IsNotEmpty()
   @MaxLength(255)
@@ -59,12 +65,14 @@ export class CreateSpecimenDto {
     nullable: true,
   })
   @IsOptional()
+  @Transform(trimString)
   @IsString()
   @IsNotEmpty()
   classificationStatus?: string | null;
 
   @ApiPropertyOptional({ nullable: true })
   @IsOptional()
+  @Transform(trimString)
   @IsString()
   @IsNotEmpty()
   remarks?: string | null;
