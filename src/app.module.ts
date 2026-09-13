@@ -17,6 +17,7 @@ import { SpecimenLotsModule } from './specimen-lots/specimen-lots.module';
 import { StorageLocationsModule } from './storage-locations/storage-locations.module';
 import { DeveloperModule } from './developer/developer.module';
 import { FaqModule } from './faq/faq.module';
+import { AuditModule } from './audit/audit.module';
 
 @Module({
   imports: [
@@ -36,6 +37,7 @@ import { FaqModule } from './faq/faq.module';
     SpecimensModule,
     SpecimenLotsModule,
     FaqModule,
+    AuditModule,
   ],
   controllers: [AppController],
   providers: [
