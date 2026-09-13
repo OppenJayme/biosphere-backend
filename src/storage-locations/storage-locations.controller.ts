@@ -33,8 +33,11 @@ export class StorageLocationsController {
   @Post()
   @ApiOperation({ summary: 'Create a storage unit (curator-only)' })
   @ApiCreatedResponse({ type: StorageUnit })
-  create(@Body() dto: CreateStorageUnitDto): Promise<StorageUnit> {
-    return this.service.create(dto);
+  create(
+    @Body() dto: CreateStorageUnitDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<StorageUnit> {
+    return this.service.create(dto, user.accountId);
   }
 
   @Get()
@@ -68,8 +71,9 @@ export class StorageLocationsController {
   update(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateStorageUnitDto,
+    @CurrentUser() user: AuthenticatedUser,
   ): Promise<StorageUnit> {
-    return this.service.update(id, dto);
+    return this.service.update(id, dto, user.accountId);
   }
 
   @Patch(':id/move')
@@ -85,7 +89,10 @@ export class StorageLocationsController {
 
   @Patch(':id/archive')
   @ApiOkResponse({ type: StorageUnit })
-  archive(@Param('id', ParseUUIDPipe) id: string): Promise<StorageUnit> {
-    return this.service.archive(id);
+  archive(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<StorageUnit> {
+    return this.service.archive(id, user.accountId);
   }
 }
