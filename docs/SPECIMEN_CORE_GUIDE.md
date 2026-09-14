@@ -75,11 +75,21 @@ allowing a client to bypass completeness validation.
 
 - `POST /specimens`
 - `GET /specimens`
+- `GET /specimens/search?search=turtle&status=CATALOGED&page=1&limit=25`
 - `GET /specimens/:id`
 - `PATCH /specimens/:id`
 - `PATCH /specimens/:id/public-display`
 - `PATCH /specimens/:id/archive`
 
 All endpoints require an active BioSphere account with the `CURATOR` role.
-List requests return active records only; an archived record remains retrievable
-by its UUID for internal history and audit use.
+The complete feed and default catalog search return active records only. An
+archived record remains retrievable by UUID and through an explicit archived
+status filter for internal history and audit use.
+
+`GET /specimens` remains the complete active-record feed used by the current
+offline-cache foundation. `GET /specimens/search` is the bounded online catalog
+endpoint: it supports text search, status, collection, category, gender, and
+public-display filters; allow-listed sorting; and a maximum page size of 100.
+Archived records are excluded unless `status=ARCHIVED` is requested explicitly.
+Search never exposes public data because the entire controller remains protected
+for active curator accounts.

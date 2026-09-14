@@ -23,6 +23,7 @@ describe('Specimens (e2e)', () => {
     create: jest.Mock;
     findMany: jest.Mock;
     findUnique: jest.Mock;
+    count: jest.Mock;
     update: jest.Mock;
   };
   let revisionDelegate: { createMany: jest.Mock };
@@ -56,6 +57,7 @@ describe('Specimens (e2e)', () => {
       }),
       findMany: jest.fn(() => [specimenRecord]),
       findUnique: jest.fn(() => specimenRecord),
+      count: jest.fn(() => 1),
       update: jest.fn(({ data }: { data: Record<string, unknown> }) => {
         specimenRecord = { ...specimenRecord, ...data };
         return specimenRecord;
@@ -95,9 +97,12 @@ describe('Specimens (e2e)', () => {
       specimen_lot: { count: jest.fn(() => 0) },
       specimen_revision_history: revisionDelegate,
       audit_log: auditDelegate,
-      $transaction: jest.fn((callback: (transaction: unknown) => unknown) =>
-        Promise.resolve(callback(prismaMock)),
-      ),
+      $transaction: jest.fn((operation: unknown) => {
+        if (Array.isArray(operation)) return Promise.all(operation);
+        return Promise.resolve(
+          (operation as (transaction: unknown) => unknown)(prismaMock),
+        );
+      }),
     };
 
     const getUser = jest.fn((token: string) => {
@@ -214,6 +219,55 @@ describe('Specimens (e2e)', () => {
       where: { status: { not: 'ARCHIVED' } },
       orderBy: { created_at: 'desc' },
     });
+  });
+
+  it('searches with validated filters and returns a bounded catalog page', async () => {
+    const response = await request(app.getHttpServer())
+      .get('/specimens/search')
+      .query({
+        search: '  test specimen  ',
+        status: 'UNCATALOGED',
+        publicDisplay: 'false',
+        page: '2',
+        limit: '10',
+        sortBy: 'scientificName',
+        sortDirection: 'asc',
+      })
+      .set('Authorization', `Bearer ${curatorToken}`)
+      .expect(200);
+
+    expect(response.body).toEqual({
+      items: [expect.objectContaining({ id: specimenId })],
+      total: 1,
+      page: 2,
+      limit: 10,
+    });
+    expect(specimenDelegate.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          status: 'UNCATALOGED',
+          public_display_allowed: false,
+        }),
+        orderBy: [
+          { scientific_name: { sort: 'asc', nulls: 'last' } },
+          { id: 'asc' },
+        ],
+        skip: 10,
+        take: 10,
+      }),
+    );
+  });
+
+  it('rejects invalid catalog query values before accessing specimens', async () => {
+    specimenDelegate.findMany.mockClear();
+
+    await request(app.getHttpServer())
+      .get('/specimens/search')
+      .query({ publicDisplay: 'yes', limit: '101', sortBy: 'remarks' })
+      .set('Authorization', `Bearer ${curatorToken}`)
+      .expect(400);
+
+    expect(specimenDelegate.findMany).not.toHaveBeenCalled();
   });
 
   it('updates camelCase API fields and records revision history', async () => {
