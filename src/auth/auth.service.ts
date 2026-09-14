@@ -4,21 +4,27 @@ import {
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import type { SupabaseClient, User } from '@supabase/supabase-js';
 import { PrismaService } from '../prisma/prisma.service';
+import { createSupabaseAuthClient } from '../supabase/supabase-auth-client.factory';
 import { SUPABASE_CLIENT } from '../supabase/supabase.constants';
 import type { AuthenticatedUser } from './types/auth.types';
 
 @Injectable()
 export class AuthService {
   constructor(
+    // Service-role client — Admin/Storage operations only. Never call
+    // signInWithPassword() on it; see createSupabaseAuthClient().
     @Inject(SUPABASE_CLIENT)
     private readonly supabase: SupabaseClient,
     private readonly prisma: PrismaService,
+    private readonly configService: ConfigService,
   ) {}
 
   async login(email: string, password: string) {
-    const { data, error } = await this.supabase.auth.signInWithPassword({
+    const authClient = createSupabaseAuthClient(this.configService);
+    const { data, error } = await authClient.auth.signInWithPassword({
       email,
       password,
     });
