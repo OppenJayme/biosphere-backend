@@ -3,14 +3,20 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { isUUID } from 'class-validator';
 import { Prisma, type specimen } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateSpecimenDto } from './dto/create-specimen.dto';
+import {
+  SearchSpecimensQueryDto,
+  SpecimenSortField,
+} from './dto/search-specimens-query.dto';
 import { SetPublicDisplayDto } from './dto/set-public-display.dto';
 import { UpdateSpecimenDto } from './dto/update-specimen.dto';
 import {
   Specimen,
   SpecimenGender,
+  SpecimenPage,
   SpecimenStatus,
 } from './entities/specimen.entity';
 
@@ -73,6 +79,28 @@ export class SpecimensService {
 
   async findOne(id: string): Promise<Specimen> {
     return this.toEntity(await this.findOneOrThrow(id));
+  }
+
+  async search(query: SearchSpecimensQueryDto): Promise<SpecimenPage> {
+    const where = this.buildSearchWhere(query);
+    const skip = (query.page - 1) * query.limit;
+    const orderBy = this.buildSearchOrderBy(query);
+    const [items, total] = await this.prisma.$transaction([
+      this.prisma.specimen.findMany({
+        where,
+        orderBy,
+        skip,
+        take: query.limit,
+      }),
+      this.prisma.specimen.count({ where }),
+    ]);
+
+    return {
+      items: items.map((item) => this.toEntity(item)),
+      total,
+      page: query.page,
+      limit: query.limit,
+    };
   }
 
   async update(
@@ -340,6 +368,68 @@ export class SpecimensService {
     const item = await this.prisma.specimen.findUnique({ where: { id } });
     this.assertExists(item, id);
     return item;
+  }
+
+  private buildSearchWhere(
+    query: SearchSpecimensQueryDto,
+  ): Prisma.specimenWhereInput {
+    const where: Prisma.specimenWhereInput = {
+      status: query.status ?? { not: 'ARCHIVED' },
+      collection_id: query.collectionId,
+      specimen_category: query.specimenCategory
+        ? {
+            equals: query.specimenCategory,
+            mode: Prisma.QueryMode.insensitive,
+          }
+        : undefined,
+      gender: query.gender,
+      public_display_allowed: query.publicDisplay,
+    };
+
+    if (query.search) {
+      const contains = {
+        contains: query.search,
+        mode: Prisma.QueryMode.insensitive,
+      } as const;
+      where.OR = [
+        { accession_number: contains },
+        { specimen_category: contains },
+        { scientific_name: contains },
+        { common_name: contains },
+        { classification_status: contains },
+        { remarks: contains },
+        { collection: { is: { collection_name: contains } } },
+      ];
+      if (isUUID(query.search)) where.OR.push({ id: query.search });
+    }
+
+    return where;
+  }
+
+  private buildSearchOrderBy(
+    query: SearchSpecimensQueryDto,
+  ): Prisma.specimenOrderByWithRelationInput[] {
+    const fields: Record<
+      SpecimenSortField,
+      keyof Prisma.specimenOrderByWithRelationInput
+    > = {
+      [SpecimenSortField.UPDATED_AT]: 'updated_at',
+      [SpecimenSortField.CREATED_AT]: 'created_at',
+      [SpecimenSortField.ACCESSION_NUMBER]: 'accession_number',
+      [SpecimenSortField.SCIENTIFIC_NAME]: 'scientific_name',
+      [SpecimenSortField.COMMON_NAME]: 'common_name',
+      [SpecimenSortField.STATUS]: 'status',
+    };
+
+    const field = fields[query.sortBy];
+    const nullableSortFields = new Set<
+      keyof Prisma.specimenOrderByWithRelationInput
+    >(['accession_number', 'scientific_name', 'common_name']);
+    const primarySort = nullableSortFields.has(field)
+      ? { sort: query.sortDirection, nulls: 'last' as const }
+      : query.sortDirection;
+
+    return [{ [field]: primarySort }, { id: 'asc' }];
   }
 
   private async createUncatalogedRecord(
