@@ -10,6 +10,17 @@ export const SupabaseClientProvider = {
     return createClient(
       configService.getOrThrow<string>('SUPABASE_URL'),
       configService.getOrThrow<string>('SUPABASE_SECRET_KEY'),
+      {
+        // This client is shared across all requests on the server, so it
+        // must never retain or auto-refresh an individual user's session —
+        // every call is authorized per-request via an explicit access token
+        // (see AuthService.authenticateAccessToken).
+        auth: {
+          autoRefreshToken: false,
+          persistSession: false,
+          detectSessionInUrl: false,
+        },
+      },
     );
   },
 
