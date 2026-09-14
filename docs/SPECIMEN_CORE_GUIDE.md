@@ -33,7 +33,12 @@ into the `specimen` table or accepted by this API before their dedicated
 modules are implemented. Taxonomy and provenance are implemented as their own
 nested resources; see `docs/SPECIMEN_TAXONOMY_GUIDE.md` and
 `docs/SPECIMEN_PROVENANCE_GUIDE.md`. Specimen lots and calculated quantity are
-implemented separately; see `docs/SPECIMEN_LOTS_GUIDE.md`.
+implemented separately; see `docs/SPECIMEN_LOTS_GUIDE.md`. Specimen media is
+also implemented as a private-storage-backed nested resource; see
+`docs/SPECIMEN_MEDIA_GUIDE.md`. Tags, bulk import, and duplicate detection
+are separate concerns. Tags are implemented as a reusable nested resource; see
+`docs/SPECIMEN_TAGS_GUIDE.md`. Bulk import and duplicate detection remain
+future dedicated slices.
 
 ## Status boundary
 

@@ -18,7 +18,7 @@ it before adding a database-backed NestJS feature or changing the schema.
 ## Schema ownership
 
 BioSphere owns the application tables in PostgreSQL's `public` schema. The
-current Prisma schema contains these 25 application models:
+current Prisma schema contains these 26 application models:
 
 - `ar_asset`
 - `audit_log`
@@ -29,6 +29,7 @@ current Prisma schema contains these 25 application models:
 - `exhibit_media`
 - `faq_entry`
 - `inquiry`
+- `offline_draft_sync`
 - `preferred_visit_date`
 - `specimen`
 - `specimen_lot`

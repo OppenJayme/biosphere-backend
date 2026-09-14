@@ -1,5 +1,10 @@
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  NotFoundException,
+} from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
+import { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageLocationsService } from './storage-locations.service';
 
@@ -17,12 +22,16 @@ const movementDelegate = {
 const specimenLotDelegate = {
   count: jest.fn(),
 };
+const auditDelegate = {
+  create: jest.fn(),
+};
 const transactionMock = jest.fn();
 
 const prismaMock = {
   storage_unit: storageUnitDelegate,
   storage_movement_history: movementDelegate,
   specimen_lot: specimenLotDelegate,
+  audit_log: auditDelegate,
   $transaction: transactionMock,
 };
 
@@ -54,6 +63,7 @@ describe('StorageLocationsService', () => {
       (callback: (transaction: typeof prismaMock) => unknown) =>
         Promise.resolve(callback(prismaMock)),
     );
+    auditDelegate.create.mockResolvedValue({});
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -69,12 +79,15 @@ describe('StorageLocationsService', () => {
     storageUnitDelegate.create.mockResolvedValue(storageUnitRecord());
 
     await expect(
-      service.create({
-        label: 'Cabinet A',
-        unitType: 'CABINET',
-        storageType: 'DRY_STORAGE',
-        capacity: 100,
-      }),
+      service.create(
+        {
+          label: 'Cabinet A',
+          unitType: 'CABINET',
+          storageType: 'DRY_STORAGE',
+          capacity: 100,
+        },
+        'account-1',
+      ),
     ).resolves.toEqual({
       id: 'unit-1',
       parentId: null,
@@ -99,18 +112,36 @@ describe('StorageLocationsService', () => {
         capacity: 100,
       },
     });
+    expect(auditDelegate.create).toHaveBeenCalledWith({
+      data: {
+        user_id: 'account-1',
+        affected_record_id: 'unit-1',
+        affected_record_type: 'storage_unit',
+        action: 'CREATE_STORAGE_UNIT',
+        module: 'storage_locations',
+        details: {
+          parentId: null,
+          unitType: 'CABINET',
+          storageType: 'DRY_STORAGE',
+        },
+        status: 'SUCCESS',
+      },
+    });
   });
 
   it('rejects a missing parent during creation', async () => {
     storageUnitDelegate.findUnique.mockResolvedValue(null);
 
     await expect(
-      service.create({
-        label: 'Drawer 1',
-        unitType: 'DRAWER',
-        storageType: 'DRY_STORAGE',
-        parentId: 'missing-parent',
-      }),
+      service.create(
+        {
+          label: 'Drawer 1',
+          unitType: 'DRAWER',
+          storageType: 'DRY_STORAGE',
+          parentId: 'missing-parent',
+        },
+        'account-1',
+      ),
     ).rejects.toBeInstanceOf(NotFoundException);
     expect(storageUnitDelegate.create).not.toHaveBeenCalled();
   });
@@ -121,12 +152,15 @@ describe('StorageLocationsService', () => {
     );
 
     await expect(
-      service.create({
-        label: 'Drawer 1',
-        unitType: 'DRAWER',
-        storageType: 'DRY_STORAGE',
-        parentId: 'parent-1',
-      }),
+      service.create(
+        {
+          label: 'Drawer 1',
+          unitType: 'DRAWER',
+          storageType: 'DRY_STORAGE',
+          parentId: 'parent-1',
+        },
+        'account-1',
+      ),
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
@@ -168,7 +202,11 @@ describe('StorageLocationsService', () => {
         storageUnitRecord({ label: data.label, updated_at: data.updated_at }),
     );
 
-    const result = await service.update('unit-1', { label: 'Cabinet A1' });
+    const result = await service.update(
+      'unit-1',
+      { label: 'Cabinet A1' },
+      'account-1',
+    );
 
     expect(result.label).toBe('Cabinet A1');
     expect(storageUnitDelegate.update).toHaveBeenCalledWith({
@@ -178,20 +216,67 @@ describe('StorageLocationsService', () => {
         updated_at: expect.any(Date) as Date,
       },
     });
+    expect(auditDelegate.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        user_id: 'account-1',
+        affected_record_id: 'unit-1',
+        action: 'UPDATE_STORAGE_UNIT',
+        details: { fields: ['label'] },
+      }) as Record<string, unknown>,
+    });
   });
 
-  it('rejects empty updates and changes to archived units', async () => {
+  it('rejects empty, identical, and archived-unit updates', async () => {
     storageUnitDelegate.findUnique.mockResolvedValueOnce(storageUnitRecord());
-    await expect(service.update('unit-1', {})).rejects.toBeInstanceOf(
-      BadRequestException,
-    );
+    await expect(
+      service.update('unit-1', {}, 'account-1'),
+    ).rejects.toBeInstanceOf(BadRequestException);
+
+    storageUnitDelegate.findUnique.mockResolvedValueOnce(storageUnitRecord());
+    await expect(
+      service.update('unit-1', { label: 'Cabinet A' }, 'account-1'),
+    ).rejects.toBeInstanceOf(BadRequestException);
 
     storageUnitDelegate.findUnique.mockResolvedValueOnce(
       storageUnitRecord({ archived_at: TEST_DATE }),
     );
     await expect(
-      service.update('unit-1', { label: 'Changed' }),
+      service.update('unit-1', { label: 'Changed' }, 'account-1'),
     ).rejects.toBeInstanceOf(BadRequestException);
+    expect(auditDelegate.create).not.toHaveBeenCalled();
+  });
+
+  it('does not disable specimen storage while active lots remain', async () => {
+    storageUnitDelegate.findUnique.mockResolvedValue(
+      storageUnitRecord({ holds_specimens: true }),
+    );
+    specimenLotDelegate.count.mockResolvedValue(1);
+
+    await expect(
+      service.update('unit-1', { holdsSpecimens: false }, 'account-1'),
+    ).rejects.toThrow('active specimen lots before disabling');
+    expect(storageUnitDelegate.update).not.toHaveBeenCalled();
+    expect(auditDelegate.create).not.toHaveBeenCalled();
+  });
+
+  it('allows disabling specimen storage after active lots are cleared', async () => {
+    storageUnitDelegate.findUnique.mockResolvedValue(
+      storageUnitRecord({ holds_specimens: true }),
+    );
+    specimenLotDelegate.count.mockResolvedValue(0);
+    storageUnitDelegate.update.mockImplementation(
+      ({ data }: { data: { holds_specimens: boolean } }) =>
+        storageUnitRecord({ holds_specimens: data.holds_specimens }),
+    );
+
+    await expect(
+      service.update('unit-1', { holdsSpecimens: false }, 'account-1'),
+    ).resolves.toHaveProperty('holdsSpecimens', false);
+    expect(auditDelegate.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        details: { fields: ['holdsSpecimens'] },
+      }) as Record<string, unknown>,
+    });
   });
 
   it('moves a unit atomically and records the internal account id', async () => {
@@ -220,7 +305,22 @@ describe('StorageLocationsService', () => {
         reason: 'Reorganized collection',
       },
     });
+    expect(auditDelegate.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        user_id: 'account-1',
+        affected_record_id: 'unit-1',
+        action: 'MOVE_STORAGE_UNIT',
+        details: {
+          fromParentId: 'old-parent',
+          toParentId: 'new-parent',
+          reason: 'Reorganized collection',
+        },
+      }) as Record<string, unknown>,
+    });
     expect(transactionMock).toHaveBeenCalledTimes(1);
+    expect(transactionMock).toHaveBeenCalledWith(expect.any(Function), {
+      isolationLevel: 'Serializable',
+    });
   });
 
   it('allows moving a unit to the hierarchy root', async () => {
@@ -270,7 +370,7 @@ describe('StorageLocationsService', () => {
     storageUnitDelegate.findUnique.mockResolvedValue(storageUnitRecord());
     storageUnitDelegate.count.mockResolvedValueOnce(1);
 
-    await expect(service.archive('unit-1')).rejects.toThrow(
+    await expect(service.archive('unit-1', 'account-1')).rejects.toThrow(
       'active children first',
     );
     expect(specimenLotDelegate.count).not.toHaveBeenCalled();
@@ -278,7 +378,7 @@ describe('StorageLocationsService', () => {
     storageUnitDelegate.count.mockResolvedValueOnce(0);
     specimenLotDelegate.count.mockResolvedValueOnce(1);
 
-    await expect(service.archive('unit-1')).rejects.toThrow(
+    await expect(service.archive('unit-1', 'account-1')).rejects.toThrow(
       'active specimen lots first',
     );
     expect(storageUnitDelegate.update).not.toHaveBeenCalled();
@@ -296,17 +396,38 @@ describe('StorageLocationsService', () => {
         }),
     );
 
-    const archived = await service.archive('unit-1');
+    const archived = await service.archive('unit-1', 'account-1');
     expect(archived.archivedAt).toBeInstanceOf(Date);
 
     storageUnitDelegate.findUnique.mockResolvedValueOnce(
       storageUnitRecord({ archived_at: TEST_DATE }),
     );
-    await expect(service.archive('unit-1')).resolves.toHaveProperty(
-      'archivedAt',
-      TEST_DATE,
-    );
+    await expect(
+      service.archive('unit-1', 'account-1'),
+    ).resolves.toHaveProperty('archivedAt', TEST_DATE);
     expect(storageUnitDelegate.update).toHaveBeenCalledTimes(1);
+    expect(auditDelegate.create).toHaveBeenCalledTimes(1);
+    expect(auditDelegate.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        user_id: 'account-1',
+        affected_record_id: 'unit-1',
+        action: 'ARCHIVE_STORAGE_UNIT',
+        details: { previousParentId: null },
+      }) as Record<string, unknown>,
+    });
+  });
+
+  it('returns a conflict after exhausting serializable transaction retries', async () => {
+    const conflict = new Prisma.PrismaClientKnownRequestError(
+      'Write conflict',
+      { code: 'P2034', clientVersion: '7.10.0' },
+    );
+    transactionMock.mockRejectedValue(conflict);
+
+    await expect(service.archive('unit-1', 'account-1')).rejects.toBeInstanceOf(
+      ConflictException,
+    );
+    expect(transactionMock).toHaveBeenCalledTimes(3);
   });
 
   it('returns movement history as camelCase', async () => {

@@ -27,6 +27,7 @@ describe('Storage locations (e2e)', () => {
     count: jest.Mock;
   };
   let movementDelegate: { create: jest.Mock; findMany: jest.Mock };
+  let auditCreate: jest.Mock;
 
   const storageUnitRecord = (overrides: Record<string, unknown> = {}) => ({
     id: unitId,
@@ -57,6 +58,7 @@ describe('Storage locations (e2e)', () => {
       create: jest.fn(),
       findMany: jest.fn(),
     };
+    auditCreate = jest.fn();
 
     const prismaMock = {
       user_account: {
@@ -85,6 +87,7 @@ describe('Storage locations (e2e)', () => {
       storage_unit: storageUnitDelegate,
       storage_movement_history: movementDelegate,
       specimen_lot: { count: jest.fn() },
+      audit_log: { create: auditCreate },
       $transaction: jest.fn((callback: (transaction: unknown) => unknown) =>
         Promise.resolve(callback(prismaMock)),
       ),
@@ -157,6 +160,15 @@ describe('Storage locations (e2e)', () => {
     });
     expect(response.body).not.toHaveProperty('storage_type');
     expect(storageUnitDelegate.create).toHaveBeenCalledTimes(1);
+    expect(auditCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        user_id: curatorAccountId,
+        affected_record_id: unitId,
+        action: 'CREATE_STORAGE_UNIT',
+        module: 'storage_locations',
+        status: 'SUCCESS',
+      }) as Record<string, unknown>,
+    });
   });
 
   it('blocks developers from curator-owned storage routes', () => {
@@ -185,6 +197,40 @@ describe('Storage locations (e2e)', () => {
       .expect(400);
   });
 
+  it('trims text and rejects null for required update fields', async () => {
+    storageUnitDelegate.findUnique.mockResolvedValue(storageUnitRecord());
+    storageUnitDelegate.update.mockImplementation(
+      ({ data }: { data: Record<string, unknown> }) => storageUnitRecord(data),
+    );
+
+    const response = await request(app.getHttpServer())
+      .patch(`/storage-locations/${unitId}`)
+      .set('Authorization', `Bearer ${curatorToken}`)
+      .send({ label: '  Cabinet A1  ' })
+      .expect(200);
+
+    expect(response.body.label).toBe('Cabinet A1');
+    expect(auditCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        user_id: curatorAccountId,
+        action: 'UPDATE_STORAGE_UNIT',
+        details: { fields: ['label'] },
+      }) as Record<string, unknown>,
+    });
+
+    await request(app.getHttpServer())
+      .patch(`/storage-locations/${unitId}`)
+      .set('Authorization', `Bearer ${curatorToken}`)
+      .send({ label: null })
+      .expect(400);
+
+    await request(app.getHttpServer())
+      .patch(`/storage-locations/${unitId}`)
+      .set('Authorization', `Bearer ${curatorToken}`)
+      .send({ holdsSpecimens: null })
+      .expect(400);
+  });
+
   it('records a move using the authenticated BioSphere account id', async () => {
     storageUnitDelegate.findUnique
       .mockResolvedValueOnce(storageUnitRecord({ parent_id: oldParentId }))
@@ -210,6 +256,18 @@ describe('Storage locations (e2e)', () => {
         moved_by: curatorAccountId,
         reason: 'Reorganized collection',
       },
+    });
+    expect(auditCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        user_id: curatorAccountId,
+        affected_record_id: unitId,
+        action: 'MOVE_STORAGE_UNIT',
+        details: {
+          fromParentId: oldParentId,
+          toParentId: newParentId,
+          reason: 'Reorganized collection',
+        },
+      }) as Record<string, unknown>,
     });
   });
 });
