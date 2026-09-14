@@ -8,6 +8,7 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { DeveloperService } from './developer.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { SUPABASE_CLIENT } from '../supabase/supabase.constants';
@@ -58,6 +59,14 @@ const supabaseMock = {
 const storageServiceMock = {
   upload: jest.fn(),
   remove: jest.fn(),
+};
+
+const FRONTEND_URL = 'https://app.biosphere.test';
+const configServiceMock = {
+  getOrThrow: jest.fn((key: string) => {
+    if (key === 'FRONTEND_URL') return FRONTEND_URL;
+    throw new Error(`Unexpected config key requested in test: ${key}`);
+  }),
 };
 
 // A valid-looking .glb "file" for AR asset tests.
@@ -129,6 +138,7 @@ describe('DeveloperService', () => {
         { provide: PrismaService, useValue: prismaMock },
         { provide: SUPABASE_CLIENT, useValue: supabaseMock },
         { provide: StorageService, useValue: storageServiceMock },
+        { provide: ConfigService, useValue: configServiceMock },
       ],
     }).compile();
 
@@ -187,7 +197,7 @@ describe('DeveloperService', () => {
         dto.email,
         {
           data: { role: 'CURATOR' },
-          redirectTo: `${process.env.FRONTEND_URL}/login/accept-invite`,
+          redirectTo: `${FRONTEND_URL}/login/accept-invite`,
         },
       );
       expect(prismaMock.userAccount.create).toHaveBeenCalledWith({

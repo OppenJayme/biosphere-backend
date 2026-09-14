@@ -7,7 +7,7 @@ import {
 import type { SupabaseClient, User } from '@supabase/supabase-js';
 import { PrismaService } from '../prisma/prisma.service';
 import { SUPABASE_CLIENT } from '../supabase/supabase.constants';
-import type { AuthenticatedUser, UserRole } from './types/auth.types';
+import type { AuthenticatedUser } from './types/auth.types';
 
 @Injectable()
 export class AuthService {
@@ -44,37 +44,6 @@ export class AuthService {
     }
 
     return this.resolveActiveAccount(data.user);
-  }
-
-  async forgotPassword(email: string) {
-    const { error } = await this.supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${process.env.FRONTEND_URL}/login/reset-password`,
-    });
-
-    if (error) {
-      throw error;
-    }
-
-    return {
-      message:
-        'If an account exists for this email, a reset link has been sent.',
-    };
-  }
-
-  async inviteUser(email: string, role: UserRole) {
-    const { data, error } = await this.supabase.auth.admin.inviteUserByEmail(
-      email,
-      {
-        data: { role },
-        redirectTo: `${process.env.FRONTEND_URL}/login/accept-invite`,
-      },
-    );
-
-    if (error) {
-      throw error;
-    }
-
-    return data;
   }
 
   private async resolveActiveAccount(
