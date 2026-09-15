@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -21,31 +22,49 @@ type StorageHierarchyReader = {
   };
 };
 
+const SERIALIZABLE_RETRY_LIMIT = 3;
+
 @Injectable()
 export class StorageLocationsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async create(dto: CreateStorageUnitDto): Promise<StorageUnit> {
-    if (dto.parentId) {
-      const parent = await this.prisma.storage_unit.findUnique({
-        where: { id: dto.parentId },
+  async create(
+    dto: CreateStorageUnitDto,
+    actingCuratorAccountId: string,
+  ): Promise<StorageUnit> {
+    return this.runSerializableMutation(async (transaction) => {
+      if (dto.parentId) {
+        const parent = await transaction.storage_unit.findUnique({
+          where: { id: dto.parentId },
+        });
+        this.assertUsableParent(parent, dto.parentId);
+      }
+
+      const unit = await transaction.storage_unit.create({
+        data: {
+          parent_id: dto.parentId,
+          unit_type: dto.unitType,
+          label: dto.label,
+          size: dto.size,
+          storage_type: dto.storageType,
+          holds_specimens: dto.holdsSpecimens,
+          capacity: dto.capacity,
+        },
       });
-      this.assertUsableParent(parent, dto.parentId);
-    }
 
-    const unit = await this.prisma.storage_unit.create({
-      data: {
-        parent_id: dto.parentId,
-        unit_type: dto.unitType,
-        label: dto.label,
-        size: dto.size,
-        storage_type: dto.storageType,
-        holds_specimens: dto.holdsSpecimens,
-        capacity: dto.capacity,
-      },
+      await this.recordAudit(transaction, {
+        userId: actingCuratorAccountId,
+        unitId: unit.id,
+        action: 'CREATE_STORAGE_UNIT',
+        details: {
+          parentId: unit.parent_id,
+          unitType: unit.unit_type,
+          storageType: unit.storage_type,
+        },
+      });
+
+      return this.toEntity(unit);
     });
-
-    return this.toEntity(unit);
   }
 
   async findAll(): Promise<StorageUnit[]> {
@@ -82,42 +101,82 @@ export class StorageLocationsService {
     return movements.map((movement) => this.toMovementEntity(movement));
   }
 
-  async update(id: string, dto: UpdateStorageUnitDto): Promise<StorageUnit> {
-    const existing = await this.findOneOrThrow(id);
-    this.assertActive(existing);
+  async update(
+    id: string,
+    dto: UpdateStorageUnitDto,
+    actingCuratorAccountId: string,
+  ): Promise<StorageUnit> {
+    return this.runSerializableMutation(async (transaction) => {
+      const existing = await this.findOneOrThrow(id, transaction);
+      this.assertActive(existing);
 
-    const hasChanges = [
-      dto.label,
-      dto.unitType,
-      dto.storageType,
-      dto.size,
-      dto.holdsSpecimens,
-      dto.capacity,
-    ].some((value) => value !== undefined);
+      if (dto.holdsSpecimens === false && existing.holds_specimens) {
+        const activeLots = await transaction.specimen_lot.count({
+          where: { storage_unit_id: id, is_active: true },
+        });
 
-    if (!hasChanges) {
-      throw new BadRequestException('At least one field must be updated.');
-    }
+        if (activeLots > 0) {
+          throw new BadRequestException(
+            "Move or deactivate this storage unit's active specimen lots before disabling specimen storage.",
+          );
+        }
+      }
 
-    const data: Prisma.storage_unitUncheckedUpdateInput = {
-      updated_at: new Date(),
-    };
+      const data: Prisma.storage_unitUncheckedUpdateInput = {};
+      const changedFields: string[] = [];
 
-    if (dto.label !== undefined) data.label = dto.label;
-    if (dto.unitType !== undefined) data.unit_type = dto.unitType;
-    if (dto.storageType !== undefined) data.storage_type = dto.storageType;
-    if (dto.size !== undefined) data.size = dto.size;
-    if (dto.holdsSpecimens !== undefined) {
-      data.holds_specimens = dto.holdsSpecimens;
-    }
-    if (dto.capacity !== undefined) data.capacity = dto.capacity;
+      if (dto.label !== undefined && dto.label !== existing.label) {
+        data.label = dto.label;
+        changedFields.push('label');
+      }
+      if (dto.unitType !== undefined && dto.unitType !== existing.unit_type) {
+        data.unit_type = dto.unitType;
+        changedFields.push('unitType');
+      }
+      if (
+        dto.storageType !== undefined &&
+        dto.storageType !== existing.storage_type
+      ) {
+        data.storage_type = dto.storageType;
+        changedFields.push('storageType');
+      }
+      if (dto.size !== undefined && dto.size !== existing.size) {
+        data.size = dto.size;
+        changedFields.push('size');
+      }
+      if (
+        dto.holdsSpecimens !== undefined &&
+        dto.holdsSpecimens !== existing.holds_specimens
+      ) {
+        data.holds_specimens = dto.holdsSpecimens;
+        changedFields.push('holdsSpecimens');
+      }
+      if (dto.capacity !== undefined && dto.capacity !== existing.capacity) {
+        data.capacity = dto.capacity;
+        changedFields.push('capacity');
+      }
 
-    const unit = await this.prisma.storage_unit.update({
-      where: { id },
-      data,
+      if (changedFields.length === 0) {
+        throw new BadRequestException(
+          'At least one storage-unit field must change.',
+        );
+      }
+
+      data.updated_at = new Date();
+      const unit = await transaction.storage_unit.update({
+        where: { id },
+        data,
+      });
+
+      await this.recordAudit(transaction, {
+        userId: actingCuratorAccountId,
+        unitId: id,
+        action: 'UPDATE_STORAGE_UNIT',
+        details: { fields: changedFields },
+      });
+
+      return this.toEntity(unit);
     });
-
-    return this.toEntity(unit);
   }
 
   async move(
@@ -125,7 +184,7 @@ export class StorageLocationsService {
     dto: MoveStorageUnitDto,
     movedByAccountId: string,
   ): Promise<StorageUnit> {
-    return this.prisma.$transaction(async (transaction) => {
+    return this.runSerializableMutation(async (transaction) => {
       const unit = await transaction.storage_unit.findUnique({
         where: { id },
       });
@@ -155,11 +214,12 @@ export class StorageLocationsService {
         await this.assertNoHierarchyCycle(transaction, id, dto.newParentId);
       }
 
+      const movedAt = new Date();
       const updated = await transaction.storage_unit.update({
         where: { id },
         data: {
           parent_id: dto.newParentId,
-          updated_at: new Date(),
+          updated_at: movedAt,
         },
       });
 
@@ -173,12 +233,26 @@ export class StorageLocationsService {
         },
       });
 
+      await this.recordAudit(transaction, {
+        userId: movedByAccountId,
+        unitId: id,
+        action: 'MOVE_STORAGE_UNIT',
+        details: {
+          fromParentId: unit.parent_id,
+          toParentId: dto.newParentId,
+          reason: dto.reason ?? null,
+        },
+      });
+
       return this.toEntity(updated);
     });
   }
 
-  async archive(id: string): Promise<StorageUnit> {
-    return this.prisma.$transaction(async (transaction) => {
+  async archive(
+    id: string,
+    actingCuratorAccountId: string,
+  ): Promise<StorageUnit> {
+    return this.runSerializableMutation(async (transaction) => {
       const unit = await transaction.storage_unit.findUnique({
         where: { id },
       });
@@ -217,12 +291,22 @@ export class StorageLocationsService {
         data: { archived_at: archivedAt, updated_at: archivedAt },
       });
 
+      await this.recordAudit(transaction, {
+        userId: actingCuratorAccountId,
+        unitId: id,
+        action: 'ARCHIVE_STORAGE_UNIT',
+        details: { previousParentId: unit.parent_id },
+      });
+
       return this.toEntity(archived);
     });
   }
 
-  private async findOneOrThrow(id: string): Promise<storage_unit> {
-    const unit = await this.prisma.storage_unit.findUnique({ where: { id } });
+  private async findOneOrThrow(
+    id: string,
+    reader: StorageHierarchyReader = this.prisma,
+  ): Promise<storage_unit> {
+    const unit = await reader.storage_unit.findUnique({ where: { id } });
 
     if (!unit) {
       throw new NotFoundException(`Storage unit ${id} not found`);
@@ -286,6 +370,58 @@ export class StorageLocationsService {
 
       currentId = current.parent_id;
     }
+  }
+
+  private async runSerializableMutation<T>(
+    operation: (transaction: Prisma.TransactionClient) => Promise<T>,
+  ): Promise<T> {
+    for (let attempt = 1; attempt <= SERIALIZABLE_RETRY_LIMIT; attempt += 1) {
+      try {
+        return await this.prisma.$transaction(operation, {
+          isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+        });
+      } catch (error) {
+        if (!this.isRetryableTransactionError(error)) throw error;
+        if (attempt === SERIALIZABLE_RETRY_LIMIT) {
+          throw new ConflictException(
+            'Storage location changed during the operation. Reload and try again.',
+          );
+        }
+      }
+    }
+
+    throw new ConflictException(
+      'Storage location changed during the operation. Reload and try again.',
+    );
+  }
+
+  private isRetryableTransactionError(error: unknown): boolean {
+    return (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === 'P2034'
+    );
+  }
+
+  private async recordAudit(
+    transaction: Prisma.TransactionClient,
+    params: {
+      userId: string;
+      unitId: string;
+      action: string;
+      details: Prisma.InputJsonValue;
+    },
+  ): Promise<void> {
+    await transaction.audit_log.create({
+      data: {
+        user_id: params.userId,
+        affected_record_id: params.unitId,
+        affected_record_type: 'storage_unit',
+        action: params.action,
+        module: 'storage_locations',
+        details: params.details,
+        status: 'SUCCESS',
+      },
+    });
   }
 
   private toEntity(unit: storage_unit): StorageUnit {

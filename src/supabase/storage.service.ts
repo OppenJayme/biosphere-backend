@@ -137,7 +137,7 @@ export class StorageService {
         upsert: false,
       });
 
-    if (error) {
+    if (error || !data?.path) {
       throw new InternalServerErrorException(
         `Failed to upload file to ${bucket}`,
       );
@@ -165,7 +165,7 @@ export class StorageService {
       .from(bucket)
       .createSignedUrl(path, expiresInSeconds);
 
-    if (error) {
+    if (error || !data?.signedUrl) {
       throw new InternalServerErrorException(
         `Failed to create signed URL for ${bucket}`,
       );

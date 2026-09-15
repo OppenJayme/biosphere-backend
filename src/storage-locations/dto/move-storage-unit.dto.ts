@@ -1,5 +1,6 @@
 // src/storage-locations/dto/move-storage-unit.dto.ts
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Transform } from 'class-transformer';
 import {
   IsDefined,
   IsNotEmpty,
@@ -8,6 +9,7 @@ import {
   IsUUID,
   ValidateIf,
 } from 'class-validator';
+import { trimString } from '../../common/transforms/trim-string.transform';
 
 export class MoveStorageUnitDto {
   @ApiProperty({
@@ -19,9 +21,13 @@ export class MoveStorageUnitDto {
   @IsUUID()
   newParentId!: string | null;
 
-  @ApiPropertyOptional({ description: 'Reason recorded in movement history' })
+  @ApiPropertyOptional({
+    description: 'Reason recorded in movement history',
+    nullable: true,
+  })
   @IsOptional()
+  @Transform(trimString)
   @IsString()
   @IsNotEmpty()
-  reason?: string;
+  reason?: string | null;
 }

@@ -8,6 +8,7 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import {
   Prisma,
@@ -42,6 +43,7 @@ export class DeveloperService {
     private readonly prisma: PrismaService,
     @Inject(SUPABASE_CLIENT) private readonly supabase: SupabaseClient,
     private readonly storageService: StorageService,
+    private readonly configService: ConfigService,
   ) {}
 
   // ===========================================================
@@ -63,6 +65,10 @@ export class DeveloperService {
   ): Promise<CuratorAccountEntity> {
     const { data, error } = await this.supabase.auth.admin.inviteUserByEmail(
       dto.email,
+      {
+        data: { role: 'CURATOR' },
+        redirectTo: this.buildFrontendRedirectUrl('/login/accept-invite'),
+      },
     );
 
     if (error || !data?.user) {
@@ -484,6 +490,20 @@ export class DeveloperService {
         `File extension ".${extension}" does not match the declared model format "${modelFormat}".`,
       );
     }
+  }
+
+  /**
+   * Joins the configured frontend origin with a path, normalizing away any
+   * trailing/leading slash so a trailing slash in FRONTEND_URL never produces
+   * a double slash in the redirect Supabase emails to the invitee.
+   */
+  private buildFrontendRedirectUrl(path: string): string {
+    const frontendUrl = this.configService
+      .getOrThrow<string>('FRONTEND_URL')
+      .replace(/\/+$/, '');
+    const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+
+    return `${frontendUrl}${normalizedPath}`;
   }
 
   private errorMessage(error: unknown): string {

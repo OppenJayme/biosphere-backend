@@ -1,4 +1,7 @@
-import { BadRequestException } from '@nestjs/common';
+import {
+  BadRequestException,
+  InternalServerErrorException,
+} from '@nestjs/common';
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { StorageService } from './storage.service';
@@ -8,6 +11,8 @@ describe('StorageService', () => {
 
   let service: StorageService;
   let uploadMock: ReturnType<typeof jest.fn>;
+  let removeMock: ReturnType<typeof jest.fn>;
+  let createSignedUrlMock: ReturnType<typeof jest.fn>;
   let fromMock: ReturnType<typeof jest.fn>;
 
   beforeEach(() => {
@@ -17,9 +22,18 @@ describe('StorageService', () => {
         error: null,
       }),
     );
+    removeMock = jest.fn(() => Promise.resolve({ error: null }));
+    createSignedUrlMock = jest.fn(() =>
+      Promise.resolve({
+        data: { signedUrl: 'https://signed.example/object' },
+        error: null,
+      }),
+    );
 
     fromMock = jest.fn(() => ({
       upload: uploadMock,
+      remove: removeMock,
+      createSignedUrl: createSignedUrlMock,
     }));
 
     const supabase = {
@@ -100,5 +114,63 @@ describe('StorageService', () => {
     await expect(
       service.upload('specimen-media', 'not-a-uuid', file, 'image/jpeg'),
     ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('maps an empty upload provider response to a safe server error', async () => {
+    uploadMock.mockResolvedValueOnce({ data: null, error: null });
+
+    await expect(
+      service.upload(
+        'specimen-media',
+        ownerId,
+        Buffer.from([0xff, 0xd8, 0xff, 0x00]),
+        'image/jpeg',
+      ),
+    ).rejects.toBeInstanceOf(InternalServerErrorException);
+  });
+
+  it('removes an object from the selected private bucket', async () => {
+    await expect(
+      service.remove('specimen-media', `${ownerId}/image.jpg`),
+    ).resolves.toBeUndefined();
+    expect(fromMock).toHaveBeenCalledWith('specimen-media');
+    expect(removeMock).toHaveBeenCalledWith([`${ownerId}/image.jpg`]);
+  });
+
+  it('maps a storage removal failure to a safe server error', async () => {
+    removeMock.mockResolvedValueOnce({ error: { message: 'provider detail' } });
+
+    await expect(
+      service.remove('specimen-media', `${ownerId}/image.jpg`),
+    ).rejects.toBeInstanceOf(InternalServerErrorException);
+  });
+
+  it('creates a short-lived signed URL through the selected bucket', async () => {
+    await expect(
+      service.createSignedUrl('specimen-media', `${ownerId}/image.jpg`, 300),
+    ).resolves.toBe('https://signed.example/object');
+    expect(createSignedUrlMock).toHaveBeenCalledWith(
+      `${ownerId}/image.jpg`,
+      300,
+    );
+  });
+
+  it('maps a signed-URL provider failure to a safe server error', async () => {
+    createSignedUrlMock.mockResolvedValueOnce({
+      data: null,
+      error: { message: 'provider detail' },
+    });
+
+    await expect(
+      service.createSignedUrl('specimen-media', `${ownerId}/image.jpg`, 300),
+    ).rejects.toBeInstanceOf(InternalServerErrorException);
+  });
+
+  it('maps an empty signed-URL provider response to a safe server error', async () => {
+    createSignedUrlMock.mockResolvedValueOnce({ data: null, error: null });
+
+    await expect(
+      service.createSignedUrl('specimen-media', `${ownerId}/image.jpg`, 300),
+    ).rejects.toBeInstanceOf(InternalServerErrorException);
   });
 });
