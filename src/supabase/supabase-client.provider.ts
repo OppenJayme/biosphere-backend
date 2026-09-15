@@ -2,6 +2,7 @@ import { ConfigService } from '@nestjs/config';
 import { createClient } from '@supabase/supabase-js';
 
 import { SUPABASE_CLIENT } from './supabase.constants';
+export { SUPABASE_CLIENT };
 
 export const SupabaseClientProvider = {
   provide: SUPABASE_CLIENT,
