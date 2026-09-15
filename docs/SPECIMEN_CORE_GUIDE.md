@@ -77,6 +77,7 @@ allowing a client to bypass completeness validation.
 - `GET /specimens`
 - `GET /specimens/search?search=turtle&status=CATALOGED&page=1&limit=25`
 - `GET /specimens/:id`
+- `GET /specimens/:id/revisions?page=1&limit=50`
 - `PATCH /specimens/:id`
 - `PATCH /specimens/:id/public-display`
 - `PATCH /specimens/:id/archive`
@@ -93,3 +94,8 @@ public-display filters; allow-listed sorting; and a maximum page size of 100.
 Archived records are excluded unless `status=ARCHIVED` is requested explicitly.
 Search never exposes public data because the entire controller remains protected
 for active curator accounts.
+
+Revision-history retrieval is documented separately in
+`docs/SPECIMEN_REVISION_HISTORY_GUIDE.md`. It reads the immutable field-level
+history already produced by the cataloging slices and does not decide catalog
+completeness.

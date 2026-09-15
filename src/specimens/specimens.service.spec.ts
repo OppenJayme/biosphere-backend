@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-assignment -- Jest asymmetric matchers are typed as any. */
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Prisma } from '../generated/prisma/client';
@@ -8,6 +7,7 @@ import {
   SortDirection,
   SpecimenSortField,
 } from './dto/search-specimens-query.dto';
+import { ListSpecimenRevisionsQueryDto } from './dto/list-specimen-revisions-query.dto';
 import { SpecimenGender, SpecimenStatus } from './entities/specimen.entity';
 import { SpecimensService } from './specimens.service';
 
@@ -20,7 +20,11 @@ const specimenDelegate = {
 };
 const collectionDelegate = { findUnique: jest.fn() };
 const specimenLotDelegate = { count: jest.fn() };
-const revisionDelegate = { createMany: jest.fn() };
+const revisionDelegate = {
+  createMany: jest.fn(),
+  findMany: jest.fn(),
+  count: jest.fn(),
+};
 const auditDelegate = { create: jest.fn() };
 const transactionMock = jest.fn();
 
@@ -36,6 +40,7 @@ const prismaMock = {
 const ACCOUNT_ID = '22222222-2222-4222-8222-222222222222';
 const SPECIMEN_ID = '33333333-3333-4333-8333-333333333333';
 const COLLECTION_ID = '44444444-4444-4444-8444-444444444444';
+const REVISION_ID = '55555555-5555-4555-8555-555555555555';
 const TEST_DATE = new Date('2026-01-01T00:00:00.000Z');
 
 function specimenRecord(overrides: Record<string, unknown> = {}) {
@@ -61,6 +66,26 @@ function specimenRecord(overrides: Record<string, unknown> = {}) {
   };
 }
 
+function revisionRecord(overrides: Record<string, unknown> = {}) {
+  return {
+    id: REVISION_ID,
+    specimen_id: SPECIMEN_ID,
+    changed_by: ACCOUNT_ID,
+    field_changed: 'common_name',
+    old_value: 'Old name',
+    new_value: 'Test specimen',
+    reason: 'Identification corrected',
+    changed_at: TEST_DATE,
+    source_section: 'specimen_core',
+    user_account: {
+      id: ACCOUNT_ID,
+      full_name: 'Test Curator',
+      role: 'CURATOR',
+    },
+    ...overrides,
+  };
+}
+
 describe('SpecimensService', () => {
   let service: SpecimensService;
 
@@ -73,6 +98,8 @@ describe('SpecimensService', () => {
       );
     });
     revisionDelegate.createMany.mockResolvedValue({ count: 1 });
+    revisionDelegate.findMany.mockResolvedValue([]);
+    revisionDelegate.count.mockResolvedValue(0);
     auditDelegate.create.mockResolvedValue({});
     specimenLotDelegate.count.mockResolvedValue(0);
 
@@ -251,6 +278,103 @@ describe('SpecimensService', () => {
         }),
       }),
     );
+  });
+
+  it('returns filtered, stable, paginated specimen revision history', async () => {
+    specimenDelegate.findUnique.mockResolvedValue({ id: SPECIMEN_ID });
+    revisionDelegate.findMany.mockResolvedValue([revisionRecord()]);
+    revisionDelegate.count.mockResolvedValue(1);
+    const query = Object.assign(new ListSpecimenRevisionsQueryDto(), {
+      fieldChanged: 'common_name',
+      sourceSection: 'specimen_core',
+      changedBy: ACCOUNT_ID,
+      from: '2025-12-01T00:00:00.000Z',
+      to: '2026-02-01T00:00:00.000Z',
+      page: 2,
+      limit: 10,
+    });
+
+    await expect(
+      service.findRevisionHistory(SPECIMEN_ID, query),
+    ).resolves.toEqual({
+      items: [
+        {
+          id: REVISION_ID,
+          specimenId: SPECIMEN_ID,
+          changedBy: {
+            id: ACCOUNT_ID,
+            fullName: 'Test Curator',
+            role: 'CURATOR',
+          },
+          fieldChanged: 'common_name',
+          oldValue: 'Old name',
+          newValue: 'Test specimen',
+          reason: 'Identification corrected',
+          sourceSection: 'specimen_core',
+          changedAt: TEST_DATE,
+        },
+      ],
+      total: 1,
+      page: 2,
+      limit: 10,
+    });
+    const expectedWhere = {
+      specimen_id: SPECIMEN_ID,
+      field_changed: {
+        equals: 'common_name',
+        mode: Prisma.QueryMode.insensitive,
+      },
+      source_section: {
+        equals: 'specimen_core',
+        mode: Prisma.QueryMode.insensitive,
+      },
+      changed_by: ACCOUNT_ID,
+      changed_at: {
+        gte: new Date('2025-12-01T00:00:00.000Z'),
+        lte: new Date('2026-02-01T00:00:00.000Z'),
+      },
+    };
+    expect(specimenDelegate.findUnique).toHaveBeenCalledWith({
+      where: { id: SPECIMEN_ID },
+      select: { id: true },
+    });
+    expect(revisionDelegate.findMany).toHaveBeenCalledWith({
+      where: expectedWhere,
+      include: {
+        user_account: {
+          select: { id: true, full_name: true, role: true },
+        },
+      },
+      orderBy: [{ changed_at: 'desc' }, { id: 'desc' }],
+      skip: 10,
+      take: 10,
+    });
+    expect(revisionDelegate.count).toHaveBeenCalledWith({
+      where: expectedWhere,
+    });
+  });
+
+  it('rejects an inverted revision-history date range before querying', async () => {
+    const query = Object.assign(new ListSpecimenRevisionsQueryDto(), {
+      from: '2026-02-01T00:00:00.000Z',
+      to: '2026-01-01T00:00:00.000Z',
+    });
+
+    await expect(
+      service.findRevisionHistory(SPECIMEN_ID, query),
+    ).rejects.toThrow(BadRequestException);
+    expect(revisionDelegate.findMany).not.toHaveBeenCalled();
+  });
+
+  it('returns not found instead of an empty revision page for an unknown specimen', async () => {
+    specimenDelegate.findUnique.mockResolvedValue(null);
+
+    await expect(
+      service.findRevisionHistory(
+        SPECIMEN_ID,
+        new ListSpecimenRevisionsQueryDto(),
+      ),
+    ).rejects.toThrow(NotFoundException);
   });
 
   it('throws when a specimen does not exist', async () => {
