@@ -12,6 +12,8 @@ import { SpecimenTaxonomyService } from './specimen-taxonomy.service';
 import { SpecimensService } from './specimens.service';
 import { SpecimensController } from './specimens.controller';
 import { TagsController } from './tags.controller';
+import { CollectionsController } from './collections.controller';
+import { CollectionsService } from './collections.service';
 
 @Module({
   imports: [PrismaModule],
@@ -22,6 +24,7 @@ import { TagsController } from './tags.controller';
     SpecimenMediaController,
     SpecimenTagsController,
     TagsController,
+    CollectionsController,
   ],
   providers: [
     SpecimensService,
@@ -29,6 +32,7 @@ import { TagsController } from './tags.controller';
     SpecimenProvenanceService,
     SpecimenMediaService,
     SpecimenTagsService,
+    CollectionsService,
   ],
   exports: [
     SpecimensService,
@@ -36,6 +40,7 @@ import { TagsController } from './tags.controller';
     SpecimenProvenanceService,
     SpecimenMediaService,
     SpecimenTagsService,
+    CollectionsService,
   ],
 })
 export class SpecimensModule {}

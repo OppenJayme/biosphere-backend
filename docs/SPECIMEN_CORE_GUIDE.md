@@ -99,3 +99,7 @@ Revision-history retrieval is documented separately in
 `docs/SPECIMEN_REVISION_HISTORY_GUIDE.md`. It reads the immutable field-level
 history already produced by the cataloging slices and does not decide catalog
 completeness.
+
+Curator-managed collection lookup and maintenance are documented in
+`docs/COLLECTIONS_GUIDE.md`. Collection names remain extensible records rather
+than an enum, and specimens continue to reference them by UUID.
