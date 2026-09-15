@@ -72,3 +72,17 @@ export class Specimen {
   @ApiProperty()
   updatedAt!: Date;
 }
+
+export class SpecimenPage {
+  @ApiProperty({ type: [Specimen] })
+  items!: Specimen[];
+
+  @ApiProperty()
+  total!: number;
+
+  @ApiProperty()
+  page!: number;
+
+  @ApiProperty()
+  limit!: number;
+}
