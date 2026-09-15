@@ -6,6 +6,7 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Query,
 } from '@nestjs/common';
 import {
   ApiCreatedResponse,
@@ -17,9 +18,10 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
 import type { AuthenticatedUser } from '../auth/types/auth.types';
 import { CreateSpecimenDto } from './dto/create-specimen.dto';
+import { SearchSpecimensQueryDto } from './dto/search-specimens-query.dto';
 import { SetPublicDisplayDto } from './dto/set-public-display.dto';
 import { UpdateSpecimenDto } from './dto/update-specimen.dto';
-import { Specimen } from './entities/specimen.entity';
+import { Specimen, SpecimenPage } from './entities/specimen.entity';
 import { SpecimensService } from './specimens.service';
 
 @ApiTags('specimens')
@@ -43,6 +45,15 @@ export class SpecimensController {
   @ApiOkResponse({ type: [Specimen] })
   findAll(): Promise<Specimen[]> {
     return this.service.findAll();
+  }
+
+  @Get('search')
+  @ApiOperation({
+    summary: 'Search, filter, sort, and paginate the curator specimen catalog',
+  })
+  @ApiOkResponse({ type: SpecimenPage })
+  search(@Query() query: SearchSpecimensQueryDto): Promise<SpecimenPage> {
+    return this.service.search(query);
   }
 
   @Get(':id')

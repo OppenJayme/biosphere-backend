@@ -1,7 +1,13 @@
 /* eslint-disable @typescript-eslint/no-unsafe-assignment -- Jest asymmetric matchers are typed as any. */
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
+import { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import {
+  SearchSpecimensQueryDto,
+  SortDirection,
+  SpecimenSortField,
+} from './dto/search-specimens-query.dto';
 import { SpecimenGender, SpecimenStatus } from './entities/specimen.entity';
 import { SpecimensService } from './specimens.service';
 
@@ -9,6 +15,7 @@ const specimenDelegate = {
   create: jest.fn(),
   findMany: jest.fn(),
   findUnique: jest.fn(),
+  count: jest.fn(),
   update: jest.fn(),
 };
 const collectionDelegate = { findUnique: jest.fn() };
@@ -59,10 +66,12 @@ describe('SpecimensService', () => {
 
   beforeEach(async () => {
     jest.resetAllMocks();
-    transactionMock.mockImplementation(
-      (callback: (transaction: typeof prismaMock) => unknown) =>
-        Promise.resolve(callback(prismaMock)),
-    );
+    transactionMock.mockImplementation((operation: unknown) => {
+      if (Array.isArray(operation)) return Promise.all(operation);
+      return Promise.resolve(
+        (operation as (transaction: typeof prismaMock) => unknown)(prismaMock),
+      );
+    });
     revisionDelegate.createMany.mockResolvedValue({ count: 1 });
     auditDelegate.create.mockResolvedValue({});
     specimenLotDelegate.count.mockResolvedValue(0);
@@ -123,6 +132,29 @@ describe('SpecimensService', () => {
     );
   });
 
+  it('creates an offline draft through the same core writer with sync audit metadata', async () => {
+    specimenDelegate.create.mockResolvedValue(specimenRecord());
+
+    await expect(
+      service.createOfflineDraft(
+        prismaMock as unknown as Prisma.TransactionClient,
+        { specimenCategory: 'ZOOLOGY' },
+        ACCOUNT_ID,
+        '55555555-5555-4555-8555-555555555555',
+      ),
+    ).resolves.toHaveProperty('status', SpecimenStatus.UNCATALOGED);
+
+    expect(auditDelegate.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        action: 'SYNC_OFFLINE_SPECIMEN_DRAFT',
+        details: {
+          status: 'UNCATALOGED',
+          clientDraftId: '55555555-5555-4555-8555-555555555555',
+        },
+      }),
+    });
+  });
+
   it('rejects a missing collection before creating the specimen', async () => {
     collectionDelegate.findUnique.mockResolvedValue(null);
 
@@ -146,6 +178,79 @@ describe('SpecimensService', () => {
       where: { status: { not: 'ARCHIVED' } },
       orderBy: { created_at: 'desc' },
     });
+  });
+
+  it('searches active specimens with bounded filters, sorting, and pagination', async () => {
+    specimenDelegate.findMany.mockResolvedValue([specimenRecord()]);
+    specimenDelegate.count.mockResolvedValue(1);
+    const query = Object.assign(new SearchSpecimensQueryDto(), {
+      search: 'test',
+      collectionId: COLLECTION_ID,
+      specimenCategory: 'zoology',
+      gender: SpecimenGender.UNKNOWN,
+      publicDisplay: false,
+      page: 2,
+      limit: 10,
+      sortBy: SpecimenSortField.SCIENTIFIC_NAME,
+      sortDirection: SortDirection.ASC,
+    });
+
+    await expect(service.search(query)).resolves.toEqual({
+      items: [expect.objectContaining({ id: SPECIMEN_ID })],
+      total: 1,
+      page: 2,
+      limit: 10,
+    });
+    const expectedWhere = expect.objectContaining({
+      status: { not: 'ARCHIVED' },
+      collection_id: COLLECTION_ID,
+      specimen_category: {
+        equals: 'zoology',
+        mode: Prisma.QueryMode.insensitive,
+      },
+      gender: SpecimenGender.UNKNOWN,
+      public_display_allowed: false,
+      OR: expect.arrayContaining([
+        {
+          scientific_name: {
+            contains: 'test',
+            mode: Prisma.QueryMode.insensitive,
+          },
+        },
+      ]),
+    });
+    expect(specimenDelegate.findMany).toHaveBeenCalledWith({
+      where: expectedWhere,
+      orderBy: [
+        { scientific_name: { sort: 'asc', nulls: 'last' } },
+        { id: 'asc' },
+      ],
+      skip: 10,
+      take: 10,
+    });
+    expect(specimenDelegate.count).toHaveBeenCalledWith({
+      where: expectedWhere,
+    });
+  });
+
+  it('includes archived records only when explicitly filtered and matches UUIDs exactly', async () => {
+    specimenDelegate.findMany.mockResolvedValue([]);
+    specimenDelegate.count.mockResolvedValue(0);
+    const query = Object.assign(new SearchSpecimensQueryDto(), {
+      search: SPECIMEN_ID,
+      status: SpecimenStatus.ARCHIVED,
+    });
+
+    await service.search(query);
+
+    expect(specimenDelegate.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          status: SpecimenStatus.ARCHIVED,
+          OR: expect.arrayContaining([{ id: SPECIMEN_ID }]),
+        }),
+      }),
+    );
   });
 
   it('throws when a specimen does not exist', async () => {

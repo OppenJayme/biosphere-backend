@@ -26,6 +26,11 @@ PostgreSQL or TypeScript enum until the museum confirms a permanent controlled
 list. This follows `DATABASE_CONVENTIONS.md` and allows curators to extend the
 classifications later.
 
+Incoming text values are trimmed before validation. Required fields reject
+`null`, empty strings, and whitespace-only strings. The nullable `size` and
+`capacity` fields may be explicitly set to `null` during an update when a
+curator needs to clear them.
+
 ## Hierarchy and movement rules
 
 - A parent must exist and must not be archived.
@@ -40,12 +45,42 @@ classifications later.
 - Moving to the current parent is rejected because it is not a real movement
   and violates the movement-history different-parent constraint.
 
+The SRS requires invalid parent combinations to be rejected, but it does not
+yet define a permanent compatibility matrix between the curator-extensible
+`unitType` values. Do not invent or hard-code such a matrix until the museum
+confirms those rules.
+
 ## Archive rules
 
 Archiving is used instead of deletion. A unit cannot be archived while it has
 non-archived direct children or active specimen lots. Repeating archive on an
 already archived unit is safe and returns its existing state. Archived units
 cannot be edited, moved, or selected as a new parent.
+
+A unit with active specimen lots cannot have `holdsSpecimens` changed from
+`true` to `false`; the lots must first be moved or deactivated. This preserves
+the same assignment rule enforced by the specimen-lot service.
+
+## Audit and concurrency rules
+
+- Successful create, update, move, and archive operations write a central
+  `audit_log` entry with the authenticated curator's BioSphere account ID.
+- The action names are `CREATE_STORAGE_UNIT`, `UPDATE_STORAGE_UNIT`,
+  `MOVE_STORAGE_UNIT`, and `ARCHIVE_STORAGE_UNIT`; the module is always
+  `storage_locations` and the affected record type is `storage_unit`.
+- Movement also writes the domain-specific `storage_movement_history` entry.
+  The movement record describes the location change, while `audit_log` makes
+  the curator action visible in the system-wide audit trail.
+- The business mutation and its successful audit entry commit atomically in a
+  serializable transaction. PostgreSQL serialization conflicts are retried up
+  to three times and then returned as a conflict response that tells the client
+  to reload and try again.
+- Empty or identical updates are rejected and do not create misleading audit
+  entries. Repeating archive for an already archived unit is idempotent and
+  does not create another audit entry.
+- This module records successful storage-location actions. Cross-cutting logs
+  for failed authentication and denied authorization belong in the shared auth
+  and audit infrastructure rather than in individual storage handlers.
 
 ## Endpoints
 

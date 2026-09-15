@@ -16,6 +16,9 @@ import { SpecimensModule } from './specimens/specimens.module';
 import { SpecimenLotsModule } from './specimen-lots/specimen-lots.module';
 import { StorageLocationsModule } from './storage-locations/storage-locations.module';
 import { DeveloperModule } from './developer/developer.module';
+import { FaqModule } from './faq/faq.module';
+import { AuditModule } from './audit/audit.module';
+import { OfflineSyncModule } from './offline-sync/offline-sync.module';
 import { ExhibitsModule } from './exhibit/exhibits.module';
 
 @Module({
@@ -36,6 +39,9 @@ import { ExhibitsModule } from './exhibit/exhibits.module';
     StorageLocationsModule,
     SpecimensModule,
     SpecimenLotsModule,
+    FaqModule,
+    AuditModule,
+    OfflineSyncModule,
   ],
   controllers: [AppController],
   providers: [
