@@ -16,6 +16,7 @@ import { SpecimensModule } from './specimens/specimens.module';
 import { SpecimenLotsModule } from './specimen-lots/specimen-lots.module';
 import { StorageLocationsModule } from './storage-locations/storage-locations.module';
 import { DeveloperModule } from './developer/developer.module';
+import { ExhibitsModule } from './exhibit/exhibits.module';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { DeveloperModule } from './developer/developer.module';
     SupabaseModule,
     PrismaModule,
     AuthModule,
+    ExhibitsModule,
     // TestModule,
     // NFR-SEC-15: rate limit public forms. Defaults to 10 req/min per IP,
     // applied globally for now — narrow this to just the public POST
