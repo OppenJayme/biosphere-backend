@@ -14,10 +14,13 @@ import { SpecimensController } from './specimens.controller';
 import { TagsController } from './tags.controller';
 import { CollectionsController } from './collections.controller';
 import { CollectionsService } from './collections.service';
+import { SpecimenDetailsController } from './specimen-details.controller';
+import { SpecimenDetailsService } from './specimen-details.service';
 
 @Module({
   imports: [PrismaModule],
   controllers: [
+    SpecimenDetailsController,
     SpecimensController,
     SpecimenTaxonomyController,
     SpecimenProvenanceController,
@@ -27,6 +30,7 @@ import { CollectionsService } from './collections.service';
     CollectionsController,
   ],
   providers: [
+    SpecimenDetailsService,
     SpecimensService,
     SpecimenTaxonomyService,
     SpecimenProvenanceService,
@@ -35,6 +39,7 @@ import { CollectionsService } from './collections.service';
     CollectionsService,
   ],
   exports: [
+    SpecimenDetailsService,
     SpecimensService,
     SpecimenTaxonomyService,
     SpecimenProvenanceService,

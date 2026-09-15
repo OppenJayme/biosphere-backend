@@ -77,6 +77,7 @@ allowing a client to bypass completeness validation.
 - `GET /specimens`
 - `GET /specimens/search?search=turtle&status=CATALOGED&page=1&limit=25`
 - `GET /specimens/:id`
+- `GET /specimens/:id/details`
 - `GET /specimens/:id/revisions?page=1&limit=50`
 - `PATCH /specimens/:id`
 - `PATCH /specimens/:id/public-display`
@@ -103,3 +104,7 @@ completeness.
 Curator-managed collection lookup and maintenance are documented in
 `docs/COLLECTIONS_GUIDE.md`. Collection names remain extensible records rather
 than an enum, and specimens continue to reference them by UUID.
+
+The integrated curator detail response is documented in
+`docs/SPECIMEN_DETAIL_GUIDE.md`. It assembles existing catalog sections for the
+frontend without deciding catalog completeness or returning unbounded history.
