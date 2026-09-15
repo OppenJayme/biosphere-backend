@@ -4,15 +4,25 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { isUUID } from 'class-validator';
-import { Prisma, type specimen } from '../generated/prisma/client';
+import {
+  Prisma,
+  type specimen,
+  type specimen_revision_history,
+  type user_role,
+} from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateSpecimenDto } from './dto/create-specimen.dto';
+import { ListSpecimenRevisionsQueryDto } from './dto/list-specimen-revisions-query.dto';
 import {
   SearchSpecimensQueryDto,
   SpecimenSortField,
 } from './dto/search-specimens-query.dto';
 import { SetPublicDisplayDto } from './dto/set-public-display.dto';
 import { UpdateSpecimenDto } from './dto/update-specimen.dto';
+import {
+  SpecimenRevision,
+  SpecimenRevisionPage,
+} from './entities/specimen-revision.entity';
 import {
   Specimen,
   SpecimenGender,
@@ -25,6 +35,24 @@ interface RevisionChange {
   oldValue: string | boolean | null;
   newValue: string | boolean | null;
 }
+
+const SPECIMEN_REVISION_INCLUDE = {
+  user_account: {
+    select: {
+      id: true,
+      full_name: true,
+      role: true,
+    },
+  },
+} satisfies Prisma.specimen_revision_historyInclude;
+
+type SpecimenRevisionWithActor = specimen_revision_history & {
+  user_account: {
+    id: string;
+    full_name: string;
+    role: user_role;
+  };
+};
 
 @Injectable()
 export class SpecimensService {
@@ -97,6 +125,69 @@ export class SpecimensService {
 
     return {
       items: items.map((item) => this.toEntity(item)),
+      total,
+      page: query.page,
+      limit: query.limit,
+    };
+  }
+
+  async findRevisionHistory(
+    specimenId: string,
+    query: ListSpecimenRevisionsQueryDto,
+  ): Promise<SpecimenRevisionPage> {
+    const from = query.from ? new Date(query.from) : undefined;
+    const to = query.to ? new Date(query.to) : undefined;
+    if (from && to && from > to) {
+      throw new BadRequestException(
+        'The revision-history from timestamp must not be after the to timestamp.',
+      );
+    }
+
+    const where: Prisma.specimen_revision_historyWhereInput = {
+      specimen_id: specimenId,
+      field_changed: query.fieldChanged
+        ? {
+            equals: query.fieldChanged,
+            mode: Prisma.QueryMode.insensitive,
+          }
+        : undefined,
+      source_section: query.sourceSection
+        ? {
+            equals: query.sourceSection,
+            mode: Prisma.QueryMode.insensitive,
+          }
+        : undefined,
+      changed_by: query.changedBy,
+      changed_at:
+        from || to
+          ? {
+              gte: from,
+              lte: to,
+            }
+          : undefined,
+    };
+    const skip = (query.page - 1) * query.limit;
+    const [existing, items, total] = await this.prisma.$transaction([
+      this.prisma.specimen.findUnique({
+        where: { id: specimenId },
+        select: { id: true },
+      }),
+      this.prisma.specimen_revision_history.findMany({
+        where,
+        include: SPECIMEN_REVISION_INCLUDE,
+        orderBy: [{ changed_at: 'desc' }, { id: 'desc' }],
+        skip,
+        take: query.limit,
+      }),
+      this.prisma.specimen_revision_history.count({ where }),
+    ]);
+
+    if (!existing) {
+      throw new NotFoundException(`Specimen ${specimenId} not found`);
+    }
+
+    return {
+      items: items.map((item) => this.toRevisionEntity(item)),
       total,
       page: query.page,
       limit: query.limit,
@@ -562,6 +653,24 @@ export class SpecimensService {
       archivedAt: item.archived_at,
       createdAt: item.created_at,
       updatedAt: item.updated_at,
+    };
+  }
+
+  private toRevisionEntity(item: SpecimenRevisionWithActor): SpecimenRevision {
+    return {
+      id: item.id,
+      specimenId: item.specimen_id,
+      changedBy: {
+        id: item.user_account.id,
+        fullName: item.user_account.full_name,
+        role: item.user_account.role,
+      },
+      fieldChanged: item.field_changed,
+      oldValue: item.old_value,
+      newValue: item.new_value,
+      reason: item.reason,
+      sourceSection: item.source_section,
+      changedAt: item.changed_at,
     };
   }
 }

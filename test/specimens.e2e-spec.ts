@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-assignment -- Jest asymmetric matchers are typed as any. */
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import request from 'supertest';
@@ -15,6 +14,7 @@ describe('Specimens (e2e)', () => {
   const developerAuthId = '33333333-3333-4333-8333-333333333333';
   const specimenId = '44444444-4444-4444-8444-444444444444';
   const collectionId = '55555555-5555-4555-8555-555555555555';
+  const revisionId = '77777777-7777-4777-8777-777777777777';
   const testDate = new Date('2026-01-01T00:00:00.000Z');
 
   let app: INestApplication<App>;
@@ -26,7 +26,11 @@ describe('Specimens (e2e)', () => {
     count: jest.Mock;
     update: jest.Mock;
   };
-  let revisionDelegate: { createMany: jest.Mock };
+  let revisionDelegate: {
+    createMany: jest.Mock;
+    findMany: jest.Mock;
+    count: jest.Mock;
+  };
   let auditDelegate: { create: jest.Mock };
 
   beforeEach(async () => {
@@ -63,7 +67,28 @@ describe('Specimens (e2e)', () => {
         return specimenRecord;
       }),
     };
-    revisionDelegate = { createMany: jest.fn(() => ({ count: 1 })) };
+    revisionDelegate = {
+      createMany: jest.fn(() => ({ count: 1 })),
+      findMany: jest.fn(() => [
+        {
+          id: revisionId,
+          specimen_id: specimenId,
+          changed_by: curatorAccountId,
+          field_changed: 'common_name',
+          old_value: 'Old name',
+          new_value: 'Test specimen',
+          reason: 'Identification corrected',
+          changed_at: testDate,
+          source_section: 'specimen_core',
+          user_account: {
+            id: curatorAccountId,
+            full_name: 'Test Curator',
+            role: 'CURATOR',
+          },
+        },
+      ]),
+      count: jest.fn(() => 1),
+    };
     auditDelegate = { create: jest.fn(() => ({})) };
 
     const prismaMock = {
@@ -268,6 +293,81 @@ describe('Specimens (e2e)', () => {
       .expect(400);
 
     expect(specimenDelegate.findMany).not.toHaveBeenCalled();
+  });
+
+  it('returns protected, filtered specimen revision history', async () => {
+    const response = await request(app.getHttpServer())
+      .get(`/specimens/${specimenId}/revisions`)
+      .query({
+        fieldChanged: '  common_name  ',
+        sourceSection: 'specimen_core',
+        changedBy: curatorAccountId,
+        page: '1',
+        limit: '25',
+      })
+      .set('Authorization', `Bearer ${curatorToken}`)
+      .expect(200);
+
+    expect(response.body).toEqual({
+      items: [
+        {
+          id: revisionId,
+          specimenId,
+          changedBy: {
+            id: curatorAccountId,
+            fullName: 'Test Curator',
+            role: 'CURATOR',
+          },
+          fieldChanged: 'common_name',
+          oldValue: 'Old name',
+          newValue: 'Test specimen',
+          reason: 'Identification corrected',
+          sourceSection: 'specimen_core',
+          changedAt: testDate.toISOString(),
+        },
+      ],
+      total: 1,
+      page: 1,
+      limit: 25,
+    });
+    expect(revisionDelegate.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          specimen_id: specimenId,
+          changed_by: curatorAccountId,
+          field_changed: expect.objectContaining({ equals: 'common_name' }),
+          source_section: expect.objectContaining({
+            equals: 'specimen_core',
+          }),
+        }),
+        orderBy: [{ changed_at: 'desc' }, { id: 'desc' }],
+        skip: 0,
+        take: 25,
+      }),
+    );
+  });
+
+  it('protects specimen revision history from unauthenticated callers', () =>
+    request(app.getHttpServer())
+      .get(`/specimens/${specimenId}/revisions`)
+      .expect(401));
+
+  it('protects specimen revision history from Developer accounts', () =>
+    request(app.getHttpServer())
+      .get(`/specimens/${specimenId}/revisions`)
+      .set('Authorization', `Bearer ${developerToken}`)
+      .expect(403));
+
+  it('rejects invalid revision-history filters before querying history', async () => {
+    revisionDelegate.findMany.mockClear();
+
+    await request(app.getHttpServer())
+      .get(`/specimens/${specimenId}/revisions`)
+      .query({ changedBy: 'not-a-uuid', limit: '101' })
+      .set('Authorization', `Bearer ${curatorToken}`)
+      .expect(400);
+
+    expect(revisionDelegate.findMany).not.toHaveBeenCalled();
   });
 
   it('updates camelCase API fields and records revision history', async () => {

@@ -18,9 +18,11 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
 import type { AuthenticatedUser } from '../auth/types/auth.types';
 import { CreateSpecimenDto } from './dto/create-specimen.dto';
+import { ListSpecimenRevisionsQueryDto } from './dto/list-specimen-revisions-query.dto';
 import { SearchSpecimensQueryDto } from './dto/search-specimens-query.dto';
 import { SetPublicDisplayDto } from './dto/set-public-display.dto';
 import { UpdateSpecimenDto } from './dto/update-specimen.dto';
+import { SpecimenRevisionPage } from './entities/specimen-revision.entity';
 import { Specimen, SpecimenPage } from './entities/specimen.entity';
 import { SpecimensService } from './specimens.service';
 
@@ -54,6 +56,16 @@ export class SpecimensController {
   @ApiOkResponse({ type: SpecimenPage })
   search(@Query() query: SearchSpecimensQueryDto): Promise<SpecimenPage> {
     return this.service.search(query);
+  }
+
+  @Get(':id/revisions')
+  @ApiOperation({ summary: "View a specimen's protected revision history" })
+  @ApiOkResponse({ type: SpecimenRevisionPage })
+  findRevisionHistory(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Query() query: ListSpecimenRevisionsQueryDto,
+  ): Promise<SpecimenRevisionPage> {
+    return this.service.findRevisionHistory(id, query);
   }
 
   @Get(':id')
