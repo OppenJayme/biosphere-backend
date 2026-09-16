@@ -132,6 +132,47 @@ export class StorageLocationsService {
     return this.toEntity(await this.findOneOrThrow(id));
   }
 
+  async findPath(id: string): Promise<StorageUnit[]> {
+    return this.prisma.$transaction(
+      async (transaction) => {
+        const selected = await transaction.storage_unit.findUnique({
+          where: { id },
+        });
+        if (!selected) {
+          throw new NotFoundException(`Storage unit ${id} not found`);
+        }
+
+        const path = [selected];
+        const visited = new Set<string>([selected.id]);
+        let parentId = selected.parent_id;
+
+        while (parentId) {
+          if (visited.has(parentId)) {
+            throw new ConflictException(
+              'The stored storage hierarchy contains a cycle and cannot be resolved.',
+            );
+          }
+
+          const parent = await transaction.storage_unit.findUnique({
+            where: { id: parentId },
+          });
+          if (!parent) {
+            throw new ConflictException(
+              'The stored storage hierarchy references a missing parent.',
+            );
+          }
+
+          path.push(parent);
+          visited.add(parent.id);
+          parentId = parent.parent_id;
+        }
+
+        return path.reverse().map((unit) => this.toEntity(unit));
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead },
+    );
+  }
+
   async findChildren(id: string): Promise<StorageUnit[]> {
     await this.findOneOrThrow(id);
 
