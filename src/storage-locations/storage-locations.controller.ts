@@ -7,6 +7,7 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Query,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -21,8 +22,9 @@ import { StorageLocationsService } from './storage-locations.service';
 import { CreateStorageUnitDto } from './dto/create-storage-unit.dto';
 import { UpdateStorageUnitDto } from './dto/update-storage-unit.dto';
 import { MoveStorageUnitDto } from './dto/move-storage-unit.dto';
+import { SearchStorageLocationsQueryDto } from './dto/search-storage-locations-query.dto';
 import { StorageMovement } from './entities/storage-movement.entity';
-import { StorageUnit } from './entities/storage-unit.entity';
+import { StorageUnit, StorageUnitPage } from './entities/storage-unit.entity';
 
 @ApiTags('storage-locations')
 @Roles('CURATOR')
@@ -44,6 +46,15 @@ export class StorageLocationsController {
   @ApiOkResponse({ type: [StorageUnit] })
   findAll(): Promise<StorageUnit[]> {
     return this.service.findAll();
+  }
+
+  @Get('search')
+  @ApiOperation({ summary: 'Search, filter, and paginate storage locations' })
+  @ApiOkResponse({ type: StorageUnitPage })
+  search(
+    @Query() query: SearchStorageLocationsQueryDto,
+  ): Promise<StorageUnitPage> {
+    return this.service.search(query);
   }
 
   @Get(':id')

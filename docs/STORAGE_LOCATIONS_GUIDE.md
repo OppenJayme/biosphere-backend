@@ -86,6 +86,7 @@ the same assignment rule enforced by the specimen-lot service.
 
 - `POST /storage-locations`
 - `GET /storage-locations`
+- `GET /storage-locations/search?page=1&limit=25`
 - `GET /storage-locations/:id`
 - `GET /storage-locations/:id/children`
 - `GET /storage-locations/:id/movements`
@@ -95,6 +96,22 @@ the same assignment rule enforced by the specimen-lot service.
 - `PATCH /storage-locations/:id/archive`
 
 All endpoints require an active BioSphere account with the `CURATOR` role.
+
+## Search and selection
+
+`GET /storage-locations/search` is the bounded endpoint for curator search and
+selection screens. It supports a partial, case-insensitive `search` against the
+label plus exact, case-insensitive `unitType` and `storageType` filters. The
+optional `holdsSpecimens` filter accepts only `true` or `false`.
+
+The `lifecycle` filter accepts `ACTIVE`, `ARCHIVED`, or `ALL` and defaults to
+`ACTIVE`. Results are ordered by label and then UUID for stable pagination.
+Pages default to 25 records and are capped at 100. The existing unpaginated
+`GET /storage-locations` contract remains unchanged for compatibility; new UI
+lists should use the search endpoint.
+
+Search does not recursively include descendants, calculate capacity usage, or
+freeze the curator-extensible storage classifications into enums.
 
 ## Direct inventory view
 

@@ -12,9 +12,13 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateStorageUnitDto } from './dto/create-storage-unit.dto';
 import { MoveStorageUnitDto } from './dto/move-storage-unit.dto';
+import {
+  SearchStorageLocationsQueryDto,
+  StorageUnitLifecycleFilter,
+} from './dto/search-storage-locations-query.dto';
 import { UpdateStorageUnitDto } from './dto/update-storage-unit.dto';
 import { StorageMovement } from './entities/storage-movement.entity';
-import { StorageUnit } from './entities/storage-unit.entity';
+import { StorageUnit, StorageUnitPage } from './entities/storage-unit.entity';
 
 type StorageHierarchyReader = {
   storage_unit: {
@@ -73,6 +77,55 @@ export class StorageLocationsService {
     });
 
     return units.map((unit) => this.toEntity(unit));
+  }
+
+  async search(
+    query: SearchStorageLocationsQueryDto,
+  ): Promise<StorageUnitPage> {
+    const where: Prisma.storage_unitWhereInput = {
+      label: query.search
+        ? {
+            contains: query.search,
+            mode: Prisma.QueryMode.insensitive,
+          }
+        : undefined,
+      unit_type: query.unitType
+        ? {
+            equals: query.unitType,
+            mode: Prisma.QueryMode.insensitive,
+          }
+        : undefined,
+      storage_type: query.storageType
+        ? {
+            equals: query.storageType,
+            mode: Prisma.QueryMode.insensitive,
+          }
+        : undefined,
+      holds_specimens: query.holdsSpecimens,
+      archived_at:
+        query.lifecycle === StorageUnitLifecycleFilter.ACTIVE
+          ? null
+          : query.lifecycle === StorageUnitLifecycleFilter.ARCHIVED
+            ? { not: null }
+            : undefined,
+    };
+    const skip = (query.page - 1) * query.limit;
+    const [items, total] = await this.prisma.$transaction([
+      this.prisma.storage_unit.findMany({
+        where,
+        orderBy: [{ label: 'asc' }, { id: 'asc' }],
+        skip,
+        take: query.limit,
+      }),
+      this.prisma.storage_unit.count({ where }),
+    ]);
+
+    return {
+      items: items.map((item) => this.toEntity(item)),
+      total,
+      page: query.page,
+      limit: query.limit,
+    };
   }
 
   async findOne(id: string): Promise<StorageUnit> {
