@@ -6,6 +6,7 @@ import {
 import { Test, TestingModule } from '@nestjs/testing';
 import { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { StorageUnitLifecycleFilter } from './dto/search-storage-locations-query.dto';
 import { StorageLocationsService } from './storage-locations.service';
 
 const storageUnitDelegate = {
@@ -60,8 +61,13 @@ describe('StorageLocationsService', () => {
   beforeEach(async () => {
     jest.resetAllMocks();
     transactionMock.mockImplementation(
-      (callback: (transaction: typeof prismaMock) => unknown) =>
-        Promise.resolve(callback(prismaMock)),
+      (
+        operation:
+          Promise<unknown>[] | ((transaction: typeof prismaMock) => unknown),
+      ) =>
+        Array.isArray(operation)
+          ? Promise.all(operation)
+          : Promise.resolve(operation(prismaMock)),
     );
     auditDelegate.create.mockResolvedValue({});
 
@@ -178,6 +184,84 @@ describe('StorageLocationsService', () => {
     expect(result.map((unit) => unit.id)).toEqual(['unit-1', 'unit-2']);
     expect(result[0]).toHaveProperty('storageType', 'DRY_STORAGE');
     expect(result[0]).not.toHaveProperty('storage_type');
+  });
+
+  it('searches active storage units with bounded filters and stable ordering', async () => {
+    storageUnitDelegate.findMany.mockResolvedValue([
+      storageUnitRecord({ id: 'unit-2', label: 'Cabinet B' }),
+    ]);
+    storageUnitDelegate.count.mockResolvedValue(1);
+
+    const result = await service.search({
+      search: 'cabinet',
+      unitType: 'cabinet',
+      storageType: 'dry_storage',
+      holdsSpecimens: true,
+      lifecycle: StorageUnitLifecycleFilter.ACTIVE,
+      page: 2,
+      limit: 25,
+    });
+
+    const expectedWhere = {
+      label: {
+        contains: 'cabinet',
+        mode: Prisma.QueryMode.insensitive,
+      },
+      unit_type: {
+        equals: 'cabinet',
+        mode: Prisma.QueryMode.insensitive,
+      },
+      storage_type: {
+        equals: 'dry_storage',
+        mode: Prisma.QueryMode.insensitive,
+      },
+      holds_specimens: true,
+      archived_at: null,
+    };
+    expect(storageUnitDelegate.findMany).toHaveBeenCalledWith({
+      where: expectedWhere,
+      orderBy: [{ label: 'asc' }, { id: 'asc' }],
+      skip: 25,
+      take: 25,
+    });
+    expect(storageUnitDelegate.count).toHaveBeenCalledWith({
+      where: expectedWhere,
+    });
+    expect(result).toEqual({
+      items: [expect.objectContaining({ id: 'unit-2', label: 'Cabinet B' })],
+      total: 1,
+      page: 2,
+      limit: 25,
+    });
+  });
+
+  it('supports archived-only and all-lifecycle storage searches', async () => {
+    storageUnitDelegate.findMany.mockResolvedValue([]);
+    storageUnitDelegate.count.mockResolvedValue(0);
+
+    await service.search({
+      lifecycle: StorageUnitLifecycleFilter.ARCHIVED,
+      page: 1,
+      limit: 25,
+    });
+    expect(storageUnitDelegate.findMany).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          archived_at: { not: null },
+        }) as object,
+      }) as object,
+    );
+
+    await service.search({
+      lifecycle: StorageUnitLifecycleFilter.ALL,
+      page: 1,
+      limit: 25,
+    });
+    expect(storageUnitDelegate.findMany).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ archived_at: undefined }) as object,
+      }) as object,
+    );
   });
 
   it('lists direct children after confirming the parent exists', async () => {
