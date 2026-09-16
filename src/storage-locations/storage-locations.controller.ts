@@ -57,6 +57,15 @@ export class StorageLocationsController {
     return this.service.search(query);
   }
 
+  @Get(':id/path')
+  @ApiOperation({
+    summary: 'Get the root-to-unit storage hierarchy path (REQ-4.6-08)',
+  })
+  @ApiOkResponse({ type: [StorageUnit] })
+  findPath(@Param('id', ParseUUIDPipe) id: string): Promise<StorageUnit[]> {
+    return this.service.findPath(id);
+  }
+
   @Get(':id')
   @ApiOkResponse({ type: StorageUnit })
   findOne(@Param('id', ParseUUIDPipe) id: string): Promise<StorageUnit> {

@@ -88,6 +88,7 @@ the same assignment rule enforced by the specimen-lot service.
 - `GET /storage-locations`
 - `GET /storage-locations/search?page=1&limit=25`
 - `GET /storage-locations/:id`
+- `GET /storage-locations/:id/path`
 - `GET /storage-locations/:id/children`
 - `GET /storage-locations/:id/movements`
 - `GET /storage-locations/:id/inventory?page=1&limit=50`
@@ -112,6 +113,20 @@ lists should use the search endpoint.
 
 Search does not recursively include descendants, calculate capacity usage, or
 freeze the curator-extensible storage classifications into enums.
+
+## Derived hierarchy path
+
+`GET /storage-locations/:id/path` derives the selected unit's location from
+the stored parent relationships and returns the complete path in root-to-unit
+order. A drawer inside a cabinet inside a room therefore returns the room,
+cabinet, and drawer without duplicating room/gallery fields on the drawer or
+its specimen lots. This implements REQ-4.6-08 while keeping storage unit types
+curator-extensible.
+
+The path is read using a repeatable-read transaction so one response cannot
+mix hierarchy states from concurrent container moves. The service safely
+rejects a missing selected unit and reports a conflict if legacy or manually
+modified data contains a parent cycle or missing ancestor.
 
 ## Direct inventory view
 

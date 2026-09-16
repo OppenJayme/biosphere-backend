@@ -249,6 +249,29 @@ describe('Storage locations (e2e)', () => {
     },
   );
 
+  it('returns the derived root-to-unit hierarchy path to a curator', async () => {
+    storageUnitDelegate.findUnique
+      .mockResolvedValueOnce(
+        storageUnitRecord({ id: unitId, parent_id: oldParentId }),
+      )
+      .mockResolvedValueOnce(
+        storageUnitRecord({
+          id: oldParentId,
+          parent_id: null,
+          label: 'Museum Room',
+          unit_type: 'ROOM',
+        }),
+      );
+
+    const response = await request(app.getHttpServer())
+      .get(`/storage-locations/${unitId}/path`)
+      .set('Authorization', `Bearer ${curatorToken}`)
+      .expect(200);
+
+    const responseBody = response.body as Array<{ id: string }>;
+    expect(responseBody.map((unit) => unit.id)).toEqual([oldParentId, unitId]);
+  });
+
   it('requires storageType and rejects parent changes through general update', async () => {
     await request(app.getHttpServer())
       .post('/storage-locations')

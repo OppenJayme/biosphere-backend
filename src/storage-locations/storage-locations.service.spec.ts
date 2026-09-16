@@ -279,6 +279,69 @@ describe('StorageLocationsService', () => {
     expect(result[0].parentId).toBe('unit-1');
   });
 
+  it('derives a stable root-to-unit hierarchy path', async () => {
+    storageUnitDelegate.findUnique
+      .mockResolvedValueOnce(
+        storageUnitRecord({
+          id: 'drawer-1',
+          parent_id: 'cabinet-1',
+          label: 'Drawer 1',
+        }),
+      )
+      .mockResolvedValueOnce(
+        storageUnitRecord({
+          id: 'cabinet-1',
+          parent_id: 'room-1',
+          label: 'Cabinet 1',
+        }),
+      )
+      .mockResolvedValueOnce(
+        storageUnitRecord({
+          id: 'room-1',
+          parent_id: null,
+          label: 'Museum Room',
+        }),
+      );
+
+    const result = await service.findPath('drawer-1');
+
+    expect(result.map((unit) => unit.id)).toEqual([
+      'room-1',
+      'cabinet-1',
+      'drawer-1',
+    ]);
+    expect(transactionMock).toHaveBeenCalledWith(expect.any(Function), {
+      isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead,
+    });
+  });
+
+  it('rejects missing targets and corrupt stored hierarchy paths', async () => {
+    storageUnitDelegate.findUnique.mockResolvedValueOnce(null);
+    await expect(service.findPath('missing-unit')).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+
+    storageUnitDelegate.findUnique
+      .mockResolvedValueOnce(
+        storageUnitRecord({ id: 'unit-1', parent_id: 'unit-2' }),
+      )
+      .mockResolvedValueOnce(
+        storageUnitRecord({ id: 'unit-2', parent_id: 'unit-1' }),
+      );
+    await expect(service.findPath('unit-1')).rejects.toBeInstanceOf(
+      ConflictException,
+    );
+
+    storageUnitDelegate.findUnique
+      .mockResolvedValueOnce(
+        storageUnitRecord({ id: 'unit-1', parent_id: 'missing-parent' }),
+      )
+      .mockResolvedValueOnce(null);
+    await expect(service.findPath('unit-1')).rejects.toThrow(
+      'references a missing parent',
+    );
+  });
+
   it('updates an active unit and refreshes updated_at', async () => {
     storageUnitDelegate.findUnique.mockResolvedValue(storageUnitRecord());
     storageUnitDelegate.update.mockImplementation(
