@@ -705,6 +705,7 @@ model specimen {
   updated_at                                      DateTime                    @default(now()) @db.Timestamptz(6)
   archived_at                                     DateTime?                   @db.Timestamptz(6)
   exhibit                                         exhibit[]
+  offline_draft_sync                              offline_draft_sync?
   user_account_specimen_archived_byTouser_account user_account?               @relation("specimen_archived_byTouser_account", fields: [archived_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
   collection                                      collection?                 @relation(fields: [collection_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   user_account_specimen_created_byTouser_account  user_account                @relation("specimen_created_byTouser_account", fields: [created_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
@@ -718,6 +719,23 @@ model specimen {
 
   @@index([collection_id], map: "idx_specimen_collection_id")
   @@index([status], map: "idx_specimen_status")
+  @@schema("public")
+}
+
+/// Durable receipt used to make offline specimen-draft retries idempotent.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model offline_draft_sync {
+  id                  String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  created_by          String       @db.Uuid
+  client_draft_id     String       @db.Uuid
+  specimen_id         String       @unique @db.Uuid
+  payload_fingerprint String       @db.Char(64)
+  synchronized_at     DateTime     @default(now()) @db.Timestamptz(6)
+  user_account        user_account @relation(fields: [created_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  specimen            specimen     @relation(fields: [specimen_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([created_by, client_draft_id], map: "offline_draft_sync_created_by_client_draft_id_key")
+  @@index([created_by], map: "idx_offline_draft_sync_created_by")
   @@schema("public")
 }
 
@@ -921,6 +939,7 @@ model user_account {
   faq_entry_faq_entry_created_byTouser_account       faq_entry[]                 @relation("faq_entry_created_byTouser_account")
   faq_entry_faq_entry_updated_byTouser_account       faq_entry[]                 @relation("faq_entry_updated_byTouser_account")
   inquiry                                            inquiry[]
+  offline_draft_sync                                 offline_draft_sync[]
   specimen_specimen_archived_byTouser_account        specimen[]                  @relation("specimen_archived_byTouser_account")
   specimen_specimen_created_byTouser_account         specimen[]                  @relation("specimen_created_byTouser_account")
   specimen_specimen_updated_byTouser_account         specimen[]                  @relation("specimen_updated_byTouser_account")

@@ -7,6 +7,7 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Query,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -21,8 +22,9 @@ import { StorageLocationsService } from './storage-locations.service';
 import { CreateStorageUnitDto } from './dto/create-storage-unit.dto';
 import { UpdateStorageUnitDto } from './dto/update-storage-unit.dto';
 import { MoveStorageUnitDto } from './dto/move-storage-unit.dto';
+import { SearchStorageLocationsQueryDto } from './dto/search-storage-locations-query.dto';
 import { StorageMovement } from './entities/storage-movement.entity';
-import { StorageUnit } from './entities/storage-unit.entity';
+import { StorageUnit, StorageUnitPage } from './entities/storage-unit.entity';
 
 @ApiTags('storage-locations')
 @Roles('CURATOR')
@@ -33,14 +35,35 @@ export class StorageLocationsController {
   @Post()
   @ApiOperation({ summary: 'Create a storage unit (curator-only)' })
   @ApiCreatedResponse({ type: StorageUnit })
-  create(@Body() dto: CreateStorageUnitDto): Promise<StorageUnit> {
-    return this.service.create(dto);
+  create(
+    @Body() dto: CreateStorageUnitDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<StorageUnit> {
+    return this.service.create(dto, user.accountId);
   }
 
   @Get()
   @ApiOkResponse({ type: [StorageUnit] })
   findAll(): Promise<StorageUnit[]> {
     return this.service.findAll();
+  }
+
+  @Get('search')
+  @ApiOperation({ summary: 'Search, filter, and paginate storage locations' })
+  @ApiOkResponse({ type: StorageUnitPage })
+  search(
+    @Query() query: SearchStorageLocationsQueryDto,
+  ): Promise<StorageUnitPage> {
+    return this.service.search(query);
+  }
+
+  @Get(':id/path')
+  @ApiOperation({
+    summary: 'Get the root-to-unit storage hierarchy path (REQ-4.6-08)',
+  })
+  @ApiOkResponse({ type: [StorageUnit] })
+  findPath(@Param('id', ParseUUIDPipe) id: string): Promise<StorageUnit[]> {
+    return this.service.findPath(id);
   }
 
   @Get(':id')
@@ -68,8 +91,9 @@ export class StorageLocationsController {
   update(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateStorageUnitDto,
+    @CurrentUser() user: AuthenticatedUser,
   ): Promise<StorageUnit> {
-    return this.service.update(id, dto);
+    return this.service.update(id, dto, user.accountId);
   }
 
   @Patch(':id/move')
@@ -85,7 +109,10 @@ export class StorageLocationsController {
 
   @Patch(':id/archive')
   @ApiOkResponse({ type: StorageUnit })
-  archive(@Param('id', ParseUUIDPipe) id: string): Promise<StorageUnit> {
-    return this.service.archive(id);
+  archive(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<StorageUnit> {
+    return this.service.archive(id, user.accountId);
   }
 }

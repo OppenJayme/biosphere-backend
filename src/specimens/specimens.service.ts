@@ -3,14 +3,30 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma, type specimen } from '../generated/prisma/client';
+import { isUUID } from 'class-validator';
+import {
+  Prisma,
+  type specimen,
+  type specimen_revision_history,
+  type user_role,
+} from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateSpecimenDto } from './dto/create-specimen.dto';
+import { ListSpecimenRevisionsQueryDto } from './dto/list-specimen-revisions-query.dto';
+import {
+  SearchSpecimensQueryDto,
+  SpecimenSortField,
+} from './dto/search-specimens-query.dto';
 import { SetPublicDisplayDto } from './dto/set-public-display.dto';
 import { UpdateSpecimenDto } from './dto/update-specimen.dto';
 import {
+  SpecimenRevision,
+  SpecimenRevisionPage,
+} from './entities/specimen-revision.entity';
+import {
   Specimen,
   SpecimenGender,
+  SpecimenPage,
   SpecimenStatus,
 } from './entities/specimen.entity';
 
@@ -20,6 +36,24 @@ interface RevisionChange {
   newValue: string | boolean | null;
 }
 
+const SPECIMEN_REVISION_INCLUDE = {
+  user_account: {
+    select: {
+      id: true,
+      full_name: true,
+      role: true,
+    },
+  },
+} satisfies Prisma.specimen_revision_historyInclude;
+
+type SpecimenRevisionWithActor = specimen_revision_history & {
+  user_account: {
+    id: string;
+    full_name: string;
+    role: user_role;
+  };
+};
+
 @Injectable()
 export class SpecimensService {
   constructor(private readonly prisma: PrismaService) {}
@@ -28,37 +62,38 @@ export class SpecimensService {
     dto: CreateSpecimenDto,
     actingCuratorAccountId: string,
   ): Promise<Specimen> {
-    return this.prisma.$transaction(async (transaction) => {
-      if (dto.collectionId) {
-        await this.assertCollectionExists(transaction, dto.collectionId);
-      }
+    return this.prisma.$transaction((transaction) =>
+      this.createUncatalogedRecord(
+        transaction,
+        dto,
+        actingCuratorAccountId,
+        'CREATE_SPECIMEN',
+      ),
+    );
+  }
 
-      const created = await transaction.specimen.create({
-        data: {
-          collection_id: dto.collectionId,
-          created_by: actingCuratorAccountId,
-          updated_by: actingCuratorAccountId,
-          accession_number: dto.accessionNumber,
-          specimen_category: dto.specimenCategory,
-          scientific_name: dto.scientificName,
-          common_name: dto.commonName,
-          gender: dto.gender,
-          classification_status: dto.classificationStatus,
-          status: 'UNCATALOGED',
-          public_display_allowed: false,
-          remarks: dto.remarks,
-        },
-      });
+  createOfflineDraft(
+    transaction: Prisma.TransactionClient,
+    dto: CreateSpecimenDto,
+    actingCuratorAccountId: string,
+    clientDraftId: string,
+  ): Promise<Specimen> {
+    return this.createUncatalogedRecord(
+      transaction,
+      dto,
+      actingCuratorAccountId,
+      'SYNC_OFFLINE_SPECIMEN_DRAFT',
+      { clientDraftId },
+    );
+  }
 
-      await this.recordAudit(transaction, {
-        userId: actingCuratorAccountId,
-        specimenId: created.id,
-        action: 'CREATE_SPECIMEN',
-        details: { status: created.status },
-      });
-
-      return this.toEntity(created);
-    });
+  async findOneInTransaction(
+    transaction: Prisma.TransactionClient,
+    id: string,
+  ): Promise<Specimen> {
+    const item = await transaction.specimen.findUnique({ where: { id } });
+    this.assertExists(item, id);
+    return this.toEntity(item);
   }
 
   async findAll(): Promise<Specimen[]> {
@@ -72,6 +107,91 @@ export class SpecimensService {
 
   async findOne(id: string): Promise<Specimen> {
     return this.toEntity(await this.findOneOrThrow(id));
+  }
+
+  async search(query: SearchSpecimensQueryDto): Promise<SpecimenPage> {
+    const where = this.buildSearchWhere(query);
+    const skip = (query.page - 1) * query.limit;
+    const orderBy = this.buildSearchOrderBy(query);
+    const [items, total] = await this.prisma.$transaction([
+      this.prisma.specimen.findMany({
+        where,
+        orderBy,
+        skip,
+        take: query.limit,
+      }),
+      this.prisma.specimen.count({ where }),
+    ]);
+
+    return {
+      items: items.map((item) => this.toEntity(item)),
+      total,
+      page: query.page,
+      limit: query.limit,
+    };
+  }
+
+  async findRevisionHistory(
+    specimenId: string,
+    query: ListSpecimenRevisionsQueryDto,
+  ): Promise<SpecimenRevisionPage> {
+    const from = query.from ? new Date(query.from) : undefined;
+    const to = query.to ? new Date(query.to) : undefined;
+    if (from && to && from > to) {
+      throw new BadRequestException(
+        'The revision-history from timestamp must not be after the to timestamp.',
+      );
+    }
+
+    const where: Prisma.specimen_revision_historyWhereInput = {
+      specimen_id: specimenId,
+      field_changed: query.fieldChanged
+        ? {
+            equals: query.fieldChanged,
+            mode: Prisma.QueryMode.insensitive,
+          }
+        : undefined,
+      source_section: query.sourceSection
+        ? {
+            equals: query.sourceSection,
+            mode: Prisma.QueryMode.insensitive,
+          }
+        : undefined,
+      changed_by: query.changedBy,
+      changed_at:
+        from || to
+          ? {
+              gte: from,
+              lte: to,
+            }
+          : undefined,
+    };
+    const skip = (query.page - 1) * query.limit;
+    const [existing, items, total] = await this.prisma.$transaction([
+      this.prisma.specimen.findUnique({
+        where: { id: specimenId },
+        select: { id: true },
+      }),
+      this.prisma.specimen_revision_history.findMany({
+        where,
+        include: SPECIMEN_REVISION_INCLUDE,
+        orderBy: [{ changed_at: 'desc' }, { id: 'desc' }],
+        skip,
+        take: query.limit,
+      }),
+      this.prisma.specimen_revision_history.count({ where }),
+    ]);
+
+    if (!existing) {
+      throw new NotFoundException(`Specimen ${specimenId} not found`);
+    }
+
+    return {
+      items: items.map((item) => this.toRevisionEntity(item)),
+      total,
+      page: query.page,
+      limit: query.limit,
+    };
   }
 
   async update(
@@ -341,6 +461,106 @@ export class SpecimensService {
     return item;
   }
 
+  private buildSearchWhere(
+    query: SearchSpecimensQueryDto,
+  ): Prisma.specimenWhereInput {
+    const where: Prisma.specimenWhereInput = {
+      status: query.status ?? { not: 'ARCHIVED' },
+      collection_id: query.collectionId,
+      specimen_category: query.specimenCategory
+        ? {
+            equals: query.specimenCategory,
+            mode: Prisma.QueryMode.insensitive,
+          }
+        : undefined,
+      gender: query.gender,
+      public_display_allowed: query.publicDisplay,
+    };
+
+    if (query.search) {
+      const contains = {
+        contains: query.search,
+        mode: Prisma.QueryMode.insensitive,
+      } as const;
+      where.OR = [
+        { accession_number: contains },
+        { specimen_category: contains },
+        { scientific_name: contains },
+        { common_name: contains },
+        { classification_status: contains },
+        { remarks: contains },
+        { collection: { is: { collection_name: contains } } },
+      ];
+      if (isUUID(query.search)) where.OR.push({ id: query.search });
+    }
+
+    return where;
+  }
+
+  private buildSearchOrderBy(
+    query: SearchSpecimensQueryDto,
+  ): Prisma.specimenOrderByWithRelationInput[] {
+    const fields: Record<
+      SpecimenSortField,
+      keyof Prisma.specimenOrderByWithRelationInput
+    > = {
+      [SpecimenSortField.UPDATED_AT]: 'updated_at',
+      [SpecimenSortField.CREATED_AT]: 'created_at',
+      [SpecimenSortField.ACCESSION_NUMBER]: 'accession_number',
+      [SpecimenSortField.SCIENTIFIC_NAME]: 'scientific_name',
+      [SpecimenSortField.COMMON_NAME]: 'common_name',
+      [SpecimenSortField.STATUS]: 'status',
+    };
+
+    const field = fields[query.sortBy];
+    const nullableSortFields = new Set<
+      keyof Prisma.specimenOrderByWithRelationInput
+    >(['accession_number', 'scientific_name', 'common_name']);
+    const primarySort = nullableSortFields.has(field)
+      ? { sort: query.sortDirection, nulls: 'last' as const }
+      : query.sortDirection;
+
+    return [{ [field]: primarySort }, { id: 'asc' }];
+  }
+
+  private async createUncatalogedRecord(
+    transaction: Prisma.TransactionClient,
+    dto: CreateSpecimenDto,
+    actingCuratorAccountId: string,
+    auditAction: string,
+    extraAuditDetails: Prisma.InputJsonObject = {},
+  ): Promise<Specimen> {
+    if (dto.collectionId) {
+      await this.assertCollectionExists(transaction, dto.collectionId);
+    }
+
+    const created = await transaction.specimen.create({
+      data: {
+        collection_id: dto.collectionId,
+        created_by: actingCuratorAccountId,
+        updated_by: actingCuratorAccountId,
+        accession_number: dto.accessionNumber,
+        specimen_category: dto.specimenCategory,
+        scientific_name: dto.scientificName,
+        common_name: dto.commonName,
+        gender: dto.gender,
+        classification_status: dto.classificationStatus,
+        status: 'UNCATALOGED',
+        public_display_allowed: false,
+        remarks: dto.remarks,
+      },
+    });
+
+    await this.recordAudit(transaction, {
+      userId: actingCuratorAccountId,
+      specimenId: created.id,
+      action: auditAction,
+      details: { status: created.status, ...extraAuditDetails },
+    });
+
+    return this.toEntity(created);
+  }
+
   private assertExists(
     item: specimen | null,
     id: string,
@@ -433,6 +653,24 @@ export class SpecimensService {
       archivedAt: item.archived_at,
       createdAt: item.created_at,
       updatedAt: item.updated_at,
+    };
+  }
+
+  private toRevisionEntity(item: SpecimenRevisionWithActor): SpecimenRevision {
+    return {
+      id: item.id,
+      specimenId: item.specimen_id,
+      changedBy: {
+        id: item.user_account.id,
+        fullName: item.user_account.full_name,
+        role: item.user_account.role,
+      },
+      fieldChanged: item.field_changed,
+      oldValue: item.old_value,
+      newValue: item.new_value,
+      reason: item.reason,
+      sourceSection: item.source_section,
+      changedAt: item.changed_at,
     };
   }
 }

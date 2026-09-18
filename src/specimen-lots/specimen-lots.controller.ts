@@ -19,9 +19,14 @@ import {
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
 import type { AuthenticatedUser } from '../auth/types/auth.types';
+import { AdjustSpecimenLotQuantityDto } from './dto/adjust-specimen-lot-quantity.dto';
+import { ChangeSpecimenLotConditionDto } from './dto/change-specimen-lot-condition.dto';
 import { CreateSpecimenLotDto } from './dto/create-specimen-lot.dto';
 import { ListLotTransactionsQueryDto } from './dto/list-lot-transactions-query.dto';
+import { MoveSpecimenLotDto } from './dto/move-specimen-lot.dto';
 import { UpdateSpecimenLotNotesDto } from './dto/update-specimen-lot-notes.dto';
+import { SpecimenLotOperationResult } from './entities/specimen-lot-operation-result.entity';
+import { SpecimenLotQuantityAdjustmentResult } from './entities/specimen-lot-quantity-adjustment-result.entity';
 import { SpecimenLotTransactionPage } from './entities/specimen-lot-transaction.entity';
 import { SpecimenLotSummary } from './entities/specimen-lot-summary.entity';
 import { SpecimenLot } from './entities/specimen-lot.entity';
@@ -83,6 +88,49 @@ export class SpecimenLotsController {
     @Param('lotId', ParseUUIDPipe) lotId: string,
   ): Promise<SpecimenLot> {
     return this.service.findOne(specimenId, lotId);
+  }
+
+  @Post(':lotId/movements')
+  @ApiOperation({ summary: 'Move all or part of an active specimen lot' })
+  @ApiCreatedResponse({ type: SpecimenLotOperationResult })
+  move(
+    @Param('specimenId', ParseUUIDPipe) specimenId: string,
+    @Param('lotId', ParseUUIDPipe) lotId: string,
+    @Body() dto: MoveSpecimenLotDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<SpecimenLotOperationResult> {
+    return this.service.move(specimenId, lotId, dto, user.accountId);
+  }
+
+  @Post(':lotId/condition-changes')
+  @ApiOperation({
+    summary: 'Change the condition of all or part of an active specimen lot',
+  })
+  @ApiCreatedResponse({ type: SpecimenLotOperationResult })
+  changeCondition(
+    @Param('specimenId', ParseUUIDPipe) specimenId: string,
+    @Param('lotId', ParseUUIDPipe) lotId: string,
+    @Body() dto: ChangeSpecimenLotConditionDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<SpecimenLotOperationResult> {
+    return this.service.changeCondition(specimenId, lotId, dto, user.accountId);
+  }
+
+  @Post(':lotId/quantity-adjustments')
+  @ApiOperation({
+    summary: 'Add, remove, or correct an active specimen lot quantity',
+  })
+  @ApiCreatedResponse({ type: SpecimenLotQuantityAdjustmentResult })
+  @ApiConflictResponse({
+    description: 'Lot quantity changed after the curator loaded it',
+  })
+  adjustQuantity(
+    @Param('specimenId', ParseUUIDPipe) specimenId: string,
+    @Param('lotId', ParseUUIDPipe) lotId: string,
+    @Body() dto: AdjustSpecimenLotQuantityDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<SpecimenLotQuantityAdjustmentResult> {
+    return this.service.adjustQuantity(specimenId, lotId, dto, user.accountId);
   }
 
   @Patch(':lotId/notes')

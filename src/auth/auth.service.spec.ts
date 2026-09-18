@@ -1,16 +1,26 @@
 import { ForbiddenException, UnauthorizedException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
 import { PrismaService } from '../prisma/prisma.service';
+import { createSupabaseAuthClient } from '../supabase/supabase-auth-client.factory';
 import { SUPABASE_CLIENT } from '../supabase/supabase.constants';
 import { AuthService } from './auth.service';
 
+jest.mock('../supabase/supabase-auth-client.factory');
+
+// The service-role client — must only ever be used for getUser(token) in
+// these tests. signInWithPassword must never be called on it.
 const supabaseMock = {
   auth: {
     signInWithPassword: jest.fn(),
     getUser: jest.fn(),
-    admin: {
-      inviteUserByEmail: jest.fn(),
-    },
+  },
+};
+
+// The fresh, per-login client returned by createSupabaseAuthClient().
+const authClientMock = {
+  auth: {
+    signInWithPassword: jest.fn(),
   },
 };
 
@@ -19,6 +29,10 @@ const prismaMock = {
   user_account: {
     findUnique: userAccountFindUnique,
   },
+};
+
+const configServiceMock = {
+  getOrThrow: jest.fn(),
 };
 
 const authUser = {
@@ -35,22 +49,56 @@ describe('AuthService', () => {
 
   beforeEach(async () => {
     jest.clearAllMocks();
+    jest
+      .mocked(createSupabaseAuthClient)
+      .mockReturnValue(authClientMock as never);
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         AuthService,
         { provide: SUPABASE_CLIENT, useValue: supabaseMock },
         { provide: PrismaService, useValue: prismaMock },
+        { provide: ConfigService, useValue: configServiceMock },
       ],
     }).compile();
 
     service = module.get<AuthService>(AuthService);
   });
 
-  it('returns the active BioSphere account id and database role on login', async () => {
-    supabaseMock.auth.signInWithPassword.mockResolvedValue({
+  it('signs in through a fresh isolated client, never the shared service-role client', async () => {
+    authClientMock.auth.signInWithPassword.mockResolvedValue({
       data: {
-        session: { access_token: 'access-token' },
+        session: {
+          access_token: 'access-token',
+          refresh_token: 'refresh-token',
+        },
+        user: authUser,
+      },
+      error: null,
+    });
+    userAccountFindUnique.mockResolvedValue({
+      id: 'account-1',
+      role: 'CURATOR',
+      status: 'ACTIVE',
+    });
+
+    await service.login('curator@example.com', 'password');
+
+    expect(createSupabaseAuthClient).toHaveBeenCalledWith(configServiceMock);
+    expect(authClientMock.auth.signInWithPassword).toHaveBeenCalledWith({
+      email: 'curator@example.com',
+      password: 'password',
+    });
+    expect(supabaseMock.auth.signInWithPassword).not.toHaveBeenCalled();
+  });
+
+  it('returns the active BioSphere account id and database role on login', async () => {
+    authClientMock.auth.signInWithPassword.mockResolvedValue({
+      data: {
+        session: {
+          access_token: 'access-token',
+          refresh_token: 'refresh-token',
+        },
         user: authUser,
       },
       error: null,
@@ -65,6 +113,7 @@ describe('AuthService', () => {
       service.login('curator@example.com', 'password'),
     ).resolves.toEqual({
       access_token: 'access-token',
+      refresh_token: 'refresh-token',
       user: {
         id: 'auth-user-1',
         accountId: 'account-1',
@@ -79,7 +128,7 @@ describe('AuthService', () => {
   });
 
   it('rejects invalid Supabase credentials', async () => {
-    supabaseMock.auth.signInWithPassword.mockResolvedValue({
+    authClientMock.auth.signInWithPassword.mockResolvedValue({
       data: { session: null, user: null },
       error: { message: 'Invalid credentials' },
     });

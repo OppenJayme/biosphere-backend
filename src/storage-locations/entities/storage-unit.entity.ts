@@ -35,3 +35,17 @@ export class StorageUnit {
   @ApiProperty()
   updatedAt!: Date;
 }
+
+export class StorageUnitPage {
+  @ApiProperty({ type: [StorageUnit] })
+  items!: StorageUnit[];
+
+  @ApiProperty({ minimum: 0 })
+  total!: number;
+
+  @ApiProperty({ minimum: 1 })
+  page!: number;
+
+  @ApiProperty({ minimum: 1, maximum: 100 })
+  limit!: number;
+}
