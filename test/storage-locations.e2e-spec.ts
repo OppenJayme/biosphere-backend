@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-member-access -- Supertest response bodies are typed as any. */
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import request from 'supertest';
@@ -88,8 +87,13 @@ describe('Storage locations (e2e)', () => {
       storage_movement_history: movementDelegate,
       specimen_lot: { count: jest.fn() },
       audit_log: { create: auditCreate },
-      $transaction: jest.fn((callback: (transaction: unknown) => unknown) =>
-        Promise.resolve(callback(prismaMock)),
+      $transaction: jest.fn(
+        (
+          operation: Promise<unknown>[] | ((transaction: unknown) => unknown),
+        ) =>
+          Array.isArray(operation)
+            ? Promise.all(operation)
+            : Promise.resolve(operation(prismaMock)),
       ),
     };
 
@@ -181,6 +185,91 @@ describe('Storage locations (e2e)', () => {
         storageType: 'DRY_STORAGE',
       })
       .expect(403);
+  });
+
+  it('protects storage search from unauthenticated users and developers', async () => {
+    await request(app.getHttpServer())
+      .get('/storage-locations/search')
+      .expect(401);
+
+    await request(app.getHttpServer())
+      .get('/storage-locations/search')
+      .set('Authorization', `Bearer ${developerToken}`)
+      .expect(403);
+  });
+
+  it('returns validated and paginated storage search results to curators', async () => {
+    storageUnitDelegate.findMany.mockResolvedValue([
+      storageUnitRecord({ holds_specimens: true }),
+    ]);
+    storageUnitDelegate.count.mockResolvedValue(1);
+
+    const response = await request(app.getHttpServer())
+      .get(
+        '/storage-locations/search?search=cabinet&unitType=CABINET&storageType=DRY_STORAGE&holdsSpecimens=true&page=2&limit=10',
+      )
+      .set('Authorization', `Bearer ${curatorToken}`)
+      .expect(200);
+
+    expect(response.body).toMatchObject({
+      items: [
+        {
+          id: unitId,
+          label: 'Cabinet A',
+          unitType: 'CABINET',
+          storageType: 'DRY_STORAGE',
+          holdsSpecimens: true,
+        },
+      ],
+      total: 1,
+      page: 2,
+      limit: 10,
+    });
+    expect(storageUnitDelegate.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          archived_at: null,
+          holds_specimens: true,
+        }) as object,
+        skip: 10,
+        take: 10,
+      }) as object,
+    );
+  });
+
+  it.each(['holdsSpecimens=maybe', 'lifecycle=DELETED', 'page=0', 'limit=101'])(
+    'rejects an invalid storage search query: %s',
+    async (query) => {
+      await request(app.getHttpServer())
+        .get(`/storage-locations/search?${query}`)
+        .set('Authorization', `Bearer ${curatorToken}`)
+        .expect(400);
+
+      expect(storageUnitDelegate.findMany).not.toHaveBeenCalled();
+    },
+  );
+
+  it('returns the derived root-to-unit hierarchy path to a curator', async () => {
+    storageUnitDelegate.findUnique
+      .mockResolvedValueOnce(
+        storageUnitRecord({ id: unitId, parent_id: oldParentId }),
+      )
+      .mockResolvedValueOnce(
+        storageUnitRecord({
+          id: oldParentId,
+          parent_id: null,
+          label: 'Museum Room',
+          unit_type: 'ROOM',
+        }),
+      );
+
+    const response = await request(app.getHttpServer())
+      .get(`/storage-locations/${unitId}/path`)
+      .set('Authorization', `Bearer ${curatorToken}`)
+      .expect(200);
+
+    const responseBody = response.body as Array<{ id: string }>;
+    expect(responseBody.map((unit) => unit.id)).toEqual([oldParentId, unitId]);
   });
 
   it('requires storageType and rejects parent changes through general update', async () => {
