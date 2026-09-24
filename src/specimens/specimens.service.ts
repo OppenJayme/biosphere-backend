@@ -87,6 +87,27 @@ export class SpecimensService {
     );
   }
 
+  /**
+   * Shared by manual create, offline-draft sync, and bulk import
+   * (REQ-4.4-18/19) so every entry path assigns the same Uncataloged record
+   * shape and audit trail. Callers own the transaction boundary.
+   */
+  createUncatalogedRecordFor(
+    transaction: Prisma.TransactionClient,
+    dto: CreateSpecimenDto,
+    actingCuratorAccountId: string,
+    auditAction: string,
+    extraAuditDetails: Prisma.InputJsonObject = {},
+  ): Promise<Specimen> {
+    return this.createUncatalogedRecord(
+      transaction,
+      dto,
+      actingCuratorAccountId,
+      auditAction,
+      extraAuditDetails,
+    );
+  }
+
   async findOneInTransaction(
     transaction: Prisma.TransactionClient,
     id: string,

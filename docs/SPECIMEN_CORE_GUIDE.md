@@ -37,8 +37,9 @@ implemented separately; see `docs/SPECIMEN_LOTS_GUIDE.md`. Specimen media is
 also implemented as a private-storage-backed nested resource; see
 `docs/SPECIMEN_MEDIA_GUIDE.md`. Tags, bulk import, and duplicate detection
 are separate concerns. Tags are implemented as a reusable nested resource; see
-`docs/SPECIMEN_TAGS_GUIDE.md`. Bulk import and duplicate detection remain
-future dedicated slices.
+`docs/SPECIMEN_TAGS_GUIDE.md`. Bulk import, with warning-only duplicate
+detection, is implemented as its own preview/commit slice; see
+`docs/SPECIMEN_IMPORT_GUIDE.md`.
 
 ## Status boundary
 

@@ -16,12 +16,15 @@ import { CollectionsController } from './collections.controller';
 import { CollectionsService } from './collections.service';
 import { SpecimenDetailsController } from './specimen-details.controller';
 import { SpecimenDetailsService } from './specimen-details.service';
+import { SpecimenImportController } from './specimen-import.controller';
+import { SpecimenImportService } from './specimen-import.service';
 
 @Module({
   imports: [PrismaModule],
   controllers: [
     SpecimenDetailsController,
     SpecimensController,
+    SpecimenImportController,
     SpecimenTaxonomyController,
     SpecimenProvenanceController,
     SpecimenMediaController,
@@ -32,6 +35,7 @@ import { SpecimenDetailsService } from './specimen-details.service';
   providers: [
     SpecimenDetailsService,
     SpecimensService,
+    SpecimenImportService,
     SpecimenTaxonomyService,
     SpecimenProvenanceService,
     SpecimenMediaService,
@@ -41,6 +45,7 @@ import { SpecimenDetailsService } from './specimen-details.service';
   exports: [
     SpecimenDetailsService,
     SpecimensService,
+    SpecimenImportService,
     SpecimenTaxonomyService,
     SpecimenProvenanceService,
     SpecimenMediaService,
