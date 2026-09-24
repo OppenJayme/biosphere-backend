@@ -20,7 +20,7 @@
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
-    "test:e2e:live": "cross-env RUN_LIVE_DEVELOPER_E2E=true NODE_OPTIONS=--experimental-vm-modules jest --config ./test/jest-e2e.json"
+    "test:e2e:live:developer": "cross-env RUN_LIVE_DEVELOPER_E2E=true NODE_OPTIONS=--experimental-vm-modules jest --config ./test/jest-e2e.json test/developer.e2e-spec.ts --runInBand"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
