@@ -487,10 +487,9 @@ describe('Exhibits (e2e)', () => {
         .set('Authorization', `Bearer ${curatorToken}`)
         .expect(200);
 
-      expect(storageRemoveMock).toHaveBeenCalledWith(
-        'exhibit-media',
+      expect(storageRemoveMock).toHaveBeenCalledWith([
         `${exhibitId}/photo.jpg`,
-      );
+      ]);
     });
 
     it('404s when the media does not belong to the exhibit', async () => {

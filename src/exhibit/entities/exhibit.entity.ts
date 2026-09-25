@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { ExhibitMedia } from './exhibit-media.entity';
+import { ExhibitMedia, PublicExhibitMedia } from './exhibit-media.entity';
 
 export enum ExhibitStatus {
   UNPUBLISHED = 'UNPUBLISHED',
@@ -53,3 +53,7 @@ export class Exhibit {
   @ApiPropertyOptional({ type: [ExhibitMedia] })
   media?: ExhibitMedia[];
 }
+
+export type PublicExhibit = Omit<Exhibit, 'createdBy' | 'media'> & {
+  media: PublicExhibitMedia[];
+};

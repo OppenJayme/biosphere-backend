@@ -21,3 +21,17 @@ export class ExhibitMedia {
   @ApiProperty({ default: false })
   isCover!: boolean;
 }
+
+export class PublicExhibitMedia {
+  @ApiProperty({ description: 'Short-lived visitor URL for the media file' })
+  mediaUrl!: string;
+
+  @ApiProperty({ default: 0 })
+  displayOrder!: number;
+
+  @ApiPropertyOptional({ nullable: true })
+  caption!: string | null;
+
+  @ApiProperty({ default: false })
+  isCover!: boolean;
+}

@@ -15,10 +15,18 @@ import { StorageService } from '../supabase/storage.service';
 import { AddExhibitMediaDto } from './dto/add-exhibit-media.dto';
 import { CreateExhibitDto } from './dto/create-exhibit.dto';
 import { UpdateExhibitDto } from './dto/update-exhibit.dto';
-import { Exhibit, ExhibitStatus } from './entities/exhibit.entity';
-import { ExhibitMedia } from './entities/exhibit-media.entity';
+import {
+  Exhibit,
+  ExhibitStatus,
+  PublicExhibit,
+} from './entities/exhibit.entity';
+import {
+  ExhibitMedia,
+  PublicExhibitMedia,
+} from './entities/exhibit-media.entity';
 
 const EXHIBIT_MEDIA_BUCKET = 'exhibit-media' as const;
+const PUBLIC_MEDIA_URL_LIFETIME_SECONDS = 300;
 
 @Injectable()
 export class ExhibitsService {
@@ -283,13 +291,30 @@ export class ExhibitsService {
   // Public QR exhibit page — REQ-4.12-04/09, BR-10
   // ===========================================================
 
-  async findPublishedBySlug(slug: string): Promise<Omit<Exhibit, 'createdBy'>> {
+  async findPublishedBySlug(slug: string): Promise<PublicExhibit> {
     const item = await this.prisma.exhibit.findUnique({
       where: { public_slug: slug },
     });
 
     if (!item || item.status !== 'PUBLISHED' || item.archived_at) {
       throw new NotFoundException(`No published exhibit found for "${slug}".`);
+    }
+
+    const specimenRecord = await this.prisma.specimen.findUnique({
+      where: { id: item.specimen_id },
+    });
+    try {
+      this.assertSpecimenEligible(specimenRecord, item.specimen_id);
+    } catch (error) {
+      if (
+        error instanceof NotFoundException ||
+        error instanceof BadRequestException
+      ) {
+        throw new NotFoundException(
+          `No published exhibit found for "${slug}".`,
+        );
+      }
+      throw error;
     }
 
     const media = await this.prisma.exhibit_media.findMany({
@@ -463,11 +488,9 @@ export class ExhibitsService {
     bucket: typeof EXHIBIT_MEDIA_BUCKET,
     storagePath: string,
   ): Promise<void> {
-    const removePromise = this.storageService.remove(bucket, storagePath);
-
-    if (removePromise && typeof removePromise.catch === 'function') {
-      await removePromise.catch(() => undefined);
-    }
+    await Promise.resolve(
+      this.storageService.remove(bucket, storagePath),
+    ).catch(() => undefined);
   }
 
   private async recordAudit(
@@ -514,10 +537,14 @@ export class ExhibitsService {
 
   // NFR-SEC-08 / BR-10: the public QR page must never expose curator
   // attribution or any other internal-only field.
-  private toPublicEntity(
+  private async toPublicEntity(
     item: exhibit,
     media: exhibit_media[],
-  ): Omit<Exhibit, 'createdBy'> {
+  ): Promise<PublicExhibit> {
+    const publicMedia = await Promise.all(
+      media.map((entry) => this.toPublicMediaEntity(entry)),
+    );
+
     return {
       id: item.id,
       specimenId: item.specimen_id,
@@ -532,7 +559,24 @@ export class ExhibitsService {
       archivedAt: item.archived_at,
       createdAt: item.created_at,
       updatedAt: item.updated_at,
-      media: media.map((entry) => this.toMediaEntity(entry)),
+      media: publicMedia,
+    };
+  }
+
+  private async toPublicMediaEntity(
+    item: exhibit_media,
+  ): Promise<PublicExhibitMedia> {
+    const mediaUrl = await this.storageService.createSignedUrl(
+      EXHIBIT_MEDIA_BUCKET,
+      item.storage_path,
+      PUBLIC_MEDIA_URL_LIFETIME_SECONDS,
+    );
+
+    return {
+      mediaUrl,
+      displayOrder: item.display_order,
+      caption: item.caption,
+      isCover: item.is_cover,
     };
   }
 

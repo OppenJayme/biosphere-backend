@@ -39,6 +39,7 @@ const prismaMock = {
 const storageServiceMock = {
   upload: jest.fn(),
   remove: jest.fn(),
+  createSignedUrl: jest.fn(),
 };
 
 const ACCOUNT_ID = '22222222-2222-4222-8222-222222222222';
@@ -267,6 +268,7 @@ describe('ExhibitsService', () => {
       exhibitDelegate.findUnique.mockResolvedValue(
         exhibitRecord({ status: 'PUBLISHED' }),
       );
+      specimenDelegate.findUnique.mockResolvedValue(specimenRecord());
       exhibitMediaDelegate.findMany.mockResolvedValue([
         {
           id: 'media-1',
@@ -277,11 +279,36 @@ describe('ExhibitsService', () => {
           is_cover: true,
         },
       ]);
+      storageServiceMock.createSignedUrl.mockResolvedValue(
+        'https://signed.example/photo.jpg',
+      );
 
       const result = await service.findPublishedBySlug('six-legged-carabao');
 
       expect(result).not.toHaveProperty('createdBy');
       expect(result.media).toHaveLength(1);
+      expect(result.media?.[0]).toEqual({
+        mediaUrl: 'https://signed.example/photo.jpg',
+        displayOrder: 0,
+        caption: null,
+        isCover: true,
+      });
+      expect(result.media?.[0]).not.toHaveProperty('exhibitId');
+      expect(result.media?.[0].mediaUrl).not.toContain(EXHIBIT_ID);
+    });
+
+    it('hides a published page when its specimen loses public approval', async () => {
+      exhibitDelegate.findUnique.mockResolvedValue(
+        exhibitRecord({ status: 'PUBLISHED' }),
+      );
+      specimenDelegate.findUnique.mockResolvedValue(
+        specimenRecord({ public_display_allowed: false }),
+      );
+
+      await expect(
+        service.findPublishedBySlug('six-legged-carabao'),
+      ).rejects.toBeInstanceOf(NotFoundException);
+      expect(exhibitMediaDelegate.findMany).not.toHaveBeenCalled();
     });
 
     it('rejects an unpublished slug', async () => {
