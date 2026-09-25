@@ -319,6 +319,32 @@ describe('SpecimenImportService', () => {
       expect(second.results[0].success).toBe(true);
     });
 
+    it('does not create two specimens when two commits race for the same row', async () => {
+      let resolveCreate!: (specimen: { id: string }) => void;
+      const pendingCreate = new Promise<{ id: string }>((resolve) => {
+        resolveCreate = resolve;
+      });
+      specimensServiceMock.createUncatalogedRecordFor.mockImplementation(
+        () => pendingCreate,
+      );
+      const { previewId } = await previewValidRow();
+
+      // Neither call is awaited yet, so both run their synchronous prefix
+      // (which claims the per-row in-flight lock) before either's create
+      // actually resolves -- reproducing the race the guard protects against.
+      const first = service.commitImport(previewId, undefined, CURATOR_ID);
+      const second = service.commitImport(previewId, undefined, CURATOR_ID);
+
+      resolveCreate({ id: 'created-1' });
+      const [firstResult, secondResult] = await Promise.all([first, second]);
+
+      expect(
+        specimensServiceMock.createUncatalogedRecordFor,
+      ).toHaveBeenCalledTimes(1);
+      expect(firstResult.results[0].specimen).toEqual({ id: 'created-1' });
+      expect(secondResult.results[0].specimen).toEqual({ id: 'created-1' });
+    });
+
     it('keeps processing remaining rows when one row fails', async () => {
       const file = csvFile(
         'scientificName,commonName\nTestus specimenus,Test specimen\nAlius specimenus,Other specimen\n',

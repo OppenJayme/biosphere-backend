@@ -138,6 +138,14 @@ result is simply reported again with its original `Specimen`. This makes the
 common "the response never arrived, did it actually commit?" case safe to
 resolve by just resubmitting the same request.
 
+This holds for a genuine retry (the first request already finished) and for
+two commit requests that overlap in time: the row's create is claimed by a
+single in-flight promise the moment it starts, before the database call
+completes, so a second request for the same `previewId`+row while the first
+is still running awaits that same promise instead of starting its own create
+— it cannot race the "was this row already committed?" check the way it
+could if that check only looked at the finished result.
+
 This safety is scoped to one preview's lifetime and to rows that actually
 went through this endpoint successfully once; it does not protect against a
 curator running preview twice on the same file and committing both previews

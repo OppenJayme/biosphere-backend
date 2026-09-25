@@ -68,6 +68,14 @@ interface CachedPreviewRow {
   dto: CreateSpecimenDto;
   valid: boolean;
   committed?: Specimen;
+  /**
+   * Set synchronously (no `await` between reading and writing it) as soon
+   * as a commit for this row starts, so a concurrent commit call for the
+   * same previewId+row awaits this same promise instead of racing its own
+   * create — otherwise two requests can both pass the `committed` check
+   * before either write finishes and each create a specimen for the row.
+   */
+  inFlight?: Promise<Specimen>;
 }
 
 interface CachedPreview {
@@ -259,17 +267,33 @@ export class SpecimenImportService {
         continue;
       }
 
+      // Claim (or reuse) the in-flight promise synchronously: no `await`
+      // occurs between the `committed`/`inFlight` reads above and this
+      // assignment, so a concurrent call for the same row can only ever
+      // see this promise already set and await it, never start a second
+      // create for the same row.
+      if (!cachedRow.inFlight) {
+        cachedRow.inFlight = this.prisma
+          .$transaction((transaction) =>
+            this.specimens.createUncatalogedRecordFor(
+              transaction,
+              cachedRow.dto,
+              actingCuratorAccountId,
+              'IMPORT_SPECIMEN',
+              { rowNumber, importBatchId, previewId },
+            ),
+          )
+          .then((specimen) => {
+            cachedRow.committed = specimen;
+            return specimen;
+          })
+          .finally(() => {
+            cachedRow.inFlight = undefined;
+          });
+      }
+
       try {
-        const specimen = await this.prisma.$transaction((transaction) =>
-          this.specimens.createUncatalogedRecordFor(
-            transaction,
-            cachedRow.dto,
-            actingCuratorAccountId,
-            'IMPORT_SPECIMEN',
-            { rowNumber, importBatchId, previewId },
-          ),
-        );
-        cachedRow.committed = specimen;
+        const specimen = await cachedRow.inFlight;
         results.push({ rowNumber, success: true, specimen });
       } catch (error) {
         if (
