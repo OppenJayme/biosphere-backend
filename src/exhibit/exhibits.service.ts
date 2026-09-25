@@ -355,9 +355,7 @@ export class ExhibitsService {
     } catch (error) {
       // Best-effort cleanup so a failed DB write doesn't leak an orphaned
       // file (same pattern as DeveloperService#createArAsset).
-      await this.storageService
-        .remove(EXHIBIT_MEDIA_BUCKET, storagePath)
-        .catch(() => undefined);
+      await this.safeRemoveMediaFile(EXHIBIT_MEDIA_BUCKET, storagePath);
       throw error;
     }
   }
@@ -379,9 +377,7 @@ export class ExhibitsService {
 
     await this.prisma.exhibit_media.delete({ where: { id: mediaId } });
 
-    await this.storageService
-      .remove(EXHIBIT_MEDIA_BUCKET, media.storage_path)
-      .catch(() => undefined);
+    await this.safeRemoveMediaFile(EXHIBIT_MEDIA_BUCKET, media.storage_path);
 
     await this.recordAudit(this.prisma, {
       userId: actingCuratorAccountId,
@@ -461,6 +457,17 @@ export class ExhibitsService {
       error instanceof Prisma.PrismaClientKnownRequestError &&
       error.code === 'P2002'
     );
+  }
+
+  private async safeRemoveMediaFile(
+    bucket: typeof EXHIBIT_MEDIA_BUCKET,
+    storagePath: string,
+  ): Promise<void> {
+    const removePromise = this.storageService.remove(bucket, storagePath);
+
+    if (removePromise && typeof removePromise.catch === 'function') {
+      await removePromise.catch(() => undefined);
+    }
   }
 
   private async recordAudit(
