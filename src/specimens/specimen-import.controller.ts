@@ -52,20 +52,25 @@ export class SpecimenImportController {
   @ApiCreatedResponse({ type: SpecimenImportPreviewResult })
   preview(
     @UploadedFile() file: Express.Multer.File | undefined,
+    @CurrentUser() user: AuthenticatedUser,
   ): Promise<SpecimenImportPreviewResult> {
-    return this.service.previewImport(file);
+    return this.service.previewImport(file, user.accountId);
   }
 
   @Post('commit')
   @ApiOperation({
     summary:
-      'Create Uncataloged specimen records from curator-approved import rows',
+      'Create Uncataloged specimen records from a reviewed import preview',
   })
   @ApiOkResponse({ type: SpecimenImportCommitResult })
   commit(
     @Body() dto: CommitSpecimenImportDto,
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<SpecimenImportCommitResult> {
-    return this.service.commitImport(dto.rows, user.accountId);
+    return this.service.commitImport(
+      dto.previewId,
+      dto.rowNumbers,
+      user.accountId,
+    );
   }
 }

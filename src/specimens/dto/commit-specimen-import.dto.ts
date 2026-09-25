@@ -1,19 +1,32 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
-import { ArrayMaxSize, ArrayMinSize, ValidateNested } from 'class-validator';
-import { ImportSpecimenRowDto } from './import-specimen-row.dto';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import {
+  ArrayMaxSize,
+  ArrayMinSize,
+  IsInt,
+  IsOptional,
+  IsUUID,
+  Min,
+} from 'class-validator';
 
 export const MAX_IMPORT_ROWS = 500;
 
 export class CommitSpecimenImportDto {
   @ApiProperty({
-    type: [ImportSpecimenRowDto],
     description:
-      'Curator-approved rows from a preceding /specimens/import/preview call',
+      'previewId returned by a preceding POST /specimens/import/preview call',
   })
+  @IsUUID()
+  previewId!: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Row numbers to commit from that preview. Omit to commit every row the preview marked valid.',
+    type: [Number],
+  })
+  @IsOptional()
   @ArrayMinSize(1)
   @ArrayMaxSize(MAX_IMPORT_ROWS)
-  @ValidateNested({ each: true })
-  @Type(() => ImportSpecimenRowDto)
-  rows!: ImportSpecimenRowDto[];
+  @IsInt({ each: true })
+  @Min(1, { each: true })
+  rowNumbers?: number[];
 }

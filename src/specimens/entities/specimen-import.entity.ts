@@ -20,6 +20,15 @@ export class SpecimenImportPreviewRow {
 }
 
 export class SpecimenImportPreviewResult {
+  @ApiProperty({
+    description:
+      'Pass this to POST /specimens/import/commit; it identifies exactly the reviewed rows below and expires after 30 minutes',
+  })
+  previewId!: string;
+
+  @ApiProperty()
+  expiresAt!: Date;
+
   @ApiProperty({ type: [SpecimenImportPreviewRow] })
   rows!: SpecimenImportPreviewRow[];
 
