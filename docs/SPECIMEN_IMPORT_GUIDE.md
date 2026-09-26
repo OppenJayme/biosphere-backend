@@ -156,6 +156,45 @@ longer has the response (or the preview itself has since expired), the
 reliable check is `GET /audit-logs?module=specimens&action=IMPORT_SPECIMEN`,
 whose entries carry the row's `rowNumber` and `importBatchId` in `details`.
 
+## Concurrency
+
+Two commit requests for the same `previewId` and row are guarded against
+racing each other into two creates: the moment a row's create starts, it is
+claimed by a single in-flight promise (set synchronously, with no `await` in
+between the check and the claim), so a concurrent request for that same row
+awaits that promise instead of starting its own. This is what makes the
+retry-safety above hold even when the two commit calls genuinely overlap in
+time, not just when one has already finished.
+
+## Performance
+
+`scripts/benchmark-specimen-import.ts` measures a full-size, 500-row
+preview + commit against a real Postgres database (no mocking), using the
+production `SpecimensService`/`SpecimenImportService` code paths directly.
+Run it against a disposable database — it creates and deletes real rows
+(a fixture curator, a stub `auth.users` row, and the imported specimens):
+
+```bash
+DATABASE_URL=postgresql://user:pass@localhost:5432/some_throwaway_db \
+  npm run benchmark:specimen-import
+```
+
+Measured locally against local Postgres 17: preview ~200-330ms, commit
+~1.0-1.3s for 500 rows (roughly 2-2.5ms/row — each row is its own
+transaction doing one insert plus one audit-log insert). Actual numbers will
+vary by hardware and database latency; this isn't a committed SLA, just a
+concrete baseline showing the per-row transaction design doesn't degrade
+badly at the current row cap.
+
+This lives as a standalone script rather than a `test/*.e2e-spec.ts` file
+because Jest's `--experimental-vm-modules` mode — needed for Prisma's WASM
+query-compiler dynamic `import()` — currently breaks loading `@nestjs/config`
+in this repo's toolchain. That's a pre-existing issue: the already-shipped
+`test/developer.e2e-spec.ts` live suite hits the identical `exports is not
+defined` crash under the same flag, unrelated to this change. A plain Node
+process has no such restriction, since dynamic `import()` from CommonJS
+needs no special flag outside Jest's sandboxed module loader.
+
 ## Endpoints
 
 - `POST /specimens/import/preview`
