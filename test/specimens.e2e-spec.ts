@@ -226,6 +226,60 @@ describe('Specimens (e2e)', () => {
     expect(auditDelegate.create).toHaveBeenCalled();
   });
 
+  it('returns duplicate warnings with a created specimen without flagging itself', async () => {
+    const response = await request(app.getHttpServer())
+      .post('/specimens')
+      .set('Authorization', `Bearer ${curatorToken}`)
+      .send({
+        scientificName: 'Testus specimenus',
+        commonName: 'Test specimen',
+      })
+      .expect(201);
+
+    expect(response.body).toEqual(
+      expect.objectContaining({ id: specimenId, possibleDuplicates: [] }),
+    );
+  });
+
+  it('checks unsaved values for possible duplicates without saving', async () => {
+    const response = await request(app.getHttpServer())
+      .post('/specimens/duplicate-check')
+      .set('Authorization', `Bearer ${curatorToken}`)
+      .send({
+        scientificName: '  testus specimenus ',
+        commonName: 'Test specimen',
+      })
+      .expect(200);
+
+    expect(response.body).toEqual({
+      possibleDuplicates: [
+        expect.objectContaining({
+          specimenId,
+          confidence: 'MEDIUM',
+          matchedFields: ['SCIENTIFIC_NAME', 'COMMON_NAME'],
+        }),
+      ],
+    });
+    expect(specimenDelegate.create).not.toHaveBeenCalled();
+    expect(auditDelegate.create).not.toHaveBeenCalled();
+  });
+
+  it('validates duplicate-check input', () =>
+    request(app.getHttpServer())
+      .post('/specimens/duplicate-check')
+      .set('Authorization', `Bearer ${curatorToken}`)
+      .send({ collectionDate: '05/01/2026' })
+      .expect(400));
+
+  it('lists possible duplicates of a saved specimen, excluding itself', async () => {
+    const response = await request(app.getHttpServer())
+      .get(`/specimens/${specimenId}/possible-duplicates`)
+      .set('Authorization', `Bearer ${curatorToken}`)
+      .expect(200);
+
+    expect(response.body).toEqual({ possibleDuplicates: [] });
+  });
+
   it('returns active specimen records with camelCase API fields', async () => {
     const response = await request(app.getHttpServer())
       .get('/specimens')

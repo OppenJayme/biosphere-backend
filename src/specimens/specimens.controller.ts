@@ -22,24 +22,39 @@ import { ListSpecimenRevisionsQueryDto } from './dto/list-specimen-revisions-que
 import { SearchSpecimensQueryDto } from './dto/search-specimens-query.dto';
 import { SetPublicDisplayDto } from './dto/set-public-display.dto';
 import { UpdateSpecimenDto } from './dto/update-specimen.dto';
+import { SpecimenCreateResult } from './entities/specimen-duplicate.entity';
 import { SpecimenRevisionPage } from './entities/specimen-revision.entity';
 import { Specimen, SpecimenPage } from './entities/specimen.entity';
+import { SpecimenDuplicatesService } from './specimen-duplicates.service';
 import { SpecimensService } from './specimens.service';
 
 @ApiTags('specimens')
 @Roles('CURATOR')
 @Controller('specimens')
 export class SpecimensController {
-  constructor(private readonly service: SpecimensService) {}
+  constructor(
+    private readonly service: SpecimensService,
+    private readonly duplicates: SpecimenDuplicatesService,
+  ) {}
 
   @Post()
-  @ApiOperation({ summary: 'Create an Uncataloged specimen record' })
-  @ApiCreatedResponse({ type: Specimen })
-  create(
+  @ApiOperation({
+    summary:
+      'Create an Uncataloged specimen record, warning on possible duplicates (REQ-4.4-21)',
+  })
+  @ApiCreatedResponse({ type: SpecimenCreateResult })
+  async create(
     @Body() dto: CreateSpecimenDto,
     @CurrentUser() user: AuthenticatedUser,
-  ): Promise<Specimen> {
-    return this.service.create(dto, user.accountId);
+  ): Promise<SpecimenCreateResult> {
+    const specimen = await this.service.create(dto, user.accountId);
+    // Checked after saving and never blocks it (REQ-4.4-22): clients that
+    // want to warn before saving call POST /specimens/duplicate-check first.
+    const possibleDuplicates = await this.duplicates.findForCandidate(
+      specimen,
+      [specimen.id],
+    );
+    return { ...specimen, possibleDuplicates };
   }
 
   @Get()
