@@ -125,6 +125,19 @@ describe('Specimen tags (e2e)', () => {
           return created;
         },
       ),
+      update: jest.fn(
+        ({
+          where,
+          data,
+        }: {
+          where: { id: string };
+          data: { tag_id: string };
+        }) => {
+          const found = attachments.find((item) => item.id === where.id);
+          if (found) found.tag_id = data.tag_id;
+          return found;
+        },
+      ),
       delete: jest.fn(({ where }: { where: { id: string } }) => {
         const index = attachments.findIndex((item) => item.id === where.id);
         const [deleted] = attachments.splice(index, 1);
@@ -298,6 +311,46 @@ describe('Specimen tags (e2e)', () => {
       id: createdTagId,
       tag_name: 'Rare specimen',
     });
+  });
+
+  it('changes one tag to another in a single revision', async () => {
+    await request(app.getHttpServer())
+      .post(`/specimens/${specimenId}/tags`)
+      .set('Authorization', `Bearer ${curatorToken}`)
+      .send({ tagName: 'Endemic' })
+      .expect(201);
+
+    await request(app.getHttpServer())
+      .patch(`/specimens/${specimenId}/tags/${endemicTagId}`)
+      .set('Authorization', `Bearer ${curatorToken}`)
+      .send({ tagName: '  Visayas ' })
+      .expect(200)
+      .expect({
+        tag: { id: createdTagId, name: 'Visayas' },
+        previousTagId: endemicTagId,
+        changed: true,
+      });
+
+    await request(app.getHttpServer())
+      .get(`/specimens/${specimenId}/tags`)
+      .set('Authorization', `Bearer ${curatorToken}`)
+      .expect(200)
+      .expect([{ id: createdTagId, name: 'Visayas' }]);
+
+    expect(revisionCreate).toHaveBeenCalledTimes(2);
+    expect(revisionCreate).toHaveBeenLastCalledWith({
+      data: expect.objectContaining({
+        field_changed: 'specimen_tags',
+        old_value: 'Endemic',
+        new_value: 'Visayas',
+      }),
+    });
+
+    await request(app.getHttpServer())
+      .patch(`/specimens/${specimenId}/tags/${endemicTagId}`)
+      .set('Authorization', `Bearer ${curatorToken}`)
+      .send({ tagName: 'Luzon' })
+      .expect(404);
   });
 
   it('allows archived reads but rejects archived relationship changes', async () => {

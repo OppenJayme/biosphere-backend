@@ -35,6 +35,14 @@ the same transaction.
 - `GET /specimens/:specimenId/tags` lists tags currently attached to a
   specimen.
 - `POST /specimens/:specimenId/tags` creates or reuses a tag and attaches it.
+- `PATCH /specimens/:specimenId/tags/:tagId` with `{ tagName }` replaces one
+  attached tag with another (created or reused like attach) in a single
+  transaction. It writes one revision (`old_value` = previous tag name,
+  `new_value` = new tag name) and a `CHANGE_SPECIMEN_TAG` audit event, and
+  returns `{ tag, previousTagId, changed }`. `changed` is `false`, with no
+  writes, when the name resolves to the same tag. If the new tag is already
+  attached, only the old one is detached. The shared vocabulary is never
+  renamed.
 - `DELETE /specimens/:specimenId/tags/:tagId` detaches a tag without deleting
   shared vocabulary.
 
