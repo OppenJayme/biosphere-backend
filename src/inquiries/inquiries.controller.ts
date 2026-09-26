@@ -13,6 +13,7 @@ import {
   ApiCreatedResponse,
   ApiOkResponse,
 } from '@nestjs/swagger';
+import { Public } from '../auth/decorators/public.decorator';
 import { Throttle } from '@nestjs/throttler';
 import { PUBLIC_FORM_RATE_LIMIT } from '../config/rate-limit.config';
 import { InquiriesService } from './inquiries.service';
@@ -29,6 +30,7 @@ import { Inquiry } from './entities/inquiry.entity';
 export class InquiriesController {
   constructor(private readonly inquiriesService: InquiriesService) {}
 
+  @Public()
   @Post()
   @Throttle({ default: PUBLIC_FORM_RATE_LIMIT })
   @ApiOperation({ summary: 'Submit a general inquiry (public)' })

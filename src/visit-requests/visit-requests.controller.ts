@@ -13,6 +13,7 @@ import {
   ApiCreatedResponse,
   ApiOkResponse,
 } from '@nestjs/swagger';
+import { Public } from '../auth/decorators/public.decorator';
 import { Throttle } from '@nestjs/throttler';
 import { PUBLIC_FORM_RATE_LIMIT } from '../config/rate-limit.config';
 import { VisitRequestsService } from './visit-requests.service';
@@ -29,6 +30,7 @@ import { VisitRequest } from './entities/visit-request.entity';
 export class VisitRequestsController {
   constructor(private readonly visitRequestsService: VisitRequestsService) {}
 
+  @Public()
   @Post()
   @Throttle({ default: PUBLIC_FORM_RATE_LIMIT })
   @ApiOperation({ summary: 'Submit a visit request (public)' })
