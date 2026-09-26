@@ -131,6 +131,7 @@ async function main(): Promise<void> {
   let fixtureAuthUserId: string | undefined;
   let fixtureCuratorAccountId: string | undefined;
   let benchmarkError: unknown;
+  let cleanupError: unknown;
 
   try {
     rawPrisma = new PrismaClient({
@@ -211,7 +212,7 @@ async function main(): Promise<void> {
     benchmarkError = error;
   } finally {
     if (rawPrisma) {
-      const cleanupError = await cleanupFixture(
+      cleanupError = await cleanupFixture(
         rawPrisma,
         fixtureCuratorAccountId,
         fixtureAuthUserId,
@@ -245,12 +246,24 @@ async function main(): Promise<void> {
     }
   }
 
+  // A cleanup-only failure (the benchmark itself succeeded) still must exit
+  // non-zero: rows may have been left behind in the database. When both
+  // fail, the benchmark error is the one preserved and rethrown above —
+  // this is only reached when benchmarkError is falsy.
   if (benchmarkError) {
     throw benchmarkError instanceof Error
       ? benchmarkError
       : new Error('Non-Error value thrown during benchmark (see cause)', {
           cause: benchmarkError,
         });
+  }
+  if (cleanupError) {
+    throw new Error(
+      'Specimen import benchmark succeeded, but fixture cleanup failed ' +
+        'afterward — the database may still contain benchmark rows. See ' +
+        'the cleanup error logged above.',
+      { cause: cleanupError },
+    );
   }
 }
 
