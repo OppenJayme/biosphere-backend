@@ -24,6 +24,7 @@ import { UpdateStorageUnitDto } from './dto/update-storage-unit.dto';
 import { MoveStorageUnitDto } from './dto/move-storage-unit.dto';
 import { SearchStorageLocationsQueryDto } from './dto/search-storage-locations-query.dto';
 import { StorageMovement } from './entities/storage-movement.entity';
+import { StorageOccupancySummary } from './entities/storage-occupancy-summary.entity';
 import { StorageUnit, StorageUnitPage } from './entities/storage-unit.entity';
 
 @ApiTags('storage-locations')
@@ -46,6 +47,15 @@ export class StorageLocationsController {
   @ApiOkResponse({ type: [StorageUnit] })
   findAll(): Promise<StorageUnit[]> {
     return this.service.findAll();
+  }
+
+  @Get('occupancy-summary')
+  @ApiOperation({
+    summary: 'Active specimen-lot quantity vs. capacity per storage unit',
+  })
+  @ApiOkResponse({ type: [StorageOccupancySummary] })
+  findOccupancySummary(): Promise<StorageOccupancySummary[]> {
+    return this.service.findOccupancySummary();
   }
 
   @Get('search')

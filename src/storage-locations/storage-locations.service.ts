@@ -18,6 +18,7 @@ import {
 } from './dto/search-storage-locations-query.dto';
 import { UpdateStorageUnitDto } from './dto/update-storage-unit.dto';
 import { StorageMovement } from './entities/storage-movement.entity';
+import { StorageOccupancySummary } from './entities/storage-occupancy-summary.entity';
 import { StorageUnit, StorageUnitPage } from './entities/storage-unit.entity';
 
 type StorageHierarchyReader = {
@@ -182,6 +183,36 @@ export class StorageLocationsService {
     });
 
     return children.map((unit) => this.toEntity(unit));
+  }
+
+  async findOccupancySummary(): Promise<StorageOccupancySummary[]> {
+    const units = await this.prisma.storage_unit.findMany({
+      where: { holds_specimens: true, archived_at: null },
+      orderBy: [{ label: 'asc' }],
+    });
+
+    const totals = await this.prisma.specimen_lot.groupBy({
+      by: ['storage_unit_id'],
+      where: { is_active: true },
+      _sum: { quantity: true },
+    });
+    const occupiedByUnit = new Map(
+      totals.map((total) => [total.storage_unit_id, total._sum.quantity ?? 0]),
+    );
+
+    return units.map((unit) => {
+      const occupiedQuantity = occupiedByUnit.get(unit.id) ?? 0;
+      const overCapacity =
+        unit.capacity !== null && occupiedQuantity > unit.capacity;
+
+      return {
+        id: unit.id,
+        label: unit.label,
+        capacity: unit.capacity,
+        occupiedQuantity,
+        alertCount: overCapacity ? 1 : 0,
+      };
+    });
   }
 
   async findMovementHistory(id: string): Promise<StorageMovement[]> {
