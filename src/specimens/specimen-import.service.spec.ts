@@ -203,7 +203,6 @@ describe('SpecimenImportService', () => {
           accession_number: 'ABC-100',
           scientific_name: 'Testus specimenus',
           common_name: 'Test specimen',
-          gender: 'UNKNOWN',
           status: 'CATALOGED',
           specimen_provenance: null,
         },
@@ -228,14 +227,13 @@ describe('SpecimenImportService', () => {
       expect(result.rows[0].valid).toBe(true);
     });
 
-    it('does not warn when same-species rows differ in gender (BR-09)', async () => {
+    it('still warns when same-species rows differ only in gender', async () => {
       specimenDelegate.findMany.mockResolvedValue([
         {
           id: 'existing-1',
           accession_number: null,
           scientific_name: 'Testus specimenus',
           common_name: 'Test specimen',
-          gender: 'FEMALE',
           status: 'UNCATALOGED',
           specimen_provenance: null,
         },
@@ -245,11 +243,11 @@ describe('SpecimenImportService', () => {
       );
       const result = await service.previewImport(file, CURATOR_ID);
 
-      expect(result.rows[0].duplicateWarnings).toEqual([]);
-      expect(result.rows[0].possibleDuplicates).toEqual([]);
-      expect(result.rows[1].duplicateWarnings).toEqual([
+      expect(result.rows[0].duplicateWarnings).toEqual([
         'Matches the scientific and common name of an existing specimen record; confirm this is not a duplicate before importing.',
+        'Matches the scientific and common name used by row(s) 2 in this file.',
       ]);
+      expect(result.rows[0].possibleDuplicates).toHaveLength(1);
     });
 
     it('handles a realistic full-size 500-row import', async () => {

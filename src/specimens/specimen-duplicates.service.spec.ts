@@ -1,4 +1,4 @@
-import { NotFoundException } from '@nestjs/common';
+import { Logger, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { PrismaService } from '../prisma/prisma.service';
 import {
@@ -24,7 +24,6 @@ function existingRecord(overrides: Record<string, unknown> = {}) {
     accession_number: null,
     scientific_name: 'Passer domesticus',
     common_name: 'House sparrow',
-    gender: 'UNKNOWN',
     status: 'UNCATALOGED',
     specimen_provenance: null,
     ...overrides,
@@ -53,7 +52,7 @@ describe('evaluateDuplicate', () => {
   it('reports matching scientific and common names as MEDIUM when there is no provenance to compare', () => {
     expect(
       evaluateDuplicate(sparrow, {
-        scientificName: 'passer  DOMESTICUS',
+        scientificName: ' PASSER domesticus ',
         commonName: 'house sparrow',
       }),
     ).toEqual({
@@ -64,6 +63,18 @@ describe('evaluateDuplicate', () => {
       ],
       differingFields: [],
     });
+  });
+
+  it('does not collapse inner whitespace, matching the database lookup', () => {
+    // The lookup is a trimmed, case-insensitive equality, so a stored
+    // "Passer  domesticus" is never fetched for "Passer domesticus"; the
+    // in-memory comparison must agree rather than imply otherwise.
+    expect(
+      evaluateDuplicate(sparrow, {
+        scientificName: 'Passer  domesticus',
+        commonName: 'House  sparrow',
+      }),
+    ).toBeNull();
   });
 
   it('does not report the same scientific name alone (BR-09)', () => {
@@ -101,34 +112,52 @@ describe('evaluateDuplicate', () => {
   it.each([
     ['collector', { collector: 'A. Cruz' }, { collector: 'B. Santos' }],
     ['donor', { donor: 'Museum A' }, { donor: 'Museum B' }],
-    [
-      'collection location',
-      { collectionLocation: 'Cebu' },
-      { collectionLocation: 'Bohol' },
-    ],
-    [
-      'collection date',
-      { collectionDate: '2026-01-01' },
-      { collectionDate: '2026-02-01' },
-    ],
-    ['gender', { gender: 'MALE' }, { gender: 'FEMALE' }],
   ])(
-    'allows separate same-species records with a different %s (REQ-4.4-23)',
+    'allows separate same-species records with a different %s (BR-09)',
     (_label, a, b) => {
       expect(
         evaluateDuplicate(
-          { ...sparrow, collector: 'Same', ...a },
-          { ...sparrow, collector: 'Same', ...b },
+          { ...sparrow, collectionLocation: 'Cebu', ...a },
+          { ...sparrow, collectionLocation: 'Cebu', ...b },
         ),
       ).toBeNull();
     },
   );
 
-  it('ignores UNKNOWN and NOT_APPLICABLE gender', () => {
+  it.each([
+    [
+      'collection location',
+      { collectionLocation: 'Cebu' },
+      { collectionLocation: 'Bohol' },
+      DuplicateMatchField.COLLECTION_LOCATION,
+    ],
+    [
+      'collection date',
+      { collectionDate: '2026-01-01' },
+      { collectionDate: '2026-02-01' },
+      DuplicateMatchField.COLLECTION_DATE,
+    ],
+  ])(
+    'still warns when only the %s differs, since that is not an approved distinction',
+    (_label, a, b, field) => {
+      expect(
+        evaluateDuplicate({ ...sparrow, ...a }, { ...sparrow, ...b }),
+      ).toEqual({
+        confidence: DuplicateConfidence.MEDIUM,
+        matchedFields: [
+          DuplicateMatchField.SCIENTIFIC_NAME,
+          DuplicateMatchField.COMMON_NAME,
+        ],
+        differingFields: [field],
+      });
+    },
+  );
+
+  it('does not treat gender as a distinction', () => {
     expect(
       evaluateDuplicate(
-        { ...sparrow, gender: 'MALE' },
-        { ...sparrow, gender: 'UNKNOWN' },
+        { ...sparrow, gender: 'MALE' } as never,
+        { ...sparrow, gender: 'FEMALE' } as never,
       )?.confidence,
     ).toBe(DuplicateConfidence.MEDIUM);
   });
@@ -321,6 +350,46 @@ describe('SpecimenDuplicatesService', () => {
     expect(result[0].map((match) => match.index)).toEqual([2]);
     expect(result[1]).toEqual([]);
     expect(result[2].map((match) => match.index)).toEqual([0]);
+  });
+
+  describe('findAfterCreate', () => {
+    it('returns matches, excluding the created record', async () => {
+      specimenDelegate.findMany.mockResolvedValue([existingRecord()]);
+
+      const result = await service.findAfterCreate(
+        { scientificName: 'Passer domesticus', commonName: 'House sparrow' },
+        SPECIMEN_ID,
+      );
+
+      expect(result.duplicateCheckAvailable).toBe(true);
+      expect(result.possibleDuplicates).toHaveLength(1);
+      expect(specimenDelegate.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ id: { notIn: [SPECIMEN_ID] } }),
+        }),
+      );
+    });
+
+    it('reports an unavailable check instead of throwing when the lookup fails', async () => {
+      specimenDelegate.findMany.mockRejectedValue(
+        new Error('connection reset'),
+      );
+      const logSpy = jest
+        .spyOn(Logger.prototype, 'error')
+        .mockImplementation(() => undefined);
+
+      await expect(
+        service.findAfterCreate(
+          { scientificName: 'Passer domesticus' },
+          SPECIMEN_ID,
+        ),
+      ).resolves.toEqual({
+        possibleDuplicates: [],
+        duplicateCheckAvailable: false,
+      });
+      expect(logSpy).toHaveBeenCalled();
+      logSpy.mockRestore();
+    });
   });
 
   describe('findForSpecimen', () => {

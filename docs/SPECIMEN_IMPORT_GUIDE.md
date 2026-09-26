@@ -100,10 +100,12 @@ reports:
   names, status, confidence, and matched/differing fields), so the curator
   can open them before committing.
 
-Name-based warnings are suppressed when the records differ in a
-distinguishing field (for example one is `MALE` and the other `FEMALE`),
-since the same species is expected to have separate records for different
-physical groups, collectors, donors, or storage assignments (BR-09).
+The import template has no provenance columns, so import rows are matched
+on accession number and names only. Gender is not treated as a
+distinction: two rows that differ only in gender are still flagged. The
+collector/donor distinctions (BR-09) need a value on both records, so they
+never suppress an import warning. Physical grouping and storage assignment
+are deferred (see the duplicates guide).
 
 ## Commit behavior
 

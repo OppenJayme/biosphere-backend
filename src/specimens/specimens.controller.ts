@@ -48,13 +48,14 @@ export class SpecimensController {
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<SpecimenCreateResult> {
     const specimen = await this.service.create(dto, user.accountId);
-    // Checked after saving and never blocks it (REQ-4.4-22): clients that
-    // want to warn before saving call POST /specimens/duplicate-check first.
-    const possibleDuplicates = await this.duplicates.findForCandidate(
+    // Runs after the commit and never blocks or fails the create
+    // (REQ-4.4-22); clients that want to warn before saving call
+    // POST /specimens/duplicate-check first.
+    const duplicateCheck = await this.duplicates.findAfterCreate(
       specimen,
-      [specimen.id],
+      specimen.id,
     );
-    return { ...specimen, possibleDuplicates };
+    return { ...specimen, ...duplicateCheck };
   }
 
   @Get()

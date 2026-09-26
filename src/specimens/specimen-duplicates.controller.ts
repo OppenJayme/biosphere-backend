@@ -37,6 +37,7 @@ export class SpecimenDuplicatesController {
         candidate,
         excludeSpecimenId ? [excludeSpecimenId] : [],
       ),
+      duplicateCheckAvailable: true,
     };
   }
 
@@ -49,6 +50,9 @@ export class SpecimenDuplicatesController {
   async findForSpecimen(
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<SpecimenDuplicateCheckResult> {
-    return { possibleDuplicates: await this.service.findForSpecimen(id) };
+    return {
+      possibleDuplicates: await this.service.findForSpecimen(id),
+      duplicateCheckAvailable: true,
+    };
   }
 }

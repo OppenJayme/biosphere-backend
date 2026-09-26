@@ -500,11 +500,9 @@ export class SpecimenImportService {
     const warnings: string[] = [];
     const isAccessionMatch = (matchedFields: DuplicateMatchField[]) =>
       matchedFields.includes(DuplicateMatchField.ACCESSION_NUMBER);
-    const isNameMatch = (
-      matchedFields: DuplicateMatchField[],
-      differingFields: DuplicateMatchField[],
-    ) =>
-      differingFields.length === 0 &&
+    // The matcher has already dropped records a differing collector or
+    // donor sets apart (BR-09), so both names matching is enough here.
+    const isNameMatch = (matchedFields: DuplicateMatchField[]) =>
       matchedFields.includes(DuplicateMatchField.SCIENTIFIC_NAME) &&
       matchedFields.includes(DuplicateMatchField.COMMON_NAME);
 
@@ -522,22 +520,13 @@ export class SpecimenImportService {
       );
     }
 
-    if (
-      existing.some((match) =>
-        isNameMatch(match.matchedFields, match.differingFields),
-      )
-    ) {
+    if (existing.some((match) => isNameMatch(match.matchedFields))) {
       warnings.push(
         'Matches the scientific and common name of an existing specimen record; confirm this is not a duplicate before importing.',
       );
     }
     const nameRows = inBatch
-      .filter((match) =>
-        isNameMatch(
-          match.evaluation.matchedFields,
-          match.evaluation.differingFields,
-        ),
-      )
+      .filter((match) => isNameMatch(match.evaluation.matchedFields))
       .map((match) => match.rowNumber);
     if (nameRows.length > 0) {
       warnings.push(

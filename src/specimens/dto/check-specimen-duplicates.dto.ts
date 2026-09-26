@@ -2,7 +2,6 @@ import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import {
   IsDateString,
-  IsEnum,
   IsNotEmpty,
   IsOptional,
   IsString,
@@ -11,12 +10,12 @@ import {
   MaxLength,
 } from 'class-validator';
 import { trimString } from '../../common/transforms/trim-string.transform';
-import { SpecimenGender } from '../entities/specimen.entity';
 
 /**
  * Candidate values from a record that has not been saved yet (or is being
- * edited). Core and provenance fields are both accepted so a multi-section
- * entry form can check before any section is saved.
+ * edited). Name, accession, and provenance fields are all accepted so a
+ * multi-section entry form can check before any section is saved. Gender is
+ * not accepted: it is not a curator-approved distinction (BR-09).
  */
 export class CheckSpecimenDuplicatesDto {
   @ApiPropertyOptional({ nullable: true })
@@ -42,11 +41,6 @@ export class CheckSpecimenDuplicatesDto {
   @IsNotEmpty()
   @MaxLength(255)
   commonName?: string | null;
-
-  @ApiPropertyOptional({ enum: SpecimenGender, nullable: true })
-  @IsOptional()
-  @IsEnum(SpecimenGender)
-  gender?: SpecimenGender | null;
 
   @ApiPropertyOptional({ nullable: true })
   @IsOptional()

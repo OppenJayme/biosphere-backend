@@ -1,10 +1,11 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   DuplicateConfidence,
   DuplicateMatchField,
   PossibleDuplicate,
+  SpecimenDuplicateCheckResult,
 } from './entities/specimen-duplicate.entity';
 import { SpecimenStatus } from './entities/specimen.entity';
 
@@ -19,7 +20,6 @@ export interface DuplicateCandidate {
   accessionNumber?: string | null;
   scientificName?: string | null;
   commonName?: string | null;
-  gender?: string | null;
   collector?: string | null;
   donor?: string | null;
   collectionLocation?: string | null;
@@ -35,27 +35,34 @@ export interface DuplicateEvaluation {
 
 type NormalizedCandidate = Record<keyof DuplicateCandidate, string | undefined>;
 
+type FieldRule = [keyof DuplicateCandidate, DuplicateMatchField];
+
 /**
- * Provenance fields that, when equal on both records, corroborate a
- * same-species match, and when different, mark the records as legitimately
- * separate (REQ-4.4-23, BR-09).
+ * Distinctions BR-09 names explicitly and that the schema can compare:
+ * when both records have a value and they differ, the records are allowed
+ * to coexist and no name-based warning is raised. Physical grouping,
+ * storage assignment, and other curator-approved distinctions are not
+ * compared yet; adding one here needs curator approval first.
  */
-const PROVENANCE_FIELDS: [keyof DuplicateCandidate, DuplicateMatchField][] = [
+const DISTINGUISHING_FIELDS: FieldRule[] = [
   ['collector', DuplicateMatchField.COLLECTOR],
   ['donor', DuplicateMatchField.DONOR],
+];
+
+/**
+ * Supporting provenance: a match raises a same-species warning to HIGH, a
+ * difference is only reported for context. Never suppresses a warning.
+ */
+const SUPPORTING_FIELDS: FieldRule[] = [
   ['collectionLocation', DuplicateMatchField.COLLECTION_LOCATION],
   ['collectionDate', DuplicateMatchField.COLLECTION_DATE],
 ];
-
-// UNKNOWN / NOT_APPLICABLE say nothing about whether two records differ.
-const COMPARABLE_GENDERS = new Set(['male', 'female']);
 
 const EXISTING_SPECIMEN_SELECT = {
   id: true,
   accession_number: true,
   scientific_name: true,
   common_name: true,
-  gender: true,
   status: true,
   specimen_provenance: {
     select: {
@@ -75,16 +82,20 @@ const FIELD_LABELS: Record<DuplicateMatchField, string> = {
   [DuplicateMatchField.ACCESSION_NUMBER]: 'accession number',
   [DuplicateMatchField.SCIENTIFIC_NAME]: 'scientific name',
   [DuplicateMatchField.COMMON_NAME]: 'common name',
-  [DuplicateMatchField.GENDER]: 'gender',
   [DuplicateMatchField.COLLECTOR]: 'collector',
   [DuplicateMatchField.DONOR]: 'donor',
   [DuplicateMatchField.COLLECTION_LOCATION]: 'collection location',
   [DuplicateMatchField.COLLECTION_DATE]: 'collection date',
 };
 
+/**
+ * Trim + case-fold only, mirroring the database lookup (trimmed value,
+ * case-insensitive equality). Collapsing inner whitespace here would be
+ * misleading, since the lookup could never fetch such a variant.
+ */
 function normalize(value: string | null | undefined): string | undefined {
   if (value === null || value === undefined) return undefined;
-  const normalized = value.trim().replace(/\s+/g, ' ').toLowerCase();
+  const normalized = value.trim().toLowerCase();
   return normalized === '' ? undefined : normalized;
 }
 
@@ -95,7 +106,6 @@ function normalizeCandidate(
     accessionNumber: normalize(candidate.accessionNumber),
     scientificName: normalize(candidate.scientificName),
     commonName: normalize(candidate.commonName),
-    gender: normalize(candidate.gender),
     collector: normalize(candidate.collector),
     donor: normalize(candidate.donor),
     collectionLocation: normalize(candidate.collectionLocation),
@@ -114,13 +124,13 @@ function bothPresent(a: string | undefined, b: string | undefined): boolean {
  *   differs, because accession numbers are meant to identify one record.
  * - Otherwise the records must name the same species: equal scientific
  *   names, or equal common names when either side has no scientific name.
- * - Same species alone is not a duplicate. If any distinguishing field
- *   (collector, donor, collection location, collection date, male/female)
- *   is filled on both records and differs, they are separate records and
- *   nothing is reported.
- * - With no difference, matching provenance makes it HIGH; with no
- *   provenance to compare, it is MEDIUM only when both scientific and
- *   common names match (the rule bulk import has always used).
+ * - Same species alone is not a duplicate. If the collector or donor is
+ *   filled on both records and differs, they are separate records per
+ *   BR-09 and nothing is reported.
+ * - Otherwise a matching collector, donor, collection location, or
+ *   collection date makes it HIGH; with none of those matching, it is
+ *   MEDIUM only when both scientific and common names match (the rule bulk
+ *   import has always used).
  */
 export function evaluateDuplicate(
   candidate: DuplicateCandidate,
@@ -160,20 +170,18 @@ function evaluateNormalized(
   if (scientificMatch) matched.push(DuplicateMatchField.SCIENTIFIC_NAME);
   if (commonMatch) matched.push(DuplicateMatchField.COMMON_NAME);
 
-  if (
-    a.gender &&
-    b.gender &&
-    COMPARABLE_GENDERS.has(a.gender) &&
-    COMPARABLE_GENDERS.has(b.gender)
-  ) {
-    compare('gender', DuplicateMatchField.GENDER);
-  }
-
-  const provenanceMatched: DuplicateMatchField[] = [];
-  for (const [field, label] of PROVENANCE_FIELDS) {
+  const distinguishing: DuplicateMatchField[] = [];
+  let provenanceMatched = false;
+  for (const [field, label] of [
+    ...DISTINGUISHING_FIELDS,
+    ...SUPPORTING_FIELDS,
+  ]) {
     const before = matched.length;
     compare(field, label);
-    if (matched.length > before) provenanceMatched.push(label);
+    if (matched.length > before) provenanceMatched = true;
+  }
+  for (const [, label] of DISTINGUISHING_FIELDS) {
+    if (differing.includes(label)) distinguishing.push(label);
   }
 
   if (accessionMatch) {
@@ -187,20 +195,20 @@ function evaluateNormalized(
   const sameSpecies =
     scientificMatch ||
     (commonMatch && (!a.scientificName || !b.scientificName));
-  if (!sameSpecies || differing.length > 0) return null;
+  if (!sameSpecies || distinguishing.length > 0) return null;
 
-  if (provenanceMatched.length > 0) {
+  if (provenanceMatched) {
     return {
       confidence: DuplicateConfidence.HIGH,
       matchedFields: matched,
-      differingFields: [],
+      differingFields: differing,
     };
   }
   if (scientificMatch && commonMatch) {
     return {
       confidence: DuplicateConfidence.MEDIUM,
       matchedFields: matched,
-      differingFields: [],
+      differingFields: differing,
     };
   }
   return null;
@@ -221,7 +229,36 @@ export function describeDuplicate(evaluation: DuplicateEvaluation): string {
 
 @Injectable()
 export class SpecimenDuplicatesService {
+  private readonly logger = new Logger(SpecimenDuplicatesService.name);
+
   constructor(private readonly prisma: PrismaService) {}
+
+  /**
+   * For a record that has already been committed. The warning is
+   * non-critical, so a failed lookup must not turn a successful create into
+   * an error response: that would leave the client unsure whether the write
+   * happened and invite a retry that creates a second record. A failure is
+   * logged and reported as `duplicateCheckAvailable: false` instead.
+   */
+  async findAfterCreate(
+    candidate: DuplicateCandidate,
+    createdSpecimenId: string,
+  ): Promise<SpecimenDuplicateCheckResult> {
+    try {
+      return {
+        possibleDuplicates: await this.findForCandidate(candidate, [
+          createdSpecimenId,
+        ]),
+        duplicateCheckAvailable: true,
+      };
+    } catch (error) {
+      this.logger.error(
+        `Duplicate check failed after creating specimen ${createdSpecimenId}.`,
+        error instanceof Error ? error.stack : error,
+      );
+      return { possibleDuplicates: [], duplicateCheckAvailable: false };
+    }
+  }
 
   async findForCandidate(
     candidate: DuplicateCandidate,
@@ -355,7 +392,6 @@ export class SpecimenDuplicatesService {
       accessionNumber: record.accession_number,
       scientificName: record.scientific_name,
       commonName: record.common_name,
-      gender: record.gender,
       collector: provenance?.collector,
       donor: provenance?.donor,
       collectionLocation: provenance?.collection_location,
