@@ -20,6 +20,7 @@ import { DeveloperModule } from './developer/developer.module';
 import { FaqModule } from './faq/faq.module';
 import { AuditModule } from './audit/audit.module';
 import { OfflineSyncModule } from './offline-sync/offline-sync.module';
+import { BackupModule } from './backup/backup.module';
 
 @Module({
   imports: [
@@ -39,6 +40,7 @@ import { OfflineSyncModule } from './offline-sync/offline-sync.module';
     SpecimenLotsModule,
     FaqModule,
     AuditModule,
+    BackupModule,
     OfflineSyncModule,
   ],
   controllers: [AppController],
