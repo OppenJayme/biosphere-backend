@@ -264,6 +264,18 @@ describe('SpecimenTaxonomyService', () => {
     expect(taxonomyDelegate.update).not.toHaveBeenCalled();
   });
 
+  it('requires reopening before kingdom is cleared from a Cataloged record', async () => {
+    specimenDelegate.findUnique.mockResolvedValue(
+      specimenRecord({ status: 'CATALOGED' }),
+    );
+    taxonomyDelegate.findUnique.mockResolvedValue(taxonomyRecord());
+
+    await expect(
+      service.update(SPECIMEN_ID, { kingdom: null }, ACCOUNT_ID),
+    ).rejects.toThrow('Reopen cataloging before removing it');
+    expect(taxonomyDelegate.update).not.toHaveBeenCalled();
+  });
+
   it('rejects updates when taxonomy does not exist', async () => {
     taxonomyDelegate.findUnique.mockResolvedValue(null);
 
