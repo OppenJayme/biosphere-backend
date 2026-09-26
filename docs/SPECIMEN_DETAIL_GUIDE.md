@@ -38,10 +38,12 @@ This endpoint does not:
 
 - decide whether an `UNCATALOGED` specimen is complete;
 - change specimen status or public-display eligibility;
-- enforce accession-number uniqueness or duplicate matching;
+- enforce accession-number uniqueness;
 - include revision or lot-transaction history;
 - include offline synchronization receipts;
 - expose the record through a public route.
 
-Catalog-completion, duplicate-detection, bulk-import, and accession-number rules
-remain deferred until the museum/team confirms their requirements.
+Catalog-completion and accession-number-uniqueness rules remain deferred
+until the museum/team confirms their requirements. Bulk import, with
+warning-only duplicate detection, is implemented separately; see
+`docs/SPECIMEN_IMPORT_GUIDE.md`.
