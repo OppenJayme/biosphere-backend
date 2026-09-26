@@ -39,7 +39,8 @@ also implemented as a private-storage-backed nested resource; see
 are separate concerns. Tags are implemented as a reusable nested resource; see
 `docs/SPECIMEN_TAGS_GUIDE.md`. Bulk import, with warning-only duplicate
 detection, is implemented as its own preview/commit slice; see
-`docs/SPECIMEN_IMPORT_GUIDE.md`.
+`docs/SPECIMEN_IMPORT_GUIDE.md`. Warning-only duplicate detection for
+manual entry is described in `docs/SPECIMEN_DUPLICATES_GUIDE.md`.
 
 ## Status boundary
 

@@ -1,4 +1,4 @@
-import { INestApplication, ValidationPipe } from '@nestjs/common';
+import { INestApplication, Logger, ValidationPipe } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import request from 'supertest';
 import { App } from 'supertest/types';
@@ -224,6 +224,130 @@ describe('Specimens (e2e)', () => {
       }),
     });
     expect(auditDelegate.create).toHaveBeenCalled();
+  });
+
+  it('returns duplicate warnings with a created specimen without flagging itself', async () => {
+    const response = await request(app.getHttpServer())
+      .post('/specimens')
+      .set('Authorization', `Bearer ${curatorToken}`)
+      .send({
+        scientificName: 'Testus specimenus',
+        commonName: 'Test specimen',
+      })
+      .expect(201);
+
+    expect(response.body).toEqual(
+      expect.objectContaining({
+        id: specimenId,
+        possibleDuplicates: [],
+        duplicateCheckAvailable: true,
+      }),
+    );
+  });
+
+  it('still returns 201 with the created record when the duplicate lookup fails', async () => {
+    specimenDelegate.findMany.mockImplementationOnce(() => {
+      throw new Error('connection reset');
+    });
+    const logSpy = jest
+      .spyOn(Logger.prototype, 'error')
+      .mockImplementation(() => undefined);
+
+    const response = await request(app.getHttpServer())
+      .post('/specimens')
+      .set('Authorization', `Bearer ${curatorToken}`)
+      .send({
+        scientificName: 'Testus specimenus',
+        commonName: 'Test specimen',
+      })
+      .expect(201);
+    logSpy.mockRestore();
+
+    // The write committed exactly once and the client gets its id, so there
+    // is no ambiguous failure to retry; it can re-check duplicates later.
+    expect(response.body).toEqual(
+      expect.objectContaining({
+        id: specimenId,
+        possibleDuplicates: [],
+        duplicateCheckAvailable: false,
+      }),
+    );
+    expect(specimenDelegate.create).toHaveBeenCalledTimes(1);
+    expect(auditDelegate.create).toHaveBeenCalledTimes(1);
+
+    const recheck = await request(app.getHttpServer())
+      .get(`/specimens/${specimenId}/possible-duplicates`)
+      .set('Authorization', `Bearer ${curatorToken}`)
+      .expect(200);
+    expect(recheck.body).toEqual({
+      possibleDuplicates: [],
+      duplicateCheckAvailable: true,
+    });
+  });
+
+  describe.each([
+    ['POST', '/specimens/duplicate-check'],
+    ['GET', `/specimens/${specimenId}/possible-duplicates`],
+  ])('%s %s authorization', (method, path) => {
+    const send = () => {
+      const server = request(app.getHttpServer());
+      return method === 'POST'
+        ? server.post(path).send({ scientificName: 'Testus specimenus' })
+        : server.get(path);
+    };
+
+    it('rejects an unauthenticated request', async () => {
+      await send().expect(401);
+      expect(specimenDelegate.findMany).not.toHaveBeenCalled();
+    });
+
+    it('rejects an active Developer because duplicate checks are curator-only', async () => {
+      await send().set('Authorization', `Bearer ${developerToken}`).expect(403);
+      expect(specimenDelegate.findMany).not.toHaveBeenCalled();
+    });
+  });
+
+  it('checks unsaved values for possible duplicates without saving', async () => {
+    const response = await request(app.getHttpServer())
+      .post('/specimens/duplicate-check')
+      .set('Authorization', `Bearer ${curatorToken}`)
+      .send({
+        scientificName: '  testus specimenus ',
+        commonName: 'Test specimen',
+      })
+      .expect(200);
+
+    expect(response.body).toEqual({
+      possibleDuplicates: [
+        expect.objectContaining({
+          specimenId,
+          confidence: 'MEDIUM',
+          matchedFields: ['SCIENTIFIC_NAME', 'COMMON_NAME'],
+        }),
+      ],
+      duplicateCheckAvailable: true,
+    });
+    expect(specimenDelegate.create).not.toHaveBeenCalled();
+    expect(auditDelegate.create).not.toHaveBeenCalled();
+  });
+
+  it('validates duplicate-check input', () =>
+    request(app.getHttpServer())
+      .post('/specimens/duplicate-check')
+      .set('Authorization', `Bearer ${curatorToken}`)
+      .send({ collectionDate: '05/01/2026' })
+      .expect(400));
+
+  it('lists possible duplicates of a saved specimen, excluding itself', async () => {
+    const response = await request(app.getHttpServer())
+      .get(`/specimens/${specimenId}/possible-duplicates`)
+      .set('Authorization', `Bearer ${curatorToken}`)
+      .expect(200);
+
+    expect(response.body).toEqual({
+      possibleDuplicates: [],
+      duplicateCheckAvailable: true,
+    });
   });
 
   it('returns active specimen records with camelCase API fields', async () => {
