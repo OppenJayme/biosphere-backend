@@ -18,7 +18,7 @@ import { UpdateExhibitDto } from './dto/update-exhibit.dto';
 import {
   Exhibit,
   ExhibitStatus,
-  PublicExhibit,
+  PublicExhibitResponse,
 } from './entities/exhibit.entity';
 import {
   ExhibitMedia,
@@ -291,7 +291,7 @@ export class ExhibitsService {
   // Public QR exhibit page — REQ-4.12-04/09, BR-10
   // ===========================================================
 
-  async findPublishedBySlug(slug: string): Promise<PublicExhibit> {
+  async findPublishedBySlug(slug: string): Promise<PublicExhibitResponse> {
     const item = await this.prisma.exhibit.findUnique({
       where: { public_slug: slug },
     });
@@ -540,25 +540,18 @@ export class ExhibitsService {
   private async toPublicEntity(
     item: exhibit,
     media: exhibit_media[],
-  ): Promise<PublicExhibit> {
+  ): Promise<PublicExhibitResponse> {
     const publicMedia = await Promise.all(
       media.map((entry) => this.toPublicMediaEntity(entry)),
     );
 
     return {
-      id: item.id,
-      specimenId: item.specimen_id,
       publicSlug: item.public_slug,
       interestingFacts: item.interesting_facts,
       publicDescription: item.public_description,
       distribution: item.distribution,
       diet: item.diet,
       layoutType: item.layout_type,
-      status: item.status as ExhibitStatus,
-      publishedAt: item.published_at,
-      archivedAt: item.archived_at,
-      createdAt: item.created_at,
-      updatedAt: item.updated_at,
       media: publicMedia,
     };
   }

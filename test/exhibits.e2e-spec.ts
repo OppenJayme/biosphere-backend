@@ -229,10 +229,15 @@ describe('Exhibits (e2e)', () => {
         .get(`/exhibits/public/${exhibitRecord.public_slug as string}`)
         .expect(200);
 
-      expect(response.body).toEqual(
-        expect.objectContaining({ publicSlug: 'six-legged-carabao' }),
-      );
-      expect(response.body).not.toHaveProperty('createdBy');
+      expect(response.body).toEqual({
+        publicSlug: 'six-legged-carabao',
+        interestingFacts: null,
+        publicDescription: null,
+        distribution: null,
+        diet: null,
+        layoutType: null,
+        media: [],
+      });
     });
   });
 

@@ -25,7 +25,7 @@ import { STORAGE_RULES } from '../supabase/storage.config';
 import { AddExhibitMediaDto } from './dto/add-exhibit-media.dto';
 import { CreateExhibitDto } from './dto/create-exhibit.dto';
 import { UpdateExhibitDto } from './dto/update-exhibit.dto';
-import { Exhibit } from './entities/exhibit.entity';
+import { Exhibit, PublicExhibitResponse } from './entities/exhibit.entity';
 import { ExhibitMedia } from './entities/exhibit-media.entity';
 import { ExhibitsService } from './exhibits.service';
 
@@ -63,7 +63,7 @@ export class ExhibitsController {
   @Public()
   @Get('public/:slug')
   @ApiOperation({ summary: 'Retrieve a published exhibit page (public)' })
-  @ApiOkResponse({ type: Exhibit })
+  @ApiOkResponse({ type: PublicExhibitResponse })
   findPublishedBySlug(@Param('slug') slug: string) {
     return this.exhibitsService.findPublishedBySlug(slug);
   }

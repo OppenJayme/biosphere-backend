@@ -285,16 +285,27 @@ describe('ExhibitsService', () => {
 
       const result = await service.findPublishedBySlug('six-legged-carabao');
 
-      expect(result).not.toHaveProperty('createdBy');
-      expect(result.media).toHaveLength(1);
-      expect(result.media?.[0]).toEqual({
-        mediaUrl: 'https://signed.example/photo.jpg',
-        displayOrder: 0,
-        caption: null,
-        isCover: true,
+      expect(result).toEqual({
+        publicSlug: 'six-legged-carabao',
+        interestingFacts: null,
+        publicDescription: null,
+        distribution: null,
+        diet: null,
+        layoutType: null,
+        media: [
+          {
+            mediaUrl: 'https://signed.example/photo.jpg',
+            displayOrder: 0,
+            caption: null,
+            isCover: true,
+          },
+        ],
       });
-      expect(result.media?.[0]).not.toHaveProperty('exhibitId');
-      expect(result.media?.[0].mediaUrl).not.toContain(EXHIBIT_ID);
+      expect(result).not.toHaveProperty('specimenId');
+      expect(result).not.toHaveProperty('status');
+      expect(result).not.toHaveProperty('createdAt');
+      expect(result).not.toHaveProperty('updatedAt');
+      expect(result.media[0].mediaUrl).not.toContain(EXHIBIT_ID);
     });
 
     it('hides a published page when its specimen loses public approval', async () => {

@@ -54,6 +54,25 @@ export class Exhibit {
   media?: ExhibitMedia[];
 }
 
-export type PublicExhibit = Omit<Exhibit, 'createdBy' | 'media'> & {
-  media: PublicExhibitMedia[];
-};
+export class PublicExhibitResponse {
+  @ApiProperty({ description: 'Unique URL segment for the public QR page' })
+  publicSlug!: string;
+
+  @ApiPropertyOptional({ nullable: true })
+  interestingFacts!: string | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  publicDescription!: string | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  distribution!: string | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  diet!: string | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  layoutType!: string | null;
+
+  @ApiProperty({ type: [PublicExhibitMedia] })
+  media!: PublicExhibitMedia[];
+}
