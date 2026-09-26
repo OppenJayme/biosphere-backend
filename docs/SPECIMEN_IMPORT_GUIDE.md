@@ -172,11 +172,27 @@ time, not just when one has already finished.
 preview + commit against a real Postgres database (no mocking), using the
 production `SpecimensService`/`SpecimenImportService` code paths directly.
 Run it against a disposable database — it creates and deletes real rows
-(a fixture curator, a stub `auth.users` row, and the imported specimens):
+(a fixture curator, a stub `auth.users` row, and the imported specimens).
+
+It requires two separate opt-ins before it will open any database
+connection: `RUN_LIVE_SPECIMEN_IMPORT_BENCHMARK=true`, and its own
+`BENCHMARK_DATABASE_URL` — deliberately **not** the app's normal
+`DATABASE_URL`, so it can never silently run against whatever database a
+developer's `.env` happens to be configured for. Cleanup deletes by the
+fixture curator's account id, not by a list of rows collected during a
+successful run, so a partial failure anywhere still leaves the database as
+it found it.
 
 ```bash
-DATABASE_URL=postgresql://user:pass@localhost:5432/some_throwaway_db \
+RUN_LIVE_SPECIMEN_IMPORT_BENCHMARK=true \
+BENCHMARK_DATABASE_URL=postgresql://user:pass@localhost:5432/some_throwaway_db \
   npm run benchmark:specimen-import
+```
+
+```powershell
+$env:RUN_LIVE_SPECIMEN_IMPORT_BENCHMARK = "true"
+$env:BENCHMARK_DATABASE_URL = "postgresql://user:pass@localhost:5432/some_throwaway_db"
+npm run benchmark:specimen-import
 ```
 
 Measured locally against local Postgres 17: preview ~200-330ms, commit
