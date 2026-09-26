@@ -13,6 +13,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateSpecimenDto } from './dto/create-specimen.dto';
 import { ListSpecimenRevisionsQueryDto } from './dto/list-specimen-revisions-query.dto';
+import { ReopenCatalogingDto } from './dto/reopen-cataloging.dto';
 import {
   SearchSpecimensQueryDto,
   SpecimenSortField,
@@ -29,6 +30,11 @@ import {
   SpecimenPage,
   SpecimenStatus,
 } from './entities/specimen.entity';
+import {
+  assertCatalogedValueRetained,
+  hasCatalogText,
+} from './catalog-completion.policy';
+import { SpecimenCatalogingService } from './specimen-cataloging.service';
 
 interface RevisionChange {
   fieldChanged: string;
@@ -56,7 +62,10 @@ type SpecimenRevisionWithActor = specimen_revision_history & {
 
 @Injectable()
 export class SpecimensService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly catalogingService: SpecimenCatalogingService,
+  ) {}
 
   async create(
     dto: CreateSpecimenDto,
@@ -227,6 +236,25 @@ export class SpecimensService {
       this.assertExists(existing, id);
       this.assertEditable(existing);
 
+      assertCatalogedValueRetained(
+        existing.status,
+        dto.collectionId !== undefined,
+        dto.collectionId !== null,
+        'Collection',
+      );
+      assertCatalogedValueRetained(
+        existing.status,
+        dto.accessionNumber !== undefined,
+        hasCatalogText(dto.accessionNumber ?? null),
+        'Accession number',
+      );
+      assertCatalogedValueRetained(
+        existing.status,
+        dto.commonName !== undefined,
+        hasCatalogText(dto.commonName ?? null),
+        'Common name',
+      );
+
       if (dto.collectionId) {
         await this.assertCollectionExists(transaction, dto.collectionId);
       }
@@ -350,6 +378,134 @@ export class SpecimensService {
         specimenId: id,
         action: 'UPDATE_SPECIMEN',
         details: { fields: changes.map((change) => change.fieldChanged) },
+      });
+
+      return this.toEntity(updated);
+    });
+  }
+
+  /** Promotes only a server-validated record; clients cannot set status. */
+  async completeCataloging(
+    id: string,
+    actingCuratorAccountId: string,
+  ): Promise<Specimen> {
+    return this.prisma.$transaction(async (transaction) => {
+      const existing = await transaction.specimen.findUnique({
+        where: { id },
+      });
+      this.assertExists(existing, id);
+
+      if (
+        this.catalogingService.isArchived(existing.status, existing.archived_at)
+      ) {
+        throw new BadRequestException(
+          'Archived specimens cannot complete cataloging.',
+        );
+      }
+      if (existing.status === 'CATALOGED') {
+        return this.toEntity(existing);
+      }
+
+      const readiness = await this.catalogingService.getReadinessWith(
+        transaction,
+        id,
+      );
+      if (!readiness.canComplete) {
+        throw new BadRequestException({
+          message:
+            'This specimen cannot be Cataloged until every required item is complete.',
+          missingRequirements: readiness.missingRequirements,
+        });
+      }
+
+      const changedAt = new Date();
+      const updated = await transaction.specimen.update({
+        where: { id },
+        data: {
+          status: 'CATALOGED',
+          updated_by: actingCuratorAccountId,
+          updated_at: changedAt,
+        },
+      });
+
+      await this.recordRevisions(transaction, id, actingCuratorAccountId, [
+        {
+          fieldChanged: 'status',
+          oldValue: existing.status,
+          newValue: 'CATALOGED',
+        },
+      ]);
+      await this.recordAudit(transaction, {
+        userId: actingCuratorAccountId,
+        specimenId: id,
+        action: 'COMPLETE_SPECIMEN_CATALOGING',
+        details: { previousStatus: existing.status },
+      });
+
+      return this.toEntity(updated);
+    });
+  }
+
+  /** Explicitly reopens a Cataloged record before required data is removed. */
+  async reopenCataloging(
+    id: string,
+    dto: ReopenCatalogingDto,
+    actingCuratorAccountId: string,
+  ): Promise<Specimen> {
+    return this.prisma.$transaction(async (transaction) => {
+      const existing = await transaction.specimen.findUnique({
+        where: { id },
+      });
+      this.assertExists(existing, id);
+
+      if (
+        this.catalogingService.isArchived(existing.status, existing.archived_at)
+      ) {
+        throw new BadRequestException(
+          'Archived specimens cannot be reopened for cataloging.',
+        );
+      }
+      if (existing.status === 'UNCATALOGED') {
+        return this.toEntity(existing);
+      }
+
+      const changedAt = new Date();
+      const updated = await transaction.specimen.update({
+        where: { id },
+        data: {
+          status: 'UNCATALOGED',
+          public_display_allowed: false,
+          updated_by: actingCuratorAccountId,
+          updated_at: changedAt,
+        },
+      });
+      const changes: RevisionChange[] = [
+        {
+          fieldChanged: 'status',
+          oldValue: existing.status,
+          newValue: 'UNCATALOGED',
+        },
+      ];
+      if (existing.public_display_allowed) {
+        changes.push({
+          fieldChanged: 'public_display_allowed',
+          oldValue: true,
+          newValue: false,
+        });
+      }
+
+      await this.recordRevisions(
+        transaction,
+        id,
+        actingCuratorAccountId,
+        changes,
+        dto.reason,
+      );
+      await this.recordAudit(transaction, {
+        userId: actingCuratorAccountId,
+        specimenId: id,
+        action: 'REOPEN_SPECIMEN_CATALOGING',
+        details: { reason: dto.reason, previousStatus: existing.status },
       });
 
       return this.toEntity(updated);
@@ -615,6 +771,7 @@ export class SpecimensService {
     specimenId: string,
     changedBy: string,
     changes: RevisionChange[],
+    reason?: string,
   ): Promise<void> {
     await transaction.specimen_revision_history.createMany({
       data: changes.map((change) => ({
@@ -623,6 +780,7 @@ export class SpecimensService {
         field_changed: change.fieldChanged,
         old_value: this.historyValue(change.oldValue),
         new_value: this.historyValue(change.newValue),
+        reason,
         source_section: 'specimen_core',
       })),
     });

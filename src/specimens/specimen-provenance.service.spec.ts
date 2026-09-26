@@ -272,6 +272,18 @@ describe('SpecimenProvenanceService', () => {
     expect(provenanceDelegate.update).not.toHaveBeenCalled();
   });
 
+  it('requires reopening before required provenance is cleared', async () => {
+    specimenDelegate.findUnique.mockResolvedValue(
+      specimenRecord({ status: 'CATALOGED' }),
+    );
+    provenanceDelegate.findUnique.mockResolvedValue(provenanceRecord());
+
+    await expect(
+      service.update(SPECIMEN_ID, { preservationMethod: null }, ACCOUNT_ID),
+    ).rejects.toThrow('Reopen cataloging before removing it');
+    expect(provenanceDelegate.update).not.toHaveBeenCalled();
+  });
+
   it('rejects updates when provenance does not exist', async () => {
     provenanceDelegate.findUnique.mockResolvedValue(null);
 

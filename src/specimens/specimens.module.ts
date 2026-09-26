@@ -18,6 +18,7 @@ import { SpecimenDetailsController } from './specimen-details.controller';
 import { SpecimenDetailsService } from './specimen-details.service';
 import { SpecimenImportController } from './specimen-import.controller';
 import { SpecimenImportService } from './specimen-import.service';
+import { SpecimenCatalogingService } from './specimen-cataloging.service';
 
 @Module({
   imports: [PrismaModule],
@@ -34,6 +35,7 @@ import { SpecimenImportService } from './specimen-import.service';
   ],
   providers: [
     SpecimenDetailsService,
+    SpecimenCatalogingService,
     SpecimensService,
     SpecimenImportService,
     SpecimenTaxonomyService,
@@ -44,6 +46,7 @@ import { SpecimenImportService } from './specimen-import.service';
   ],
   exports: [
     SpecimenDetailsService,
+    SpecimenCatalogingService,
     SpecimensService,
     SpecimenImportService,
     SpecimenTaxonomyService,

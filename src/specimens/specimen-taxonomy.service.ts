@@ -10,6 +10,10 @@ import {
   type specimen_taxonomy,
 } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import {
+  assertCatalogedValueRetained,
+  hasCatalogText,
+} from './catalog-completion.policy';
 import { CreateSpecimenTaxonomyDto } from './dto/create-specimen-taxonomy.dto';
 import { UpdateSpecimenTaxonomyDto } from './dto/update-specimen-taxonomy.dto';
 import { SpecimenTaxonomy } from './entities/specimen-taxonomy.entity';
@@ -122,6 +126,13 @@ export class SpecimenTaxonomyService {
           `Taxonomy for specimen ${specimenId} not found`,
         );
       }
+
+      assertCatalogedValueRetained(
+        specimenRecord.status,
+        dto.kingdom !== undefined,
+        hasCatalogText(dto.kingdom ?? null),
+        'Taxonomic kingdom',
+      );
 
       const { data, changes } = this.collectUpdate(dto, existing);
       if (changes.length === 0) {
