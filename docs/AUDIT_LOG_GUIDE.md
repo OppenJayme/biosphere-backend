@@ -39,6 +39,8 @@ database does not record them. The API must not fabricate audit evidence.
   printable behavior remains consistent with SRS Section 4.7.
 - Authentication denials and other cross-cutting security events require a
   centralized logging design rather than controller-specific duplication.
+- Backup history is available separately through the protected, read-only
+  `/backups/history` API documented in `BACKUP_HISTORY_GUIDE.md`.
 - Backup creation, scheduling, failure notification, encrypted storage,
   restoration, and verification are not application CRUD. REQ-4.15-05 through
   REQ-4.15-12 require an approved deployment procedure. The final schedule,

@@ -168,6 +168,16 @@ Developer live e2e suite is intentionally skipped unless
 Supabase project after reviewing its fixture creation, Auth invitations,
 Storage uploads, and cleanup behavior.
 
+After configuring that dedicated environment, run only the Developer live
+suite with:
+
+```powershell
+npm run test:e2e:live:developer
+```
+
+The command targets `test/developer.e2e-spec.ts` directly and runs serially to
+avoid unnecessary e2e execution and concurrent mutations against Supabase.
+
 ## Database-change workflow
 
 For an agreed structural change:
