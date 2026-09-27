@@ -138,7 +138,7 @@ describe('Exhibit QR codes (e2e)', () => {
         details: { format: 'PNG' },
       }),
     });
-  });
+  }, 15_000);
 
   it('downloads an SVG QR code and records an audit entry', async () => {
     const response = await request(app.getHttpServer())

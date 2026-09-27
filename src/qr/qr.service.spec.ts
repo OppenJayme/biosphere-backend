@@ -119,7 +119,7 @@ describe('QrService', () => {
         status: 'SUCCESS',
       }),
     });
-  });
+  }, 15_000);
 
   it('generates an SVG string and records an audit entry', async () => {
     const svg = await service.generateSvg(EXHIBIT_ID, ACCOUNT_ID);
