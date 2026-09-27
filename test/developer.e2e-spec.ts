@@ -297,7 +297,7 @@ describeLiveDeveloperE2e('Developer module (live e2e)', () => {
       expect(res.body.status).toBe('INACTIVE');
     });
 
-    it('rejects a status change with no authorizationReason (DTO validation)', () => {
+    it('rejects a status change with no authorizationReason (DTO validation)', async () => {
       if (!onboardedAccountId) {
         console.warn(
           '[NOTE] Onboarded curator validation coverage skipped because the ' +
@@ -306,7 +306,7 @@ describeLiveDeveloperE2e('Developer module (live e2e)', () => {
         return;
       }
 
-      return request(app.getHttpServer())
+      await request(app.getHttpServer())
         .patch(`/developer/curators/${onboardedAccountId}/status`)
         .set('Authorization', `Bearer ${developerToken}`)
         .send({ status: 'ACTIVE' })

@@ -540,6 +540,42 @@ describe('SpecimensService', () => {
     });
   });
 
+  it('validates and promotes inside one SERIALIZABLE transaction', async () => {
+    specimenDelegate.findUnique.mockResolvedValue(
+      specimenRecord({ status: 'CATALOGED' }),
+    );
+
+    await service.completeCataloging(SPECIMEN_ID, ACCOUNT_ID);
+
+    expect(transactionMock).toHaveBeenCalledWith(expect.any(Function), {
+      isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+    });
+  });
+
+  it('returns an already Cataloged specimen without duplicating history', async () => {
+    specimenDelegate.findUnique.mockResolvedValue(
+      specimenRecord({ status: 'CATALOGED' }),
+    );
+
+    await expect(
+      service.completeCataloging(SPECIMEN_ID, ACCOUNT_ID),
+    ).resolves.toHaveProperty('status', SpecimenStatus.CATALOGED);
+    expect(specimenDelegate.update).not.toHaveBeenCalled();
+    expect(revisionDelegate.createMany).not.toHaveBeenCalled();
+    expect(auditDelegate.create).not.toHaveBeenCalled();
+  });
+
+  it('rejects completion for an archived specimen', async () => {
+    specimenDelegate.findUnique.mockResolvedValue(
+      specimenRecord({ status: 'ARCHIVED', archived_at: TEST_DATE }),
+    );
+
+    await expect(
+      service.completeCataloging(SPECIMEN_ID, ACCOUNT_ID),
+    ).rejects.toThrow('Archived specimens cannot complete cataloging.');
+    expect(specimenDelegate.update).not.toHaveBeenCalled();
+  });
+
   it('reopens Cataloged work with a reason and disables public eligibility', async () => {
     specimenDelegate.findUnique.mockResolvedValue(
       specimenRecord({

@@ -137,7 +137,6 @@ describe('DeveloperService', () => {
       expect(prismaMock.user_account.findMany).toHaveBeenCalledWith({
         where: { role: 'CURATOR' },
         orderBy: { created_at: 'desc' },
-        orderBy: { created_at: 'desc' },
       });
       expect(result).toEqual([
         {

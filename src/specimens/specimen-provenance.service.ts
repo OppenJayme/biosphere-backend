@@ -10,6 +10,7 @@ import {
   type specimen_provenance,
 } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { runSerializableTransaction } from '../prisma/serializable-transaction';
 import {
   assertCatalogedValueRetained,
   hasCatalogText,
@@ -116,75 +117,79 @@ export class SpecimenProvenanceService {
     dto: UpdateSpecimenProvenanceDto,
     actingCuratorAccountId: string,
   ): Promise<SpecimenProvenance> {
-    return this.prisma.$transaction(async (transaction) => {
-      const specimenRecord = await this.findSpecimenOrThrow(
-        transaction,
-        specimenId,
-      );
-      this.assertEditable(specimenRecord);
-
-      const existing = await transaction.specimen_provenance.findUnique({
-        where: { specimen_id: specimenId },
-      });
-      if (!existing) {
-        throw new NotFoundException(
-          `Provenance for specimen ${specimenId} not found`,
+    return runSerializableTransaction(
+      this.prisma,
+      async (transaction) => {
+        const specimenRecord = await this.findSpecimenOrThrow(
+          transaction,
+          specimenId,
         );
-      }
+        this.assertEditable(specimenRecord);
 
-      assertCatalogedValueRetained(
-        specimenRecord.status,
-        dto.collectionDate !== undefined,
-        dto.collectionDate !== null,
-        'Collection date',
-      );
-      assertCatalogedValueRetained(
-        specimenRecord.status,
-        dto.preservationType !== undefined,
-        hasCatalogText(dto.preservationType ?? null),
-        'Preservation type',
-      );
-      assertCatalogedValueRetained(
-        specimenRecord.status,
-        dto.preservationMethod !== undefined,
-        hasCatalogText(dto.preservationMethod ?? null),
-        'Preservation method',
-      );
+        const existing = await transaction.specimen_provenance.findUnique({
+          where: { specimen_id: specimenId },
+        });
+        if (!existing) {
+          throw new NotFoundException(
+            `Provenance for specimen ${specimenId} not found`,
+          );
+        }
 
-      const { data, changes } = this.collectUpdate(dto, existing);
-      if (changes.length === 0) {
-        throw new BadRequestException(
-          'At least one provenance field must change.',
+        assertCatalogedValueRetained(
+          specimenRecord.status,
+          dto.collectionDate !== undefined,
+          dto.collectionDate !== null,
+          'Collection date',
         );
-      }
+        assertCatalogedValueRetained(
+          specimenRecord.status,
+          dto.preservationType !== undefined,
+          hasCatalogText(dto.preservationType ?? null),
+          'Preservation type',
+        );
+        assertCatalogedValueRetained(
+          specimenRecord.status,
+          dto.preservationMethod !== undefined,
+          hasCatalogText(dto.preservationMethod ?? null),
+          'Preservation method',
+        );
 
-      const changedAt = new Date();
-      const updated = await transaction.specimen_provenance.update({
-        where: { specimen_id: specimenId },
-        data: { ...data, updated_at: changedAt },
-      });
+        const { data, changes } = this.collectUpdate(dto, existing);
+        if (changes.length === 0) {
+          throw new BadRequestException(
+            'At least one provenance field must change.',
+          );
+        }
 
-      await this.touchSpecimen(
-        transaction,
-        specimenId,
-        actingCuratorAccountId,
-        changedAt,
-      );
-      await this.recordRevisions(
-        transaction,
-        specimenId,
-        actingCuratorAccountId,
-        changes,
-      );
-      await this.recordAudit(transaction, {
-        userId: actingCuratorAccountId,
-        specimenId,
-        action: 'UPDATE_SPECIMEN_PROVENANCE',
-        fields: changes.map((change) => change.fieldChanged),
-      });
+        const changedAt = new Date();
+        const updated = await transaction.specimen_provenance.update({
+          where: { specimen_id: specimenId },
+          data: { ...data, updated_at: changedAt },
+        });
 
-      return this.toEntity(updated);
-    });
+        await this.touchSpecimen(
+          transaction,
+          specimenId,
+          actingCuratorAccountId,
+          changedAt,
+        );
+        await this.recordRevisions(
+          transaction,
+          specimenId,
+          actingCuratorAccountId,
+          changes,
+        );
+        await this.recordAudit(transaction, {
+          userId: actingCuratorAccountId,
+          specimenId,
+          action: 'UPDATE_SPECIMEN_PROVENANCE',
+          fields: changes.map((change) => change.fieldChanged),
+        });
+
+        return this.toEntity(updated);
+      },
+      'Specimen changed during the operation. Reload and try again.',
+    );
   }
 
   private createValues(dto: CreateSpecimenProvenanceDto) {

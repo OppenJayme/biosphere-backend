@@ -11,6 +11,7 @@ import {
   type user_role,
 } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { runSerializableTransaction } from '../prisma/serializable-transaction';
 import { CreateSpecimenDto } from './dto/create-specimen.dto';
 import { ListSpecimenRevisionsQueryDto } from './dto/list-specimen-revisions-query.dto';
 import { ReopenCatalogingDto } from './dto/reopen-cataloging.dto';
@@ -229,159 +230,163 @@ export class SpecimensService {
     dto: UpdateSpecimenDto,
     actingCuratorAccountId: string,
   ): Promise<Specimen> {
-    return this.prisma.$transaction(async (transaction) => {
-      const existing = await transaction.specimen.findUnique({
-        where: { id },
-      });
-      this.assertExists(existing, id);
-      this.assertEditable(existing);
-
-      assertCatalogedValueRetained(
-        existing.status,
-        dto.collectionId !== undefined,
-        dto.collectionId !== null,
-        'Collection',
-      );
-      assertCatalogedValueRetained(
-        existing.status,
-        dto.accessionNumber !== undefined,
-        hasCatalogText(dto.accessionNumber ?? null),
-        'Accession number',
-      );
-      assertCatalogedValueRetained(
-        existing.status,
-        dto.commonName !== undefined,
-        hasCatalogText(dto.commonName ?? null),
-        'Common name',
-      );
-
-      if (dto.collectionId) {
-        await this.assertCollectionExists(transaction, dto.collectionId);
-      }
-
-      const data: Prisma.specimenUncheckedUpdateInput = {};
-      const changes: RevisionChange[] = [];
-
-      if (
-        dto.collectionId !== undefined &&
-        dto.collectionId !== existing.collection_id
-      ) {
-        data.collection_id = dto.collectionId;
-        changes.push({
-          fieldChanged: 'collection_id',
-          oldValue: existing.collection_id,
-          newValue: dto.collectionId,
+    return runSerializableTransaction(
+      this.prisma,
+      async (transaction) => {
+        const existing = await transaction.specimen.findUnique({
+          where: { id },
         });
-      }
+        this.assertExists(existing, id);
+        this.assertEditable(existing);
 
-      if (
-        dto.accessionNumber !== undefined &&
-        dto.accessionNumber !== existing.accession_number
-      ) {
-        data.accession_number = dto.accessionNumber;
-        changes.push({
-          fieldChanged: 'accession_number',
-          oldValue: existing.accession_number,
-          newValue: dto.accessionNumber,
-        });
-      }
-
-      if (
-        dto.specimenCategory !== undefined &&
-        dto.specimenCategory !== existing.specimen_category
-      ) {
-        data.specimen_category = dto.specimenCategory;
-        changes.push({
-          fieldChanged: 'specimen_category',
-          oldValue: existing.specimen_category,
-          newValue: dto.specimenCategory,
-        });
-      }
-
-      if (
-        dto.scientificName !== undefined &&
-        dto.scientificName !== existing.scientific_name
-      ) {
-        data.scientific_name = dto.scientificName;
-        changes.push({
-          fieldChanged: 'scientific_name',
-          oldValue: existing.scientific_name,
-          newValue: dto.scientificName,
-        });
-      }
-
-      if (
-        dto.commonName !== undefined &&
-        dto.commonName !== existing.common_name
-      ) {
-        data.common_name = dto.commonName;
-        changes.push({
-          fieldChanged: 'common_name',
-          oldValue: existing.common_name,
-          newValue: dto.commonName,
-        });
-      }
-
-      if (dto.gender !== undefined && dto.gender !== existing.gender) {
-        data.gender = dto.gender;
-        changes.push({
-          fieldChanged: 'gender',
-          oldValue: existing.gender,
-          newValue: dto.gender,
-        });
-      }
-
-      if (
-        dto.classificationStatus !== undefined &&
-        dto.classificationStatus !== existing.classification_status
-      ) {
-        data.classification_status = dto.classificationStatus;
-        changes.push({
-          fieldChanged: 'classification_status',
-          oldValue: existing.classification_status,
-          newValue: dto.classificationStatus,
-        });
-      }
-
-      if (dto.remarks !== undefined && dto.remarks !== existing.remarks) {
-        data.remarks = dto.remarks;
-        changes.push({
-          fieldChanged: 'remarks',
-          oldValue: existing.remarks,
-          newValue: dto.remarks,
-        });
-      }
-
-      if (changes.length === 0) {
-        throw new BadRequestException(
-          'At least one specimen core field must change.',
+        assertCatalogedValueRetained(
+          existing.status,
+          dto.collectionId !== undefined,
+          dto.collectionId !== null,
+          'Collection',
         );
-      }
+        assertCatalogedValueRetained(
+          existing.status,
+          dto.accessionNumber !== undefined,
+          hasCatalogText(dto.accessionNumber ?? null),
+          'Accession number',
+        );
+        assertCatalogedValueRetained(
+          existing.status,
+          dto.commonName !== undefined,
+          hasCatalogText(dto.commonName ?? null),
+          'Common name',
+        );
 
-      const updated = await transaction.specimen.update({
-        where: { id },
-        data: {
-          ...data,
-          updated_by: actingCuratorAccountId,
-          updated_at: new Date(),
-        },
-      });
+        if (dto.collectionId) {
+          await this.assertCollectionExists(transaction, dto.collectionId);
+        }
 
-      await this.recordRevisions(
-        transaction,
-        id,
-        actingCuratorAccountId,
-        changes,
-      );
-      await this.recordAudit(transaction, {
-        userId: actingCuratorAccountId,
-        specimenId: id,
-        action: 'UPDATE_SPECIMEN',
-        details: { fields: changes.map((change) => change.fieldChanged) },
-      });
+        const data: Prisma.specimenUncheckedUpdateInput = {};
+        const changes: RevisionChange[] = [];
 
-      return this.toEntity(updated);
-    });
+        if (
+          dto.collectionId !== undefined &&
+          dto.collectionId !== existing.collection_id
+        ) {
+          data.collection_id = dto.collectionId;
+          changes.push({
+            fieldChanged: 'collection_id',
+            oldValue: existing.collection_id,
+            newValue: dto.collectionId,
+          });
+        }
+
+        if (
+          dto.accessionNumber !== undefined &&
+          dto.accessionNumber !== existing.accession_number
+        ) {
+          data.accession_number = dto.accessionNumber;
+          changes.push({
+            fieldChanged: 'accession_number',
+            oldValue: existing.accession_number,
+            newValue: dto.accessionNumber,
+          });
+        }
+
+        if (
+          dto.specimenCategory !== undefined &&
+          dto.specimenCategory !== existing.specimen_category
+        ) {
+          data.specimen_category = dto.specimenCategory;
+          changes.push({
+            fieldChanged: 'specimen_category',
+            oldValue: existing.specimen_category,
+            newValue: dto.specimenCategory,
+          });
+        }
+
+        if (
+          dto.scientificName !== undefined &&
+          dto.scientificName !== existing.scientific_name
+        ) {
+          data.scientific_name = dto.scientificName;
+          changes.push({
+            fieldChanged: 'scientific_name',
+            oldValue: existing.scientific_name,
+            newValue: dto.scientificName,
+          });
+        }
+
+        if (
+          dto.commonName !== undefined &&
+          dto.commonName !== existing.common_name
+        ) {
+          data.common_name = dto.commonName;
+          changes.push({
+            fieldChanged: 'common_name',
+            oldValue: existing.common_name,
+            newValue: dto.commonName,
+          });
+        }
+
+        if (dto.gender !== undefined && dto.gender !== existing.gender) {
+          data.gender = dto.gender;
+          changes.push({
+            fieldChanged: 'gender',
+            oldValue: existing.gender,
+            newValue: dto.gender,
+          });
+        }
+
+        if (
+          dto.classificationStatus !== undefined &&
+          dto.classificationStatus !== existing.classification_status
+        ) {
+          data.classification_status = dto.classificationStatus;
+          changes.push({
+            fieldChanged: 'classification_status',
+            oldValue: existing.classification_status,
+            newValue: dto.classificationStatus,
+          });
+        }
+
+        if (dto.remarks !== undefined && dto.remarks !== existing.remarks) {
+          data.remarks = dto.remarks;
+          changes.push({
+            fieldChanged: 'remarks',
+            oldValue: existing.remarks,
+            newValue: dto.remarks,
+          });
+        }
+
+        if (changes.length === 0) {
+          throw new BadRequestException(
+            'At least one specimen core field must change.',
+          );
+        }
+
+        const updated = await transaction.specimen.update({
+          where: { id },
+          data: {
+            ...data,
+            updated_by: actingCuratorAccountId,
+            updated_at: new Date(),
+          },
+        });
+
+        await this.recordRevisions(
+          transaction,
+          id,
+          actingCuratorAccountId,
+          changes,
+        );
+        await this.recordAudit(transaction, {
+          userId: actingCuratorAccountId,
+          specimenId: id,
+          action: 'UPDATE_SPECIMEN',
+          details: { fields: changes.map((change) => change.fieldChanged) },
+        });
+
+        return this.toEntity(updated);
+      },
+      'Specimen changed during the operation. Reload and try again.',
+    );
   }
 
   /** Promotes only a server-validated record; clients cannot set status. */
@@ -389,61 +394,68 @@ export class SpecimensService {
     id: string,
     actingCuratorAccountId: string,
   ): Promise<Specimen> {
-    return this.prisma.$transaction(async (transaction) => {
-      const existing = await transaction.specimen.findUnique({
-        where: { id },
-      });
-      this.assertExists(existing, id);
-
-      if (
-        this.catalogingService.isArchived(existing.status, existing.archived_at)
-      ) {
-        throw new BadRequestException(
-          'Archived specimens cannot complete cataloging.',
-        );
-      }
-      if (existing.status === 'CATALOGED') {
-        return this.toEntity(existing);
-      }
-
-      const readiness = await this.catalogingService.getReadinessWith(
-        transaction,
-        id,
-      );
-      if (!readiness.canComplete) {
-        throw new BadRequestException({
-          message:
-            'This specimen cannot be Cataloged until every required item is complete.',
-          missingRequirements: readiness.missingRequirements,
+    return runSerializableTransaction(
+      this.prisma,
+      async (transaction) => {
+        const existing = await transaction.specimen.findUnique({
+          where: { id },
         });
-      }
+        this.assertExists(existing, id);
 
-      const changedAt = new Date();
-      const updated = await transaction.specimen.update({
-        where: { id },
-        data: {
-          status: 'CATALOGED',
-          updated_by: actingCuratorAccountId,
-          updated_at: changedAt,
-        },
-      });
+        if (
+          this.catalogingService.isArchived(
+            existing.status,
+            existing.archived_at,
+          )
+        ) {
+          throw new BadRequestException(
+            'Archived specimens cannot complete cataloging.',
+          );
+        }
+        if (existing.status === 'CATALOGED') {
+          return this.toEntity(existing);
+        }
 
-      await this.recordRevisions(transaction, id, actingCuratorAccountId, [
-        {
-          fieldChanged: 'status',
-          oldValue: existing.status,
-          newValue: 'CATALOGED',
-        },
-      ]);
-      await this.recordAudit(transaction, {
-        userId: actingCuratorAccountId,
-        specimenId: id,
-        action: 'COMPLETE_SPECIMEN_CATALOGING',
-        details: { previousStatus: existing.status },
-      });
+        const readiness = await this.catalogingService.getReadinessWith(
+          transaction,
+          id,
+        );
+        if (!readiness.canComplete) {
+          throw new BadRequestException({
+            message:
+              'This specimen cannot be Cataloged until every required item is complete.',
+            missingRequirements: readiness.missingRequirements,
+          });
+        }
 
-      return this.toEntity(updated);
-    });
+        const changedAt = new Date();
+        const updated = await transaction.specimen.update({
+          where: { id },
+          data: {
+            status: 'CATALOGED',
+            updated_by: actingCuratorAccountId,
+            updated_at: changedAt,
+          },
+        });
+
+        await this.recordRevisions(transaction, id, actingCuratorAccountId, [
+          {
+            fieldChanged: 'status',
+            oldValue: existing.status,
+            newValue: 'CATALOGED',
+          },
+        ]);
+        await this.recordAudit(transaction, {
+          userId: actingCuratorAccountId,
+          specimenId: id,
+          action: 'COMPLETE_SPECIMEN_CATALOGING',
+          details: { previousStatus: existing.status },
+        });
+
+        return this.toEntity(updated);
+      },
+      'Specimen changed during the operation. Reload and try again.',
+    );
   }
 
   /** Explicitly reopens a Cataloged record before required data is removed. */
@@ -452,64 +464,71 @@ export class SpecimensService {
     dto: ReopenCatalogingDto,
     actingCuratorAccountId: string,
   ): Promise<Specimen> {
-    return this.prisma.$transaction(async (transaction) => {
-      const existing = await transaction.specimen.findUnique({
-        where: { id },
-      });
-      this.assertExists(existing, id);
-
-      if (
-        this.catalogingService.isArchived(existing.status, existing.archived_at)
-      ) {
-        throw new BadRequestException(
-          'Archived specimens cannot be reopened for cataloging.',
-        );
-      }
-      if (existing.status === 'UNCATALOGED') {
-        return this.toEntity(existing);
-      }
-
-      const changedAt = new Date();
-      const updated = await transaction.specimen.update({
-        where: { id },
-        data: {
-          status: 'UNCATALOGED',
-          public_display_allowed: false,
-          updated_by: actingCuratorAccountId,
-          updated_at: changedAt,
-        },
-      });
-      const changes: RevisionChange[] = [
-        {
-          fieldChanged: 'status',
-          oldValue: existing.status,
-          newValue: 'UNCATALOGED',
-        },
-      ];
-      if (existing.public_display_allowed) {
-        changes.push({
-          fieldChanged: 'public_display_allowed',
-          oldValue: true,
-          newValue: false,
+    return runSerializableTransaction(
+      this.prisma,
+      async (transaction) => {
+        const existing = await transaction.specimen.findUnique({
+          where: { id },
         });
-      }
+        this.assertExists(existing, id);
 
-      await this.recordRevisions(
-        transaction,
-        id,
-        actingCuratorAccountId,
-        changes,
-        dto.reason,
-      );
-      await this.recordAudit(transaction, {
-        userId: actingCuratorAccountId,
-        specimenId: id,
-        action: 'REOPEN_SPECIMEN_CATALOGING',
-        details: { reason: dto.reason, previousStatus: existing.status },
-      });
+        if (
+          this.catalogingService.isArchived(
+            existing.status,
+            existing.archived_at,
+          )
+        ) {
+          throw new BadRequestException(
+            'Archived specimens cannot be reopened for cataloging.',
+          );
+        }
+        if (existing.status === 'UNCATALOGED') {
+          return this.toEntity(existing);
+        }
 
-      return this.toEntity(updated);
-    });
+        const changedAt = new Date();
+        const updated = await transaction.specimen.update({
+          where: { id },
+          data: {
+            status: 'UNCATALOGED',
+            public_display_allowed: false,
+            updated_by: actingCuratorAccountId,
+            updated_at: changedAt,
+          },
+        });
+        const changes: RevisionChange[] = [
+          {
+            fieldChanged: 'status',
+            oldValue: existing.status,
+            newValue: 'UNCATALOGED',
+          },
+        ];
+        if (existing.public_display_allowed) {
+          changes.push({
+            fieldChanged: 'public_display_allowed',
+            oldValue: true,
+            newValue: false,
+          });
+        }
+
+        await this.recordRevisions(
+          transaction,
+          id,
+          actingCuratorAccountId,
+          changes,
+          dto.reason,
+        );
+        await this.recordAudit(transaction, {
+          userId: actingCuratorAccountId,
+          specimenId: id,
+          action: 'REOPEN_SPECIMEN_CATALOGING',
+          details: { reason: dto.reason, previousStatus: existing.status },
+        });
+
+        return this.toEntity(updated);
+      },
+      'Specimen changed during the operation. Reload and try again.',
+    );
   }
 
   async archive(id: string, actingCuratorAccountId: string): Promise<Specimen> {
@@ -582,54 +601,58 @@ export class SpecimensService {
     dto: SetPublicDisplayDto,
     actingCuratorAccountId: string,
   ): Promise<Specimen> {
-    return this.prisma.$transaction(async (transaction) => {
-      const existing = await transaction.specimen.findUnique({
-        where: { id },
-      });
-      this.assertExists(existing, id);
-      this.assertEditable(existing);
+    return runSerializableTransaction(
+      this.prisma,
+      async (transaction) => {
+        const existing = await transaction.specimen.findUnique({
+          where: { id },
+        });
+        this.assertExists(existing, id);
+        this.assertEditable(existing);
 
-      if (dto.publicDisplay && existing.status !== 'CATALOGED') {
-        throw new BadRequestException(
-          'Only Cataloged specimens can be eligible for public display.',
+        if (dto.publicDisplay && existing.status !== 'CATALOGED') {
+          throw new BadRequestException(
+            'Only Cataloged specimens can be eligible for public display.',
+          );
+        }
+
+        if (dto.publicDisplay === existing.public_display_allowed) {
+          return this.toEntity(existing);
+        }
+
+        const updated = await transaction.specimen.update({
+          where: { id },
+          data: {
+            public_display_allowed: dto.publicDisplay,
+            updated_by: actingCuratorAccountId,
+            updated_at: new Date(),
+          },
+        });
+
+        const changes: RevisionChange[] = [
+          {
+            fieldChanged: 'public_display_allowed',
+            oldValue: existing.public_display_allowed,
+            newValue: dto.publicDisplay,
+          },
+        ];
+        await this.recordRevisions(
+          transaction,
+          id,
+          actingCuratorAccountId,
+          changes,
         );
-      }
+        await this.recordAudit(transaction, {
+          userId: actingCuratorAccountId,
+          specimenId: id,
+          action: 'SET_SPECIMEN_PUBLIC_DISPLAY',
+          details: { publicDisplay: dto.publicDisplay },
+        });
 
-      if (dto.publicDisplay === existing.public_display_allowed) {
-        return this.toEntity(existing);
-      }
-
-      const updated = await transaction.specimen.update({
-        where: { id },
-        data: {
-          public_display_allowed: dto.publicDisplay,
-          updated_by: actingCuratorAccountId,
-          updated_at: new Date(),
-        },
-      });
-
-      const changes: RevisionChange[] = [
-        {
-          fieldChanged: 'public_display_allowed',
-          oldValue: existing.public_display_allowed,
-          newValue: dto.publicDisplay,
-        },
-      ];
-      await this.recordRevisions(
-        transaction,
-        id,
-        actingCuratorAccountId,
-        changes,
-      );
-      await this.recordAudit(transaction, {
-        userId: actingCuratorAccountId,
-        specimenId: id,
-        action: 'SET_SPECIMEN_PUBLIC_DISPLAY',
-        details: { publicDisplay: dto.publicDisplay },
-      });
-
-      return this.toEntity(updated);
-    });
+        return this.toEntity(updated);
+      },
+      'Specimen changed during the operation. Reload and try again.',
+    );
   }
 
   private async findOneOrThrow(id: string): Promise<specimen> {
