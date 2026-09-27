@@ -130,7 +130,6 @@ export class ExhibitsService {
       this.assertNotArchived(existing);
 
       const hasChanges = [
-        dto.publicSlug,
         dto.interestingFacts,
         dto.publicDescription,
         dto.distribution,
@@ -142,17 +141,9 @@ export class ExhibitsService {
         throw new BadRequestException('At least one field must be updated.');
       }
 
-      if (
-        dto.publicSlug !== undefined &&
-        dto.publicSlug !== existing.public_slug
-      ) {
-        await this.assertSlugAvailable(transaction, dto.publicSlug, id);
-      }
-
       const data: Prisma.exhibitUncheckedUpdateInput = {
         updated_at: new Date(),
       };
-      if (dto.publicSlug !== undefined) data.public_slug = dto.publicSlug;
       if (dto.interestingFacts !== undefined) {
         data.interesting_facts = dto.interestingFacts;
       }
@@ -163,17 +154,7 @@ export class ExhibitsService {
       if (dto.diet !== undefined) data.diet = dto.diet;
       if (dto.layoutType !== undefined) data.layout_type = dto.layoutType;
 
-      let updated: exhibit;
-      try {
-        updated = await transaction.exhibit.update({ where: { id }, data });
-      } catch (error) {
-        if (this.isUniqueSlugViolation(error)) {
-          throw new ConflictException(
-            `Exhibit slug "${dto.publicSlug}" is already in use.`,
-          );
-        }
-        throw error;
-      }
+      const updated = await transaction.exhibit.update({ where: { id }, data });
 
       await this.recordAudit(transaction, {
         userId: actingCuratorAccountId,
@@ -249,6 +230,35 @@ export class ExhibitsService {
         userId: actingCuratorAccountId,
         exhibitId: id,
         action: 'DISABLE_EXHIBIT',
+      });
+
+      return this.toEntity(updated);
+    });
+  }
+
+  async unpublish(
+    id: string,
+    actingCuratorAccountId: string,
+  ): Promise<Exhibit> {
+    return this.prisma.$transaction(async (transaction) => {
+      const existing = await transaction.exhibit.findUnique({ where: { id } });
+      this.assertExists(existing, id);
+      this.assertNotArchived(existing);
+
+      if (existing.status === 'UNPUBLISHED') {
+        return this.toEntity(existing);
+      }
+
+      const unpublishedAt = new Date();
+      const updated = await transaction.exhibit.update({
+        where: { id },
+        data: { status: 'UNPUBLISHED', updated_at: unpublishedAt },
+      });
+
+      await this.recordAudit(transaction, {
+        userId: actingCuratorAccountId,
+        exhibitId: id,
+        action: 'UNPUBLISH_EXHIBIT',
       });
 
       return this.toEntity(updated);

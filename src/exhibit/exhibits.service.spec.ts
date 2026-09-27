@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-assignment -- Jest asymmetric matchers are typed as any. */
 import {
   BadRequestException,
   ConflictException,
@@ -41,7 +40,6 @@ const storageServiceMock = {
   remove: jest.fn(),
   createSignedUrl: jest.fn(),
 };
-
 const ACCOUNT_ID = '22222222-2222-4222-8222-222222222222';
 const SPECIMEN_ID = '33333333-3333-4333-8333-333333333333';
 const EXHIBIT_ID = '44444444-4444-4444-8444-444444444444';
@@ -240,6 +238,22 @@ describe('ExhibitsService', () => {
       const result = await service.disable(EXHIBIT_ID, ACCOUNT_ID);
 
       expect(result.status).toBe(ExhibitStatus.DISABLED);
+    });
+
+    it('unpublishes an exhibit and records the lifecycle change', async () => {
+      exhibitDelegate.findUnique.mockResolvedValue(
+        exhibitRecord({ status: 'PUBLISHED' }),
+      );
+      exhibitDelegate.update.mockResolvedValue(
+        exhibitRecord({ status: 'UNPUBLISHED' }),
+      );
+
+      const result = await service.unpublish(EXHIBIT_ID, ACCOUNT_ID);
+
+      expect(result.status).toBe(ExhibitStatus.UNPUBLISHED);
+      expect(auditDelegate.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({ action: 'UNPUBLISH_EXHIBIT' }),
+      });
     });
 
     it('archives an exhibit and treats repeated archive calls as idempotent', async () => {

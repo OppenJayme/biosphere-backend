@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment -- Supertest response bodies and Jest asymmetric matchers are typed as any. */
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import request from 'supertest';
@@ -17,7 +16,6 @@ describe('Exhibits (e2e)', () => {
   const exhibitId = '55555555-5555-4555-8555-555555555555';
   const mediaId = '77777777-7777-4777-8777-777777777777';
   const testDate = new Date('2026-01-01T00:00:00.000Z');
-
   let app: INestApplication<App>;
   let specimenRecord: Record<string, unknown>;
   let exhibitRecord: Record<string, unknown>;
@@ -382,6 +380,13 @@ describe('Exhibits (e2e)', () => {
       expect(response.body.diet).toBe('Insects and small vertebrates');
     });
 
+    it('does not allow ordinary content edits to change the public URL', () =>
+      request(app.getHttpServer())
+        .patch(`/exhibits/${exhibitId}`)
+        .set('Authorization', `Bearer ${curatorToken}`)
+        .send({ diet: 'Insects', publicSlug: 'replacement-slug' })
+        .expect(400));
+
     it('rejects edits to an archived exhibit', async () => {
       exhibitRecord.archived_at = testDate;
 
@@ -425,6 +430,24 @@ describe('Exhibits (e2e)', () => {
         .expect(200);
 
       expect(response.body.status).toBe('DISABLED');
+    });
+
+    it('unpublishes an exhibit and removes the public page', async () => {
+      exhibitRecord.status = 'PUBLISHED';
+
+      const response = await request(app.getHttpServer())
+        .patch(`/exhibits/${exhibitId}/unpublish`)
+        .set('Authorization', `Bearer ${curatorToken}`)
+        .expect(200);
+
+      expect(response.body.status).toBe('UNPUBLISHED');
+      expect(auditDelegate.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({ action: 'UNPUBLISH_EXHIBIT' }),
+      });
+
+      await request(app.getHttpServer())
+        .get(`/exhibits/public/${exhibitRecord.public_slug as string}`)
+        .expect(404);
     });
 
     it('archives an exhibit and removes it from the public page', async () => {

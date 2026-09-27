@@ -100,6 +100,17 @@ export class ExhibitsController {
   }
 
   @Roles('CURATOR')
+  @Patch(':id/unpublish')
+  @ApiOperation({ summary: 'Remove an exhibit from public access' })
+  @ApiOkResponse({ type: Exhibit })
+  unpublish(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<Exhibit> {
+    return this.exhibitsService.unpublish(id, user.accountId);
+  }
+
+  @Roles('CURATOR')
   @Patch(':id/disable')
   @ApiOperation({ summary: 'Disable a published exhibit' })
   @ApiOkResponse({ type: Exhibit })

@@ -5,5 +5,5 @@ import { CreateExhibitDto } from './create-exhibit.dto';
 // different specimen through the general update route (mirrors
 // UpdateStorageUnitDto's treatment of parentId).
 export class UpdateExhibitDto extends PartialType(
-  OmitType(CreateExhibitDto, ['specimenId'] as const),
+  OmitType(CreateExhibitDto, ['specimenId', 'publicSlug'] as const),
 ) {}

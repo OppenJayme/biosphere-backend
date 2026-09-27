@@ -22,6 +22,7 @@ import { AuditModule } from './audit/audit.module';
 import { OfflineSyncModule } from './offline-sync/offline-sync.module';
 import { ExhibitsModule } from './exhibit/exhibits.module';
 import { BackupModule } from './backup/backup.module';
+import { QrModule } from './qr/qr.module';
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { BackupModule } from './backup/backup.module';
     PrismaModule,
     AuthModule,
     ExhibitsModule,
+    QrModule,
     // TestModule,
     // Broad per-IP safety ceiling. Sensitive and public submission routes
     // override this with stricter limits at their controller methods.
