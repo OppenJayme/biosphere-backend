@@ -19,6 +19,7 @@ describe('Specimens (e2e)', () => {
 
   let app: INestApplication<App>;
   let specimenRecord: Record<string, unknown>;
+  let catalogReadinessRecord: Record<string, unknown>;
   let specimenDelegate: {
     create: jest.Mock;
     findMany: jest.Mock;
@@ -53,6 +54,21 @@ describe('Specimens (e2e)', () => {
       updated_at: testDate,
       archived_at: null,
     };
+    catalogReadinessRecord = {
+      id: specimenId,
+      status: 'UNCATALOGED',
+      archived_at: null,
+      collection_id: collectionId,
+      accession_number: '2026.1.1',
+      common_name: 'Test specimen',
+      specimen_taxonomy: { kingdom: 'Animalia' },
+      specimen_provenance: {
+        collection_date: new Date('2020-05-17T00:00:00.000Z'),
+        preservation_type: 'Wet specimen',
+        preservation_method: '70% ethanol',
+      },
+      specimen_lot: [{ id: '88888888-8888-4888-8888-888888888888' }],
+    };
 
     specimenDelegate = {
       create: jest.fn(({ data }: { data: Record<string, unknown> }) => {
@@ -60,7 +76,10 @@ describe('Specimens (e2e)', () => {
         return specimenRecord;
       }),
       findMany: jest.fn(() => [specimenRecord]),
-      findUnique: jest.fn(() => specimenRecord),
+      findUnique: jest.fn(
+        ({ select }: { select?: Record<string, unknown> } = {}) =>
+          select?.specimen_taxonomy ? catalogReadinessRecord : specimenRecord,
+      ),
       count: jest.fn(() => 1),
       update: jest.fn(({ data }: { data: Record<string, unknown> }) => {
         specimenRecord = { ...specimenRecord, ...data };
@@ -510,6 +529,111 @@ describe('Specimens (e2e)', () => {
     );
     expect(revisionDelegate.createMany).toHaveBeenCalled();
   });
+
+  it('returns the server-authoritative Cataloging readiness checklist', async () => {
+    const response = await request(app.getHttpServer())
+      .get(`/specimens/${specimenId}/catalog-readiness`)
+      .set('Authorization', `Bearer ${curatorToken}`)
+      .expect(200);
+
+    expect(response.body).toEqual(
+      expect.objectContaining({
+        specimenId,
+        currentStatus: 'UNCATALOGED',
+        requirementsMet: true,
+        canComplete: true,
+        missingRequirements: [],
+        checks: expect.arrayContaining([
+          expect.objectContaining({ key: 'kingdom', passed: true }),
+          expect.objectContaining({ key: 'activeLot', passed: true }),
+        ]),
+      }),
+    );
+  });
+
+  it('completes Cataloging only after all approved requirements pass', async () => {
+    specimenRecord = {
+      ...specimenRecord,
+      accession_number: '2026.1.1',
+      collection_id: collectionId,
+    };
+
+    const response = await request(app.getHttpServer())
+      .patch(`/specimens/${specimenId}/complete-cataloging`)
+      .set('Authorization', `Bearer ${curatorToken}`)
+      .expect(200);
+
+    expect(response.body).toEqual(
+      expect.objectContaining({ status: 'CATALOGED', publicDisplay: false }),
+    );
+    expect(auditDelegate.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        action: 'COMPLETE_SPECIMEN_CATALOGING',
+      }),
+    });
+  });
+
+  it('returns actionable missing requirements instead of completing', async () => {
+    catalogReadinessRecord = {
+      ...catalogReadinessRecord,
+      accession_number: null,
+      specimen_provenance: null,
+      specimen_lot: [],
+    };
+
+    const response = await request(app.getHttpServer())
+      .patch(`/specimens/${specimenId}/complete-cataloging`)
+      .set('Authorization', `Bearer ${curatorToken}`)
+      .expect(400);
+
+    expect(response.body).toEqual(
+      expect.objectContaining({
+        message:
+          'This specimen cannot be Cataloged until every required item is complete.',
+        missingRequirements: expect.arrayContaining([
+          'Accession number is assigned',
+          'Collection date is recorded',
+          'An active lot has positive quantity in a specimen-holding storage location',
+        ]),
+      }),
+    );
+  });
+
+  it('reopens Cataloging with a reason and removes public eligibility', async () => {
+    specimenRecord = {
+      ...specimenRecord,
+      status: 'CATALOGED',
+      public_display_allowed: true,
+    };
+
+    const response = await request(app.getHttpServer())
+      .patch(`/specimens/${specimenId}/reopen-cataloging`)
+      .set('Authorization', `Bearer ${curatorToken}`)
+      .send({ reason: '  Taxonomy needs correction  ' })
+      .expect(200);
+
+    expect(response.body).toEqual(
+      expect.objectContaining({
+        status: 'UNCATALOGED',
+        publicDisplay: false,
+      }),
+    );
+    expect(revisionDelegate.createMany).toHaveBeenCalledWith({
+      data: expect.arrayContaining([
+        expect.objectContaining({
+          field_changed: 'status',
+          reason: 'Taxonomy needs correction',
+        }),
+      ]),
+    });
+  });
+
+  it('rejects reopening without a meaningful reason', () =>
+    request(app.getHttpServer())
+      .patch(`/specimens/${specimenId}/reopen-cataloging`)
+      .set('Authorization', `Bearer ${curatorToken}`)
+      .send({ reason: '   ' })
+      .expect(400));
 
   it('prevents an Uncataloged specimen from becoming public eligible', () =>
     request(app.getHttpServer())

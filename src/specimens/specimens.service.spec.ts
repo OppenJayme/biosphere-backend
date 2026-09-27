@@ -9,6 +9,7 @@ import {
 } from './dto/search-specimens-query.dto';
 import { ListSpecimenRevisionsQueryDto } from './dto/list-specimen-revisions-query.dto';
 import { SpecimenGender, SpecimenStatus } from './entities/specimen.entity';
+import { SpecimenCatalogingService } from './specimen-cataloging.service';
 import { SpecimensService } from './specimens.service';
 
 const specimenDelegate = {
@@ -106,6 +107,7 @@ describe('SpecimensService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         SpecimensService,
+        SpecimenCatalogingService,
         { provide: PrismaService, useValue: prismaMock },
       ],
     }).compile();
@@ -446,6 +448,131 @@ describe('SpecimensService', () => {
     await expect(
       service.update(SPECIMEN_ID, { remarks: 'Changed' }, ACCOUNT_ID),
     ).rejects.toThrow(BadRequestException);
+  });
+
+  it('requires reopening before a Cataloged core requirement is removed', async () => {
+    specimenDelegate.findUnique.mockResolvedValue(
+      specimenRecord({ status: 'CATALOGED', accession_number: '2026.1.1' }),
+    );
+
+    await expect(
+      service.update(SPECIMEN_ID, { commonName: null }, ACCOUNT_ID),
+    ).rejects.toThrow('Reopen cataloging before removing it');
+    expect(specimenDelegate.update).not.toHaveBeenCalled();
+  });
+
+  it('reports missing requirements instead of completing an invalid record', async () => {
+    specimenDelegate.findUnique
+      .mockResolvedValueOnce(specimenRecord())
+      .mockResolvedValueOnce({
+        id: SPECIMEN_ID,
+        status: 'UNCATALOGED',
+        archived_at: null,
+        collection_id: null,
+        accession_number: null,
+        common_name: 'Test specimen',
+        specimen_taxonomy: null,
+        specimen_provenance: null,
+        specimen_lot: [],
+      });
+
+    await expect(
+      service.completeCataloging(SPECIMEN_ID, ACCOUNT_ID),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({
+        missingRequirements: expect.arrayContaining([
+          'Collection is assigned',
+          'Accession number is assigned',
+          'Taxonomic kingdom is recorded',
+        ]),
+      }),
+    });
+    expect(specimenDelegate.update).not.toHaveBeenCalled();
+  });
+
+  it('completes a ready specimen with revision and audit attribution', async () => {
+    specimenDelegate.findUnique
+      .mockResolvedValueOnce(
+        specimenRecord({
+          collection_id: COLLECTION_ID,
+          accession_number: '2026.1.1',
+        }),
+      )
+      .mockResolvedValueOnce({
+        id: SPECIMEN_ID,
+        status: 'UNCATALOGED',
+        archived_at: null,
+        collection_id: COLLECTION_ID,
+        accession_number: '2026.1.1',
+        common_name: 'Test specimen',
+        specimen_taxonomy: { kingdom: 'Animalia' },
+        specimen_provenance: {
+          collection_date: TEST_DATE,
+          preservation_type: 'Wet specimen',
+          preservation_method: '70% ethanol',
+        },
+        specimen_lot: [{ id: '66666666-6666-4666-8666-666666666666' }],
+      });
+    specimenDelegate.update.mockResolvedValue(
+      specimenRecord({
+        collection_id: COLLECTION_ID,
+        accession_number: '2026.1.1',
+        status: 'CATALOGED',
+      }),
+    );
+
+    await expect(
+      service.completeCataloging(SPECIMEN_ID, ACCOUNT_ID),
+    ).resolves.toHaveProperty('status', SpecimenStatus.CATALOGED);
+    expect(revisionDelegate.createMany).toHaveBeenCalledWith({
+      data: [
+        expect.objectContaining({
+          field_changed: 'status',
+          old_value: 'UNCATALOGED',
+          new_value: 'CATALOGED',
+        }),
+      ],
+    });
+    expect(auditDelegate.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        action: 'COMPLETE_SPECIMEN_CATALOGING',
+      }),
+    });
+  });
+
+  it('reopens Cataloged work with a reason and disables public eligibility', async () => {
+    specimenDelegate.findUnique.mockResolvedValue(
+      specimenRecord({
+        status: 'CATALOGED',
+        public_display_allowed: true,
+      }),
+    );
+    specimenDelegate.update.mockResolvedValue(
+      specimenRecord({ status: 'UNCATALOGED' }),
+    );
+
+    await expect(
+      service.reopenCataloging(
+        SPECIMEN_ID,
+        { reason: 'Taxonomy needs correction' },
+        ACCOUNT_ID,
+      ),
+    ).resolves.toHaveProperty('status', SpecimenStatus.UNCATALOGED);
+    expect(specimenDelegate.update).toHaveBeenCalledWith({
+      where: { id: SPECIMEN_ID },
+      data: expect.objectContaining({
+        status: 'UNCATALOGED',
+        public_display_allowed: false,
+      }),
+    });
+    expect(revisionDelegate.createMany).toHaveBeenCalledWith({
+      data: expect.arrayContaining([
+        expect.objectContaining({
+          field_changed: 'status',
+          reason: 'Taxonomy needs correction',
+        }),
+      ]),
+    });
   });
 
   it('blocks archive while active specimen lots exist', async () => {

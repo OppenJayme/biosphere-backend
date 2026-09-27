@@ -4,6 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import * as dotenv from 'dotenv';
 import { PrismaClient } from '../src/generated/prisma/client';
 import { PrismaService } from '../src/prisma/prisma.service';
+import { SpecimenCatalogingService } from '../src/specimens/specimen-cataloging.service';
 import { SpecimenDuplicatesService } from '../src/specimens/specimen-duplicates.service';
 import { SpecimenImportService } from '../src/specimens/specimen-import.service';
 import { SpecimensService } from '../src/specimens/specimens.service';
@@ -145,7 +146,8 @@ async function main(): Promise<void> {
     );
     await prisma.onModuleInit();
 
-    const specimensService = new SpecimensService(prisma);
+    const catalogingService = new SpecimenCatalogingService(prisma);
+    const specimensService = new SpecimensService(prisma, catalogingService);
     const importService = new SpecimenImportService(
       prisma,
       specimensService,

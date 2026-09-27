@@ -18,6 +18,7 @@ import { SpecimenDetailsController } from './specimen-details.controller';
 import { SpecimenDetailsService } from './specimen-details.service';
 import { SpecimenImportController } from './specimen-import.controller';
 import { SpecimenImportService } from './specimen-import.service';
+import { SpecimenCatalogingService } from './specimen-cataloging.service';
 import { SpecimenDuplicatesController } from './specimen-duplicates.controller';
 import { SpecimenDuplicatesService } from './specimen-duplicates.service';
 
@@ -37,6 +38,7 @@ import { SpecimenDuplicatesService } from './specimen-duplicates.service';
   ],
   providers: [
     SpecimenDetailsService,
+    SpecimenCatalogingService,
     SpecimensService,
     SpecimenImportService,
     SpecimenDuplicatesService,
@@ -48,6 +50,7 @@ import { SpecimenDuplicatesService } from './specimen-duplicates.service';
   ],
   exports: [
     SpecimenDetailsService,
+    SpecimenCatalogingService,
     SpecimensService,
     SpecimenImportService,
     SpecimenDuplicatesService,

@@ -10,6 +10,10 @@ import {
   type specimen_provenance,
 } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import {
+  assertCatalogedValueRetained,
+  hasCatalogText,
+} from './catalog-completion.policy';
 import { CreateSpecimenProvenanceDto } from './dto/create-specimen-provenance.dto';
 import { UpdateSpecimenProvenanceDto } from './dto/update-specimen-provenance.dto';
 import { SpecimenProvenance } from './entities/specimen-provenance.entity';
@@ -127,6 +131,25 @@ export class SpecimenProvenanceService {
           `Provenance for specimen ${specimenId} not found`,
         );
       }
+
+      assertCatalogedValueRetained(
+        specimenRecord.status,
+        dto.collectionDate !== undefined,
+        dto.collectionDate !== null,
+        'Collection date',
+      );
+      assertCatalogedValueRetained(
+        specimenRecord.status,
+        dto.preservationType !== undefined,
+        hasCatalogText(dto.preservationType ?? null),
+        'Preservation type',
+      );
+      assertCatalogedValueRetained(
+        specimenRecord.status,
+        dto.preservationMethod !== undefined,
+        hasCatalogText(dto.preservationMethod ?? null),
+        'Preservation method',
+      );
 
       const { data, changes } = this.collectUpdate(dto, existing);
       if (changes.length === 0) {
