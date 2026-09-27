@@ -1,6 +1,11 @@
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  NotFoundException,
+} from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { PrismaService } from '../prisma/prisma.service';
+import { SpecimenAccessionService } from './specimen-accession.service';
 import { SpecimenDuplicatesService } from './specimen-duplicates.service';
 import { SpecimenImportService } from './specimen-import.service';
 import { SpecimensService } from './specimens.service';
@@ -46,6 +51,7 @@ describe('SpecimenImportService', () => {
       providers: [
         SpecimenImportService,
         SpecimenDuplicatesService,
+        SpecimenAccessionService,
         { provide: PrismaService, useValue: prismaMock },
         { provide: SpecimensService, useValue: specimensServiceMock },
       ],
@@ -152,30 +158,70 @@ describe('SpecimenImportService', () => {
       expect(result.rows[0].errors[0]).toContain('does not exist');
     });
 
-    it('warns, without invalidating, when a row matches an existing accession number', async () => {
+    it('blocks a row whose accession number is already assigned, case-insensitively', async () => {
       specimenDelegate.findMany.mockResolvedValue([
         {
+          id: 'existing-1',
           accession_number: 'ABC-100',
           scientific_name: null,
           common_name: null,
+          status: 'UNCATALOGED',
         },
       ]);
       const file = csvFile('accessionNumber\nabc-100\n');
       const result = await service.previewImport(file, CURATOR_ID);
 
-      expect(result.rows[0].valid).toBe(true);
-      expect(result.rows[0].duplicateWarnings).toEqual([
-        'Matches the accession number of an existing specimen record.',
+      expect(result.rows[0].valid).toBe(false);
+      expect(result.rows[0].errors).toEqual([
+        'Accession number "abc-100" is already assigned to an existing specimen record.',
       ]);
-      expect(result.rowsWithWarnings).toBe(1);
+      expect(result.rows[0].duplicateWarnings).toEqual([]);
+      expect(result.invalidRows).toBe(1);
     });
 
-    it('warns on in-batch accession-number duplicates across rows', async () => {
-      const file = csvFile('accessionNumber\nABC-100\nabc-100\n');
+    it('blocks reuse of an Archived record accession number', async () => {
+      specimenDelegate.findMany.mockImplementation(
+        ({ where }: { where: Record<string, unknown> }) =>
+          // Duplicate detection only looks at active records; the
+          // accession lookup has no status filter.
+          Promise.resolve(
+            'status' in where
+              ? []
+              : [
+                  {
+                    id: 'archived-1',
+                    accession_number: 'ABC-100',
+                    scientific_name: null,
+                    common_name: null,
+                    status: 'ARCHIVED',
+                  },
+                ],
+          ),
+      );
+      const file = csvFile('accessionNumber\nABC-100\n');
       const result = await service.previewImport(file, CURATOR_ID);
 
-      expect(result.rows[0].duplicateWarnings[0]).toContain('row(s) 2');
-      expect(result.rows[1].duplicateWarnings[0]).toContain('row(s) 1');
+      expect(result.rows[0].valid).toBe(false);
+      expect(result.rows[0].errors).toEqual([
+        'Accession number "ABC-100" is already assigned to an existing Archived specimen record.',
+      ]);
+    });
+
+    it('blocks every row sharing an accession number within the file', async () => {
+      const file = csvFile(
+        'accessionNumber\nABC-100\n abc-100 \nABC-200\nAbc-100\n',
+      );
+      const result = await service.previewImport(file, CURATOR_ID);
+
+      expect(result.rows.map((row) => row.valid)).toEqual([
+        false,
+        false,
+        true,
+        false,
+      ]);
+      expect(result.rows[0].errors[0]).toContain('row(s) 2, 4 in this file');
+      expect(result.rows[1].errors[0]).toContain('row(s) 1, 4 in this file');
+      expect(result.rows[3].errors[0]).toContain('row(s) 1, 2 in this file');
     });
 
     it('warns when scientific and common name match an existing record', async () => {
@@ -221,10 +267,9 @@ describe('SpecimenImportService', () => {
         }),
       ]);
       expect(result.rows[0].duplicateWarnings).toEqual([
-        'Matches the accession number of an existing specimen record.',
         'Matches the scientific and common name of an existing specimen record; confirm this is not a duplicate before importing.',
       ]);
-      expect(result.rows[0].valid).toBe(true);
+      expect(result.rows[0].valid).toBe(false);
     });
 
     it('still warns when same-species rows differ only in gender', async () => {
@@ -426,6 +471,29 @@ describe('SpecimenImportService', () => {
       expect(result.results[1]).toMatchObject({
         rowNumber: 2,
         success: true,
+      });
+    });
+
+    it('reports an accession number taken after preview as a row failure', async () => {
+      specimensServiceMock.createUncatalogedRecordFor.mockRejectedValue(
+        new ConflictException(
+          'Accession number "ABC-100" is already assigned to another specimen record.',
+        ),
+      );
+      const { previewId } = await previewValidRow();
+
+      const result = await service.commitImport(
+        previewId,
+        undefined,
+        CURATOR_ID,
+      );
+
+      expect(result.results[0]).toEqual({
+        rowNumber: 1,
+        success: false,
+        errors: [
+          'Accession number "ABC-100" is already assigned to another specimen record.',
+        ],
       });
     });
 

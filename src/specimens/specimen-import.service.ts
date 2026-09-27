@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   Logger,
   NotFoundException,
@@ -21,7 +22,12 @@ import {
   SpecimenImportCommitResult,
   SpecimenImportPreviewResult,
 } from './entities/specimen-import.entity';
-import { Specimen } from './entities/specimen.entity';
+import { AccessionNumberHolder } from './entities/accession-number.entity';
+import { Specimen, SpecimenStatus } from './entities/specimen.entity';
+import {
+  SpecimenAccessionService,
+  accessionNumberKey,
+} from './specimen-accession.service';
 import {
   DuplicateEvaluation,
   SpecimenDuplicatesService,
@@ -113,6 +119,7 @@ export class SpecimenImportService {
     private readonly prisma: PrismaService,
     private readonly specimens: SpecimensService,
     private readonly duplicates: SpecimenDuplicatesService,
+    private readonly accession: SpecimenAccessionService,
   ) {}
 
   async previewImport(
@@ -145,10 +152,15 @@ export class SpecimenImportService {
     );
 
     const candidates = contexts.map((context) => context.fields);
-    const [existingDuplicates, existingCollectionIds] = await Promise.all([
-      this.duplicates.findForCandidates(candidates),
-      this.findExistingCollectionIds(contexts),
-    ]);
+    const [existingDuplicates, existingCollectionIds, accessionHolders] =
+      await Promise.all([
+        this.duplicates.findForCandidates(candidates),
+        this.findExistingCollectionIds(contexts),
+        this.accession.findHolders(
+          candidates.map((candidate) => candidate.accessionNumber),
+        ),
+      ]);
+    const accessionRowsByKey = this.groupRowsByAccessionKey(contexts);
     const inBatchDuplicates = this.duplicates
       .compareWithinBatch(candidates)
       .map((matches) =>
@@ -183,6 +195,14 @@ export class SpecimenImportService {
             `Collection ${context.fields.collectionId} does not exist.`,
           );
         }
+
+        errors.push(
+          ...this.buildAccessionErrors(
+            context,
+            accessionHolders,
+            accessionRowsByKey,
+          ),
+        );
 
         const possibleDuplicates = existingDuplicates[index];
         const duplicateWarnings = this.buildDuplicateWarnings(
@@ -312,7 +332,8 @@ export class SpecimenImportService {
       } catch (error) {
         if (
           error instanceof NotFoundException ||
-          error instanceof BadRequestException
+          error instanceof BadRequestException ||
+          error instanceof ConflictException
         ) {
           results.push({ rowNumber, success: false, errors: [error.message] });
         } else {
@@ -489,36 +510,68 @@ export class SpecimenImportService {
     return new Set(matches.map((match) => match.id));
   }
 
+  private groupRowsByAccessionKey(
+    contexts: RowContext[],
+  ): Map<string, number[]> {
+    const rowsByKey = new Map<string, number[]>();
+    for (const context of contexts) {
+      const key = accessionNumberKey(context.fields.accessionNumber);
+      if (key === undefined) continue;
+      rowsByKey.set(key, [...(rowsByKey.get(key) ?? []), context.rowNumber]);
+    }
+    return rowsByKey;
+  }
+
+  /**
+   * Accession numbers must be unique across all records, Archived included
+   * (REQ-4.4-04, BR-01), so a clash blocks the row rather than warning. Every
+   * row sharing a number within the file is blocked, since the importer
+   * cannot tell which one the curator meant to keep.
+   */
+  private buildAccessionErrors(
+    context: RowContext,
+    holders: Map<string, AccessionNumberHolder>,
+    rowsByKey: Map<string, number[]>,
+  ): string[] {
+    const key = accessionNumberKey(context.fields.accessionNumber);
+    if (key === undefined) return [];
+    const value = context.fields.accessionNumber as string;
+    const errors: string[] = [];
+
+    const holder = holders.get(key);
+    if (holder) {
+      const archivedNote =
+        holder.status === SpecimenStatus.ARCHIVED ? ' Archived' : '';
+      errors.push(
+        `Accession number "${value}" is already assigned to an existing${archivedNote} specimen record.`,
+      );
+    }
+    const otherRows = (rowsByKey.get(key) ?? []).filter(
+      (rowNumber) => rowNumber !== context.rowNumber,
+    );
+    if (otherRows.length > 0) {
+      errors.push(
+        `Accession number "${value}" is also used by row(s) ${otherRows.join(', ')} in this file.`,
+      );
+    }
+    return errors;
+  }
+
   /**
    * Keeps the preview's established warning wording; the structured
-   * `possibleDuplicates` list carries the per-record detail.
+   * `possibleDuplicates` list carries the per-record detail. Accession
+   * clashes are errors, not warnings; see {@link buildAccessionErrors}.
    */
   private buildDuplicateWarnings(
     existing: PossibleDuplicate[],
     inBatch: InBatchMatch[],
   ): string[] {
     const warnings: string[] = [];
-    const isAccessionMatch = (matchedFields: DuplicateMatchField[]) =>
-      matchedFields.includes(DuplicateMatchField.ACCESSION_NUMBER);
     // The matcher has already dropped records a differing collector or
     // donor sets apart (BR-09), so both names matching is enough here.
     const isNameMatch = (matchedFields: DuplicateMatchField[]) =>
       matchedFields.includes(DuplicateMatchField.SCIENTIFIC_NAME) &&
       matchedFields.includes(DuplicateMatchField.COMMON_NAME);
-
-    if (existing.some((match) => isAccessionMatch(match.matchedFields))) {
-      warnings.push(
-        'Matches the accession number of an existing specimen record.',
-      );
-    }
-    const accessionRows = inBatch
-      .filter((match) => isAccessionMatch(match.evaluation.matchedFields))
-      .map((match) => match.rowNumber);
-    if (accessionRows.length > 0) {
-      warnings.push(
-        `Matches the accession number used by row(s) ${accessionRows.join(', ')} in this file.`,
-      );
-    }
 
     if (existing.some((match) => isNameMatch(match.matchedFields))) {
       warnings.push(

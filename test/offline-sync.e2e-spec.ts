@@ -79,6 +79,7 @@ describe('Offline specimen draft synchronization (e2e)', () => {
       },
       specimen: {
         create: specimenCreate,
+        findFirst: jest.fn(() => null),
         findUnique: jest.fn(() => specimenRecord()),
       },
       collection: { findUnique: jest.fn() },

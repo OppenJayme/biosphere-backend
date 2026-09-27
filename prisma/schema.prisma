@@ -686,6 +686,9 @@ model preferred_visit_date {
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+/// This model contains an expression index which requires additional setup for migrations. Visit https://pris.ly/d/expression-indexes for more info.
+/// accession_number is unique, trimmed and case-insensitive, across all records including Archived ones,
+/// via the "uq_specimen_accession_number" expression index (migration 20260927000000). See docs/ACCESSION_NUMBER_GUIDE.md.
 model specimen {
   id                                              String                      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   collection_id                                   String?                     @db.Uuid

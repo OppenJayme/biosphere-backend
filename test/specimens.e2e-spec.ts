@@ -22,6 +22,7 @@ describe('Specimens (e2e)', () => {
   let catalogReadinessRecord: Record<string, unknown>;
   let specimenDelegate: {
     create: jest.Mock;
+    findFirst: jest.Mock;
     findMany: jest.Mock;
     findUnique: jest.Mock;
     count: jest.Mock;
@@ -75,6 +76,7 @@ describe('Specimens (e2e)', () => {
         specimenRecord = { ...specimenRecord, ...data };
         return specimenRecord;
       }),
+      findFirst: jest.fn(() => null),
       findMany: jest.fn(() => [specimenRecord]),
       findUnique: jest.fn(
         ({ select }: { select?: Record<string, unknown> } = {}) =>
@@ -528,6 +530,93 @@ describe('Specimens (e2e)', () => {
       }),
     );
     expect(revisionDelegate.createMany).toHaveBeenCalled();
+  });
+
+  describe('accession-number uniqueness (REQ-4.4-04, BR-01)', () => {
+    const holderId = '99999999-9999-4999-8999-999999999999';
+    const holder = {
+      id: holderId,
+      accession_number: '2026.1.1',
+      scientific_name: 'Otherus specimenus',
+      common_name: null,
+      status: 'ARCHIVED',
+    };
+
+    it('rejects a create that reuses an assigned number with a structured 409', async () => {
+      specimenDelegate.findFirst.mockReturnValue(holder);
+
+      const response = await request(app.getHttpServer())
+        .post('/specimens')
+        .set('Authorization', `Bearer ${curatorToken}`)
+        .send({ accessionNumber: ' 2026.1.1 ' })
+        .expect(409);
+
+      expect(response.body).toEqual(
+        expect.objectContaining({
+          statusCode: 409,
+          code: 'ACCESSION_NUMBER_TAKEN',
+          accessionNumber: '2026.1.1',
+          conflictingSpecimen: expect.objectContaining({
+            id: holderId,
+            status: 'ARCHIVED',
+          }),
+        }),
+      );
+      expect(specimenDelegate.create).not.toHaveBeenCalled();
+    });
+
+    it('rejects an update that takes another record number', async () => {
+      specimenDelegate.findFirst.mockReturnValue(holder);
+
+      await request(app.getHttpServer())
+        .patch(`/specimens/${specimenId}`)
+        .set('Authorization', `Bearer ${curatorToken}`)
+        .send({ accessionNumber: '2026.1.1' })
+        .expect(409);
+
+      expect(specimenDelegate.update).not.toHaveBeenCalled();
+    });
+
+    it('reports availability for the edited record', async () => {
+      specimenDelegate.findFirst.mockReturnValue(holder);
+
+      const response = await request(app.getHttpServer())
+        .get('/specimens/accession-number-availability')
+        .query({ accessionNumber: '2026.1.1', excludeSpecimenId: specimenId })
+        .set('Authorization', `Bearer ${curatorToken}`)
+        .expect(200);
+
+      expect(response.body).toEqual({
+        accessionNumber: '2026.1.1',
+        available: false,
+        conflictingSpecimen: {
+          id: holderId,
+          accessionNumber: '2026.1.1',
+          scientificName: 'Otherus specimenus',
+          commonName: null,
+          status: 'ARCHIVED',
+        },
+      });
+      expect(specimenDelegate.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ id: { not: specimenId } }),
+        }),
+      );
+    });
+
+    it('validates the availability query', () =>
+      request(app.getHttpServer())
+        .get('/specimens/accession-number-availability')
+        .query({ accessionNumber: '   ' })
+        .set('Authorization', `Bearer ${curatorToken}`)
+        .expect(400));
+
+    it('limits the availability check to curators', () =>
+      request(app.getHttpServer())
+        .get('/specimens/accession-number-availability')
+        .query({ accessionNumber: '2026.1.1' })
+        .set('Authorization', `Bearer ${developerToken}`)
+        .expect(403));
   });
 
   it('returns the server-authoritative Cataloging readiness checklist', async () => {
