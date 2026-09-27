@@ -88,18 +88,24 @@ chosen to keep the duplicate-check queries and per-row commit loop bounded.
 ## Duplicate warnings (REQ-4.4-21/22/23, BR-09)
 
 Duplicate detection is informational only. It never blocks a row, merges
-records, or deletes anything — the curator decides. A row can receive a
-warning when:
+records, or deletes anything. The curator decides. Preview uses the shared
+matcher described in `docs/SPECIMEN_DUPLICATES_GUIDE.md`, and each row
+reports:
 
-- its `accessionNumber` (case-insensitive) matches an active specimen already
-  in the database, or another row in the same file;
-- its `scientificName` **and** `commonName` together (case-insensitive) match
-  an active specimen already in the database, or another row in the same
-  file.
+- `duplicateWarnings`: the same short messages as before. A row is flagged
+  when its `accessionNumber` matches an active specimen or another row in
+  the file, or when its `scientificName` **and** `commonName` together
+  match one.
+- `possibleDuplicates`: the existing records behind those warnings (id,
+  names, status, confidence, and matched/differing fields), so the curator
+  can open them before committing.
 
-The same species is expected to have separate records for different physical
-groups, collectors, donors, or storage assignments (BR-09), so this check
-intentionally only warns rather than rejecting the row.
+The import template has no provenance columns, so import rows are matched
+on accession number and names only. Gender is not treated as a
+distinction: two rows that differ only in gender are still flagged. The
+collector/donor distinctions (BR-09) need a value on both records, so they
+never suppress an import warning. Physical grouping and storage assignment
+are deferred (see the duplicates guide).
 
 ## Commit behavior
 
