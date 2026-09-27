@@ -13,12 +13,17 @@ describe('Exhibit QR codes (e2e)', () => {
   const curatorAccountId = '22222222-2222-4222-8222-222222222222';
   const developerAuthId = '33333333-3333-4333-8333-333333333333';
   const exhibitId = '44444444-4444-4444-8444-444444444444';
+  const qrExhibitBaseUrl = 'https://qr.example.test';
 
   let app: INestApplication<App>;
   let exhibitRecord: Record<string, unknown> | null;
   let auditCreate: jest.Mock;
+  let originalQrExhibitBaseUrl: string | undefined;
 
   beforeEach(async () => {
+    originalQrExhibitBaseUrl = process.env.QR_EXHIBIT_BASE_URL;
+    process.env.QR_EXHIBIT_BASE_URL = qrExhibitBaseUrl;
+
     exhibitRecord = {
       id: exhibitId,
       public_slug: 'six-legged-carabao',
@@ -92,6 +97,11 @@ describe('Exhibit QR codes (e2e)', () => {
 
   afterEach(async () => {
     await app.close();
+    if (originalQrExhibitBaseUrl === undefined) {
+      delete process.env.QR_EXHIBIT_BASE_URL;
+    } else {
+      process.env.QR_EXHIBIT_BASE_URL = originalQrExhibitBaseUrl;
+    }
   });
 
   it('requires an authenticated active Curator', async () => {
@@ -123,6 +133,9 @@ describe('Exhibit QR codes (e2e)', () => {
       }),
     );
     expect(response.body.publicUrl).toContain('six-legged-carabao');
+    expect(response.body.publicUrl).toBe(
+      `${qrExhibitBaseUrl}/exhibits/six-legged-carabao`,
+    );
   });
 
   it('downloads a PNG QR code and records an audit entry', async () => {
