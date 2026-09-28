@@ -18,6 +18,7 @@ const specimenTagDelegate = {
   create: jest.fn(),
   delete: jest.fn(),
   findUnique: jest.fn(),
+  update: jest.fn(),
 };
 const revisionDelegate = { create: jest.fn() };
 const auditDelegate = { create: jest.fn() };
@@ -284,5 +285,168 @@ describe('SpecimenTagsService', () => {
       service.attach(SPECIMEN_ID, { tagName: 'Endemic' }, ACCOUNT_ID),
     ).rejects.toThrow(ConflictException);
     expect(transactionMock).toHaveBeenCalledTimes(3);
+  });
+
+  describe('change', () => {
+    const NEW_TAG_ID = '55555555-5555-4555-8555-555555555555';
+    const OTHER_ATTACHMENT_ID = '66666666-6666-4666-8666-666666666666';
+    const oldAttachment = () =>
+      attachmentRecord({ tag: tagRecord({ tag_name: 'Mindanao' }) });
+    const newTag = () => tagRecord({ id: NEW_TAG_ID, tag_name: 'Visayas' });
+
+    it('re-points the attachment and records one revision with both names', async () => {
+      specimenTagDelegate.findUnique
+        .mockResolvedValueOnce(oldAttachment())
+        .mockResolvedValueOnce(null);
+      tagDelegate.findFirst.mockResolvedValue(newTag());
+
+      const result = await service.change(
+        SPECIMEN_ID,
+        TAG_ID,
+        { tagName: 'Visayas' },
+        ACCOUNT_ID,
+      );
+
+      expect(result).toEqual({
+        tag: { id: NEW_TAG_ID, name: 'Visayas' },
+        previousTagId: TAG_ID,
+        changed: true,
+      });
+      expect(specimenTagDelegate.update).toHaveBeenCalledWith({
+        where: { id: ATTACHMENT_ID },
+        data: { tag_id: NEW_TAG_ID },
+      });
+      expect(specimenTagDelegate.delete).not.toHaveBeenCalled();
+      expect(revisionDelegate.create).toHaveBeenCalledTimes(1);
+      expect(revisionDelegate.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          field_changed: 'specimen_tags',
+          old_value: 'Mindanao',
+          new_value: 'Visayas',
+        }),
+      });
+      expect(auditDelegate.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          action: 'CHANGE_SPECIMEN_TAG',
+          affected_record_id: ATTACHMENT_ID,
+        }),
+      });
+    });
+
+    it('creates the new tag vocabulary when it does not exist yet', async () => {
+      specimenTagDelegate.findUnique
+        .mockResolvedValueOnce(oldAttachment())
+        .mockResolvedValueOnce(null);
+      tagDelegate.findFirst.mockResolvedValue(null);
+      tagDelegate.create.mockResolvedValue(newTag());
+
+      await service.change(
+        SPECIMEN_ID,
+        TAG_ID,
+        { tagName: 'Visayas' },
+        ACCOUNT_ID,
+      );
+
+      expect(tagDelegate.create).toHaveBeenCalledWith({
+        data: { tag_name: 'Visayas' },
+      });
+      expect(auditDelegate.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          details: expect.objectContaining({ createdVocabulary: true }),
+        }),
+      });
+    });
+
+    it('only detaches the old tag when the new tag is already attached', async () => {
+      specimenTagDelegate.findUnique
+        .mockResolvedValueOnce(oldAttachment())
+        .mockResolvedValueOnce({ id: OTHER_ATTACHMENT_ID });
+      tagDelegate.findFirst.mockResolvedValue(newTag());
+
+      const result = await service.change(
+        SPECIMEN_ID,
+        TAG_ID,
+        { tagName: 'Visayas' },
+        ACCOUNT_ID,
+      );
+
+      expect(result.changed).toBe(true);
+      expect(specimenTagDelegate.delete).toHaveBeenCalledWith({
+        where: { id: ATTACHMENT_ID },
+      });
+      expect(specimenTagDelegate.update).not.toHaveBeenCalled();
+      expect(revisionDelegate.create).toHaveBeenCalledTimes(1);
+      // The audit must point at the deleted attachment, not the untouched
+      // attachment the change merged into.
+      expect(auditDelegate.create).toHaveBeenCalledTimes(1);
+      expect(auditDelegate.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          action: 'CHANGE_SPECIMEN_TAG',
+          affected_record_id: ATTACHMENT_ID,
+        }),
+      });
+      expect(auditDelegate.create).not.toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          affected_record_id: OTHER_ATTACHMENT_ID,
+        }),
+      });
+    });
+
+    it('makes no writes when the name resolves to the same tag', async () => {
+      specimenTagDelegate.findUnique.mockResolvedValueOnce(oldAttachment());
+      tagDelegate.findFirst.mockResolvedValue(
+        tagRecord({ tag_name: 'Mindanao' }),
+      );
+
+      const result = await service.change(
+        SPECIMEN_ID,
+        TAG_ID,
+        { tagName: 'mindanao' },
+        ACCOUNT_ID,
+      );
+
+      expect(result).toEqual({
+        tag: { id: TAG_ID, name: 'Mindanao' },
+        previousTagId: TAG_ID,
+        changed: false,
+      });
+      expect(specimenTagDelegate.update).not.toHaveBeenCalled();
+      expect(specimenDelegate.update).not.toHaveBeenCalled();
+      expect(revisionDelegate.create).not.toHaveBeenCalled();
+      expect(auditDelegate.create).not.toHaveBeenCalled();
+    });
+
+    it('returns 404 when the old tag is not attached', async () => {
+      specimenTagDelegate.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.change(SPECIMEN_ID, TAG_ID, { tagName: 'Visayas' }, ACCOUNT_ID),
+      ).rejects.toThrow(NotFoundException);
+      expect(tagDelegate.create).not.toHaveBeenCalled();
+    });
+
+    it('rejects changes on an archived specimen', async () => {
+      specimenDelegate.findUnique.mockResolvedValue(
+        specimenRecord({ status: 'ARCHIVED' }),
+      );
+
+      await expect(
+        service.change(SPECIMEN_ID, TAG_ID, { tagName: 'Visayas' }, ACCOUNT_ID),
+      ).rejects.toThrow(BadRequestException);
+      expect(specimenTagDelegate.findUnique).not.toHaveBeenCalled();
+    });
+
+    it('returns 409 after repeated serialization conflicts', async () => {
+      transactionMock.mockRejectedValue(
+        new Prisma.PrismaClientKnownRequestError('conflict', {
+          code: 'P2034',
+          clientVersion: 'test',
+        }),
+      );
+
+      await expect(
+        service.change(SPECIMEN_ID, TAG_ID, { tagName: 'Visayas' }, ACCOUNT_ID),
+      ).rejects.toThrow(ConflictException);
+    });
   });
 });

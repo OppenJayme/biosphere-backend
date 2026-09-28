@@ -1,12 +1,58 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { VisitorDto } from '../dto/visitor.dto';
 
+// Mirrors the visit_request_status database enum (SRS REQ-4.9-09).
 export enum VisitRequestStatus {
   PENDING = 'PENDING',
-  CONFIRMED = 'CONFIRMED',
+  APPROVED_BY_CURATOR = 'APPROVED_BY_CURATOR',
+  SUBMITTED_FOR_CAMPUS_ENTRY = 'SUBMITTED_FOR_CAMPUS_ENTRY',
   DECLINED = 'DECLINED',
+  CANCELLED = 'CANCELLED',
+  COMPLETED = 'COMPLETED',
 }
 
+// Returned to the public submitter. Deliberately echoes no personal data.
+export class VisitRequestSubmissionReceipt {
+  @ApiProperty()
+  id!: string;
+
+  @ApiProperty({ enum: VisitRequestStatus })
+  status!: VisitRequestStatus;
+
+  @ApiProperty()
+  submittedAt!: Date;
+}
+
+export class PreferredSchedule {
+  @ApiProperty({ example: '2026-10-15' })
+  date!: string;
+
+  @ApiProperty({ example: '09:00' })
+  startTime!: string;
+
+  @ApiProperty({ example: '11:00' })
+  endTime!: string;
+
+  @ApiProperty({ description: '1 = most preferred' })
+  preferenceOrder!: number;
+}
+
+export class VisitRequestVisitor {
+  @ApiProperty()
+  name!: string;
+}
+
+export class VisitRequestVehicle {
+  @ApiPropertyOptional({ nullable: true })
+  plateNumber!: string | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  brand!: string | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  type!: string | null;
+}
+
+// Curator-only view of a stored visit request.
 export class VisitRequest {
   @ApiProperty()
   id!: string;
@@ -17,57 +63,51 @@ export class VisitRequest {
   @ApiProperty()
   email!: string;
 
-  @ApiPropertyOptional()
-  phone?: string;
-
-  @ApiPropertyOptional()
-  organization?: string;
+  @ApiProperty()
+  phone!: string;
 
   @ApiProperty()
-  purpose!: string;
+  organization!: string;
 
-  @ApiProperty()
-  preferredDate!: string;
+  @ApiPropertyOptional({ nullable: true })
+  address!: string | null;
 
-  @ApiProperty()
-  startTime!: string;
-
-  @ApiProperty()
-  endTime!: string;
+  @ApiPropertyOptional({ nullable: true })
+  purpose!: string | null;
 
   @ApiProperty()
   visitorCount!: number;
 
-  @ApiPropertyOptional({ type: [VisitorDto] })
-  visitors?: VisitorDto[];
+  @ApiProperty({ type: [PreferredSchedule] })
+  preferredSchedules!: PreferredSchedule[];
 
-  @ApiPropertyOptional()
-  visitorListUrl?: string;
+  @ApiProperty({ type: [VisitRequestVisitor] })
+  visitors!: VisitRequestVisitor[];
 
-  @ApiPropertyOptional({ default: false })
-  bringingVehicle?: boolean;
+  @ApiProperty({ type: [VisitRequestVehicle] })
+  vehicles!: VisitRequestVehicle[];
 
-  @ApiPropertyOptional()
-  plateNumber?: string;
+  @ApiPropertyOptional({ nullable: true })
+  equipment!: string | null;
 
-  @ApiPropertyOptional()
-  carBrand?: string;
+  @ApiPropertyOptional({ nullable: true })
+  notes!: string | null;
 
-  @ApiPropertyOptional()
-  carType?: string;
-
-  @ApiPropertyOptional()
-  equipment?: string;
-
-  @ApiPropertyOptional()
-  notes?: string;
-
-  @ApiProperty({
-    enum: VisitRequestStatus,
-    default: VisitRequestStatus.PENDING,
-  })
+  @ApiProperty({ enum: VisitRequestStatus })
   status!: VisitRequestStatus;
 
   @ApiProperty()
+  consentAcceptedAt!: Date;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    description: 'Account id of the curator who last changed the status',
+  })
+  reviewedBy!: string | null;
+
+  @ApiProperty()
   createdAt!: Date;
+
+  @ApiProperty()
+  updatedAt!: Date;
 }

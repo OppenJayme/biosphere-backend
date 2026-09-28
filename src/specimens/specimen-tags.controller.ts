@@ -5,6 +5,7 @@ import {
   Get,
   Param,
   ParseUUIDPipe,
+  Patch,
   Post,
 } from '@nestjs/common';
 import {
@@ -21,6 +22,7 @@ import type { AuthenticatedUser } from '../auth/types/auth.types';
 import { AttachSpecimenTagDto } from './dto/attach-specimen-tag.dto';
 import {
   AttachSpecimenTagResult,
+  ChangeSpecimenTagResult,
   DetachSpecimenTagResult,
   Tag,
 } from './entities/tag.entity';
@@ -53,6 +55,25 @@ export class SpecimenTagsController {
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<AttachSpecimenTagResult> {
     return this.service.attach(specimenId, dto, user.accountId);
+  }
+
+  @Patch(':tagId')
+  @ApiOperation({
+    summary:
+      "Replace one of a specimen's tags with another in a single revision",
+  })
+  @ApiOkResponse({ type: ChangeSpecimenTagResult })
+  @ApiNotFoundResponse({ description: 'Specimen or tag attachment not found' })
+  @ApiConflictResponse({
+    description: 'Tag relationships changed concurrently; reload and retry',
+  })
+  change(
+    @Param('specimenId', ParseUUIDPipe) specimenId: string,
+    @Param('tagId', ParseUUIDPipe) tagId: string,
+    @Body() dto: AttachSpecimenTagDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<ChangeSpecimenTagResult> {
+    return this.service.change(specimenId, tagId, dto, user.accountId);
   }
 
   @Delete(':tagId')
