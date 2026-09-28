@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { ImportSpecimenRowDto } from '../dto/import-specimen-row.dto';
+import { PossibleDuplicate } from './specimen-duplicate.entity';
 import { Specimen } from './specimen.entity';
 
 export class SpecimenImportPreviewRow {
@@ -14,6 +15,13 @@ export class SpecimenImportPreviewRow {
 
   @ApiProperty({ type: [String] })
   duplicateWarnings!: string[];
+
+  @ApiProperty({
+    type: [PossibleDuplicate],
+    description:
+      'Existing specimen records this row may duplicate; warning only, never blocks the row',
+  })
+  possibleDuplicates!: PossibleDuplicate[];
 
   @ApiProperty()
   valid!: boolean;

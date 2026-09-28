@@ -7,25 +7,25 @@ tables through Prisma. It does not introduce or alter database structures.
 
 ## Core field contract
 
-| API field | PostgreSQL / Prisma field | Notes |
-| --- | --- | --- |
-| `id` | `id` | System-generated specimen UUID |
-| `collectionId` | `collection_id` | Nullable; a supplied UUID must reference an existing collection |
-| `accessionNumber` | `accession_number` | Nullable; uniqueness is not enforced until the museum confirms the rule |
-| `specimenCategory` | `specimen_category` | Nullable curator-entered category |
-| `scientificName` | `scientific_name` | Nullable core identification |
-| `commonName` | `common_name` | Nullable core identification |
-| `gender` | `gender` | `MALE`, `FEMALE`, `UNKNOWN`, or `NOT_APPLICABLE` |
-| `classificationStatus` | `classification_status` | Nullable curator-entered or approved text |
-| `status` | `status` | `UNCATALOGED`, `CATALOGED`, or `ARCHIVED` |
-| `publicDisplay` | `public_display_allowed` | Eligibility only; never publishes the full internal record |
-| `remarks` | `remarks` | Nullable curator remarks |
-| `createdBy` | `created_by` | BioSphere `user_account.id` of the creator |
-| `updatedBy` | `updated_by` | BioSphere `user_account.id` of the last editor |
-| `archivedBy` | `archived_by` | BioSphere `user_account.id` of the archiving curator |
-| `createdAt` | `created_at` | Creation timestamp |
-| `updatedAt` | `updated_at` | Last core mutation timestamp |
-| `archivedAt` | `archived_at` | Archive timestamp, or `null` |
+| API field              | PostgreSQL / Prisma field | Notes                                                                   |
+| ---------------------- | ------------------------- | ----------------------------------------------------------------------- |
+| `id`                   | `id`                      | System-generated specimen UUID                                          |
+| `collectionId`         | `collection_id`           | Nullable; a supplied UUID must reference an existing collection         |
+| `accessionNumber`      | `accession_number`        | Nullable; uniqueness is not enforced until the museum confirms the rule |
+| `specimenCategory`     | `specimen_category`       | Nullable curator-entered category                                       |
+| `scientificName`       | `scientific_name`         | Nullable core identification                                            |
+| `commonName`           | `common_name`             | Nullable core identification                                            |
+| `gender`               | `gender`                  | `MALE`, `FEMALE`, `UNKNOWN`, or `NOT_APPLICABLE`                        |
+| `classificationStatus` | `classification_status`   | Nullable curator-entered or approved text                               |
+| `status`               | `status`                  | `UNCATALOGED`, `CATALOGED`, or `ARCHIVED`                               |
+| `publicDisplay`        | `public_display_allowed`  | Eligibility only; never publishes the full internal record              |
+| `remarks`              | `remarks`                 | Nullable curator remarks                                                |
+| `createdBy`            | `created_by`              | BioSphere `user_account.id` of the creator                              |
+| `updatedBy`            | `updated_by`              | BioSphere `user_account.id` of the last editor                          |
+| `archivedBy`           | `archived_by`             | BioSphere `user_account.id` of the archiving curator                    |
+| `createdAt`            | `created_at`              | Creation timestamp                                                      |
+| `updatedAt`            | `updated_at`              | Last core mutation timestamp                                            |
+| `archivedAt`           | `archived_at`             | Archive timestamp, or `null`                                            |
 
 Taxonomy, provenance, lots, media, tags, bulk import, and duplicate detection
 are intentionally outside this core slice. Their fields must not be flattened
@@ -39,18 +39,19 @@ also implemented as a private-storage-backed nested resource; see
 are separate concerns. Tags are implemented as a reusable nested resource; see
 `docs/SPECIMEN_TAGS_GUIDE.md`. Bulk import, with warning-only duplicate
 detection, is implemented as its own preview/commit slice; see
-`docs/SPECIMEN_IMPORT_GUIDE.md`.
+`docs/SPECIMEN_IMPORT_GUIDE.md`. Warning-only duplicate detection for
+manual entry is described in `docs/SPECIMEN_DUPLICATES_GUIDE.md`.
 
 ## Status boundary
 
 - New core records are saved as `UNCATALOGED` and are not public-display
   eligible.
 - Clients cannot submit or directly modify `status`.
-- The curator-approved list of applicable required fields spans specimen core,
-  taxonomy, and provenance and is not frozen yet. This module therefore does
-  not guess when to promote a record to `CATALOGED`.
-- A later catalog-completion operation must evaluate the complete aggregate
-  before changing `UNCATALOGED` to `CATALOGED`.
+- Catalog completion evaluates the approved specimen core, taxonomy,
+  provenance, and active-lot requirements on the server before changing
+  `UNCATALOGED` to `CATALOGED`.
+- A Cataloged record must be explicitly reopened before a required core,
+  taxonomy, or provenance value can be removed.
 - Existing `CATALOGED` records can be marked or unmarked for public-display
   eligibility. `UNCATALOGED` and `ARCHIVED` records cannot be marked eligible.
 
@@ -81,6 +82,9 @@ allowing a client to bypass completeness validation.
 - `GET /specimens/:id/details`
 - `GET /specimens/:id/revisions?page=1&limit=50`
 - `PATCH /specimens/:id`
+- `GET /specimens/:id/catalog-readiness`
+- `PATCH /specimens/:id/complete-cataloging`
+- `PATCH /specimens/:id/reopen-cataloging`
 - `PATCH /specimens/:id/public-display`
 - `PATCH /specimens/:id/archive`
 
@@ -108,4 +112,5 @@ than an enum, and specimens continue to reference them by UUID.
 
 The integrated curator detail response is documented in
 `docs/SPECIMEN_DETAIL_GUIDE.md`. It assembles existing catalog sections for the
-frontend without deciding catalog completeness or returning unbounded history.
+frontend without returning unbounded history. Catalog-completion behavior is
+documented separately in `docs/CATALOG_COMPLETION_GUIDE.md`.

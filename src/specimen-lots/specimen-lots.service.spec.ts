@@ -8,6 +8,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { SpecimenLotsService } from './specimen-lots.service';
+import { QuantityAdjustmentType } from './entities/specimen-lot-transaction.entity';
 
 const specimenDelegate = { findUnique: jest.fn(), update: jest.fn() };
 const storageUnitDelegate = { findUnique: jest.fn() };
@@ -799,7 +800,7 @@ describe('SpecimenLotsService', () => {
       SPECIMEN_ID,
       LOT_ID,
       {
-        adjustmentType: 'ADDITION',
+        adjustmentType: QuantityAdjustmentType.ADDITION,
         quantityDelta: 5,
         expectedQuantity: 10,
         reason: 'Newly verified specimens',
@@ -876,7 +877,7 @@ describe('SpecimenLotsService', () => {
         SPECIMEN_ID,
         LOT_ID,
         {
-          adjustmentType: 'ADDITION',
+          adjustmentType: QuantityAdjustmentType.ADDITION,
           quantityDelta: 1,
           expectedQuantity: 10,
           reason: 'New specimens received',
@@ -895,7 +896,7 @@ describe('SpecimenLotsService', () => {
         SPECIMEN_ID,
         LOT_ID,
         {
-          adjustmentType: 'REMOVAL',
+          adjustmentType: QuantityAdjustmentType.REMOVAL,
           quantityDelta: -2,
           expectedQuantity: 12,
           reason: 'Remove duplicate records',
@@ -927,7 +928,7 @@ describe('SpecimenLotsService', () => {
       SPECIMEN_ID,
       LOT_ID,
       {
-        adjustmentType: 'REMOVAL',
+        adjustmentType: QuantityAdjustmentType.REMOVAL,
         quantityDelta: -3,
         expectedQuantity: 10,
         reason: 'Duplicate count removed',
@@ -972,7 +973,7 @@ describe('SpecimenLotsService', () => {
       SPECIMEN_ID,
       LOT_ID,
       {
-        adjustmentType: 'DEACCESSION',
+        adjustmentType: QuantityAdjustmentType.DEACCESSION,
         quantityDelta: -10,
         expectedQuantity: 10,
         reason: 'Approved deaccession',
@@ -1015,7 +1016,7 @@ describe('SpecimenLotsService', () => {
       SPECIMEN_ID,
       LOT_ID,
       {
-        adjustmentType: 'DATA_CORRECTION',
+        adjustmentType: QuantityAdjustmentType.DATA_CORRECTION,
         quantityDelta: -2,
         expectedQuantity: 10,
         reason: 'Verified physical recount',
@@ -1040,7 +1041,7 @@ describe('SpecimenLotsService', () => {
         SPECIMEN_ID,
         LOT_ID,
         {
-          adjustmentType: 'ADDITION',
+          adjustmentType: QuantityAdjustmentType.ADDITION,
           quantityDelta: -1,
           expectedQuantity: 10,
           reason: 'Invalid direction',
@@ -1053,7 +1054,7 @@ describe('SpecimenLotsService', () => {
         SPECIMEN_ID,
         LOT_ID,
         {
-          adjustmentType: 'DESTRUCTION',
+          adjustmentType: QuantityAdjustmentType.DESTRUCTION,
           quantityDelta: 1,
           expectedQuantity: 10,
           reason: 'Invalid direction',
@@ -1068,7 +1069,7 @@ describe('SpecimenLotsService', () => {
         SPECIMEN_ID,
         LOT_ID,
         {
-          adjustmentType: 'MISSING_LOSS',
+          adjustmentType: QuantityAdjustmentType.MISSING_LOSS,
           quantityDelta: -3,
           expectedQuantity: 2,
           reason: 'Inventory check',
@@ -1085,7 +1086,7 @@ describe('SpecimenLotsService', () => {
         SPECIMEN_ID,
         LOT_ID,
         {
-          adjustmentType: 'DATA_CORRECTION',
+          adjustmentType: QuantityAdjustmentType.DATA_CORRECTION,
           quantityDelta: 1,
           expectedQuantity: 2_147_483_647,
           reason: 'Correct verified count',
@@ -1102,7 +1103,7 @@ describe('SpecimenLotsService', () => {
         SPECIMEN_ID,
         LOT_ID,
         {
-          adjustmentType: 'DATA_CORRECTION',
+          adjustmentType: QuantityAdjustmentType.DATA_CORRECTION,
           quantityDelta: -1,
           expectedQuantity: 10,
           reason: 'Correct verified count',
@@ -1122,7 +1123,7 @@ describe('SpecimenLotsService', () => {
         SPECIMEN_ID,
         LOT_ID,
         {
-          adjustmentType: 'TRANSFER_OUT',
+          adjustmentType: QuantityAdjustmentType.TRANSFER_OUT,
           quantityDelta: -2,
           expectedQuantity: 10,
           reason: 'Approved external transfer',
@@ -1162,7 +1163,7 @@ describe('SpecimenLotsService', () => {
         SPECIMEN_ID,
         LOT_ID,
         {
-          adjustmentType: 'REMOVAL',
+          adjustmentType: QuantityAdjustmentType.REMOVAL,
           quantityDelta: -2,
           expectedQuantity: 10,
           reason: 'Verified duplicate count',
@@ -1188,7 +1189,7 @@ describe('SpecimenLotsService', () => {
         SPECIMEN_ID,
         LOT_ID,
         {
-          adjustmentType: 'REMOVAL',
+          adjustmentType: QuantityAdjustmentType.REMOVAL,
           quantityDelta: -2,
           expectedQuantity: 10,
           reason: 'Verified duplicate count',

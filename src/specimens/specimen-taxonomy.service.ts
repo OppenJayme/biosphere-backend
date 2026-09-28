@@ -10,6 +10,11 @@ import {
   type specimen_taxonomy,
 } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { runSerializableTransaction } from '../prisma/serializable-transaction';
+import {
+  assertCatalogedValueRetained,
+  hasCatalogText,
+} from './catalog-completion.policy';
 import { CreateSpecimenTaxonomyDto } from './dto/create-specimen-taxonomy.dto';
 import { UpdateSpecimenTaxonomyDto } from './dto/update-specimen-taxonomy.dto';
 import { SpecimenTaxonomy } from './entities/specimen-taxonomy.entity';
@@ -107,50 +112,65 @@ export class SpecimenTaxonomyService {
     dto: UpdateSpecimenTaxonomyDto,
     actingCuratorAccountId: string,
   ): Promise<SpecimenTaxonomy> {
-    return this.prisma.$transaction(async (transaction) => {
-      const specimenRecord = await this.findSpecimenOrThrow(
-        transaction,
-        specimenId,
-      );
-      this.assertEditable(specimenRecord);
-
-      const existing = await transaction.specimen_taxonomy.findUnique({
-        where: { specimen_id: specimenId },
-      });
-      if (!existing) {
-        throw new NotFoundException(
-          `Taxonomy for specimen ${specimenId} not found`,
+    return runSerializableTransaction(
+      this.prisma,
+      async (transaction) => {
+        const specimenRecord = await this.findSpecimenOrThrow(
+          transaction,
+          specimenId,
         );
-      }
+        this.assertEditable(specimenRecord);
 
-      const { data, changes } = this.collectUpdate(dto, existing);
-      if (changes.length === 0) {
-        throw new BadRequestException(
-          'At least one taxonomy field must change.',
+        const existing = await transaction.specimen_taxonomy.findUnique({
+          where: { specimen_id: specimenId },
+        });
+        if (!existing) {
+          throw new NotFoundException(
+            `Taxonomy for specimen ${specimenId} not found`,
+          );
+        }
+
+        assertCatalogedValueRetained(
+          specimenRecord.status,
+          dto.kingdom !== undefined,
+          hasCatalogText(dto.kingdom ?? null),
+          'Taxonomic kingdom',
         );
-      }
 
-      const updated = await transaction.specimen_taxonomy.update({
-        where: { specimen_id: specimenId },
-        data,
-      });
+        const { data, changes } = this.collectUpdate(dto, existing);
+        if (changes.length === 0) {
+          throw new BadRequestException(
+            'At least one taxonomy field must change.',
+          );
+        }
 
-      await this.touchSpecimen(transaction, specimenId, actingCuratorAccountId);
-      await this.recordRevisions(
-        transaction,
-        specimenId,
-        actingCuratorAccountId,
-        changes,
-      );
-      await this.recordAudit(transaction, {
-        userId: actingCuratorAccountId,
-        specimenId,
-        action: 'UPDATE_SPECIMEN_TAXONOMY',
-        fields: changes.map((change) => change.fieldChanged),
-      });
+        const updated = await transaction.specimen_taxonomy.update({
+          where: { specimen_id: specimenId },
+          data,
+        });
 
-      return this.toEntity(updated);
-    });
+        await this.touchSpecimen(
+          transaction,
+          specimenId,
+          actingCuratorAccountId,
+        );
+        await this.recordRevisions(
+          transaction,
+          specimenId,
+          actingCuratorAccountId,
+          changes,
+        );
+        await this.recordAudit(transaction, {
+          userId: actingCuratorAccountId,
+          specimenId,
+          action: 'UPDATE_SPECIMEN_TAXONOMY',
+          fields: changes.map((change) => change.fieldChanged),
+        });
+
+        return this.toEntity(updated);
+      },
+      'Specimen changed during the operation. Reload and try again.',
+    );
   }
 
   private createValues(dto: CreateSpecimenTaxonomyDto) {

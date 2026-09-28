@@ -19,27 +19,47 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import type { AuthenticatedUser } from '../auth/types/auth.types';
 import { CreateSpecimenDto } from './dto/create-specimen.dto';
 import { ListSpecimenRevisionsQueryDto } from './dto/list-specimen-revisions-query.dto';
+import { ReopenCatalogingDto } from './dto/reopen-cataloging.dto';
 import { SearchSpecimensQueryDto } from './dto/search-specimens-query.dto';
 import { SetPublicDisplayDto } from './dto/set-public-display.dto';
 import { UpdateSpecimenDto } from './dto/update-specimen.dto';
+import { CatalogReadiness } from './entities/catalog-readiness.entity';
+import { SpecimenCreateResult } from './entities/specimen-duplicate.entity';
 import { SpecimenRevisionPage } from './entities/specimen-revision.entity';
 import { Specimen, SpecimenPage } from './entities/specimen.entity';
+import { SpecimenCatalogingService } from './specimen-cataloging.service';
+import { SpecimenDuplicatesService } from './specimen-duplicates.service';
 import { SpecimensService } from './specimens.service';
 
 @ApiTags('specimens')
 @Roles('CURATOR')
 @Controller('specimens')
 export class SpecimensController {
-  constructor(private readonly service: SpecimensService) {}
+  constructor(
+    private readonly service: SpecimensService,
+    private readonly duplicates: SpecimenDuplicatesService,
+    private readonly catalogingService: SpecimenCatalogingService,
+  ) {}
 
   @Post()
-  @ApiOperation({ summary: 'Create an Uncataloged specimen record' })
-  @ApiCreatedResponse({ type: Specimen })
-  create(
+  @ApiOperation({
+    summary:
+      'Create an Uncataloged specimen record, warning on possible duplicates (REQ-4.4-21)',
+  })
+  @ApiCreatedResponse({ type: SpecimenCreateResult })
+  async create(
     @Body() dto: CreateSpecimenDto,
     @CurrentUser() user: AuthenticatedUser,
-  ): Promise<Specimen> {
-    return this.service.create(dto, user.accountId);
+  ): Promise<SpecimenCreateResult> {
+    const specimen = await this.service.create(dto, user.accountId);
+    // Runs after the commit and never blocks or fails the create
+    // (REQ-4.4-22); clients that want to warn before saving call
+    // POST /specimens/duplicate-check first.
+    const duplicateCheck = await this.duplicates.findAfterCreate(
+      specimen,
+      specimen.id,
+    );
+    return { ...specimen, ...duplicateCheck };
   }
 
   @Get()
@@ -68,6 +88,17 @@ export class SpecimensController {
     return this.service.findRevisionHistory(id, query);
   }
 
+  @Get(':id/catalog-readiness')
+  @ApiOperation({
+    summary: 'Explain whether an Uncataloged specimen is ready to catalog',
+  })
+  @ApiOkResponse({ type: CatalogReadiness })
+  getCatalogReadiness(
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<CatalogReadiness> {
+    return this.catalogingService.getReadiness(id);
+  }
+
   @Get(':id')
   @ApiOkResponse({ type: Specimen })
   findOne(@Param('id', ParseUUIDPipe) id: string): Promise<Specimen> {
@@ -83,6 +114,31 @@ export class SpecimensController {
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<Specimen> {
     return this.service.update(id, dto, user.accountId);
+  }
+
+  @Patch(':id/complete-cataloging')
+  @ApiOperation({
+    summary: 'Validate and promote an Uncataloged specimen to Cataloged',
+  })
+  @ApiOkResponse({ type: Specimen })
+  completeCataloging(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<Specimen> {
+    return this.service.completeCataloging(id, user.accountId);
+  }
+
+  @Patch(':id/reopen-cataloging')
+  @ApiOperation({
+    summary: 'Return a Cataloged specimen to Uncataloged for correction',
+  })
+  @ApiOkResponse({ type: Specimen })
+  reopenCataloging(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: ReopenCatalogingDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<Specimen> {
+    return this.service.reopenCataloging(id, dto, user.accountId);
   }
 
   @Patch(':id/archive')
