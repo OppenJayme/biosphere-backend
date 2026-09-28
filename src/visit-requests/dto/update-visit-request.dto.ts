@@ -1,4 +1,11 @@
-import { PartialType } from '@nestjs/swagger';
-import { CreateVisitRequestDto } from './create-visit-request.dto';
+import { ApiProperty } from '@nestjs/swagger';
+import { IsEnum } from 'class-validator';
+import { VisitRequestStatus } from '../entities/visit-request.entity';
 
-export class UpdateVisitRequestDto extends PartialType(CreateVisitRequestDto) {}
+// Curators change workflow status only (REQ-4.9-09); the visitor's
+// submitted details are never edited.
+export class UpdateVisitRequestDto {
+  @ApiProperty({ enum: VisitRequestStatus })
+  @IsEnum(VisitRequestStatus)
+  status!: VisitRequestStatus;
+}
