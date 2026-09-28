@@ -26,3 +26,17 @@ export class DetachSpecimenTagResult {
   @ApiProperty({ enum: [true] })
   detached!: true;
 }
+
+export class ChangeSpecimenTagResult {
+  @ApiProperty({ type: Tag, description: 'The tag now attached' })
+  tag!: Tag;
+
+  @ApiProperty({ description: 'The tag id that was replaced' })
+  previousTagId!: string;
+
+  @ApiProperty({
+    description:
+      'False when the new name resolves to the same tag and nothing changed',
+  })
+  changed!: boolean;
+}
