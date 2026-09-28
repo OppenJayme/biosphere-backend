@@ -1,24 +1,51 @@
 import {
-  ConflictException,
+  BadRequestException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma, type inquiry } from '../generated/prisma/client';
+import { CommunicationEntry } from '../communication-history/communication-history.entity';
+import {
+  CommunicationType,
+  describeStatusChange,
+  listEntries,
+  recordInternalEntry,
+} from '../communication-history/communication-history';
+import { CreateInternalNoteDto } from '../communication-history/dto/create-internal-note.dto';
+import { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { runSerializableTransaction } from '../prisma/serializable-transaction';
+import { VisitRequestsService } from '../visit-requests/visit-requests.service';
 import { CreateInquiryDto } from './dto/create-inquiry.dto';
 import { ListInquiriesQueryDto } from './dto/list-inquiries-query.dto';
+import { ReferInquiryDto } from './dto/refer-inquiry.dto';
 import { UpdateInquiryDto } from './dto/update-inquiry.dto';
 import {
   Inquiry,
+  InquiryReferralResult,
   InquiryStatus,
   InquirySubmissionReceipt,
 } from './entities/inquiry.entity';
+import { assertInquiryTransition } from './inquiry-status.policy';
 
 const DEFAULT_INQUIRY_TYPE = 'GENERAL';
 
+const CONFLICT_MESSAGE =
+  'This inquiry was changed by someone else. Reload and try again.';
+
+const INQUIRY_INCLUDE = {
+  visit_request: { select: { id: true } },
+} satisfies Prisma.inquiryInclude;
+
+type InquiryRecord = Prisma.inquiryGetPayload<{
+  include: typeof INQUIRY_INCLUDE;
+}>;
+
 @Injectable()
 export class InquiriesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly visitRequestsService: VisitRequestsService,
+  ) {}
 
   // Public submission (REQ-4.8-01/04). Stored with its consent timestamp and
   // audited without any visitor personal data in the audit details.
@@ -55,8 +82,23 @@ export class InquiriesService {
   }
 
   async findAll(query: ListInquiriesQueryDto): Promise<Inquiry[]> {
+    const search = query.search
+      ? { contains: query.search, mode: Prisma.QueryMode.insensitive }
+      : undefined;
     const items = await this.prisma.inquiry.findMany({
-      where: { status: query.status },
+      where: {
+        status: query.status,
+        ...(search && {
+          OR: [
+            { full_name: search },
+            { email_address: search },
+            { organization_name: search },
+            { inquiry_type: search },
+            { message: search },
+          ],
+        }),
+      },
+      include: INQUIRY_INCLUDE,
       orderBy: [{ created_at: 'desc' }, { id: 'asc' }],
     });
     return items.map((item) => this.toEntity(item));
@@ -66,67 +108,177 @@ export class InquiriesService {
     return this.toEntity(await this.findOneOrThrow(this.prisma, id));
   }
 
-  // Status-only change by a curator (REQ-4.8-06/11).
+  // Status-only change by a curator (REQ-4.8-06/11), limited to the SRS
+  // B.3 transitions and recorded in the inquiry's timeline.
   async update(
     id: string,
     dto: UpdateInquiryDto,
     actingCuratorAccountId: string,
   ): Promise<Inquiry> {
-    return this.prisma.$transaction(async (transaction) => {
-      const existing = await this.findOneOrThrow(transaction, id);
-      if (String(existing.status) === String(dto.status)) {
-        return this.toEntity(existing);
-      }
+    return runSerializableTransaction(
+      this.prisma,
+      async (transaction) => {
+        const existing = await this.findOneOrThrow(transaction, id);
+        const previousStatus = existing.status as InquiryStatus;
+        if (previousStatus === (dto.status as InquiryStatus)) {
+          return this.toEntity(existing);
+        }
+        assertInquiryTransition(previousStatus, dto.status);
 
-      const updated = await transaction.inquiry.update({
-        where: { id },
-        data: {
-          status: dto.status,
-          reviewed_by: actingCuratorAccountId,
-          updated_at: new Date(),
-        },
+        const updated = await transaction.inquiry.update({
+          where: { id },
+          data: {
+            status: dto.status,
+            reviewed_by: actingCuratorAccountId,
+            updated_at: new Date(),
+          },
+          include: INQUIRY_INCLUDE,
+        });
+        await recordInternalEntry(transaction, {
+          target: { inquiryId: id },
+          recordedBy: actingCuratorAccountId,
+          type: CommunicationType.STATUS_CHANGE,
+          message: describeStatusChange(previousStatus, dto.status, dto.note),
+        });
+        await this.recordAudit(transaction, {
+          userId: actingCuratorAccountId,
+          inquiryId: id,
+          action: 'UPDATE_INQUIRY_STATUS',
+          details: { previousStatus, status: updated.status },
+        });
+        return this.toEntity(updated);
+      },
+      CONFLICT_MESSAGE,
+    );
+  }
+
+  // Manual referral to the Visit Request workflow (REQ-4.8-07). The new
+  // request starts Pending and is never auto-approved; the inquiry becomes
+  // Turned to Visit Request in the same transaction.
+  async refer(
+    id: string,
+    dto: ReferInquiryDto,
+    actingCuratorAccountId: string,
+  ): Promise<InquiryReferralResult> {
+    return runSerializableTransaction(
+      this.prisma,
+      async (transaction) => {
+        const existing = await this.findOneOrThrow(transaction, id);
+        const previousStatus = existing.status as InquiryStatus;
+        assertInquiryTransition(
+          previousStatus,
+          InquiryStatus.TURNED_TO_VISIT_REQUEST,
+        );
+
+        const phone = dto.phone ?? existing.contact_number;
+        const organization = dto.organization ?? existing.organization_name;
+        const missing = [
+          !phone && 'phone',
+          !organization && 'organization',
+        ].filter(Boolean);
+        if (!phone || !organization) {
+          throw new BadRequestException(
+            `The inquiry has no ${missing.join(' or ')}, so the referral must include it.`,
+          );
+        }
+        if (!existing.consent_accepted_at) {
+          throw new BadRequestException(
+            'This inquiry has no consent record, so it cannot be referred.',
+          );
+        }
+
+        const visitRequestId =
+          await this.visitRequestsService.createFromReferral(
+            transaction,
+            {
+              sourceInquiryId: id,
+              name: existing.full_name,
+              email: existing.email_address,
+              phone,
+              organization,
+              purpose: dto.purpose ?? null,
+              visitorCount: dto.visitorCount,
+              preferredSchedules: dto.preferredSchedules,
+              consentAcceptedAt: existing.consent_accepted_at,
+            },
+            actingCuratorAccountId,
+          );
+        const updated = await transaction.inquiry.update({
+          where: { id },
+          data: {
+            status: InquiryStatus.TURNED_TO_VISIT_REQUEST,
+            reviewed_by: actingCuratorAccountId,
+            updated_at: new Date(),
+          },
+          include: INQUIRY_INCLUDE,
+        });
+        await recordInternalEntry(transaction, {
+          target: { inquiryId: id },
+          recordedBy: actingCuratorAccountId,
+          type: CommunicationType.REFERRAL,
+          message: describeStatusChange(
+            previousStatus,
+            InquiryStatus.TURNED_TO_VISIT_REQUEST,
+            [`Referred to visit request ${visitRequestId}.`, dto.note]
+              .filter(Boolean)
+              .join('\n\n'),
+          ),
+        });
+        await this.recordAudit(transaction, {
+          userId: actingCuratorAccountId,
+          inquiryId: id,
+          action: 'REFER_INQUIRY',
+          details: { previousStatus, visitRequestId },
+        });
+
+        return {
+          inquiry: { ...this.toEntity(updated), visitRequestId },
+          visitRequestId,
+        };
+      },
+      CONFLICT_MESSAGE,
+    );
+  }
+
+  // Internal curator note, e.g. a reply the visitor sent to the museum's
+  // external mailbox (REQ-4.8-11). The note text is not copied into the
+  // audit log, which only records that a note was added.
+  async addNote(
+    id: string,
+    dto: CreateInternalNoteDto,
+    actingCuratorAccountId: string,
+  ): Promise<CommunicationEntry> {
+    return this.prisma.$transaction(async (transaction) => {
+      await this.findOneOrThrow(transaction, id);
+      const entry = await recordInternalEntry(transaction, {
+        target: { inquiryId: id },
+        recordedBy: actingCuratorAccountId,
+        type: CommunicationType.NOTE,
+        message: dto.message,
       });
       await this.recordAudit(transaction, {
         userId: actingCuratorAccountId,
         inquiryId: id,
-        action: 'UPDATE_INQUIRY_STATUS',
-        details: { previousStatus: existing.status, status: updated.status },
+        action: 'ADD_INQUIRY_NOTE',
+        details: { entryId: entry.id },
       });
-      return this.toEntity(updated);
+      return entry;
     });
   }
 
-  async remove(id: string, actingCuratorAccountId: string): Promise<void> {
-    try {
-      await this.prisma.$transaction(async (transaction) => {
-        const existing = await this.findOneOrThrow(transaction, id);
-        await transaction.inquiry.delete({ where: { id } });
-        await this.recordAudit(transaction, {
-          userId: actingCuratorAccountId,
-          inquiryId: id,
-          action: 'DELETE_INQUIRY',
-          details: { previousStatus: existing.status },
-        });
-      });
-    } catch (error) {
-      // Referenced by a visit request or communication history.
-      if (
-        error instanceof Prisma.PrismaClientKnownRequestError &&
-        error.code === 'P2003'
-      ) {
-        throw new ConflictException(
-          'This inquiry has linked records and cannot be deleted.',
-        );
-      }
-      throw error;
-    }
+  async listHistory(id: string): Promise<CommunicationEntry[]> {
+    await this.findOneOrThrow(this.prisma, id);
+    return listEntries(this.prisma, { inquiryId: id });
   }
 
   private async findOneOrThrow(
     client: Prisma.TransactionClient,
     id: string,
-  ): Promise<inquiry> {
-    const found = await client.inquiry.findUnique({ where: { id } });
+  ): Promise<InquiryRecord> {
+    const found = await client.inquiry.findUnique({
+      where: { id },
+      include: INQUIRY_INCLUDE,
+    });
     if (!found) {
       throw new NotFoundException(`Inquiry ${id} not found`);
     }
@@ -155,7 +307,7 @@ export class InquiriesService {
     });
   }
 
-  private toEntity(item: inquiry): Inquiry {
+  private toEntity(item: InquiryRecord): Inquiry {
     return {
       id: item.id,
       name: item.full_name,
@@ -167,6 +319,7 @@ export class InquiriesService {
       status: item.status as InquiryStatus,
       consentAcceptedAt: item.consent_accepted_at,
       reviewedBy: item.reviewed_by,
+      visitRequestId: item.visit_request?.id ?? null,
       createdAt: item.created_at,
       updatedAt: item.updated_at,
     };
