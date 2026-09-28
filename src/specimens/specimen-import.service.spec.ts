@@ -1,6 +1,7 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { PrismaService } from '../prisma/prisma.service';
+import { SpecimenDuplicatesService } from './specimen-duplicates.service';
 import { SpecimenImportService } from './specimen-import.service';
 import { SpecimensService } from './specimens.service';
 
@@ -44,6 +45,7 @@ describe('SpecimenImportService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         SpecimenImportService,
+        SpecimenDuplicatesService,
         { provide: PrismaService, useValue: prismaMock },
         { provide: SpecimensService, useValue: specimensServiceMock },
       ],
@@ -192,6 +194,60 @@ describe('SpecimenImportService', () => {
       expect(result.rows[0].duplicateWarnings).toEqual([
         'Matches the scientific and common name of an existing specimen record; confirm this is not a duplicate before importing.',
       ]);
+    });
+
+    it('returns the existing specimens a row may duplicate', async () => {
+      specimenDelegate.findMany.mockResolvedValue([
+        {
+          id: 'existing-1',
+          accession_number: 'ABC-100',
+          scientific_name: 'Testus specimenus',
+          common_name: 'Test specimen',
+          status: 'CATALOGED',
+          specimen_provenance: null,
+        },
+      ]);
+      const file = csvFile(
+        'accessionNumber,scientificName,commonName\nABC-100,Testus specimenus,Test specimen\n',
+      );
+      const result = await service.previewImport(file, CURATOR_ID);
+
+      expect(result.rows[0].possibleDuplicates).toEqual([
+        expect.objectContaining({
+          specimenId: 'existing-1',
+          status: 'CATALOGED',
+          confidence: 'HIGH',
+          matchedFields: ['ACCESSION_NUMBER', 'SCIENTIFIC_NAME', 'COMMON_NAME'],
+        }),
+      ]);
+      expect(result.rows[0].duplicateWarnings).toEqual([
+        'Matches the accession number of an existing specimen record.',
+        'Matches the scientific and common name of an existing specimen record; confirm this is not a duplicate before importing.',
+      ]);
+      expect(result.rows[0].valid).toBe(true);
+    });
+
+    it('still warns when same-species rows differ only in gender', async () => {
+      specimenDelegate.findMany.mockResolvedValue([
+        {
+          id: 'existing-1',
+          accession_number: null,
+          scientific_name: 'Testus specimenus',
+          common_name: 'Test specimen',
+          status: 'UNCATALOGED',
+          specimen_provenance: null,
+        },
+      ]);
+      const file = csvFile(
+        'scientificName,commonName,gender\nTestus specimenus,Test specimen,Male\nTestus specimenus,Test specimen,Female\n',
+      );
+      const result = await service.previewImport(file, CURATOR_ID);
+
+      expect(result.rows[0].duplicateWarnings).toEqual([
+        'Matches the scientific and common name of an existing specimen record; confirm this is not a duplicate before importing.',
+        'Matches the scientific and common name used by row(s) 2 in this file.',
+      ]);
+      expect(result.rows[0].possibleDuplicates).toHaveLength(1);
     });
 
     it('handles a realistic full-size 500-row import', async () => {

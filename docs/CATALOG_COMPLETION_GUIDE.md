@@ -19,6 +19,11 @@ are present:
 - at least one active lot with positive quantity in a non-archived storage unit
   that is allowed to hold specimens.
 
+The list lives in `CATALOG_REQUIREMENTS` in
+`src/specimens/catalog-completion.policy.ts`; readiness, completion, and the
+Cataloged edit guards all read it, so changing the approved list is a single,
+reviewable edit there.
+
 Media, scientific name, gender, condition, and public-display eligibility are
 not completion requirements. Drafts, offline records, and imported records may
 remain incomplete while their status is `UNCATALOGED`.
@@ -56,6 +61,17 @@ accession number, common name, kingdom, collection date, preservation type, or
 preservation method. The curator must reopen the record first. This prevents a
 successful edit from silently leaving a record Cataloged but incomplete.
 
+## Concurrency
+
+Completion, reopening, public-display changes, and the core, taxonomy, and
+provenance edits that guard Cataloged values run under `SERIALIZABLE`
+isolation (`src/prisma/serializable-transaction.ts`), as lot mutations already
+do. Postgres therefore rejects interleavings that would otherwise produce a
+Cataloged-but-incomplete record, such as a concurrent edit clearing a
+required value or the last qualifying lot being deactivated mid-completion.
+It also rejects duplicate completion history from two simultaneous requests.
+Serialization failures are retried up to three times, then reported as `409`.
+
 Inventory changes are not made or blocked by this Cataloging feature. Future
 inventory policy must decide how deaccessioning or depleting the final active
 lot affects an already Cataloged record.
@@ -66,9 +82,8 @@ This implementation intentionally does not add:
 
 - accession-number generation or a uniqueness constraint;
 - specimen restoration from `ARCHIVED`;
-- fuzzy duplicate matching or automatic merging;
-- XLSX import; or
-- frontend completion controls.
+- fuzzy duplicate matching or automatic merging; or
+- XLSX import.
 
 Those concerns remain separate reviewable changes. In particular, accession
 allocation must wait until the museum confirms whether an accession number

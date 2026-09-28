@@ -14,10 +14,18 @@ import { MAX_IMPORT_ROWS } from './dto/commit-specimen-import.dto';
 import { CreateSpecimenDto } from './dto/create-specimen.dto';
 import { ImportSpecimenRowDto } from './dto/import-specimen-row.dto';
 import {
+  DuplicateMatchField,
+  PossibleDuplicate,
+} from './entities/specimen-duplicate.entity';
+import {
   SpecimenImportCommitResult,
   SpecimenImportPreviewResult,
 } from './entities/specimen-import.entity';
 import { Specimen } from './entities/specimen.entity';
+import {
+  DuplicateEvaluation,
+  SpecimenDuplicatesService,
+} from './specimen-duplicates.service';
 import { SpecimensService } from './specimens.service';
 
 export const MAX_IMPORT_FILE_BYTES = 5 * 1024 * 1024;
@@ -60,8 +68,11 @@ interface RowFields {
 interface RowContext {
   rowNumber: number;
   fields: RowFields;
-  accessionKey?: string;
-  scientificCommonKey?: string;
+}
+
+interface InBatchMatch {
+  rowNumber: number;
+  evaluation: DuplicateEvaluation;
 }
 
 interface CachedPreviewRow {
@@ -101,6 +112,7 @@ export class SpecimenImportService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly specimens: SpecimensService,
+    private readonly duplicates: SpecimenDuplicatesService,
   ) {}
 
   async previewImport(
@@ -132,20 +144,22 @@ export class SpecimenImportService {
       this.buildRowContext(record, index + 1, headerMap),
     );
 
-    const [
-      existingAccessionNumbers,
-      existingScientificCommonPairs,
-      existingCollectionIds,
-    ] = await Promise.all([
-      this.findExistingAccessionNumbers(contexts),
-      this.findExistingScientificCommonPairs(contexts),
+    const candidates = contexts.map((context) => context.fields);
+    const [existingDuplicates, existingCollectionIds] = await Promise.all([
+      this.duplicates.findForCandidates(candidates),
       this.findExistingCollectionIds(contexts),
     ]);
-    const { accessionGroups, scientificCommonGroups } =
-      this.buildInBatchGroups(contexts);
+    const inBatchDuplicates = this.duplicates
+      .compareWithinBatch(candidates)
+      .map((matches) =>
+        matches.map(({ index, evaluation }) => ({
+          rowNumber: contexts[index].rowNumber,
+          evaluation,
+        })),
+      );
 
     const rows = await Promise.all(
-      contexts.map(async (context) => {
+      contexts.map(async (context, index) => {
         const plain: Record<string, unknown> = {
           rowNumber: context.rowNumber,
           ...context.fields,
@@ -170,12 +184,10 @@ export class SpecimenImportService {
           );
         }
 
+        const possibleDuplicates = existingDuplicates[index];
         const duplicateWarnings = this.buildDuplicateWarnings(
-          context,
-          existingAccessionNumbers,
-          existingScientificCommonPairs,
-          accessionGroups,
-          scientificCommonGroups,
+          possibleDuplicates,
+          inBatchDuplicates[index],
         );
 
         return {
@@ -183,6 +195,7 @@ export class SpecimenImportService {
           data: plain as unknown as ImportSpecimenRowDto,
           errors,
           duplicateWarnings,
+          possibleDuplicates,
           valid: errors.length === 0,
           dto: this.toCreateSpecimenDto(context.fields),
         };
@@ -206,6 +219,7 @@ export class SpecimenImportService {
         data: row.data,
         errors: row.errors,
         duplicateWarnings: row.duplicateWarnings,
+        possibleDuplicates: row.possibleDuplicates,
         valid: row.valid,
       })),
       unmappedColumns,
@@ -425,15 +439,7 @@ export class SpecimenImportService {
       remarks: extract('remarks'),
     };
 
-    return {
-      rowNumber,
-      fields,
-      accessionKey: fields.accessionNumber?.toLowerCase(),
-      scientificCommonKey:
-        fields.scientificName && fields.commonName
-          ? `${fields.scientificName.toLowerCase()}|${fields.commonName.toLowerCase()}`
-          : undefined,
-    };
+    return { rowNumber, fields };
   }
 
   private isBlankRow(fields: RowFields): boolean {
@@ -464,89 +470,6 @@ export class SpecimenImportService {
       .replace(/^_+|_+$/g, '');
   }
 
-  private async findExistingAccessionNumbers(
-    contexts: RowContext[],
-  ): Promise<Set<string>> {
-    const values = [
-      ...new Set(
-        contexts
-          .map((context) => context.fields.accessionNumber)
-          .filter((value): value is string => !!value),
-      ),
-    ];
-    if (values.length === 0) return new Set();
-
-    const matches = await this.prisma.specimen.findMany({
-      where: {
-        status: { not: 'ARCHIVED' },
-        OR: values.map((value) => ({
-          accession_number: { equals: value, mode: 'insensitive' as const },
-        })),
-      },
-      select: { accession_number: true },
-    });
-
-    return new Set(
-      matches
-        .map((match) => match.accession_number?.toLowerCase())
-        .filter((value): value is string => !!value),
-    );
-  }
-
-  private async findExistingScientificCommonPairs(
-    contexts: RowContext[],
-  ): Promise<Set<string>> {
-    const pairs = [
-      ...new Map(
-        contexts
-          .filter(
-            (context) =>
-              context.fields.scientificName && context.fields.commonName,
-          )
-          .map((context) => [
-            context.scientificCommonKey,
-            {
-              scientificName: context.fields.scientificName!,
-              commonName: context.fields.commonName!,
-            },
-          ]),
-      ).values(),
-    ];
-    if (pairs.length === 0) return new Set();
-
-    const matches = await this.prisma.specimen.findMany({
-      where: {
-        status: { not: 'ARCHIVED' },
-        OR: pairs.map((pair) => ({
-          AND: [
-            {
-              scientific_name: {
-                equals: pair.scientificName,
-                mode: 'insensitive' as const,
-              },
-            },
-            {
-              common_name: {
-                equals: pair.commonName,
-                mode: 'insensitive' as const,
-              },
-            },
-          ],
-        })),
-      },
-      select: { scientific_name: true, common_name: true },
-    });
-
-    return new Set(
-      matches
-        .filter((match) => match.scientific_name && match.common_name)
-        .map(
-          (match) =>
-            `${match.scientific_name!.toLowerCase()}|${match.common_name!.toLowerCase()}`,
-        ),
-    );
-  }
-
   private async findExistingCollectionIds(
     contexts: RowContext[],
   ): Promise<Set<string>> {
@@ -566,75 +489,49 @@ export class SpecimenImportService {
     return new Set(matches.map((match) => match.id));
   }
 
-  private buildInBatchGroups(contexts: RowContext[]): {
-    accessionGroups: Map<string, number[]>;
-    scientificCommonGroups: Map<string, number[]>;
-  } {
-    const accessionGroups = new Map<string, number[]>();
-    const scientificCommonGroups = new Map<string, number[]>();
-
-    for (const context of contexts) {
-      if (context.accessionKey) {
-        const rowNumbers = accessionGroups.get(context.accessionKey) ?? [];
-        rowNumbers.push(context.rowNumber);
-        accessionGroups.set(context.accessionKey, rowNumbers);
-      }
-      if (context.scientificCommonKey) {
-        const rowNumbers =
-          scientificCommonGroups.get(context.scientificCommonKey) ?? [];
-        rowNumbers.push(context.rowNumber);
-        scientificCommonGroups.set(context.scientificCommonKey, rowNumbers);
-      }
-    }
-
-    return { accessionGroups, scientificCommonGroups };
-  }
-
+  /**
+   * Keeps the preview's established warning wording; the structured
+   * `possibleDuplicates` list carries the per-record detail.
+   */
   private buildDuplicateWarnings(
-    context: RowContext,
-    existingAccessionNumbers: Set<string>,
-    existingScientificCommonPairs: Set<string>,
-    accessionGroups: Map<string, number[]>,
-    scientificCommonGroups: Map<string, number[]>,
+    existing: PossibleDuplicate[],
+    inBatch: InBatchMatch[],
   ): string[] {
     const warnings: string[] = [];
+    const isAccessionMatch = (matchedFields: DuplicateMatchField[]) =>
+      matchedFields.includes(DuplicateMatchField.ACCESSION_NUMBER);
+    // The matcher has already dropped records a differing collector or
+    // donor sets apart (BR-09), so both names matching is enough here.
+    const isNameMatch = (matchedFields: DuplicateMatchField[]) =>
+      matchedFields.includes(DuplicateMatchField.SCIENTIFIC_NAME) &&
+      matchedFields.includes(DuplicateMatchField.COMMON_NAME);
 
-    if (
-      context.accessionKey &&
-      existingAccessionNumbers.has(context.accessionKey)
-    ) {
+    if (existing.some((match) => isAccessionMatch(match.matchedFields))) {
       warnings.push(
         'Matches the accession number of an existing specimen record.',
       );
     }
-    if (context.accessionKey) {
-      const others = (accessionGroups.get(context.accessionKey) ?? []).filter(
-        (rowNumber) => rowNumber !== context.rowNumber,
+    const accessionRows = inBatch
+      .filter((match) => isAccessionMatch(match.evaluation.matchedFields))
+      .map((match) => match.rowNumber);
+    if (accessionRows.length > 0) {
+      warnings.push(
+        `Matches the accession number used by row(s) ${accessionRows.join(', ')} in this file.`,
       );
-      if (others.length > 0) {
-        warnings.push(
-          `Matches the accession number used by row(s) ${others.join(', ')} in this file.`,
-        );
-      }
     }
 
-    if (
-      context.scientificCommonKey &&
-      existingScientificCommonPairs.has(context.scientificCommonKey)
-    ) {
+    if (existing.some((match) => isNameMatch(match.matchedFields))) {
       warnings.push(
         'Matches the scientific and common name of an existing specimen record; confirm this is not a duplicate before importing.',
       );
     }
-    if (context.scientificCommonKey) {
-      const others = (
-        scientificCommonGroups.get(context.scientificCommonKey) ?? []
-      ).filter((rowNumber) => rowNumber !== context.rowNumber);
-      if (others.length > 0) {
-        warnings.push(
-          `Matches the scientific and common name used by row(s) ${others.join(', ')} in this file.`,
-        );
-      }
+    const nameRows = inBatch
+      .filter((match) => isNameMatch(match.evaluation.matchedFields))
+      .map((match) => match.rowNumber);
+    if (nameRows.length > 0) {
+      warnings.push(
+        `Matches the scientific and common name used by row(s) ${nameRows.join(', ')} in this file.`,
+      );
     }
 
     return warnings;
