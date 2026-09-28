@@ -1,30 +1,38 @@
 import {
-  Controller,
-  Get,
-  Post,
   Body,
-  Patch,
-  Param,
+  Controller,
   Delete,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  ParseUUIDPipe,
+  Patch,
+  Post,
+  Query,
 } from '@nestjs/common';
 import {
-  ApiTags,
-  ApiOperation,
   ApiCreatedResponse,
+  ApiNoContentResponse,
   ApiOkResponse,
+  ApiOperation,
+  ApiTags,
 } from '@nestjs/swagger';
-import { Public } from '../auth/decorators/public.decorator';
 import { Throttle } from '@nestjs/throttler';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { Public } from '../auth/decorators/public.decorator';
+import { Roles } from '../auth/decorators/roles.decorator';
+import type { AuthenticatedUser } from '../auth/types/auth.types';
 import { PUBLIC_FORM_RATE_LIMIT } from '../config/rate-limit.config';
-import { InquiriesService } from './inquiries.service';
 import { CreateInquiryDto } from './dto/create-inquiry.dto';
+import { ListInquiriesQueryDto } from './dto/list-inquiries-query.dto';
 import { UpdateInquiryDto } from './dto/update-inquiry.dto';
-import { Inquiry } from './entities/inquiry.entity';
+import { Inquiry, InquirySubmissionReceipt } from './entities/inquiry.entity';
+import { InquiriesService } from './inquiries.service';
 
-// POST is the only public route (SRS §4.8 General Inquiry Management) —
-// the public website's General Inquiry form submits here. GET/PATCH/DELETE
-// are for the future curator-facing inquiry inbox and will need
-// SupabaseAuthGuard + RolesGuard once auth is wired up.
+// POST is the only public route (SRS §4.8). Every other route handles
+// visitor personal data, so it is curator-only (NFR-SEC-10); @Roles is set
+// per method because a class-level @Roles would also block the public POST.
 @ApiTags('inquiries')
 @Controller('inquiries')
 export class InquiriesController {
@@ -34,43 +42,50 @@ export class InquiriesController {
   @Post()
   @Throttle({ default: PUBLIC_FORM_RATE_LIMIT })
   @ApiOperation({ summary: 'Submit a general inquiry (public)' })
-  @ApiCreatedResponse({ type: Inquiry })
-  create(@Body() createInquiryDto: CreateInquiryDto): Inquiry {
+  @ApiCreatedResponse({ type: InquirySubmissionReceipt })
+  create(
+    @Body() createInquiryDto: CreateInquiryDto,
+  ): Promise<InquirySubmissionReceipt> {
     return this.inquiriesService.create(createInquiryDto);
   }
 
+  @Roles('CURATOR')
   @Get()
-  @ApiOperation({ summary: 'List inquiries (curator-only, not yet guarded)' })
+  @ApiOperation({ summary: 'List inquiries, newest first (curator-only)' })
   @ApiOkResponse({ type: [Inquiry] })
-  findAll(): Inquiry[] {
-    return this.inquiriesService.findAll();
+  findAll(@Query() query: ListInquiriesQueryDto): Promise<Inquiry[]> {
+    return this.inquiriesService.findAll(query);
   }
 
+  @Roles('CURATOR')
   @Get(':id')
-  @ApiOperation({ summary: 'Get one inquiry (curator-only, not yet guarded)' })
+  @ApiOperation({ summary: 'Get one inquiry (curator-only)' })
   @ApiOkResponse({ type: Inquiry })
-  findOne(@Param('id') id: string): Inquiry {
+  findOne(@Param('id', ParseUUIDPipe) id: string): Promise<Inquiry> {
     return this.inquiriesService.findOne(id);
   }
 
+  @Roles('CURATOR')
   @Patch(':id')
-  @ApiOperation({
-    summary:
-      'Update an inquiry, e.g. resolve it (curator-only, not yet guarded)',
-  })
+  @ApiOperation({ summary: 'Change an inquiry status (curator-only)' })
   @ApiOkResponse({ type: Inquiry })
   update(
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() updateInquiryDto: UpdateInquiryDto,
-  ): Inquiry {
-    return this.inquiriesService.update(id, updateInquiryDto);
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<Inquiry> {
+    return this.inquiriesService.update(id, updateInquiryDto, user.accountId);
   }
 
+  @Roles('CURATOR')
   @Delete(':id')
-  @ApiOperation({
-    summary: 'Delete an inquiry (curator-only, not yet guarded)',
-  })
-  remove(@Param('id') id: string): void {
-    this.inquiriesService.remove(id);
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Delete an inquiry (curator-only)' })
+  @ApiNoContentResponse()
+  remove(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<void> {
+    return this.inquiriesService.remove(id, user.accountId);
   }
 }

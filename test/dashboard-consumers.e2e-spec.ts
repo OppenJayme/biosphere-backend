@@ -6,17 +6,12 @@ import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { SUPABASE_CLIENT } from '../src/supabase/supabase.constants';
 
-// Covers every backend endpoint the frontend dashboard integration
-// (biosphere-frontend features/dashboard/api.ts) reads from, that wasn't
-// already covered by an existing e2e suite:
-//   - GET /auth/me                             (new)
-//   - GET /storage-locations/occupancy-summary (new)
-//   - GET /inquiries                           (existing, previously untested)
-//   - GET /visit-requests                      (existing, previously untested)
-// GET /specimens, GET /specimens/:id/lots and GET /audit-logs already have
-// dedicated coverage in specimens.e2e-spec.ts, specimen-lots.e2e-spec.ts and
-// audit.e2e-spec.ts respectively.
-describe('Dashboard-consumed endpoints (e2e)', () => {
+// Covers the read-only endpoints added for the planned curator dashboard:
+//   - GET /auth/me
+//   - GET /storage-locations/occupancy-summary
+// The frontend does not consume these yet. Inquiry and visit-request routes
+// are covered in public-submissions.e2e-spec.ts.
+describe('Dashboard endpoints (e2e)', () => {
   const curatorToken = 'curator-dashboard-token';
   const developerToken = 'developer-dashboard-token';
   const curatorAuthId = '11111111-1111-4111-8111-111111111111';
@@ -233,68 +228,6 @@ describe('Dashboard-consumed endpoints (e2e)', () => {
           occupiedQuantity: 3,
           alertCount: 0,
         },
-      ]);
-    });
-  });
-
-  describe('GET /inquiries', () => {
-    it('rejects a request with no token', () =>
-      request(app.getHttpServer()).get('/inquiries').expect(401));
-
-    it('returns previously submitted inquiries, including a developer token (no @Roles restriction yet)', async () => {
-      await request(app.getHttpServer())
-        .post('/inquiries')
-        .send({
-          name: 'Juan Dela Cruz',
-          email: 'juan@example.com',
-          message: 'Can we bring a class of 20 for a field trip?',
-        })
-        .expect(201);
-
-      const response = await request(app.getHttpServer())
-        .get('/inquiries')
-        .set('Authorization', `Bearer ${developerToken}`)
-        .expect(200);
-
-      expect(response.body).toEqual([
-        expect.objectContaining({
-          name: 'Juan Dela Cruz',
-          email: 'juan@example.com',
-          status: 'PENDING',
-        }),
-      ]);
-    });
-  });
-
-  describe('GET /visit-requests', () => {
-    it('rejects a request with no token', () =>
-      request(app.getHttpServer()).get('/visit-requests').expect(401));
-
-    it('returns previously submitted visit requests', async () => {
-      await request(app.getHttpServer())
-        .post('/visit-requests')
-        .send({
-          name: 'Maria Santos',
-          email: 'maria@example.com',
-          purpose: 'Class field trip',
-          preferredDate: '2026-10-01',
-          startTime: '09:00',
-          endTime: '11:00',
-          visitorCount: 20,
-        })
-        .expect(201);
-
-      const response = await request(app.getHttpServer())
-        .get('/visit-requests')
-        .set('Authorization', `Bearer ${curatorToken}`)
-        .expect(200);
-
-      expect(response.body).toEqual([
-        expect.objectContaining({
-          name: 'Maria Santos',
-          visitorCount: 20,
-          status: 'PENDING',
-        }),
       ]);
     });
   });
