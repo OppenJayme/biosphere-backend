@@ -4,6 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
+import { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { SpecimenAccessionService } from './specimen-accession.service';
 import { SpecimenDuplicatesService } from './specimen-duplicates.service';
@@ -13,12 +14,27 @@ import { SpecimensService } from './specimens.service';
 const specimenDelegate = { findMany: jest.fn() };
 const collectionDelegate = { findMany: jest.fn() };
 const transactionMock = jest.fn();
+const queryRawMock = jest.fn();
 
 const prismaMock = {
   specimen: specimenDelegate,
   collection: collectionDelegate,
   $transaction: transactionMock,
+  $queryRaw: queryRawMock,
 };
+
+/** A row of the accession-holder lookup, as PostgreSQL returns it. */
+function accessionHolderRow(overrides: Record<string, unknown> = {}) {
+  return {
+    input_value: 'ABC-100',
+    id: 'existing-1',
+    accession_number: 'ABC-100',
+    scientific_name: null,
+    common_name: null,
+    status: 'UNCATALOGED',
+    ...overrides,
+  };
+}
 
 const specimensServiceMock = {
   createUncatalogedRecordFor: jest.fn(),
@@ -42,6 +58,7 @@ describe('SpecimenImportService', () => {
     jest.resetAllMocks();
     specimenDelegate.findMany.mockResolvedValue([]);
     collectionDelegate.findMany.mockResolvedValue([]);
+    queryRawMock.mockResolvedValue([]);
     transactionMock.mockImplementation(
       (operation: (transaction: typeof prismaMock) => unknown) =>
         Promise.resolve(operation(prismaMock)),
@@ -159,14 +176,8 @@ describe('SpecimenImportService', () => {
     });
 
     it('blocks a row whose accession number is already assigned, case-insensitively', async () => {
-      specimenDelegate.findMany.mockResolvedValue([
-        {
-          id: 'existing-1',
-          accession_number: 'ABC-100',
-          scientific_name: null,
-          common_name: null,
-          status: 'UNCATALOGED',
-        },
+      queryRawMock.mockResolvedValue([
+        accessionHolderRow({ input_value: 'abc-100' }),
       ]);
       const file = csvFile('accessionNumber\nabc-100\n');
       const result = await service.previewImport(file, CURATOR_ID);
@@ -179,25 +190,25 @@ describe('SpecimenImportService', () => {
       expect(result.invalidRows).toBe(1);
     });
 
-    it('blocks reuse of an Archived record accession number', async () => {
-      specimenDelegate.findMany.mockImplementation(
-        ({ where }: { where: Record<string, unknown> }) =>
-          // Duplicate detection only looks at active records; the
-          // accession lookup has no status filter.
-          Promise.resolve(
-            'status' in where
-              ? []
-              : [
-                  {
-                    id: 'archived-1',
-                    accession_number: 'ABC-100',
-                    scientific_name: null,
-                    common_name: null,
-                    status: 'ARCHIVED',
-                  },
-                ],
-          ),
+    it('blocks a row matching a legacy stored number with surrounding spaces', async () => {
+      queryRawMock.mockResolvedValue([
+        accessionHolderRow({ accession_number: ' ABC-100 ' }),
+      ]);
+      const file = csvFile('accessionNumber\nABC-100\n');
+      const result = await service.previewImport(file, CURATOR_ID);
+
+      const [sql] = queryRawMock.mock.calls[0] as [Prisma.Sql];
+      expect(sql.text.replace(/\s+/g, ' ')).toContain(
+        'lower(btrim(s.accession_number)) = lower(btrim(input.value))',
       );
+      expect(sql.values).toEqual([['ABC-100']]);
+      expect(result.rows[0].valid).toBe(false);
+    });
+
+    it('blocks reuse of an Archived record accession number', async () => {
+      queryRawMock.mockResolvedValue([
+        accessionHolderRow({ status: 'ARCHIVED' }),
+      ]);
       const file = csvFile('accessionNumber\nABC-100\n');
       const result = await service.previewImport(file, CURATOR_ID);
 
@@ -243,6 +254,7 @@ describe('SpecimenImportService', () => {
     });
 
     it('returns the existing specimens a row may duplicate', async () => {
+      queryRawMock.mockResolvedValue([accessionHolderRow()]);
       specimenDelegate.findMany.mockResolvedValue([
         {
           id: 'existing-1',

@@ -538,7 +538,7 @@ export class SpecimenImportService {
     const value = context.fields.accessionNumber as string;
     const errors: string[] = [];
 
-    const holder = holders.get(key);
+    const holder = holders.get(value);
     if (holder) {
       const archivedNote =
         holder.status === SpecimenStatus.ARCHIVED ? ' Archived' : '';

@@ -9,7 +9,7 @@ is assigned (REQ-4.4-03).
 | Aspect           | Decision                                                                          |
 | ---------------- | --------------------------------------------------------------------------------- |
 | Scope            | Global across **every** specimen record, **including Archived** ones. Numbers are never reused. |
-| Comparison       | Surrounding whitespace is ignored and matching is case-insensitive: ` abc-100 ` equals `ABC-100`. Inner whitespace is significant. |
+| Comparison       | `lower(btrim(...))`: surrounding **spaces** are ignored and matching is case-insensitive, so ` abc-100 ` equals `ABC-100`. Inner whitespace is significant, and `btrim` does not strip tabs or newlines. |
 | Format           | Free text, at most 100 characters. No pattern is enforced yet.                    |
 | Unassigned       | `null` (and legacy blank values) never collide.                                   |
 | Existing data    | The migration never rewrites data. It aborts and lists collisions if any exist.   |
@@ -30,6 +30,11 @@ to change.
    runs inside the write transaction for manual create, offline-draft sync,
    bulk-import commit, and core update. An update excludes the record being
    edited, so the record can keep its own number or change its casing.
+   Every lookup (pre-check, availability endpoint, import preview) evaluates
+   the index's own expression, `lower(btrim(accession_number)) =
+   lower(btrim(input))`, in PostgreSQL. It never uses Prisma's
+   case-insensitive `equals`, which would not trim the stored value and
+   would miss legacy values such as `" ABC-100 "`.
 3. **Race mapping.** A specimen's only other unique column is its generated
    primary key. So a `P2002` raised by a specimen `create`/`update` is
    reported as the same 409 as a failed pre-check.
@@ -84,3 +89,38 @@ with the conflict message in its `errors`.
 `POST /specimens/duplicate-check` still reports accession matches among
 active records as `HIGH` possible duplicates. That is context for the
 curator; the blocking rule above is separate.
+
+## Applying the migration
+
+1. **Preflight (read-only).** Run it against the target database's direct
+   connection:
+
+   ```bash
+   npm run db:check-accession-collisions
+   ```
+
+   It uses `ACCESSION_CHECK_DATABASE_URL`, falling back to `DIRECT_URL`. It
+   runs the migration's exact collision query inside a `READ ONLY`
+   transaction and exits `1` if any records collide. Collisions are
+   resolved by a curator, by hand. Nothing rewrites data automatically.
+2. **Apply** it through the team's approved migration workflow
+   (`docs/PRISMA_SCHEMA_GUIDE.md`). The migration repeats the check and
+   aborts on any collision.
+
+## Live verification
+
+The unit specs mock Prisma, so they can only check the SQL's shape. To
+prove the pre-check and the real index agree, run this against a
+**disposable** database that has the migration applied:
+
+```bash
+RUN_LIVE_ACCESSION_VERIFY=true ACCESSION_VERIFY_DATABASE_URL=postgresql://user:pass@localhost:5432/throwaway npm run verify:accession-uniqueness
+```
+
+It seeds a legacy Archived record stored as `"  verify-… "` and asserts the
+following, all inside one transaction that is always rolled back:
+- the availability check, the import lookup, and the create pre-check all
+  treat that record as holding `VERIFY-…`;
+- the edited record is excluded;
+- a tab-suffixed value is a different key;
+- the index raises `P2002` for the same value.

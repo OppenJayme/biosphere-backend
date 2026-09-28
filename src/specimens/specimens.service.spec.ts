@@ -19,7 +19,6 @@ import { SpecimensService } from './specimens.service';
 
 const specimenDelegate = {
   create: jest.fn(),
-  findFirst: jest.fn(),
   findMany: jest.fn(),
   findUnique: jest.fn(),
   count: jest.fn(),
@@ -34,6 +33,7 @@ const revisionDelegate = {
 };
 const auditDelegate = { create: jest.fn() };
 const transactionMock = jest.fn();
+const queryRawMock = jest.fn();
 
 const prismaMock = {
   specimen: specimenDelegate,
@@ -42,6 +42,7 @@ const prismaMock = {
   specimen_revision_history: revisionDelegate,
   audit_log: auditDelegate,
   $transaction: transactionMock,
+  $queryRaw: queryRawMock,
 };
 
 const ACCOUNT_ID = '22222222-2222-4222-8222-222222222222';
@@ -109,6 +110,7 @@ describe('SpecimensService', () => {
     revisionDelegate.count.mockResolvedValue(0);
     auditDelegate.create.mockResolvedValue({});
     specimenLotDelegate.count.mockResolvedValue(0);
+    queryRawMock.mockResolvedValue([]);
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -208,19 +210,27 @@ describe('SpecimensService', () => {
 
       await service.create({ accessionNumber: '2026.1.1' }, ACCOUNT_ID);
 
-      expect(specimenDelegate.findFirst).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: {
-            accession_number: { equals: '2026.1.1', mode: 'insensitive' },
-            id: undefined,
-          },
-        }),
+      const [sql] = queryRawMock.mock.calls[0] as [Prisma.Sql];
+      expect(sql.text.replace(/\s+/g, ' ')).toContain(
+        'lower(btrim(s.accession_number)) = lower(btrim($1))',
       );
+      expect(sql.values).toEqual(['2026.1.1']);
       expect(specimenDelegate.create).toHaveBeenCalled();
     });
 
+    it('rejects a number a legacy record stores with surrounding spaces', async () => {
+      queryRawMock.mockResolvedValue([
+        holder({ accession_number: ' 2026.1.1 ' }),
+      ]);
+
+      await expect(
+        service.create({ accessionNumber: '2026.1.1' }, ACCOUNT_ID),
+      ).rejects.toThrow(ConflictException);
+      expect(specimenDelegate.create).not.toHaveBeenCalled();
+    });
+
     it('rejects a create whose number is already assigned', async () => {
-      specimenDelegate.findFirst.mockResolvedValue(holder());
+      queryRawMock.mockResolvedValue([holder()]);
 
       const error = await service
         .create({ accessionNumber: '2026.1.1' }, ACCOUNT_ID)
@@ -240,9 +250,7 @@ describe('SpecimensService', () => {
     });
 
     it('explains that an Archived record keeps its number', async () => {
-      specimenDelegate.findFirst.mockResolvedValue(
-        holder({ status: 'ARCHIVED' }),
-      );
+      queryRawMock.mockResolvedValue([holder({ status: 'ARCHIVED' })]);
 
       await expect(
         service.create({ accessionNumber: '2026.1.1' }, ACCOUNT_ID),
@@ -267,7 +275,7 @@ describe('SpecimensService', () => {
 
       await service.create({ commonName: 'Test specimen' }, ACCOUNT_ID);
 
-      expect(specimenDelegate.findFirst).not.toHaveBeenCalled();
+      expect(queryRawMock).not.toHaveBeenCalled();
     });
 
     it('excludes the edited record so it can keep or re-case its own number', async () => {
@@ -284,20 +292,14 @@ describe('SpecimensService', () => {
         ACCOUNT_ID,
       );
 
-      expect(specimenDelegate.findFirst).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: {
-            accession_number: { equals: 'ABC-1', mode: 'insensitive' },
-            id: { not: SPECIMEN_ID },
-          },
-        }),
-      );
+      const [sql] = queryRawMock.mock.calls[0] as [Prisma.Sql];
+      expect(sql.values).toEqual(['ABC-1', SPECIMEN_ID]);
       expect(specimenDelegate.update).toHaveBeenCalled();
     });
 
     it('rejects an update to a number held by another record', async () => {
       specimenDelegate.findUnique.mockResolvedValue(specimenRecord());
-      specimenDelegate.findFirst.mockResolvedValue(holder());
+      queryRawMock.mockResolvedValue([holder()]);
 
       await expect(
         service.update(
@@ -318,7 +320,7 @@ describe('SpecimensService', () => {
 
       await service.update(SPECIMEN_ID, { accessionNumber: null }, ACCOUNT_ID);
 
-      expect(specimenDelegate.findFirst).not.toHaveBeenCalled();
+      expect(queryRawMock).not.toHaveBeenCalled();
       expect(specimenDelegate.update).toHaveBeenCalled();
     });
 

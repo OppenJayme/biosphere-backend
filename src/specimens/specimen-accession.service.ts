@@ -9,33 +9,36 @@ import { SpecimenStatus } from './entities/specimen.entity';
 
 export const ACCESSION_NUMBER_TAKEN = 'ACCESSION_NUMBER_TAKEN';
 
-const HOLDER_SELECT = {
-  id: true,
-  accession_number: true,
-  scientific_name: true,
-  common_name: true,
-  status: true,
-} satisfies Prisma.specimenSelect;
+interface HolderRow {
+  id: string;
+  accession_number: string;
+  scientific_name: string | null;
+  common_name: string | null;
+  status: string;
+}
 
-type HolderRecord = Prisma.specimenGetPayload<{
-  select: typeof HOLDER_SELECT;
-}>;
-
-type SpecimenReader = Pick<Prisma.TransactionClient, 'specimen'>;
+type SpecimenReader = Pick<Prisma.TransactionClient, '$queryRaw'>;
 
 /**
- * The comparison key for the curator-approved uniqueness rule (REQ-4.4-04,
- * BR-01): trimmed and case-folded, matching the
- * `lower(btrim(accession_number))` expression behind the
- * `uq_specimen_accession_number` index. Blank means "not assigned".
+ * Mirrors the `uq_specimen_accession_number` index expression,
+ * `lower(btrim(accession_number))`. `btrim` strips only spaces, so this does
+ * too. Every lookup below evaluates the expression in PostgreSQL itself so
+ * the pre-check can never disagree with the index; this helper is for
+ * grouping values in memory (e.g. rows of one import file). Blank means
+ * "not assigned".
  */
 export function accessionNumberKey(
   value: string | null | undefined,
 ): string | undefined {
   if (value === null || value === undefined) return undefined;
-  const key = value.trim().toLowerCase();
+  const key = value.replace(/^ +| +$/g, '').toLowerCase();
   return key === '' ? undefined : key;
 }
+
+// Repeats the index's partial predicate so PostgreSQL can use the index.
+const INDEXED_ACCESSION = Prisma.sql`
+  s.accession_number IS NOT NULL
+  AND btrim(s.accession_number) <> ''`;
 
 /**
  * Accession numbers are unique across every specimen record, Archived ones
@@ -83,42 +86,37 @@ export class SpecimenAccessionService {
   }
 
   /**
-   * Looks up every record already holding one of the given numbers, keyed by
-   * {@link accessionNumberKey}. Used by bulk import to validate a whole file.
+   * Looks up every record already holding one of the given numbers. The map
+   * is keyed by each input value exactly as passed, so callers need not
+   * re-derive the database's comparison key.
    */
   async findHolders(
     accessionNumbers: (string | null | undefined)[],
   ): Promise<Map<string, AccessionNumberHolder>> {
     const values = [
-      ...new Map(
-        accessionNumbers
-          .filter((value) => accessionNumberKey(value) !== undefined)
-          .map((value) => [
-            accessionNumberKey(value),
-            (value as string).trim(),
-          ]),
-      ).values(),
+      ...new Set(
+        accessionNumbers.filter(
+          (value): value is string => accessionNumberKey(value) !== undefined,
+        ),
+      ),
     ];
     const holders = new Map<string, AccessionNumberHolder>();
     if (values.length === 0) return holders;
 
-    const records = await this.prisma.specimen.findMany({
-      where: {
-        OR: values.map((value) => ({
-          accession_number: {
-            equals: value,
-            mode: Prisma.QueryMode.insensitive,
-          },
-        })),
-      },
-      select: HOLDER_SELECT,
-      orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
-    });
-    for (const record of records) {
-      const key = accessionNumberKey(record.accession_number);
-      if (key !== undefined && !holders.has(key)) {
-        holders.set(key, this.toHolder(record));
-      }
+    const rows = await this.prisma.$queryRaw<
+      (HolderRow & { input_value: string })[]
+    >(Prisma.sql`
+      SELECT DISTINCT ON (input.value)
+        input.value AS input_value,
+        s.id, s.accession_number, s.scientific_name, s.common_name,
+        s.status::text AS status
+      FROM unnest(${values}::text[]) AS input(value)
+      JOIN specimen s
+        ON lower(btrim(s.accession_number)) = lower(btrim(input.value))
+      WHERE ${INDEXED_ACCESSION}
+      ORDER BY input.value, s.created_at, s.id`);
+    for (const row of rows) {
+      holders.set(row.input_value, this.toHolder(row));
     }
     return holders;
   }
@@ -159,27 +157,27 @@ export class SpecimenAccessionService {
     accessionNumber: string,
     excludeSpecimenId?: string,
   ): Promise<AccessionNumberHolder | null> {
-    // Values written by the API are trimmed, so an insensitive equality on
-    // the trimmed input finds them; a legacy untrimmed value is still caught
-    // by the unique index at write time.
-    const record = await client.specimen.findFirst({
-      where: {
-        accession_number: {
-          equals: accessionNumber.trim(),
-          mode: Prisma.QueryMode.insensitive,
-        },
-        id: excludeSpecimenId ? { not: excludeSpecimenId } : undefined,
-      },
-      select: HOLDER_SELECT,
-      orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
-    });
-    return record ? this.toHolder(record) : null;
+    // Both sides go through lower(btrim(...)) so a legacy stored value such
+    // as " ABC-100 " is found exactly as the unique index would treat it.
+    const excludeClause = excludeSpecimenId
+      ? Prisma.sql`AND s.id <> ${excludeSpecimenId}::uuid`
+      : Prisma.empty;
+    const rows = await client.$queryRaw<HolderRow[]>(Prisma.sql`
+      SELECT s.id, s.accession_number, s.scientific_name, s.common_name,
+        s.status::text AS status
+      FROM specimen s
+      WHERE ${INDEXED_ACCESSION}
+        AND lower(btrim(s.accession_number)) = lower(btrim(${accessionNumber}))
+        ${excludeClause}
+      ORDER BY s.created_at, s.id
+      LIMIT 1`);
+    return rows.length > 0 ? this.toHolder(rows[0]) : null;
   }
 
-  private toHolder(record: HolderRecord): AccessionNumberHolder {
+  private toHolder(record: HolderRow): AccessionNumberHolder {
     return {
       id: record.id,
-      accessionNumber: record.accession_number as string,
+      accessionNumber: record.accession_number,
       scientificName: record.scientific_name,
       commonName: record.common_name,
       status: record.status as SpecimenStatus,

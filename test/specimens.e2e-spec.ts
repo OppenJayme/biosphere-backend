@@ -22,7 +22,6 @@ describe('Specimens (e2e)', () => {
   let catalogReadinessRecord: Record<string, unknown>;
   let specimenDelegate: {
     create: jest.Mock;
-    findFirst: jest.Mock;
     findMany: jest.Mock;
     findUnique: jest.Mock;
     count: jest.Mock;
@@ -34,6 +33,7 @@ describe('Specimens (e2e)', () => {
     count: jest.Mock;
   };
   let auditDelegate: { create: jest.Mock };
+  let queryRawMock: jest.Mock;
 
   beforeEach(async () => {
     specimenRecord = {
@@ -76,7 +76,6 @@ describe('Specimens (e2e)', () => {
         specimenRecord = { ...specimenRecord, ...data };
         return specimenRecord;
       }),
-      findFirst: jest.fn(() => null),
       findMany: jest.fn(() => [specimenRecord]),
       findUnique: jest.fn(
         ({ select }: { select?: Record<string, unknown> } = {}) =>
@@ -111,6 +110,7 @@ describe('Specimens (e2e)', () => {
       count: jest.fn(() => 1),
     };
     auditDelegate = { create: jest.fn(() => ({})) };
+    queryRawMock = jest.fn(() => []);
 
     const prismaMock = {
       user_account: {
@@ -143,6 +143,7 @@ describe('Specimens (e2e)', () => {
       specimen_lot: { count: jest.fn(() => 0) },
       specimen_revision_history: revisionDelegate,
       audit_log: auditDelegate,
+      $queryRaw: queryRawMock,
       $transaction: jest.fn((operation: unknown) => {
         if (Array.isArray(operation)) return Promise.all(operation);
         return Promise.resolve(
@@ -543,7 +544,7 @@ describe('Specimens (e2e)', () => {
     };
 
     it('rejects a create that reuses an assigned number with a structured 409', async () => {
-      specimenDelegate.findFirst.mockReturnValue(holder);
+      queryRawMock.mockReturnValue([holder]);
 
       const response = await request(app.getHttpServer())
         .post('/specimens')
@@ -566,7 +567,7 @@ describe('Specimens (e2e)', () => {
     });
 
     it('rejects an update that takes another record number', async () => {
-      specimenDelegate.findFirst.mockReturnValue(holder);
+      queryRawMock.mockReturnValue([holder]);
 
       await request(app.getHttpServer())
         .patch(`/specimens/${specimenId}`)
@@ -578,7 +579,7 @@ describe('Specimens (e2e)', () => {
     });
 
     it('reports availability for the edited record', async () => {
-      specimenDelegate.findFirst.mockReturnValue(holder);
+      queryRawMock.mockReturnValue([holder]);
 
       const response = await request(app.getHttpServer())
         .get('/specimens/accession-number-availability')
@@ -597,11 +598,8 @@ describe('Specimens (e2e)', () => {
           status: 'ARCHIVED',
         },
       });
-      expect(specimenDelegate.findFirst).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: expect.objectContaining({ id: { not: specimenId } }),
-        }),
-      );
+      const [sql] = queryRawMock.mock.calls[0] as [{ values: unknown[] }];
+      expect(sql.values).toEqual(['2026.1.1', specimenId]);
     });
 
     it('validates the availability query', () =>
