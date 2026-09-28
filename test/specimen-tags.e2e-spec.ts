@@ -228,6 +228,31 @@ describe('Specimen tags (e2e)', () => {
       .expect(403);
   });
 
+  it('rejects tag changes from unauthenticated users and Developers without writing', async () => {
+    attachments.push({
+      id: attachmentId,
+      specimen_id: specimenId,
+      tag_id: endemicTagId,
+    });
+    const tagsBefore = structuredClone(tags);
+    const attachmentsBefore = structuredClone(attachments);
+
+    await request(app.getHttpServer())
+      .patch(`/specimens/${specimenId}/tags/${endemicTagId}`)
+      .send({ tagName: 'Visayas' })
+      .expect(401);
+    await request(app.getHttpServer())
+      .patch(`/specimens/${specimenId}/tags/${endemicTagId}`)
+      .set('Authorization', `Bearer ${developerToken}`)
+      .send({ tagName: 'Visayas' })
+      .expect(403);
+
+    expect(attachments).toEqual(attachmentsBefore);
+    expect(tags).toEqual(tagsBefore);
+    expect(revisionCreate).not.toHaveBeenCalled();
+    expect(auditCreate).not.toHaveBeenCalled();
+  });
+
   it('strictly validates IDs, query bounds, and tag bodies', async () => {
     await request(app.getHttpServer())
       .get('/tags?limit=0')

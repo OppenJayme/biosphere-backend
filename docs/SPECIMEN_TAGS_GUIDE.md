@@ -41,8 +41,9 @@ the same transaction.
   `new_value` = new tag name) and a `CHANGE_SPECIMEN_TAG` audit event, and
   returns `{ tag, previousTagId, changed }`. `changed` is `false`, with no
   writes, when the name resolves to the same tag. If the new tag is already
-  attached, only the old one is detached. The shared vocabulary is never
-  renamed.
+  attached, only the old one is detached. The audit event's affected record is
+  always the attachment that was changed or detached, never the untouched one
+  it merged into. The shared vocabulary is never renamed.
 - `DELETE /specimens/:specimenId/tags/:tagId` detaches a tag without deleting
   shared vocabulary.
 

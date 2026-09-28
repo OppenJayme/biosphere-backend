@@ -227,7 +227,9 @@ export class SpecimenTagsService {
       });
       await this.recordAudit(transaction, {
         userId: actingCuratorAccountId,
-        attachmentId: newTagAlreadyAttached?.id ?? attachment.id,
+        // Always the relationship this change updated or deleted, never
+        // the untouched attachment it was merged into.
+        attachmentId: attachment.id,
         specimenId,
         tagId: selectedTag.id,
         action: 'CHANGE_SPECIMEN_TAG',

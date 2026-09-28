@@ -376,6 +376,20 @@ describe('SpecimenTagsService', () => {
       });
       expect(specimenTagDelegate.update).not.toHaveBeenCalled();
       expect(revisionDelegate.create).toHaveBeenCalledTimes(1);
+      // The audit must point at the deleted attachment, not the untouched
+      // attachment the change merged into.
+      expect(auditDelegate.create).toHaveBeenCalledTimes(1);
+      expect(auditDelegate.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          action: 'CHANGE_SPECIMEN_TAG',
+          affected_record_id: ATTACHMENT_ID,
+        }),
+      });
+      expect(auditDelegate.create).not.toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          affected_record_id: OTHER_ATTACHMENT_ID,
+        }),
+      });
     });
 
     it('makes no writes when the name resolves to the same tag', async () => {
