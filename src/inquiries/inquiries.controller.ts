@@ -36,7 +36,7 @@ import { InquiriesService } from './inquiries.service';
 // POST is the only public route (SRS §4.8). Every other route handles
 // visitor personal data, so it is curator-only (NFR-SEC-10); @Roles is set
 // per method because a class-level @Roles would also block the public POST.
-// There is no DELETE: Closed inquiries are kept as history (REQ-4.8-11).
+// There is no DELETE: Closed inquiries are kept as history (REQ-4.8-12).
 @ApiTags('inquiries')
 @Controller('inquiries')
 export class InquiriesController {

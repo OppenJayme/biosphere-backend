@@ -13,7 +13,7 @@ import { trimString } from '../../common/transforms/trim-string.transform';
 import { MAX_INTERNAL_NOTE_LENGTH } from '../../communication-history/dto/create-internal-note.dto';
 import { MAX_PREFERRED_SCHEDULES } from './create-visit-request.dto';
 
-// Approves one of the visitor's preferred options (REQ-4.9-16). The other
+// Approves one of the visitor's preferred options (REQ-4.9-17). The other
 // options stay stored as part of the request history.
 export class ApproveVisitScheduleDto {
   @ApiProperty({

@@ -108,7 +108,7 @@ export class InquiriesService {
     return this.toEntity(await this.findOneOrThrow(this.prisma, id));
   }
 
-  // Status-only change by a curator (REQ-4.8-06/11), limited to the SRS
+  // Status-only change by a curator (REQ-4.8-06/12), limited to the SRS
   // B.3 transitions and recorded in the inquiry's timeline.
   async update(
     id: string,
@@ -241,7 +241,7 @@ export class InquiriesService {
   }
 
   // Internal curator note, e.g. a reply the visitor sent to the museum's
-  // external mailbox (REQ-4.8-11). The note text is not copied into the
+  // external mailbox (REQ-4.8-12). The note text is not copied into the
   // audit log, which only records that a note was added.
   async addNote(
     id: string,

@@ -212,17 +212,30 @@ describe('InquiriesService', () => {
     expect(auditDelegate.create).not.toHaveBeenCalled();
   });
 
-  it('rejects a transition the SRS does not allow and writes nothing', async () => {
+  it('closes a reviewed inquiry', async () => {
     inquiryDelegate.findUnique.mockResolvedValue(
+      inquiryRecord({ status: 'REVIEWED' }),
+    );
+    inquiryDelegate.update.mockResolvedValue(
       inquiryRecord({ status: 'CLOSED' }),
     );
 
     await expect(
-      service.update(
-        INQUIRY_ID,
-        { status: InquiryStatus.REVIEWED },
-        CURATOR_ID,
-      ),
+      service.update(INQUIRY_ID, { status: InquiryStatus.CLOSED }, CURATOR_ID),
+    ).resolves.toMatchObject({ status: InquiryStatus.CLOSED });
+  });
+
+  it.each([
+    ['PENDING', InquiryStatus.CLOSED],
+    ['CLOSED', InquiryStatus.REVIEWED],
+    ['TURNED_TO_VISIT_REQUEST', InquiryStatus.CLOSED],
+  ] as const)('rejects %s -> %s and writes nothing', async (from, to) => {
+    inquiryDelegate.findUnique.mockResolvedValue(
+      inquiryRecord({ status: from }),
+    );
+
+    await expect(
+      service.update(INQUIRY_ID, { status: to }, CURATOR_ID),
     ).rejects.toBeInstanceOf(BadRequestException);
     expect(inquiryDelegate.update).not.toHaveBeenCalled();
     expect(historyDelegate.create).not.toHaveBeenCalled();

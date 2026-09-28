@@ -2,9 +2,11 @@ import { BadRequestException } from '@nestjs/common';
 import { VisitRequestStatus } from './entities/visit-request.entity';
 
 // SRS B.3: Pending -> Approved by Curator -> Submitted for Campus Entry ->
-// Completed. A pending request may be Declined; any unfinished request may be
-// Cancelled. Completed, Declined, and Cancelled are final, so the record is
-// kept as history instead of being deleted.
+// Completed. Pending or Approved requests may become Declined or Cancelled;
+// once submitted for campus entry, a request can only be completed.
+// Completed, Declined, and Cancelled are final, so the record is kept as
+// history instead of being deleted. There is no Confirmed status: it is not in
+// REQ-4.9-09 or the visit_request_status enum.
 const ALLOWED_TRANSITIONS: Record<
   VisitRequestStatus,
   readonly VisitRequestStatus[]
@@ -16,11 +18,11 @@ const ALLOWED_TRANSITIONS: Record<
   ],
   [VisitRequestStatus.APPROVED_BY_CURATOR]: [
     VisitRequestStatus.SUBMITTED_FOR_CAMPUS_ENTRY,
+    VisitRequestStatus.DECLINED,
     VisitRequestStatus.CANCELLED,
   ],
   [VisitRequestStatus.SUBMITTED_FOR_CAMPUS_ENTRY]: [
     VisitRequestStatus.COMPLETED,
-    VisitRequestStatus.CANCELLED,
   ],
   [VisitRequestStatus.COMPLETED]: [],
   [VisitRequestStatus.DECLINED]: [],

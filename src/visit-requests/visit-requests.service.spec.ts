@@ -272,11 +272,30 @@ describe('VisitRequestsService', () => {
   });
 
   it.each([
+    ['PENDING', VisitRequestStatus.DECLINED],
+    ['PENDING', VisitRequestStatus.CANCELLED],
+    ['APPROVED_BY_CURATOR', VisitRequestStatus.SUBMITTED_FOR_CAMPUS_ENTRY],
+    ['APPROVED_BY_CURATOR', VisitRequestStatus.DECLINED],
+    ['APPROVED_BY_CURATOR', VisitRequestStatus.CANCELLED],
+    ['SUBMITTED_FOR_CAMPUS_ENTRY', VisitRequestStatus.COMPLETED],
+  ] as const)('allows %s -> %s', async (from, to) => {
+    visitDelegate.findUnique.mockResolvedValue(visitRecord({ status: from }));
+    visitDelegate.update.mockResolvedValue(visitRecord({ status: to }));
+
+    await expect(
+      service.update(VISIT_ID, { status: to }, CURATOR_ID),
+    ).resolves.toMatchObject({ status: to });
+    expect(historyDelegate.create).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
     ['PENDING', VisitRequestStatus.SUBMITTED_FOR_CAMPUS_ENTRY],
     ['PENDING', VisitRequestStatus.COMPLETED],
-    ['APPROVED_BY_CURATOR', VisitRequestStatus.DECLINED],
+    ['SUBMITTED_FOR_CAMPUS_ENTRY', VisitRequestStatus.DECLINED],
+    ['SUBMITTED_FOR_CAMPUS_ENTRY', VisitRequestStatus.CANCELLED],
     ['CANCELLED', VisitRequestStatus.COMPLETED],
     ['COMPLETED', VisitRequestStatus.CANCELLED],
+    ['DECLINED', VisitRequestStatus.CANCELLED],
   ] as const)('rejects %s -> %s and writes nothing', async (from, to) => {
     visitDelegate.findUnique.mockResolvedValue(visitRecord({ status: from }));
 

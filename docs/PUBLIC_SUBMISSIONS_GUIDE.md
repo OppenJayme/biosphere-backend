@@ -14,7 +14,7 @@ tables. It does not introduce or alter database structures.
 - The public `POST` returns only a receipt: `{ id, status, submittedAt }`. It
   never echoes the submitted personal data.
 - There is no `DELETE`. Closed inquiries and Declined, Cancelled, or Completed
-  visit requests are kept as the archive and history (REQ-4.8-11, 4.9-14).
+  visit requests are kept as the archive and history (REQ-4.8-12, 4.9-14).
 
 ## Endpoints
 
@@ -39,7 +39,7 @@ Visit Request:
 - `PATCH /visit-requests/:id` with `{ status, note? }`:
   `SUBMITTED_FOR_CAMPUS_ENTRY`, `COMPLETED`, `DECLINED`, or `CANCELLED`.
 - `PATCH /visit-requests/:id/approve-schedule` with
-  `{ preferenceOrder, note? }`: approves one preferred option (REQ-4.9-16).
+  `{ preferenceOrder, note? }`: approves one preferred option (REQ-4.9-17).
 - `GET /visit-requests/:id/campus-entry-summary`: approved visitor, schedule,
   and vehicle details for the manual USC campus-entry process (REQ-4.9-12).
   Only available once a schedule is approved. BioSphere never submits it to
@@ -57,20 +57,24 @@ Any other change returns 400.
 
 | Inquiry from | Allowed to |
 | --- | --- |
-| `PENDING` | `REVIEWED`, `CLOSED`, `TURNED_TO_VISIT_REQUEST` (referral only) |
+| `PENDING` | `REVIEWED`, `TURNED_TO_VISIT_REQUEST` (referral only) |
 | `REVIEWED` | `CLOSED`, `TURNED_TO_VISIT_REQUEST` (referral only) |
 | `TURNED_TO_VISIT_REQUEST`, `CLOSED` | final |
+
+An inquiry must be reviewed before it is closed; there is no direct
+`PENDING` to `CLOSED` change.
 
 | Visit request from | Allowed to |
 | --- | --- |
 | `PENDING` | `APPROVED_BY_CURATOR` (approve-schedule only), `DECLINED`, `CANCELLED` |
-| `APPROVED_BY_CURATOR` | `SUBMITTED_FOR_CAMPUS_ENTRY`, `CANCELLED` |
-| `SUBMITTED_FOR_CAMPUS_ENTRY` | `COMPLETED`, `CANCELLED` |
+| `APPROVED_BY_CURATOR` | `SUBMITTED_FOR_CAMPUS_ENTRY`, `DECLINED`, `CANCELLED` |
+| `SUBMITTED_FOR_CAMPUS_ENTRY` | `COMPLETED` |
 | `COMPLETED`, `DECLINED`, `CANCELLED` | final |
 
-The SRS leaves two points open; these are the team's working assumptions:
-`PENDING` may be closed directly, and `DECLINED` applies only to Pending
-requests while `CANCELLED` applies to any unfinished request.
+Only Pending or Approved requests can be Declined or Cancelled. Appendix B.3
+also mentions a "Confirmed" visit state, but REQ-4.9-09 and the
+`visit_request_status` enum do not include it, so no such status exists until
+that SRS inconsistency is formally resolved.
 
 ## Referral
 

@@ -13,7 +13,7 @@ import { VisitRequestStatus } from '../entities/visit-request.entity';
 
 // Curators change workflow status only (REQ-4.9-09); the visitor's
 // submitted details are never edited. APPROVED_BY_CURATOR is set only by
-// approving a preferred schedule (REQ-4.9-16).
+// approving a preferred schedule (REQ-4.9-17).
 export const CURATOR_SETTABLE_VISIT_REQUEST_STATUSES = [
   VisitRequestStatus.SUBMITTED_FOR_CAMPUS_ENTRY,
   VisitRequestStatus.COMPLETED,

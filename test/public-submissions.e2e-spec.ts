@@ -516,6 +516,26 @@ describe('Inquiries and visit requests (e2e)', () => {
   describe('curator workflows', () => {
     const auth = `Bearer ${curatorToken}`;
 
+    it('require review before closing an inquiry', async () => {
+      await request(app.getHttpServer())
+        .post('/inquiries')
+        .send(validInquiry)
+        .expect(201);
+
+      await request(app.getHttpServer())
+        .patch(`/inquiries/${inquiryId}`)
+        .set('Authorization', auth)
+        .send({ status: 'CLOSED' })
+        .expect(400);
+      for (const status of ['REVIEWED', 'CLOSED']) {
+        await request(app.getHttpServer())
+          .patch(`/inquiries/${inquiryId}`)
+          .set('Authorization', auth)
+          .send({ status })
+          .expect(200);
+      }
+    });
+
     it('refer an inquiry to a new Pending visit request', async () => {
       await request(app.getHttpServer())
         .post('/inquiries')
@@ -605,13 +625,24 @@ describe('Inquiries and visit requests (e2e)', () => {
         visitorCount: 20,
       });
 
-      for (const status of ['SUBMITTED_FOR_CAMPUS_ENTRY', 'COMPLETED']) {
+      await request(app.getHttpServer())
+        .patch(`/visit-requests/${visitId}`)
+        .set('Authorization', auth)
+        .send({ status: 'SUBMITTED_FOR_CAMPUS_ENTRY' })
+        .expect(200);
+      // Once submitted for campus entry, a request can only be completed.
+      for (const status of ['DECLINED', 'CANCELLED']) {
         await request(app.getHttpServer())
           .patch(`/visit-requests/${visitId}`)
           .set('Authorization', auth)
           .send({ status })
-          .expect(200);
+          .expect(400);
       }
+      await request(app.getHttpServer())
+        .patch(`/visit-requests/${visitId}`)
+        .set('Authorization', auth)
+        .send({ status: 'COMPLETED' })
+        .expect(200);
       // Completed is final.
       await request(app.getHttpServer())
         .patch(`/visit-requests/${visitId}`)

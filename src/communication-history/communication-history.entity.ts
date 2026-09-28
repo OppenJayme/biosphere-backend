@@ -1,7 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 // One entry in an inquiry's or visit request's curator timeline (SRS
-// REQ-4.8-11, REQ-4.9-14): status changes, referrals, and internal notes.
+// REQ-4.8-12, REQ-4.9-14): status changes, referrals, and internal notes.
 // Outbound email entries will use the same shape once email is added.
 export class CommunicationEntry {
   @ApiProperty()

@@ -251,7 +251,7 @@ export class VisitRequestsService {
     );
   }
 
-  // Approves one preferred option (REQ-4.9-16). The approved date and time
+  // Approves one preferred option (REQ-4.9-17). The approved date and time
   // are copied onto the request; every submitted option stays stored.
   async approveSchedule(
     id: string,
