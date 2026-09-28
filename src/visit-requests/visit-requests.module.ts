@@ -7,5 +7,6 @@ import { VisitRequestsController } from './visit-requests.controller';
   imports: [PrismaModule],
   controllers: [VisitRequestsController],
   providers: [VisitRequestsService],
+  exports: [VisitRequestsService],
 })
 export class VisitRequestsModule {}

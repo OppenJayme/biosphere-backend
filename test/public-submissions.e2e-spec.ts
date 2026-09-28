@@ -23,6 +23,8 @@ describe('Inquiries and visit requests (e2e)', () => {
   let auditCreate: jest.Mock;
   let inquiryWrites: jest.Mock;
   let visitWrites: jest.Mock;
+  let history: Array<Record<string, unknown>>;
+  let historyWrites: jest.Mock;
 
   const validInquiry = {
     name: 'Juan Dela Cruz',
@@ -50,11 +52,10 @@ describe('Inquiries and visit requests (e2e)', () => {
     auditCreate = jest.fn(() => ({}));
     inquiryWrites = jest.fn();
     visitWrites = jest.fn();
+    history = [];
+    historyWrites = jest.fn();
 
     const now = new Date('2026-09-01T00:00:00.000Z');
-    const childWrite = (): void => {
-      visitWrites('child');
-    };
     const prismaMock = {
       user_account: {
         findUnique: jest.fn(
@@ -97,9 +98,6 @@ describe('Inquiries and visit requests (e2e)', () => {
             return found;
           },
         ),
-        delete: jest.fn(() => {
-          inquiryWrites('delete');
-        }),
       },
       visit_request: {
         create: jest.fn(
@@ -108,19 +106,24 @@ describe('Inquiries and visit requests (e2e)', () => {
           }: {
             data: Record<string, unknown> & {
               preferred_visit_date: { create: object[] };
-              visit_request_visitor: { create: object[] };
-              visit_request_vehicle: { create: object[] };
+              visit_request_visitor?: { create: object[] };
+              visit_request_vehicle?: { create: object[] };
             };
           }) => {
             visitWrites('create');
+            // A referral creates a request without visitor or vehicle rows.
             const created = {
+              source_inquiry_id: null,
+              approved_date: null,
+              approved_start_time: null,
+              approved_end_time: null,
               ...data,
               id: visitId,
               reviewed_by: null,
               created_at: now,
               preferred_visit_date: data.preferred_visit_date.create,
-              visit_request_visitor: data.visit_request_visitor.create,
-              visit_request_vehicle: data.visit_request_vehicle.create,
+              visit_request_visitor: data.visit_request_visitor?.create ?? [],
+              visit_request_vehicle: data.visit_request_vehicle?.create ?? [],
             };
             visits.push(created);
             return created;
@@ -139,13 +142,37 @@ describe('Inquiries and visit requests (e2e)', () => {
             return found;
           },
         ),
-        delete: jest.fn(() => {
-          visitWrites('delete');
-        }),
       },
-      visit_request_vehicle: { deleteMany: jest.fn(() => childWrite()) },
-      visit_request_visitor: { deleteMany: jest.fn(() => childWrite()) },
-      preferred_visit_date: { deleteMany: jest.fn(() => childWrite()) },
+      communication_history: {
+        create: jest.fn(({ data }: { data: Record<string, unknown> }) => {
+          historyWrites(data.communication_type);
+          const created = {
+            id: `00000000-0000-4000-8000-${String(history.length + 1).padStart(12, '0')}`,
+            inquiry_id: null,
+            visit_request_id: null,
+            subject: null,
+            recipient_email: null,
+            delivery_result: null,
+            sent_at: null,
+            created_at: now,
+            ...data,
+          };
+          history.push(created);
+          return created;
+        }),
+        findMany: jest.fn(
+          ({
+            where,
+          }: {
+            where: { inquiry_id?: string; visit_request_id?: string };
+          }) =>
+            history.filter((entry) =>
+              where.inquiry_id
+                ? entry.inquiry_id === where.inquiry_id
+                : entry.visit_request_id === where.visit_request_id,
+            ),
+        ),
+      },
       audit_log: { create: auditCreate },
       $transaction: jest.fn((callback: (client: unknown) => unknown) =>
         Promise.resolve(callback(prismaMock)),
@@ -308,9 +335,75 @@ describe('Inquiries and visit requests (e2e)', () => {
     });
   });
 
+  type Route = {
+    method: 'get' | 'post' | 'patch';
+    path: string;
+    body?: object;
+  };
+  const referralBody = {
+    phone: '0917 123 4567',
+    organization: 'University of San Carlos',
+    visitorCount: 20,
+    preferredSchedules: [
+      { date: '2030-10-15', startTime: '09:00', endTime: '11:00' },
+    ],
+  };
+  const noteBody = { message: 'Visitor called to confirm.' };
+  const internalRoutes: Record<string, Route[]> = {
+    inquiries: [
+      { method: 'get', path: '/inquiries' },
+      { method: 'get', path: `/inquiries/${inquiryId}` },
+      {
+        method: 'patch',
+        path: `/inquiries/${inquiryId}`,
+        body: { status: 'REVIEWED' },
+      },
+      {
+        method: 'post',
+        path: `/inquiries/${inquiryId}/referral`,
+        body: referralBody,
+      },
+      { method: 'get', path: `/inquiries/${inquiryId}/history` },
+      {
+        method: 'post',
+        path: `/inquiries/${inquiryId}/notes`,
+        body: noteBody,
+      },
+    ],
+    'visit-requests': [
+      { method: 'get', path: '/visit-requests' },
+      { method: 'get', path: `/visit-requests/${visitId}` },
+      {
+        method: 'patch',
+        path: `/visit-requests/${visitId}`,
+        body: { status: 'DECLINED' },
+      },
+      {
+        method: 'patch',
+        path: `/visit-requests/${visitId}/approve-schedule`,
+        body: { preferenceOrder: 1 },
+      },
+      {
+        method: 'get',
+        path: `/visit-requests/${visitId}/campus-entry-summary`,
+      },
+      { method: 'get', path: `/visit-requests/${visitId}/history` },
+      {
+        method: 'post',
+        path: `/visit-requests/${visitId}/notes`,
+        body: noteBody,
+      },
+    ],
+  };
+  const send = (route: Route, token?: string) => {
+    const call = request(app.getHttpServer())[route.method](route.path);
+    if (token) call.set('Authorization', `Bearer ${token}`);
+    return route.body ? call.send(route.body) : call;
+  };
+
   describe.each([
     ['inquiries', inquiryId, { status: 'REVIEWED' }],
-    ['visit-requests', visitId, { status: 'APPROVED_BY_CURATOR' }],
+    ['visit-requests', visitId, { status: 'DECLINED' }],
   ])('/%s internal routes', (resource, id, patchBody) => {
     const seed = async () => {
       await request(app.getHttpServer())
@@ -321,53 +414,43 @@ describe('Inquiries and visit requests (e2e)', () => {
       inquiryWrites.mockClear();
       visitWrites.mockClear();
     };
-    const writes = () =>
-      resource === 'inquiries' ? inquiryWrites : visitWrites;
+    const expectNoWrites = () => {
+      expect(inquiryWrites).not.toHaveBeenCalled();
+      expect(visitWrites).not.toHaveBeenCalled();
+      expect(historyWrites).not.toHaveBeenCalled();
+      expect(auditCreate).not.toHaveBeenCalled();
+    };
 
     it('require authentication', async () => {
       await seed();
-      await request(app.getHttpServer()).get(`/${resource}`).expect(401);
-      await request(app.getHttpServer()).get(`/${resource}/${id}`).expect(401);
-      await request(app.getHttpServer())
-        .patch(`/${resource}/${id}`)
-        .send(patchBody)
-        .expect(401);
-      await request(app.getHttpServer())
-        .delete(`/${resource}/${id}`)
-        .expect(401);
-      expect(writes()).not.toHaveBeenCalled();
-      expect(auditCreate).not.toHaveBeenCalled();
+      for (const route of internalRoutes[resource]) {
+        await send(route).expect(401);
+      }
+      expectNoWrites();
     });
 
     it('reject Developers with 403 and write nothing', async () => {
       await seed();
-      const auth = `Bearer ${developerToken}`;
-      await request(app.getHttpServer())
-        .get(`/${resource}`)
-        .set('Authorization', auth)
-        .expect(403);
-      await request(app.getHttpServer())
-        .get(`/${resource}/${id}`)
-        .set('Authorization', auth)
-        .expect(403);
-      await request(app.getHttpServer())
-        .patch(`/${resource}/${id}`)
-        .set('Authorization', auth)
-        .send(patchBody)
-        .expect(403);
-      await request(app.getHttpServer())
-        .delete(`/${resource}/${id}`)
-        .set('Authorization', auth)
-        .expect(403);
-      expect(writes()).not.toHaveBeenCalled();
-      expect(auditCreate).not.toHaveBeenCalled();
+      for (const route of internalRoutes[resource]) {
+        await send(route, developerToken).expect(403);
+      }
+      expectNoWrites();
     });
 
-    it('let a Curator list, read, and change status', async () => {
+    it('no longer allow deleting records', async () => {
+      await seed();
+      await request(app.getHttpServer())
+        .delete(`/${resource}/${id}`)
+        .set('Authorization', `Bearer ${curatorToken}`)
+        .expect(404);
+      expectNoWrites();
+    });
+
+    it('let a Curator list, search, read, and change status', async () => {
       await seed();
       const auth = `Bearer ${curatorToken}`;
       const list = await request(app.getHttpServer())
-        .get(`/${resource}`)
+        .get(`/${resource}?search=field%20trip`)
         .set('Authorization', auth)
         .expect(200);
       expect(list.body).toEqual([expect.objectContaining({ id })]);
@@ -380,10 +463,43 @@ describe('Inquiries and visit requests (e2e)', () => {
       const patched = await request(app.getHttpServer())
         .patch(`/${resource}/${id}`)
         .set('Authorization', auth)
-        .send(patchBody)
+        .send({ ...patchBody, note: 'Handled by phone.' })
         .expect(200);
       expect(patched.body.status).toBe(patchBody.status);
       expect(patched.body.reviewedBy).toBe(curatorAccountId);
+
+      const timeline = await request(app.getHttpServer())
+        .get(`/${resource}/${id}/history`)
+        .set('Authorization', auth)
+        .expect(200);
+      expect(timeline.body).toEqual([
+        expect.objectContaining({
+          type: 'STATUS_CHANGE',
+          recordedBy: curatorAccountId,
+          message: `Status changed from PENDING to ${patchBody.status}.\n\nHandled by phone.`,
+        }),
+      ]);
+    });
+
+    it('record internal notes in the timeline', async () => {
+      await seed();
+      const auth = `Bearer ${curatorToken}`;
+      const note = await request(app.getHttpServer())
+        .post(`/${resource}/${id}/notes`)
+        .set('Authorization', auth)
+        .send(noteBody)
+        .expect(201);
+      expect(note.body).toMatchObject({
+        type: 'NOTE',
+        direction: 'INTERNAL',
+        message: noteBody.message,
+      });
+
+      await request(app.getHttpServer())
+        .post(`/${resource}/${id}/notes`)
+        .set('Authorization', auth)
+        .send({ message: '   ' })
+        .expect(400);
     });
 
     it('reject edits to submitted content', async () => {
@@ -393,7 +509,160 @@ describe('Inquiries and visit requests (e2e)', () => {
         .set('Authorization', `Bearer ${curatorToken}`)
         .send({ ...patchBody, name: 'Changed Name' })
         .expect(400);
-      expect(writes()).not.toHaveBeenCalled();
+      expectNoWrites();
+    });
+  });
+
+  describe('curator workflows', () => {
+    const auth = `Bearer ${curatorToken}`;
+
+    it('require review before closing an inquiry', async () => {
+      await request(app.getHttpServer())
+        .post('/inquiries')
+        .send(validInquiry)
+        .expect(201);
+
+      await request(app.getHttpServer())
+        .patch(`/inquiries/${inquiryId}`)
+        .set('Authorization', auth)
+        .send({ status: 'CLOSED' })
+        .expect(400);
+      for (const status of ['REVIEWED', 'CLOSED']) {
+        await request(app.getHttpServer())
+          .patch(`/inquiries/${inquiryId}`)
+          .set('Authorization', auth)
+          .send({ status })
+          .expect(200);
+      }
+    });
+
+    it('refer an inquiry to a new Pending visit request', async () => {
+      await request(app.getHttpServer())
+        .post('/inquiries')
+        .send(validInquiry)
+        .expect(201);
+
+      const referral = await request(app.getHttpServer())
+        .post(`/inquiries/${inquiryId}/referral`)
+        .set('Authorization', auth)
+        .send(referralBody)
+        .expect(201);
+
+      expect(referral.body).toMatchObject({
+        visitRequestId: visitId,
+        inquiry: {
+          status: 'TURNED_TO_VISIT_REQUEST',
+          visitRequestId: visitId,
+        },
+      });
+      expect(visits).toEqual([
+        expect.objectContaining({
+          source_inquiry_id: inquiryId,
+          status: 'PENDING',
+          contact_person: validInquiry.name,
+          email_address: validInquiry.email,
+        }),
+      ]);
+      expect(history.map((entry) => entry.communication_type)).toEqual([
+        'REFERRAL',
+        'REFERRAL',
+      ]);
+
+      // Turned to Visit Request is final.
+      await request(app.getHttpServer())
+        .patch(`/inquiries/${inquiryId}`)
+        .set('Authorization', auth)
+        .send({ status: 'CLOSED' })
+        .expect(400);
+      await request(app.getHttpServer())
+        .post(`/inquiries/${inquiryId}/referral`)
+        .set('Authorization', auth)
+        .send(referralBody)
+        .expect(400);
+      expect(visits).toHaveLength(1);
+    });
+
+    it('approve a schedule, summarise campus entry, and complete the visit', async () => {
+      await request(app.getHttpServer())
+        .post('/visit-requests')
+        .send(validVisit)
+        .expect(201);
+
+      await request(app.getHttpServer())
+        .get(`/visit-requests/${visitId}/campus-entry-summary`)
+        .set('Authorization', auth)
+        .expect(400);
+      // Approval has its own action; PATCH cannot set it.
+      await request(app.getHttpServer())
+        .patch(`/visit-requests/${visitId}`)
+        .set('Authorization', auth)
+        .send({ status: 'APPROVED_BY_CURATOR' })
+        .expect(400);
+
+      const approved = await request(app.getHttpServer())
+        .patch(`/visit-requests/${visitId}/approve-schedule`)
+        .set('Authorization', auth)
+        .send({ preferenceOrder: 2 })
+        .expect(200);
+      expect(approved.body).toMatchObject({
+        status: 'APPROVED_BY_CURATOR',
+        approvedSchedule: {
+          date: '2030-10-16',
+          startTime: '13:00',
+          endTime: '15:00',
+        },
+      });
+      expect(approved.body.preferredSchedules).toHaveLength(2);
+
+      const summary = await request(app.getHttpServer())
+        .get(`/visit-requests/${visitId}/campus-entry-summary`)
+        .set('Authorization', auth)
+        .expect(200);
+      expect(summary.body).toMatchObject({
+        visitRequestId: visitId,
+        organization: validVisit.organization,
+        approvedSchedule: { date: '2030-10-16' },
+        visitorCount: 20,
+      });
+
+      await request(app.getHttpServer())
+        .patch(`/visit-requests/${visitId}`)
+        .set('Authorization', auth)
+        .send({ status: 'SUBMITTED_FOR_CAMPUS_ENTRY' })
+        .expect(200);
+      // Once submitted for campus entry, a request can only be completed.
+      for (const status of ['DECLINED', 'CANCELLED']) {
+        await request(app.getHttpServer())
+          .patch(`/visit-requests/${visitId}`)
+          .set('Authorization', auth)
+          .send({ status })
+          .expect(400);
+      }
+      await request(app.getHttpServer())
+        .patch(`/visit-requests/${visitId}`)
+        .set('Authorization', auth)
+        .send({ status: 'COMPLETED' })
+        .expect(200);
+      // Completed is final.
+      await request(app.getHttpServer())
+        .patch(`/visit-requests/${visitId}`)
+        .set('Authorization', auth)
+        .send({ status: 'CANCELLED' })
+        .expect(400);
+
+      const timeline = await request(app.getHttpServer())
+        .get(`/visit-requests/${visitId}/history`)
+        .set('Authorization', auth)
+        .expect(200);
+      expect(
+        (timeline.body as Array<{ message: string }>).map(
+          (entry) => entry.message.split('\n')[0],
+        ),
+      ).toEqual([
+        'Status changed from PENDING to APPROVED_BY_CURATOR.',
+        'Status changed from APPROVED_BY_CURATOR to SUBMITTED_FOR_CAMPUS_ENTRY.',
+        'Status changed from SUBMITTED_FOR_CAMPUS_ENTRY to COMPLETED.',
+      ]);
     });
   });
 });

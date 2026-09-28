@@ -36,6 +36,17 @@ export class PreferredSchedule {
   preferenceOrder!: number;
 }
 
+export class ApprovedSchedule {
+  @ApiProperty({ example: '2026-10-15' })
+  date!: string;
+
+  @ApiProperty({ example: '09:00' })
+  startTime!: string;
+
+  @ApiProperty({ example: '11:00' })
+  endTime!: string;
+}
+
 export class VisitRequestVisitor {
   @ApiProperty()
   name!: string;
@@ -81,6 +92,19 @@ export class VisitRequest {
   @ApiProperty({ type: [PreferredSchedule] })
   preferredSchedules!: PreferredSchedule[];
 
+  @ApiPropertyOptional({
+    type: ApprovedSchedule,
+    nullable: true,
+    description: 'The preferred option the curator approved, if any',
+  })
+  approvedSchedule!: ApprovedSchedule | null;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    description: 'Inquiry this request was referred from, if any',
+  })
+  sourceInquiryId!: string | null;
+
   @ApiProperty({ type: [VisitRequestVisitor] })
   visitors!: VisitRequestVisitor[];
 
@@ -110,4 +134,45 @@ export class VisitRequest {
 
   @ApiProperty()
   updatedAt!: Date;
+}
+
+// Consolidated approved visit details the curator copies into the external
+// USC campus-entry process (REQ-4.9-12). BioSphere never submits it itself
+// (REQ-4.9-13).
+export class CampusEntrySummary {
+  @ApiProperty()
+  visitRequestId!: string;
+
+  @ApiProperty({ enum: VisitRequestStatus })
+  status!: VisitRequestStatus;
+
+  @ApiProperty()
+  organization!: string;
+
+  @ApiProperty()
+  contactPerson!: string;
+
+  @ApiProperty()
+  email!: string;
+
+  @ApiProperty()
+  phone!: string;
+
+  @ApiPropertyOptional({ nullable: true })
+  purpose!: string | null;
+
+  @ApiProperty({ type: ApprovedSchedule })
+  approvedSchedule!: ApprovedSchedule;
+
+  @ApiProperty()
+  visitorCount!: number;
+
+  @ApiProperty({ type: [VisitRequestVisitor] })
+  visitors!: VisitRequestVisitor[];
+
+  @ApiProperty({ type: [VisitRequestVehicle] })
+  vehicles!: VisitRequestVehicle[];
+
+  @ApiPropertyOptional({ nullable: true })
+  equipment!: string | null;
 }

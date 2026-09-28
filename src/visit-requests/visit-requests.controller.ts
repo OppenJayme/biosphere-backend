@@ -1,10 +1,7 @@
 import {
   Body,
   Controller,
-  Delete,
   Get,
-  HttpCode,
-  HttpStatus,
   Param,
   ParseUUIDPipe,
   Patch,
@@ -13,7 +10,6 @@ import {
 } from '@nestjs/common';
 import {
   ApiCreatedResponse,
-  ApiNoContentResponse,
   ApiOkResponse,
   ApiOperation,
   ApiTags,
@@ -23,11 +19,15 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Public } from '../auth/decorators/public.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
 import type { AuthenticatedUser } from '../auth/types/auth.types';
+import { CommunicationEntry } from '../communication-history/communication-history.entity';
+import { CreateInternalNoteDto } from '../communication-history/dto/create-internal-note.dto';
 import { PUBLIC_FORM_RATE_LIMIT } from '../config/rate-limit.config';
+import { ApproveVisitScheduleDto } from './dto/approve-visit-schedule.dto';
 import { CreateVisitRequestDto } from './dto/create-visit-request.dto';
 import { ListVisitRequestsQueryDto } from './dto/list-visit-requests-query.dto';
 import { UpdateVisitRequestDto } from './dto/update-visit-request.dto';
 import {
+  CampusEntrySummary,
   VisitRequest,
   VisitRequestSubmissionReceipt,
 } from './entities/visit-request.entity';
@@ -36,6 +36,8 @@ import { VisitRequestsService } from './visit-requests.service';
 // POST is the only public route (SRS §4.9). Every other route handles
 // visitor personal data, so it is curator-only (NFR-SEC-10); @Roles is set
 // per method because a class-level @Roles would also block the public POST.
+// There is no DELETE: Declined, Cancelled, and Completed requests are kept
+// as history (REQ-4.9-14).
 @ApiTags('visit-requests')
 @Controller('visit-requests')
 export class VisitRequestsController {
@@ -54,7 +56,9 @@ export class VisitRequestsController {
 
   @Roles('CURATOR')
   @Get()
-  @ApiOperation({ summary: 'List visit requests, newest first (curator-only)' })
+  @ApiOperation({
+    summary: 'List or search visit requests, newest first (curator-only)',
+  })
   @ApiOkResponse({ type: [VisitRequest] })
   findAll(@Query() query: ListVisitRequestsQueryDto): Promise<VisitRequest[]> {
     return this.visitRequestsService.findAll(query);
@@ -70,7 +74,10 @@ export class VisitRequestsController {
 
   @Roles('CURATOR')
   @Patch(':id')
-  @ApiOperation({ summary: 'Change a visit request status (curator-only)' })
+  @ApiOperation({
+    summary:
+      'Submit for campus entry, complete, decline, or cancel (curator-only)',
+  })
   @ApiOkResponse({ type: VisitRequest })
   update(
     @Param('id', ParseUUIDPipe) id: string,
@@ -85,14 +92,52 @@ export class VisitRequestsController {
   }
 
   @Roles('CURATOR')
-  @Delete(':id')
-  @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiOperation({ summary: 'Delete a visit request (curator-only)' })
-  @ApiNoContentResponse()
-  remove(
+  @Patch(':id/approve-schedule')
+  @ApiOperation({
+    summary: 'Approve one preferred schedule option (curator-only)',
+  })
+  @ApiOkResponse({ type: VisitRequest })
+  approveSchedule(
     @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: ApproveVisitScheduleDto,
     @CurrentUser() user: AuthenticatedUser,
-  ): Promise<void> {
-    return this.visitRequestsService.remove(id, user.accountId);
+  ): Promise<VisitRequest> {
+    return this.visitRequestsService.approveSchedule(id, dto, user.accountId);
+  }
+
+  @Roles('CURATOR')
+  @Get(':id/campus-entry-summary')
+  @ApiOperation({
+    summary: 'Approved visit details for the USC campus-entry process',
+  })
+  @ApiOkResponse({ type: CampusEntrySummary })
+  getCampusEntrySummary(
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<CampusEntrySummary> {
+    return this.visitRequestsService.getCampusEntrySummary(id);
+  }
+
+  @Roles('CURATOR')
+  @Get(':id/history')
+  @ApiOperation({
+    summary: 'Status changes, referrals, and notes, oldest first',
+  })
+  @ApiOkResponse({ type: [CommunicationEntry] })
+  listHistory(
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<CommunicationEntry[]> {
+    return this.visitRequestsService.listHistory(id);
+  }
+
+  @Roles('CURATOR')
+  @Post(':id/notes')
+  @ApiOperation({ summary: 'Add an internal curator note' })
+  @ApiCreatedResponse({ type: CommunicationEntry })
+  addNote(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: CreateInternalNoteDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<CommunicationEntry> {
+    return this.visitRequestsService.addNote(id, dto, user.accountId);
   }
 }

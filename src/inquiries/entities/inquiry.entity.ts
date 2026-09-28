@@ -55,9 +55,23 @@ export class Inquiry {
   })
   reviewedBy!: string | null;
 
+  @ApiPropertyOptional({
+    nullable: true,
+    description: 'Visit request created by referring this inquiry, if any',
+  })
+  visitRequestId!: string | null;
+
   @ApiProperty()
   createdAt!: Date;
 
   @ApiProperty()
   updatedAt!: Date;
+}
+
+export class InquiryReferralResult {
+  @ApiProperty({ type: Inquiry })
+  inquiry!: Inquiry;
+
+  @ApiProperty({ description: 'The new Pending visit request' })
+  visitRequestId!: string;
 }

@@ -1,11 +1,13 @@
-import { ConflictException, NotFoundException } from '@nestjs/common';
-import { Prisma } from '../generated/prisma/client';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { VisitRequestsService } from '../visit-requests/visit-requests.service';
 import { InquiriesService } from './inquiries.service';
 import { InquiryStatus } from './entities/inquiry.entity';
 
 const INQUIRY_ID = '11111111-1111-4111-8111-111111111111';
 const CURATOR_ID = '22222222-2222-4222-8222-222222222222';
+const VISIT_ID = '33333333-3333-4333-8333-333333333333';
+const ENTRY_ID = '44444444-4444-4444-8444-444444444444';
 const CREATED_AT = new Date('2026-09-01T00:00:00.000Z');
 
 const inquiryRecord = (overrides: Record<string, unknown> = {}) => ({
@@ -22,6 +24,23 @@ const inquiryRecord = (overrides: Record<string, unknown> = {}) => ({
   created_at: CREATED_AT,
   updated_at: CREATED_AT,
   consent_accepted_at: CREATED_AT,
+  visit_request: null,
+  ...overrides,
+});
+
+const historyRow = (overrides: Record<string, unknown> = {}) => ({
+  id: ENTRY_ID,
+  inquiry_id: INQUIRY_ID,
+  visit_request_id: null,
+  recorded_by: CURATOR_ID,
+  direction: 'INTERNAL',
+  communication_type: 'NOTE',
+  recipient_email: null,
+  subject: null,
+  message: 'Called the school.',
+  delivery_result: null,
+  sent_at: null,
+  created_at: CREATED_AT,
   ...overrides,
 });
 
@@ -31,11 +50,12 @@ describe('InquiriesService', () => {
     findMany: jest.fn(),
     findUnique: jest.fn(),
     update: jest.fn(),
-    delete: jest.fn(),
   };
+  const historyDelegate = { create: jest.fn(), findMany: jest.fn() };
   const auditDelegate = { create: jest.fn() };
   const prisma = {
     inquiry: inquiryDelegate,
+    communication_history: historyDelegate,
     audit_log: auditDelegate,
     $transaction: jest.fn(),
   };
@@ -43,11 +63,19 @@ describe('InquiriesService', () => {
     (callback: (client: unknown) => unknown) =>
       Promise.resolve(callback(prisma)),
   );
+  const visitRequestsService = { createFromReferral: jest.fn() };
   let service: InquiriesService;
 
   beforeEach(() => {
     jest.clearAllMocks();
-    service = new InquiriesService(prisma as unknown as PrismaService);
+    historyDelegate.create.mockImplementation(
+      ({ data }: { data: Record<string, unknown> }) =>
+        Promise.resolve(historyRow(data)),
+    );
+    service = new InquiriesService(
+      prisma as unknown as PrismaService,
+      visitRequestsService as unknown as VisitRequestsService,
+    );
   });
 
   it('stores a submission with consent and returns a receipt without personal data', async () => {
@@ -85,7 +113,9 @@ describe('InquiriesService', () => {
   });
 
   it('maps stored rows to the curator entity', async () => {
-    inquiryDelegate.findMany.mockResolvedValue([inquiryRecord()]);
+    inquiryDelegate.findMany.mockResolvedValue([
+      inquiryRecord({ visit_request: { id: VISIT_ID } }),
+    ]);
 
     await expect(
       service.findAll({ status: InquiryStatus.PENDING }),
@@ -95,6 +125,7 @@ describe('InquiriesService', () => {
         name: 'Juan Dela Cruz',
         email: 'juan@example.com',
         status: InquiryStatus.PENDING,
+        visitRequestId: VISIT_ID,
       }),
     ]);
     expect(inquiryDelegate.findMany).toHaveBeenCalledWith(
@@ -102,7 +133,29 @@ describe('InquiriesService', () => {
     );
   });
 
-  it('changes status, records the reviewer, and audits the transition', async () => {
+  it('searches name, email, organization, type, and message', async () => {
+    inquiryDelegate.findMany.mockResolvedValue([]);
+
+    await service.findAll({ search: 'san carlos' });
+
+    const search = { contains: 'san carlos', mode: 'insensitive' };
+    expect(inquiryDelegate.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          status: undefined,
+          OR: [
+            { full_name: search },
+            { email_address: search },
+            { organization_name: search },
+            { inquiry_type: search },
+            { message: search },
+          ],
+        },
+      }),
+    );
+  });
+
+  it('changes status, records it in the timeline, and audits it', async () => {
     inquiryDelegate.findUnique.mockResolvedValue(inquiryRecord());
     inquiryDelegate.update.mockResolvedValue(
       inquiryRecord({ status: 'REVIEWED', reviewed_by: CURATOR_ID }),
@@ -110,17 +163,29 @@ describe('InquiriesService', () => {
 
     const result = await service.update(
       INQUIRY_ID,
-      { status: InquiryStatus.REVIEWED },
+      { status: InquiryStatus.REVIEWED, note: 'Answered by phone.' },
       CURATOR_ID,
     );
 
     expect(result.status).toBe(InquiryStatus.REVIEWED);
-    expect(inquiryDelegate.update).toHaveBeenCalledWith({
-      where: { id: INQUIRY_ID },
-      data: expect.objectContaining({
-        status: 'REVIEWED',
-        reviewed_by: CURATOR_ID,
+    expect(inquiryDelegate.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: INQUIRY_ID },
+        data: expect.objectContaining({
+          status: 'REVIEWED',
+          reviewed_by: CURATOR_ID,
+        }),
       }),
+    );
+    expect(historyDelegate.create).toHaveBeenCalledWith({
+      data: {
+        inquiry_id: INQUIRY_ID,
+        recorded_by: CURATOR_ID,
+        direction: 'INTERNAL',
+        communication_type: 'STATUS_CHANGE',
+        message:
+          'Status changed from PENDING to REVIEWED.\n\nAnswered by phone.',
+      },
     });
     expect(auditDelegate.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
@@ -132,16 +197,48 @@ describe('InquiriesService', () => {
   });
 
   it('makes no writes when the status is unchanged', async () => {
-    inquiryDelegate.findUnique.mockResolvedValue(inquiryRecord());
+    inquiryDelegate.findUnique.mockResolvedValue(
+      inquiryRecord({ status: 'REVIEWED' }),
+    );
 
     await service.update(
       INQUIRY_ID,
-      { status: InquiryStatus.PENDING },
+      { status: InquiryStatus.REVIEWED },
       CURATOR_ID,
     );
 
     expect(inquiryDelegate.update).not.toHaveBeenCalled();
+    expect(historyDelegate.create).not.toHaveBeenCalled();
     expect(auditDelegate.create).not.toHaveBeenCalled();
+  });
+
+  it('closes a reviewed inquiry', async () => {
+    inquiryDelegate.findUnique.mockResolvedValue(
+      inquiryRecord({ status: 'REVIEWED' }),
+    );
+    inquiryDelegate.update.mockResolvedValue(
+      inquiryRecord({ status: 'CLOSED' }),
+    );
+
+    await expect(
+      service.update(INQUIRY_ID, { status: InquiryStatus.CLOSED }, CURATOR_ID),
+    ).resolves.toMatchObject({ status: InquiryStatus.CLOSED });
+  });
+
+  it.each([
+    ['PENDING', InquiryStatus.CLOSED],
+    ['CLOSED', InquiryStatus.REVIEWED],
+    ['TURNED_TO_VISIT_REQUEST', InquiryStatus.CLOSED],
+  ] as const)('rejects %s -> %s and writes nothing', async (from, to) => {
+    inquiryDelegate.findUnique.mockResolvedValue(
+      inquiryRecord({ status: from }),
+    );
+
+    await expect(
+      service.update(INQUIRY_ID, { status: to }, CURATOR_ID),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(inquiryDelegate.update).not.toHaveBeenCalled();
+    expect(historyDelegate.create).not.toHaveBeenCalled();
   });
 
   it('returns 404 for an unknown inquiry', async () => {
@@ -152,30 +249,177 @@ describe('InquiriesService', () => {
     );
   });
 
-  it('deletes and audits an inquiry', async () => {
-    inquiryDelegate.findUnique.mockResolvedValue(inquiryRecord());
+  describe('refer', () => {
+    const referral = {
+      phone: '0917 123 4567',
+      organization: 'University of San Carlos',
+      purpose: 'Class field trip',
+      visitorCount: 20,
+      preferredSchedules: [
+        { date: '2030-10-15', startTime: '09:00', endTime: '11:00' },
+      ],
+    };
 
-    await service.remove(INQUIRY_ID, CURATOR_ID);
+    it('opens a Pending visit request and marks the inquiry as referred', async () => {
+      inquiryDelegate.findUnique.mockResolvedValue(inquiryRecord());
+      visitRequestsService.createFromReferral.mockResolvedValue(VISIT_ID);
+      inquiryDelegate.update.mockResolvedValue(
+        inquiryRecord({
+          status: 'TURNED_TO_VISIT_REQUEST',
+          reviewed_by: CURATOR_ID,
+          visit_request: { id: VISIT_ID },
+        }),
+      );
 
-    expect(inquiryDelegate.delete).toHaveBeenCalledWith({
-      where: { id: INQUIRY_ID },
+      const result = await service.refer(
+        INQUIRY_ID,
+        { ...referral, note: 'Teacher asked for a guided tour.' },
+        CURATOR_ID,
+      );
+
+      expect(result.visitRequestId).toBe(VISIT_ID);
+      expect(result.inquiry).toMatchObject({
+        status: InquiryStatus.TURNED_TO_VISIT_REQUEST,
+        visitRequestId: VISIT_ID,
+      });
+      expect(visitRequestsService.createFromReferral).toHaveBeenCalledWith(
+        prisma,
+        {
+          sourceInquiryId: INQUIRY_ID,
+          name: 'Juan Dela Cruz',
+          email: 'juan@example.com',
+          phone: '0917 123 4567',
+          organization: 'University of San Carlos',
+          purpose: 'Class field trip',
+          visitorCount: 20,
+          preferredSchedules: referral.preferredSchedules,
+          consentAcceptedAt: CREATED_AT,
+        },
+        CURATOR_ID,
+      );
+      expect(historyDelegate.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          inquiry_id: INQUIRY_ID,
+          communication_type: 'REFERRAL',
+          message:
+            'Status changed from PENDING to TURNED_TO_VISIT_REQUEST.\n\n' +
+            `Referred to visit request ${VISIT_ID}.\n\n` +
+            'Teacher asked for a guided tour.',
+        }),
+      });
+      expect(auditDelegate.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          action: 'REFER_INQUIRY',
+          details: { previousStatus: 'PENDING', visitRequestId: VISIT_ID },
+        }),
+      });
     });
-    expect(auditDelegate.create).toHaveBeenCalledWith({
-      data: expect.objectContaining({ action: 'DELETE_INQUIRY' }),
+
+    it("uses the inquiry's own phone and organization when omitted", async () => {
+      inquiryDelegate.findUnique.mockResolvedValue(
+        inquiryRecord({
+          contact_number: '0918 000 0000',
+          organization_name: 'Cebu Normal University',
+        }),
+      );
+      visitRequestsService.createFromReferral.mockResolvedValue(VISIT_ID);
+      inquiryDelegate.update.mockResolvedValue(
+        inquiryRecord({ status: 'TURNED_TO_VISIT_REQUEST' }),
+      );
+
+      await service.refer(
+        INQUIRY_ID,
+        { visitorCount: 5, preferredSchedules: referral.preferredSchedules },
+        CURATOR_ID,
+      );
+
+      expect(visitRequestsService.createFromReferral).toHaveBeenCalledWith(
+        prisma,
+        expect.objectContaining({
+          phone: '0918 000 0000',
+          organization: 'Cebu Normal University',
+          purpose: null,
+        }),
+        CURATOR_ID,
+      );
+    });
+
+    it('requires phone and organization the inquiry does not have', async () => {
+      inquiryDelegate.findUnique.mockResolvedValue(inquiryRecord());
+
+      await expect(
+        service.refer(
+          INQUIRY_ID,
+          { visitorCount: 5, preferredSchedules: referral.preferredSchedules },
+          CURATOR_ID,
+        ),
+      ).rejects.toThrow('The inquiry has no phone or organization');
+      expect(visitRequestsService.createFromReferral).not.toHaveBeenCalled();
+      expect(inquiryDelegate.update).not.toHaveBeenCalled();
+    });
+
+    it('rejects referring a closed or already referred inquiry', async () => {
+      for (const status of ['CLOSED', 'TURNED_TO_VISIT_REQUEST']) {
+        inquiryDelegate.findUnique.mockResolvedValue(inquiryRecord({ status }));
+
+        await expect(
+          service.refer(INQUIRY_ID, referral, CURATOR_ID),
+        ).rejects.toBeInstanceOf(BadRequestException);
+      }
+      expect(visitRequestsService.createFromReferral).not.toHaveBeenCalled();
+    });
+
+    it('rejects an inquiry without a consent record', async () => {
+      inquiryDelegate.findUnique.mockResolvedValue(
+        inquiryRecord({ consent_accepted_at: null }),
+      );
+
+      await expect(
+        service.refer(INQUIRY_ID, referral, CURATOR_ID),
+      ).rejects.toThrow('no consent record');
+      expect(visitRequestsService.createFromReferral).not.toHaveBeenCalled();
     });
   });
 
-  it('returns 409 when linked records block deletion', async () => {
+  it('adds an internal note without copying its text into the audit log', async () => {
     inquiryDelegate.findUnique.mockResolvedValue(inquiryRecord());
-    inquiryDelegate.delete.mockRejectedValue(
-      new Prisma.PrismaClientKnownRequestError('fk', {
-        code: 'P2003',
-        clientVersion: 'test',
-      }),
+
+    const entry = await service.addNote(
+      INQUIRY_ID,
+      { message: 'Called the school.' },
+      CURATOR_ID,
     );
 
-    await expect(service.remove(INQUIRY_ID, CURATOR_ID)).rejects.toBeInstanceOf(
-      ConflictException,
+    expect(entry).toMatchObject({
+      id: ENTRY_ID,
+      type: 'NOTE',
+      direction: 'INTERNAL',
+      message: 'Called the school.',
+      recordedBy: CURATOR_ID,
+    });
+    expect(auditDelegate.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        action: 'ADD_INQUIRY_NOTE',
+        details: { entryId: ENTRY_ID },
+      }),
+    });
+  });
+
+  it('lists the timeline oldest first and 404s for an unknown inquiry', async () => {
+    inquiryDelegate.findUnique.mockResolvedValueOnce(inquiryRecord());
+    historyDelegate.findMany.mockResolvedValue([historyRow()]);
+
+    await expect(service.listHistory(INQUIRY_ID)).resolves.toEqual([
+      expect.objectContaining({ id: ENTRY_ID, type: 'NOTE' }),
+    ]);
+    expect(historyDelegate.findMany).toHaveBeenCalledWith({
+      where: { inquiry_id: INQUIRY_ID },
+      orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
+    });
+
+    inquiryDelegate.findUnique.mockResolvedValueOnce(null);
+    await expect(service.listHistory(INQUIRY_ID)).rejects.toBeInstanceOf(
+      NotFoundException,
     );
   });
 });
