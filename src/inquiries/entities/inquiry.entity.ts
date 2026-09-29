@@ -1,10 +1,26 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
+// Mirrors the general_inquiry_status database enum (SRS REQ-4.8-06).
 export enum InquiryStatus {
   PENDING = 'PENDING',
-  RESOLVED = 'RESOLVED',
+  REVIEWED = 'REVIEWED',
+  TURNED_TO_VISIT_REQUEST = 'TURNED_TO_VISIT_REQUEST',
+  CLOSED = 'CLOSED',
 }
 
+// Returned to the public submitter. Deliberately echoes no personal data.
+export class InquirySubmissionReceipt {
+  @ApiProperty()
+  id!: string;
+
+  @ApiProperty({ enum: InquiryStatus })
+  status!: InquiryStatus;
+
+  @ApiProperty()
+  submittedAt!: Date;
+}
+
+// Curator-only view of a stored inquiry.
 export class Inquiry {
   @ApiProperty()
   id!: string;
@@ -15,21 +31,47 @@ export class Inquiry {
   @ApiProperty()
   email!: string;
 
-  @ApiPropertyOptional()
-  phone?: string;
+  @ApiPropertyOptional({ nullable: true })
+  phone!: string | null;
 
-  @ApiPropertyOptional()
-  organization?: string;
+  @ApiPropertyOptional({ nullable: true })
+  organization!: string | null;
 
-  @ApiPropertyOptional()
-  address?: string;
+  @ApiProperty()
+  inquiryType!: string;
 
   @ApiProperty()
   message!: string;
 
-  @ApiProperty({ enum: InquiryStatus, default: InquiryStatus.PENDING })
+  @ApiProperty({ enum: InquiryStatus })
   status!: InquiryStatus;
+
+  @ApiPropertyOptional({ nullable: true })
+  consentAcceptedAt!: Date | null;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    description: 'Account id of the curator who last changed the status',
+  })
+  reviewedBy!: string | null;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    description: 'Visit request created by referring this inquiry, if any',
+  })
+  visitRequestId!: string | null;
 
   @ApiProperty()
   createdAt!: Date;
+
+  @ApiProperty()
+  updatedAt!: Date;
+}
+
+export class InquiryReferralResult {
+  @ApiProperty({ type: Inquiry })
+  inquiry!: Inquiry;
+
+  @ApiProperty({ description: 'The new Pending visit request' })
+  visitRequestId!: string;
 }

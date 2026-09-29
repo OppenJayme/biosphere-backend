@@ -2,6 +2,7 @@ import {
   ForbiddenException,
   Inject,
   Injectable,
+  NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -50,6 +51,19 @@ export class AuthService {
     }
 
     return this.resolveActiveAccount(data.user);
+  }
+
+  async getFullName(accountId: string): Promise<string> {
+    const account = await this.prisma.user_account.findUnique({
+      where: { id: accountId },
+      select: { full_name: true },
+    });
+
+    if (!account) {
+      throw new NotFoundException('BioSphere account not found.');
+    }
+
+    return account.full_name;
   }
 
   private async resolveActiveAccount(

@@ -15,6 +15,7 @@ import { AttachSpecimenTagDto } from './dto/attach-specimen-tag.dto';
 import { ListTagsQueryDto } from './dto/list-tags-query.dto';
 import {
   AttachSpecimenTagResult,
+  ChangeSpecimenTagResult,
   DetachSpecimenTagResult,
   Tag,
 } from './entities/tag.entity';
@@ -66,23 +67,8 @@ export class SpecimenTagsService {
       );
       this.assertSpecimenEditable(specimenRecord);
 
-      let selectedTag = await transaction.tag.findFirst({
-        where: {
-          tag_name: {
-            equals: dto.tagName,
-            mode: Prisma.QueryMode.insensitive,
-          },
-        },
-        orderBy: { id: 'asc' },
-      });
-      let createdVocabulary = false;
-
-      if (!selectedTag) {
-        selectedTag = await transaction.tag.create({
-          data: { tag_name: dto.tagName },
-        });
-        createdVocabulary = true;
-      }
+      const { tag: selectedTag, createdVocabulary } =
+        await this.findOrCreateTag(transaction, dto.tagName);
 
       const existingAttachment = await transaction.specimen_tag.findUnique({
         where: {
@@ -174,6 +160,114 @@ export class SpecimenTagsService {
 
       return { tagId, detached: true };
     });
+  }
+
+  async change(
+    specimenId: string,
+    tagId: string,
+    dto: AttachSpecimenTagDto,
+    actingCuratorAccountId: string,
+  ): Promise<ChangeSpecimenTagResult> {
+    return this.runSerializableMutation(async (transaction) => {
+      const specimenRecord = await this.findSpecimenOrThrow(
+        transaction,
+        specimenId,
+      );
+      this.assertSpecimenEditable(specimenRecord);
+      const attachment = await this.findAttachmentOrThrow(
+        transaction,
+        specimenId,
+        tagId,
+      );
+      const { tag: selectedTag, createdVocabulary } =
+        await this.findOrCreateTag(transaction, dto.tagName);
+
+      if (selectedTag.id === tagId) {
+        return {
+          tag: this.toEntity(selectedTag),
+          previousTagId: tagId,
+          changed: false,
+        };
+      }
+
+      const newTagAlreadyAttached = await transaction.specimen_tag.findUnique({
+        where: {
+          specimen_id_tag_id: {
+            specimen_id: specimenId,
+            tag_id: selectedTag.id,
+          },
+        },
+      });
+      // Re-point the existing attachment so the change is a single row
+      // update; if the new tag is already attached, only the old one goes.
+      if (newTagAlreadyAttached) {
+        await transaction.specimen_tag.delete({
+          where: { id: attachment.id },
+        });
+      } else {
+        await transaction.specimen_tag.update({
+          where: { id: attachment.id },
+          data: { tag_id: selectedTag.id },
+        });
+      }
+
+      const changedAt = new Date();
+      await this.touchSpecimen(
+        transaction,
+        specimenId,
+        actingCuratorAccountId,
+        changedAt,
+      );
+      await this.recordRevision(transaction, {
+        specimenId,
+        changedBy: actingCuratorAccountId,
+        oldValue: attachment.tag.tag_name,
+        newValue: selectedTag.tag_name,
+        changedAt,
+      });
+      await this.recordAudit(transaction, {
+        userId: actingCuratorAccountId,
+        // Always the relationship this change updated or deleted, never
+        // the untouched attachment it was merged into.
+        attachmentId: attachment.id,
+        specimenId,
+        tagId: selectedTag.id,
+        action: 'CHANGE_SPECIMEN_TAG',
+        details: {
+          previousTagId: tagId,
+          previousTagName: attachment.tag.tag_name,
+          tagName: selectedTag.tag_name,
+          createdVocabulary,
+        },
+      });
+
+      return {
+        tag: this.toEntity(selectedTag),
+        previousTagId: tagId,
+        changed: true,
+      };
+    });
+  }
+
+  private async findOrCreateTag(
+    transaction: Prisma.TransactionClient,
+    tagName: string,
+  ): Promise<{ tag: tag; createdVocabulary: boolean }> {
+    const existing = await transaction.tag.findFirst({
+      where: {
+        tag_name: {
+          equals: tagName,
+          mode: Prisma.QueryMode.insensitive,
+        },
+      },
+      orderBy: { id: 'asc' },
+    });
+    if (existing) return { tag: existing, createdVocabulary: false };
+
+    const created = await transaction.tag.create({
+      data: { tag_name: tagName },
+    });
+    return { tag: created, createdVocabulary: true };
   }
 
   private async runSerializableMutation<T>(
