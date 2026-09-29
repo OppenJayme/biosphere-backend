@@ -11,7 +11,7 @@ tables through Prisma. It does not introduce or alter database structures.
 | ---------------------- | ------------------------- | ----------------------------------------------------------------------- |
 | `id`                   | `id`                      | System-generated specimen UUID                                          |
 | `collectionId`         | `collection_id`           | Nullable; a supplied UUID must reference an existing collection         |
-| `accessionNumber`      | `accession_number`        | Nullable; uniqueness is not enforced until the museum confirms the rule |
+| `accessionNumber`      | `accession_number`        | Nullable; unique (trimmed, case-insensitive, Archived included); see `ACCESSION_NUMBER_GUIDE.md` |
 | `specimenCategory`     | `specimen_category`       | Nullable curator-entered category                                       |
 | `scientificName`       | `scientific_name`         | Nullable core identification                                            |
 | `commonName`           | `common_name`             | Nullable core identification                                            |

@@ -80,11 +80,12 @@ lot affects an already Cataloged record.
 
 This implementation intentionally does not add:
 
-- accession-number generation or a uniqueness constraint;
+- accession-number generation (uniqueness is enforced separately; see
+  `docs/ACCESSION_NUMBER_GUIDE.md`);
 - specimen restoration from `ARCHIVED`;
 - fuzzy duplicate matching or automatic merging; or
 - XLSX import.
 
-Those concerns remain separate reviewable changes. In particular, accession
-allocation must wait until the museum confirms whether an accession number
-identifies an acquisition group or one unique specimen record.
+Those concerns remain separate reviewable changes. Automatic accession
+allocation still waits for the museum's official format and assignment
+procedure.
