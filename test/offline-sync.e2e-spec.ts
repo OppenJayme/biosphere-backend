@@ -83,6 +83,7 @@ describe('Offline specimen draft synchronization (e2e)', () => {
       },
       collection: { findUnique: jest.fn() },
       audit_log: { create: auditCreate },
+      $queryRaw: jest.fn(() => []),
       $transaction: jest.fn((callback: (transaction: unknown) => unknown) =>
         Promise.resolve(callback(prismaMock)),
       ),
