@@ -1,0 +1,139 @@
+# BioSphere QR Exhibits and WebAR Guide
+
+This module implements SRS Section 4.12 (QR Exhibit Management and Public QR
+Pages) and the curator side of Section 4.13 (Selected WebAR Experiences) using
+the existing `exhibit`, `exhibit_media`, and `ar_asset` tables, with no schema
+change. Developer AR deployment (Section 4.2) lives in `src/developer`.
+
+## Roles
+
+| Actor | Can do | SRS |
+| --- | --- | --- |
+| Curator | Create, edit, publish, unpublish, disable, and archive exhibit pages; manage images; download the QR code and label; replace the URL; turn an exhibit's uploaded AR on or off | REQ-4.12-01..11, REQ-4.13-02 |
+| Developer | Upload, replace, activate, deactivate, and remove AR assets for an exhibit | REQ-4.13-03, REQ-4.2-04/05 |
+| Visitor | Open a published page by its URL or QR code, no account needed | REQ-4.12-12 |
+
+Developers cannot use any curator exhibit route (403), and curators cannot
+upload AR assets.
+
+## Curator endpoints (`CURATOR` only)
+
+- `POST /exhibits` `{ specimenId, publicSlug, ...content }`: only a Cataloged
+  specimen approved for public display, with no other active exhibit
+  (REQ-4.12-02, BR-20). Starts `UNPUBLISHED`.
+- `GET /exhibits?status=&arEnabled=&search=`: active exhibits. `search` matches
+  the slug, common name, scientific name, or accession number.
+- `GET /exhibits/:id`: includes images with short-lived `previewUrl`s.
+- `PATCH /exhibits/:id`: edit `publicDescription`, `interestingFacts`,
+  `distribution`, `diet`, `layoutType`. The public URL never changes here
+  (REQ-4.12-10).
+- `PATCH /exhibits/:id/replace-url` `{ publicSlug }`: intentional page
+  replacement. QR codes printed for the old URL stop working and show the
+  unavailable state. Audited with both slugs. A retired slug stays reserved,
+  so no other exhibit can take it and make old labels open a different
+  specimen; only the exhibit that retired it can take it back.
+- `PATCH /exhibits/:id/publish | unpublish | disable | archive`: see
+  [Lifecycle](#lifecycle).
+- `PATCH /exhibits/:id/ar` `{ enabled }`: turn AR on or off (see
+  [AR](#ar)).
+- `GET /exhibits/:id/qr?format=png|svg&size=128..2048`: the QR code.
+- `GET /exhibits/:id/label`: a printable SVG label.
+- `POST /exhibits/:id/media` (multipart `file`, `caption?`, `displayOrder?`,
+  `isCover?`), `PATCH /exhibits/:id/media/:mediaId` `{ caption?, displayOrder?,
+  isCover? }`, `DELETE /exhibits/:id/media/:mediaId`. Setting a cover clears
+  the previous one.
+
+Every change is written to the audit log in the same transaction
+(REQ-4.12-11), e.g. `CREATE_EXHIBIT`, `PUBLISH_EXHIBIT`, `UNPUBLISH_EXHIBIT`,
+`DISABLE_EXHIBIT`, `ARCHIVE_EXHIBIT`, `REPLACE_EXHIBIT_URL`,
+`ENABLE_EXHIBIT_AR`, `DISABLE_EXHIBIT_AR`, `ADD/UPDATE/REMOVE_EXHIBIT_MEDIA`.
+
+## Lifecycle
+
+SRS B.3: Unpublished -> Published -> Unpublished or Disabled.
+
+| From | `publish` | `unpublish` | `disable` | `archive` |
+| --- | --- | --- | --- | --- |
+| `UNPUBLISHED` | yes (re-checks specimen eligibility) | no-op | 400 | yes |
+| `PUBLISHED` | no-op | yes | yes | yes |
+| `DISABLED` | yes (re-checks eligibility) | 400 | no-op | yes |
+| archived | 400 | 400 | 400 | no-op |
+
+Only a published exhibit can be disabled; retire an unpublished draft with
+archive. Archiving is final: the exhibit leaves curator lists, and its QR code and label
+can no longer be generated.
+
+## Public page
+
+`GET /exhibits/public/:slug` (no token) returns only approved public content
+(REQ-4.12-08, REQ-4.13-07): common and scientific name, collection name,
+taxonomy (kingdom to species), habitat, ecological role, conservation status,
+the curator's description, facts, distribution, and diet, the layout, images
+as short-lived signed URLs, and the AR block. It never returns storage
+locations, condition notes, remarks, accession numbers, curator attribution, or
+audit data.
+
+A missing, unpublished, disabled, or archived page, or one whose specimen is no
+longer Cataloged and public-display approved, returns the same 404 message, so
+nothing about it is revealed (REQ-4.12-09).
+
+## QR code and label
+
+- The QR encodes the public page URL:
+  `${PUBLIC_SITE_URL}/exhibits/<slug>` (falls back to `FRONTEND_URL`). Set
+  `PUBLIC_SITE_URL` to the production visitor domain before printing.
+- The code is generated on request, never stored, and does not expire. The
+  same URL always gives the same code, so a damaged label is fixed by
+  downloading and printing it again; earlier prints keep working.
+- Error correction level H lets a printed code scan with up to about 30% of it
+  damaged.
+- The label (REQ-4.12-06) shows the museum name, specimen names, the QR code,
+  and the complete human-readable URL (wrapped, never shortened), so visitors
+  without a scanner can type it (REQ-4.12-12).
+- A printed code stops working only if the exhibit is unpublished, disabled, or
+  archived, or its URL is intentionally replaced.
+
+## AR
+
+AR state lives in `ar_asset` (one row per model file, linked by `exhibit_id`,
+with `is_enabled`). No exhibit column is used.
+
+1. The developer uploads an exhibit's model (`.glb` or `.usdz`) through
+   `/developer/ar-assets` (REQ-4.13-03, REQ-4.2-04/05). `GET
+   /developer/ar-exhibits` lists active exhibits, plus archived ones that still
+   hold assets, so the developer can pick where to deploy and clean up.
+2. The curator turns AR on or off with `PATCH /exhibits/:id/ar { "enabled" }`
+   (REQ-4.13-02). This enables or disables all of the exhibit's uploaded
+   assets. Turning it on before any asset exists returns 400. Selection is the
+   curator's decision; BioSphere never scores or ranks specimens for AR
+   (REQ-4.13-08). Developers can still activate or deactivate individual
+   assets.
+3. The public page sets `ar.available = true`, with signed model URLs, while
+   at least one asset is enabled (REQ-4.13-01/04). A model whose file cannot
+   be signed is left out. The frontend still checks device support and asks
+   for camera permission only after the visitor taps View in AR
+   (REQ-4.13-05).
+4. Turning AR off hides it immediately and keeps the files, so it can be
+   turned back on without a new upload. The normal page stays available either
+   way (REQ-4.13-06).
+
+Curator responses include `arEnabled` (at least one asset enabled) and
+`arAssetCount` (assets uploaded). `GET /exhibits?arEnabled=true|false` filters
+on the same rule.
+
+Because there is no exhibit-level AR column, a curator cannot mark an exhibit
+for AR before the developer uploads a model; the curator's AR decision is the
+on/off switch once an asset exists.
+
+## Configuration
+
+- `PUBLIC_SITE_URL`: visitor-facing site used in QR codes and labels. In
+  production, QR codes and labels return 503 until it (or `FRONTEND_URL`) is
+  set, so no label is printed with a `localhost` address.
+
+## Not in scope
+
+- Choosing which individual specimen fields appear on the public page: the
+  curator controls the exhibit's own content, and taxonomy is shown when
+  present (there is no per-field visibility column).
+- PDF labels: the label is SVG, which browsers print directly.
