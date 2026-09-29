@@ -4,6 +4,7 @@ import request from 'supertest';
 import { App } from 'supertest/types';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
+import { MailService } from '../src/mail/mail.service';
 import { SUPABASE_CLIENT } from '../src/supabase/supabase.constants';
 
 // Public General Inquiry and Visit Request submission (SRS §4.8, §4.9) and
@@ -25,6 +26,7 @@ describe('Inquiries and visit requests (e2e)', () => {
   let visitWrites: jest.Mock;
   let history: Array<Record<string, unknown>>;
   let historyWrites: jest.Mock;
+  let mailSend: jest.Mock;
 
   const validInquiry = {
     name: 'Juan Dela Cruz',
@@ -54,6 +56,9 @@ describe('Inquiries and visit requests (e2e)', () => {
     visitWrites = jest.fn();
     history = [];
     historyWrites = jest.fn();
+    mailSend = jest.fn(() =>
+      Promise.resolve({ delivered: true, result: 'SENT <e2e>' }),
+    );
 
     const now = new Date('2026-09-01T00:00:00.000Z');
     const prismaMock = {
@@ -98,6 +103,10 @@ describe('Inquiries and visit requests (e2e)', () => {
             return found;
           },
         ),
+        delete: jest.fn(({ where }: { where: { id: string } }) => {
+          inquiryWrites('delete');
+          inquiries = inquiries.filter((item) => item.id !== where.id);
+        }),
       },
       visit_request: {
         create: jest.fn(
@@ -142,6 +151,25 @@ describe('Inquiries and visit requests (e2e)', () => {
             return found;
           },
         ),
+        delete: jest.fn(({ where }: { where: { id: string } }) => {
+          visitWrites('delete');
+          visits = visits.filter((item) => item.id !== where.id);
+        }),
+      },
+      visit_request_vehicle: {
+        deleteMany: jest.fn(() => {
+          visitWrites('child');
+        }),
+      },
+      visit_request_visitor: {
+        deleteMany: jest.fn(() => {
+          visitWrites('child');
+        }),
+      },
+      preferred_visit_date: {
+        deleteMany: jest.fn(() => {
+          visitWrites('child');
+        }),
       },
       communication_history: {
         create: jest.fn(({ data }: { data: Record<string, unknown> }) => {
@@ -172,6 +200,20 @@ describe('Inquiries and visit requests (e2e)', () => {
                 : entry.visit_request_id === where.visit_request_id,
             ),
         ),
+        deleteMany: jest.fn(
+          ({
+            where,
+          }: {
+            where: { inquiry_id?: string; visit_request_id?: string };
+          }) => {
+            historyWrites('delete');
+            history = history.filter((entry) =>
+              where.inquiry_id
+                ? entry.inquiry_id !== where.inquiry_id
+                : entry.visit_request_id !== where.visit_request_id,
+            );
+          },
+        ),
       },
       audit_log: { create: auditCreate },
       $transaction: jest.fn((callback: (client: unknown) => unknown) =>
@@ -197,6 +239,8 @@ describe('Inquiries and visit requests (e2e)', () => {
       .useValue(prismaMock)
       .overrideProvider(SUPABASE_CLIENT)
       .useValue({ auth: { getUser } })
+      .overrideProvider(MailService)
+      .useValue({ send: mailSend })
       .compile();
 
     app = moduleFixture.createNestApplication();
@@ -223,6 +267,7 @@ describe('Inquiries and visit requests (e2e)', () => {
 
       expect(Object.keys(response.body as object).sort()).toEqual([
         'id',
+        'referenceCode',
         'status',
         'submittedAt',
       ]);
@@ -268,6 +313,7 @@ describe('Inquiries and visit requests (e2e)', () => {
 
       expect(Object.keys(response.body as object).sort()).toEqual([
         'id',
+        'referenceCode',
         'status',
         'submittedAt',
       ]);
@@ -336,7 +382,7 @@ describe('Inquiries and visit requests (e2e)', () => {
   });
 
   type Route = {
-    method: 'get' | 'post' | 'patch';
+    method: 'get' | 'post' | 'patch' | 'delete';
     path: string;
     body?: object;
   };
@@ -369,6 +415,12 @@ describe('Inquiries and visit requests (e2e)', () => {
         path: `/inquiries/${inquiryId}/notes`,
         body: noteBody,
       },
+      { method: 'delete', path: `/inquiries/${inquiryId}` },
+      {
+        method: 'post',
+        path: `/inquiries/${inquiryId}/replies`,
+        body: { message: 'Reply' },
+      },
     ],
     'visit-requests': [
       { method: 'get', path: '/visit-requests' },
@@ -392,6 +444,12 @@ describe('Inquiries and visit requests (e2e)', () => {
         method: 'post',
         path: `/visit-requests/${visitId}/notes`,
         body: noteBody,
+      },
+      { method: 'delete', path: `/visit-requests/${visitId}` },
+      {
+        method: 'post',
+        path: `/visit-requests/${visitId}/messages`,
+        body: { message: 'Message' },
       },
     ],
   };
@@ -437,13 +495,47 @@ describe('Inquiries and visit requests (e2e)', () => {
       expectNoWrites();
     });
 
-    it('no longer allow deleting records', async () => {
+    it('only delete finished records, with their timeline', async () => {
       await seed();
+      const auth = `Bearer ${curatorToken}`;
       await request(app.getHttpServer())
         .delete(`/${resource}/${id}`)
-        .set('Authorization', `Bearer ${curatorToken}`)
-        .expect(404);
+        .set('Authorization', auth)
+        .expect(400);
       expectNoWrites();
+
+      // Finish the record: an inquiry is reviewed then closed; a pending
+      // visit request is declined.
+      const finish =
+        resource === 'inquiries' ? ['REVIEWED', 'CLOSED'] : ['DECLINED'];
+      for (const status of finish) {
+        await request(app.getHttpServer())
+          .patch(`/${resource}/${id}`)
+          .set('Authorization', auth)
+          .send({ status })
+          .expect(200);
+      }
+      expect(
+        history.filter((entry) => entry.communication_type === 'STATUS_CHANGE'),
+      ).toHaveLength(finish.length);
+
+      await request(app.getHttpServer())
+        .delete(`/${resource}/${id}`)
+        .set('Authorization', auth)
+        .expect(204);
+      await request(app.getHttpServer())
+        .get(`/${resource}/${id}`)
+        .set('Authorization', auth)
+        .expect(404);
+      expect(history).toHaveLength(0);
+      expect(auditCreate).toHaveBeenLastCalledWith({
+        data: expect.objectContaining({
+          action:
+            resource === 'inquiries'
+              ? 'DELETE_INQUIRY'
+              : 'DELETE_VISIT_REQUEST',
+        }),
+      });
     });
 
     it('let a Curator list, search, read, and change status', async () => {
@@ -472,13 +564,16 @@ describe('Inquiries and visit requests (e2e)', () => {
         .get(`/${resource}/${id}/history`)
         .set('Authorization', auth)
         .expect(200);
-      expect(timeline.body).toEqual([
+      expect(timeline.body[0]).toEqual(
         expect.objectContaining({
           type: 'STATUS_CHANGE',
           recordedBy: curatorAccountId,
           message: `Status changed from PENDING to ${patchBody.status}.\n\nHandled by phone.`,
         }),
-      ]);
+      );
+      // Declining a visit request also emails the visitor; reviewing an
+      // inquiry does not.
+      expect(timeline.body).toHaveLength(resource === 'inquiries' ? 1 : 2);
     });
 
     it('record internal notes in the timeline', async () => {
@@ -655,14 +750,139 @@ describe('Inquiries and visit requests (e2e)', () => {
         .set('Authorization', auth)
         .expect(200);
       expect(
-        (timeline.body as Array<{ message: string }>).map(
-          (entry) => entry.message.split('\n')[0],
+        (timeline.body as Array<{ type: string; message: string }>).map(
+          (entry) => `${entry.type}: ${entry.message.split('\n')[0]}`,
         ),
       ).toEqual([
-        'Status changed from PENDING to APPROVED_BY_CURATOR.',
-        'Status changed from APPROVED_BY_CURATOR to SUBMITTED_FOR_CAMPUS_ENTRY.',
-        'Status changed from SUBMITTED_FOR_CAMPUS_ENTRY to COMPLETED.',
+        'STATUS_CHANGE: Status changed from PENDING to APPROVED_BY_CURATOR.',
+        'STATUS_UPDATE_EMAIL: Hello Maria Santos,',
+        'STATUS_CHANGE: Status changed from APPROVED_BY_CURATOR to SUBMITTED_FOR_CAMPUS_ENTRY.',
+        'STATUS_CHANGE: Status changed from SUBMITTED_FOR_CAMPUS_ENTRY to COMPLETED.',
       ]);
+      // Only the approval emailed the visitor.
+      expect(mailSend).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('visitor emails', () => {
+    const auth = `Bearer ${curatorToken}`;
+
+    it('email the confirmed schedule on approval and record the result', async () => {
+      await request(app.getHttpServer())
+        .post('/visit-requests')
+        .send(validVisit)
+        .expect(201);
+
+      await request(app.getHttpServer())
+        .patch(`/visit-requests/${visitId}/approve-schedule`)
+        .set('Authorization', auth)
+        .send({
+          preferenceOrder: 1,
+          visitorMessage: 'Please arrive 15 minutes early.',
+        })
+        .expect(200);
+
+      expect(mailSend).toHaveBeenCalledWith(
+        expect.objectContaining({
+          to: validVisit.email,
+          subject: 'Your BioSphere museum visit is confirmed (Ref 55555555)',
+          text: expect.stringContaining('Please arrive 15 minutes early.'),
+        }),
+      );
+      const timeline = await request(app.getHttpServer())
+        .get(`/visit-requests/${visitId}/history`)
+        .set('Authorization', auth)
+        .expect(200);
+      expect(timeline.body[1]).toMatchObject({
+        direction: 'OUTBOUND',
+        type: 'STATUS_UPDATE_EMAIL',
+        recipientEmail: validVisit.email,
+        deliveryResult: 'SENT <e2e>',
+      });
+    });
+
+    it('keep the decision when the email fails', async () => {
+      mailSend.mockResolvedValue({ delivered: false, result: 'FAILED 500' });
+      await request(app.getHttpServer())
+        .post('/visit-requests')
+        .send(validVisit)
+        .expect(201);
+
+      const declined = await request(app.getHttpServer())
+        .patch(`/visit-requests/${visitId}`)
+        .set('Authorization', auth)
+        .send({ status: 'DECLINED' })
+        .expect(200);
+
+      expect(declined.body.status).toBe('DECLINED');
+      expect(history.at(-1)).toMatchObject({
+        direction: 'OUTBOUND',
+        delivery_result: 'FAILED 500',
+        sent_at: null,
+      });
+    });
+
+    it('skip the email when notifyVisitor is false', async () => {
+      await request(app.getHttpServer())
+        .post('/visit-requests')
+        .send(validVisit)
+        .expect(201);
+
+      await request(app.getHttpServer())
+        .patch(`/visit-requests/${visitId}`)
+        .set('Authorization', auth)
+        .send({ status: 'CANCELLED', notifyVisitor: false })
+        .expect(200);
+
+      expect(mailSend).not.toHaveBeenCalled();
+    });
+
+    it('send a curator reply to an inquiry and a message on a visit request', async () => {
+      await request(app.getHttpServer())
+        .post('/inquiries')
+        .send(validInquiry)
+        .expect(201);
+      await request(app.getHttpServer())
+        .post('/visit-requests')
+        .send(validVisit)
+        .expect(201);
+
+      const reply = await request(app.getHttpServer())
+        .post(`/inquiries/${inquiryId}/replies`)
+        .set('Authorization', auth)
+        .send({ message: 'Yes, a class of 20 is welcome.' })
+        .expect(201);
+      expect(reply.body).toMatchObject({
+        direction: 'OUTBOUND',
+        type: 'MESSAGE_EMAIL',
+        recipientEmail: validInquiry.email,
+      });
+
+      await request(app.getHttpServer())
+        .post(`/visit-requests/${visitId}/messages`)
+        .set('Authorization', auth)
+        .send({ subject: 'Visitor list', message: 'Please send the list.' })
+        .expect(201);
+      expect(mailSend).toHaveBeenLastCalledWith(
+        expect.objectContaining({ subject: 'Visitor list' }),
+      );
+
+      // Neither message changes the status.
+      expect(inquiries[0].status).toBe('PENDING');
+      expect(visits[0].status).toBe('PENDING');
+      await request(app.getHttpServer())
+        .post(`/inquiries/${inquiryId}/replies`)
+        .set('Authorization', auth)
+        .send({ message: '   ' })
+        .expect(400);
+    });
+
+    it('return the reference code on public receipts', async () => {
+      const receipt = await request(app.getHttpServer())
+        .post('/inquiries')
+        .send(validInquiry)
+        .expect(201);
+      expect(receipt.body.referenceCode).toBe('44444444');
     });
   });
 });
