@@ -12,6 +12,13 @@ export class ExhibitMedia {
   })
   mediaUrl!: string;
 
+  @ApiPropertyOptional({
+    nullable: true,
+    description:
+      'Short-lived signed URL for previewing the image in the curator app',
+  })
+  previewUrl?: string | null;
+
   @ApiProperty({ default: 0 })
   displayOrder!: number;
 
