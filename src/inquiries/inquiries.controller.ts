@@ -1,7 +1,10 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
+  HttpCode,
+  HttpStatus,
   Param,
   ParseUUIDPipe,
   Patch,
@@ -10,6 +13,7 @@ import {
 } from '@nestjs/common';
 import {
   ApiCreatedResponse,
+  ApiNoContentResponse,
   ApiOkResponse,
   ApiOperation,
   ApiTags,
@@ -21,6 +25,7 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import type { AuthenticatedUser } from '../auth/types/auth.types';
 import { CommunicationEntry } from '../communication-history/communication-history.entity';
 import { CreateInternalNoteDto } from '../communication-history/dto/create-internal-note.dto';
+import { SendVisitorMessageDto } from '../communication-history/dto/send-visitor-message.dto';
 import { PUBLIC_FORM_RATE_LIMIT } from '../config/rate-limit.config';
 import { CreateInquiryDto } from './dto/create-inquiry.dto';
 import { ListInquiriesQueryDto } from './dto/list-inquiries-query.dto';
@@ -36,7 +41,8 @@ import { InquiriesService } from './inquiries.service';
 // POST is the only public route (SRS §4.8). Every other route handles
 // visitor personal data, so it is curator-only (NFR-SEC-10); @Roles is set
 // per method because a class-level @Roles would also block the public POST.
-// There is no DELETE: Closed inquiries are kept as history (REQ-4.8-12).
+// DELETE only removes a finished (closed or referred) inquiry; active ones
+// must be closed first so the workflow history is kept (REQ-4.8-12).
 @ApiTags('inquiries')
 @Controller('inquiries')
 export class InquiriesController {
@@ -119,5 +125,36 @@ export class InquiriesController {
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<CommunicationEntry> {
     return this.inquiriesService.addNote(id, dto, user.accountId);
+  }
+
+  @Roles('CURATOR')
+  @Post(':id/replies')
+  @ApiOperation({
+    summary: "Email a reply to the inquiry's visitor (curator-only)",
+  })
+  @ApiCreatedResponse({
+    type: CommunicationEntry,
+    description: 'The timeline entry; deliveryResult shows whether it was sent',
+  })
+  sendReply(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: SendVisitorMessageDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<CommunicationEntry> {
+    return this.inquiriesService.sendReply(id, dto, user.accountId);
+  }
+
+  @Roles('CURATOR')
+  @Delete(':id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({
+    summary: 'Delete a closed or referred inquiry (curator-only)',
+  })
+  @ApiNoContentResponse()
+  remove(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<void> {
+    return this.inquiriesService.remove(id, user.accountId);
   }
 }

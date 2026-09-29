@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -9,9 +10,18 @@ import {
   describeStatusChange,
   listEntries,
   recordInternalEntry,
+  recordOutboundEmail,
 } from '../communication-history/communication-history';
 import { CreateInternalNoteDto } from '../communication-history/dto/create-internal-note.dto';
+import { SendVisitorMessageDto } from '../communication-history/dto/send-visitor-message.dto';
 import { Prisma } from '../generated/prisma/client';
+import { MailService } from '../mail/mail.service';
+import {
+  REFERENCE_CODE_PATTERN,
+  buildVisitorEmail,
+  referenceCode,
+  referenceIdRange,
+} from '../mail/visitor-email';
 import { PrismaService } from '../prisma/prisma.service';
 import { runSerializableTransaction } from '../prisma/serializable-transaction';
 import { VisitRequestsService } from '../visit-requests/visit-requests.service';
@@ -25,7 +35,10 @@ import {
   InquiryStatus,
   InquirySubmissionReceipt,
 } from './entities/inquiry.entity';
-import { assertInquiryTransition } from './inquiry-status.policy';
+import {
+  DELETABLE_INQUIRY_STATUSES,
+  assertInquiryTransition,
+} from './inquiry-status.policy';
 
 const DEFAULT_INQUIRY_TYPE = 'GENERAL';
 
@@ -45,6 +58,7 @@ export class InquiriesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly visitRequestsService: VisitRequestsService,
+    private readonly mail: MailService,
   ) {}
 
   // Public submission (REQ-4.8-01/04). Stored with its consent timestamp and
@@ -76,6 +90,7 @@ export class InquiriesService {
       return {
         id: created.id,
         status: created.status as InquiryStatus,
+        referenceCode: referenceCode(created.id),
         submittedAt: created.created_at,
       };
     });
@@ -95,6 +110,9 @@ export class InquiriesService {
             { organization_name: search },
             { inquiry_type: search },
             { message: search },
+            ...(REFERENCE_CODE_PATTERN.test(query.search ?? '')
+              ? [{ id: referenceIdRange(query.search!) }]
+              : []),
           ],
         }),
       },
@@ -271,6 +289,87 @@ export class InquiriesService {
     return listEntries(this.prisma, { inquiryId: id });
   }
 
+  // Curator reply emailed to the visitor through BioSphere (REQ-4.8-05/09).
+  // The status does not change. The reply is recorded in the timeline with
+  // its delivery result, and the audit keeps no message text or address.
+  async sendReply(
+    id: string,
+    dto: SendVisitorMessageDto,
+    actingCuratorAccountId: string,
+  ): Promise<CommunicationEntry> {
+    const inquiry = this.toEntity(await this.findOneOrThrow(this.prisma, id));
+    const email = buildVisitorEmail({
+      to: inquiry.email,
+      visitorName: inquiry.name,
+      subject:
+        dto.subject ??
+        `Re: your BioSphere museum inquiry (Ref ${inquiry.referenceCode})`,
+      paragraphs: ['Thank you for contacting the museum.'],
+      curatorMessage: dto.message,
+      reference: inquiry.referenceCode,
+    });
+    const delivery = await this.mail.send(email);
+
+    return this.prisma.$transaction(async (transaction) => {
+      const entry = await recordOutboundEmail(transaction, {
+        target: { inquiryId: id },
+        recordedBy: actingCuratorAccountId,
+        type: CommunicationType.MESSAGE_EMAIL,
+        recipientEmail: email.to,
+        subject: email.subject,
+        message: email.text,
+        deliveryResult: delivery.result,
+        delivered: delivery.delivered,
+      });
+      await this.recordAudit(transaction, {
+        userId: actingCuratorAccountId,
+        inquiryId: id,
+        action: 'EMAIL_VISITOR',
+        details: {
+          entryId: entry.id,
+          communicationType: CommunicationType.MESSAGE_EMAIL,
+          delivered: delivery.delivered,
+        },
+      });
+      return entry;
+    });
+  }
+
+  // Deletes a finished inquiry and its timeline. A referred inquiry stays
+  // while its visit request exists, so the referral link is never broken.
+  // The audit log keeps a record of the deletion.
+  async remove(id: string, actingCuratorAccountId: string): Promise<void> {
+    await runSerializableTransaction(
+      this.prisma,
+      async (transaction) => {
+        const existing = await this.findOneOrThrow(transaction, id);
+        const previousStatus = existing.status as InquiryStatus;
+        if (!DELETABLE_INQUIRY_STATUSES.includes(previousStatus)) {
+          throw new BadRequestException(
+            'Only a closed or referred inquiry can be deleted. Close it first.',
+          );
+        }
+        if (existing.visit_request) {
+          throw new ConflictException(
+            `This inquiry was referred to visit request ${existing.visit_request.id}. Delete that request first.`,
+          );
+        }
+
+        await transaction.communication_history.deleteMany({
+          where: { inquiry_id: id },
+        });
+        await transaction.inquiry.delete({ where: { id } });
+        await this.recordAudit(transaction, {
+          userId: actingCuratorAccountId,
+          inquiryId: id,
+          action: 'DELETE_INQUIRY',
+          details: { previousStatus },
+        });
+      },
+      CONFLICT_MESSAGE,
+    );
+  }
+
   private async findOneOrThrow(
     client: Prisma.TransactionClient,
     id: string,
@@ -310,6 +409,7 @@ export class InquiriesService {
   private toEntity(item: InquiryRecord): Inquiry {
     return {
       id: item.id,
+      referenceCode: referenceCode(item.id),
       name: item.full_name,
       email: item.email_address,
       phone: item.contact_number,
