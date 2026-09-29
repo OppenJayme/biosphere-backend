@@ -27,7 +27,7 @@ import {
 } from './dto/create-ar-asset.dto';
 import { UpdateArAssetDto } from './dto/update-ar-asset.dto';
 import { CuratorAccountEntity } from './entities/curator-account.entity';
-import { ArAssetEntity } from './entities/ar-asset.entity';
+import { ArAssetEntity, ArExhibitEntity } from './entities/ar-asset.entity';
 import {
   AR_ASSET_STORAGE_BUCKET,
   MAX_AR_ASSET_SIZE_BYTES,
@@ -211,6 +211,36 @@ export class DeveloperService {
   // ===========================================================
   // AR asset deployment — REQ-4.2-04, REQ-4.2-05
   // ===========================================================
+
+  // Exhibits the developer can deploy AR assets to (every active exhibit),
+  // plus archived exhibits that still hold assets so those can be removed.
+  // Only the exhibit's public identity is returned (REQ-4.2-07/08).
+  async listArExhibits(): Promise<ArExhibitEntity[]> {
+    const exhibits = await this.prisma.exhibit.findMany({
+      where: {
+        OR: [{ archived_at: null }, { ar_asset: { some: {} } }],
+      },
+      select: {
+        id: true,
+        public_slug: true,
+        status: true,
+        archived_at: true,
+        specimen: { select: { common_name: true, scientific_name: true } },
+        ar_asset: { orderBy: { id: 'asc' } },
+      },
+      orderBy: { created_at: 'desc' },
+    });
+
+    return exhibits.map((item) => ({
+      id: item.id,
+      publicSlug: item.public_slug,
+      status: item.status,
+      archived: item.archived_at !== null,
+      commonName: item.specimen.common_name,
+      scientificName: item.specimen.scientific_name,
+      assets: item.ar_asset.map((asset) => this.toArAssetEntity(asset)),
+    }));
+  }
 
   async createArAsset(
     file: Express.Multer.File,
