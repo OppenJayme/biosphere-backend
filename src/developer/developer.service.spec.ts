@@ -31,6 +31,7 @@ const prismaMock = {
   },
   exhibit: {
     findUnique: jest.fn(),
+    findMany: jest.fn(),
   },
   audit_log: {
     create: jest.fn(),
@@ -670,6 +671,49 @@ describe('DeveloperService', () => {
   // ===========================================================
   // setArAssetEnabled — REQ-4.2-04 (activate/deactivate)
   // ===========================================================
+  describe('listArExhibits', () => {
+    it('lists active exhibits and archived ones that still hold assets', async () => {
+      prismaMock.exhibit.findMany.mockResolvedValue([
+        {
+          id: 'exhibit-1',
+          public_slug: 'giant-beetle',
+          status: 'PUBLISHED',
+          archived_at: null,
+          specimen: {
+            common_name: 'Giant Beetle',
+            scientific_name: 'Titanus giganteus',
+          },
+          ar_asset: [
+            {
+              id: 'asset-1',
+              exhibit_id: 'exhibit-1',
+              storage_path: 'exhibit-1/model.glb',
+              model_format: 'glb',
+              is_enabled: true,
+            },
+          ],
+        },
+      ]);
+
+      await expect(service.listArExhibits()).resolves.toEqual([
+        {
+          id: 'exhibit-1',
+          publicSlug: 'giant-beetle',
+          status: 'PUBLISHED',
+          archived: false,
+          commonName: 'Giant Beetle',
+          scientificName: 'Titanus giganteus',
+          assets: [expect.objectContaining({ id: 'asset-1', isEnabled: true })],
+        },
+      ]);
+      expect(prismaMock.exhibit.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { OR: [{ archived_at: null }, { ar_asset: { some: {} } }] },
+        }),
+      );
+    });
+  });
+
   describe('setArAssetEnabled', () => {
     it('throws NotFoundException for an unknown asset', async () => {
       prismaMock.ar_asset.findUnique.mockResolvedValue(null);
