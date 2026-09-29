@@ -1,4 +1,5 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { MailService } from '../mail/mail.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateVisitRequestDto } from './dto/create-visit-request.dto';
 import { VisitRequestStatus } from './entities/visit-request.entity';
@@ -68,11 +69,21 @@ describe('VisitRequestsService', () => {
     findMany: jest.fn(),
     findUnique: jest.fn(),
     update: jest.fn(),
+    delete: jest.fn(),
   };
-  const historyDelegate = { create: jest.fn(), findMany: jest.fn() };
+  const historyDelegate = {
+    create: jest.fn(),
+    findMany: jest.fn(),
+    deleteMany: jest.fn(),
+  };
   const auditDelegate = { create: jest.fn() };
+  const mail = { send: jest.fn() };
+  const childDelegate = () => ({ deleteMany: jest.fn() });
   const prisma = {
     visit_request: visitDelegate,
+    visit_request_vehicle: childDelegate(),
+    visit_request_visitor: childDelegate(),
+    preferred_visit_date: childDelegate(),
     communication_history: historyDelegate,
     audit_log: auditDelegate,
     $transaction: jest.fn(),
@@ -98,7 +109,11 @@ describe('VisitRequestsService', () => {
           ...data,
         }),
     );
-    service = new VisitRequestsService(prisma as unknown as PrismaService);
+    mail.send.mockResolvedValue({ delivered: true, result: 'SENT <msg-1>' });
+    service = new VisitRequestsService(
+      prisma as unknown as PrismaService,
+      mail as unknown as MailService,
+    );
   });
 
   it('stores every preferred schedule, visitor and vehicle as child records', async () => {
@@ -118,6 +133,7 @@ describe('VisitRequestsService', () => {
 
     expect(receipt).toEqual({
       id: VISIT_ID,
+      referenceCode: '11111111',
       status: VisitRequestStatus.PENDING,
       submittedAt: CREATED_AT,
     });
@@ -283,9 +299,198 @@ describe('VisitRequestsService', () => {
     visitDelegate.update.mockResolvedValue(visitRecord({ status: to }));
 
     await expect(
-      service.update(VISIT_ID, { status: to }, CURATOR_ID),
+      service.update(
+        VISIT_ID,
+        { status: to, notifyVisitor: false },
+        CURATOR_ID,
+      ),
     ).resolves.toMatchObject({ status: to });
     expect(historyDelegate.create).toHaveBeenCalledTimes(1);
+    expect(mail.send).not.toHaveBeenCalled();
+  });
+
+  describe('visitor emails', () => {
+    const approvedRecord = visitRecord({
+      status: 'APPROVED_BY_CURATOR',
+      approved_date: new Date('2030-10-15T00:00:00.000Z'),
+      approved_start_time: new Date('1970-01-01T09:00:00.000Z'),
+      approved_end_time: new Date('1970-01-01T11:00:00.000Z'),
+    });
+
+    it('emails the confirmed schedule after approval and records it', async () => {
+      visitDelegate.findUnique.mockResolvedValue(visitRecord());
+      visitDelegate.update.mockResolvedValue(approvedRecord);
+
+      await service.approveSchedule(
+        VISIT_ID,
+        {
+          preferenceOrder: 1,
+          visitorMessage: 'Please arrive 15 minutes early.',
+        },
+        CURATOR_ID,
+      );
+
+      expect(mail.send).toHaveBeenCalledTimes(1);
+      const email = mail.send.mock.calls[0][0] as {
+        to: string;
+        subject: string;
+        text: string;
+        html: string;
+      };
+      expect(email.to).toBe('maria@example.com');
+      expect(email.subject).toBe(
+        'Your BioSphere museum visit is confirmed (Ref 11111111)',
+      );
+      expect(email.text).toContain('Tuesday, October 15, 2030');
+      expect(email.text).toContain('09:00 - 11:00');
+      expect(email.text).toContain('Please arrive 15 minutes early.');
+      expect(email.text).toContain('Reference number: 11111111');
+      expect(historyDelegate.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          visit_request_id: VISIT_ID,
+          direction: 'OUTBOUND',
+          communication_type: 'STATUS_UPDATE_EMAIL',
+          recipient_email: 'maria@example.com',
+          delivery_result: 'SENT <msg-1>',
+          sent_at: expect.any(Date),
+        }),
+      });
+      expect(auditDelegate.create).toHaveBeenLastCalledWith({
+        data: expect.objectContaining({
+          action: 'EMAIL_VISITOR',
+          details: {
+            entryId: ENTRY_ID,
+            communicationType: 'STATUS_UPDATE_EMAIL',
+            delivered: true,
+          },
+        }),
+      });
+    });
+
+    it('keeps the approval and records a failed send', async () => {
+      visitDelegate.findUnique.mockResolvedValue(visitRecord());
+      visitDelegate.update.mockResolvedValue(approvedRecord);
+      mail.send.mockResolvedValue({ delivered: false, result: 'FAILED 401' });
+
+      await expect(
+        service.approveSchedule(VISIT_ID, { preferenceOrder: 1 }, CURATOR_ID),
+      ).resolves.toMatchObject({ status: 'APPROVED_BY_CURATOR' });
+      expect(historyDelegate.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          direction: 'OUTBOUND',
+          delivery_result: 'FAILED 401',
+          sent_at: null,
+        }),
+      });
+    });
+
+    it('does not email when notifyVisitor is false', async () => {
+      visitDelegate.findUnique.mockResolvedValue(visitRecord());
+      visitDelegate.update.mockResolvedValue(approvedRecord);
+
+      await service.approveSchedule(
+        VISIT_ID,
+        { preferenceOrder: 1, notifyVisitor: false },
+        CURATOR_ID,
+      );
+
+      expect(mail.send).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ['DECLINED', 'Update on your BioSphere visit request (Ref 11111111)'],
+      [
+        'CANCELLED',
+        'Your BioSphere museum visit has been cancelled (Ref 11111111)',
+      ],
+    ] as const)('emails the visitor when %s', async (status, subject) => {
+      visitDelegate.findUnique.mockResolvedValue(visitRecord());
+      visitDelegate.update.mockResolvedValue(visitRecord({ status }));
+
+      await service.update(
+        VISIT_ID,
+        {
+          status: VisitRequestStatus[status],
+          visitorMessage: 'We can host you next month instead.',
+        },
+        CURATOR_ID,
+      );
+
+      expect(mail.send).toHaveBeenCalledWith(
+        expect.objectContaining({
+          subject,
+          text: expect.stringContaining('We can host you next month instead.'),
+        }),
+      );
+    });
+
+    it('does not email for campus-entry or completion changes', async () => {
+      visitDelegate.findUnique.mockResolvedValue(approvedRecord);
+      visitDelegate.update.mockResolvedValue(
+        visitRecord({ status: 'SUBMITTED_FOR_CAMPUS_ENTRY' }),
+      );
+
+      await service.update(
+        VISIT_ID,
+        { status: VisitRequestStatus.SUBMITTED_FOR_CAMPUS_ENTRY },
+        CURATOR_ID,
+      );
+
+      expect(mail.send).not.toHaveBeenCalled();
+    });
+
+    it('escapes visitor and curator text in the HTML body', async () => {
+      visitDelegate.findUnique.mockResolvedValue(
+        visitRecord({ contact_person: '<b>Maria</b>' }),
+      );
+
+      await service.sendMessage(
+        VISIT_ID,
+        { message: 'Bring <script>alert(1)</script> IDs' },
+        CURATOR_ID,
+      );
+
+      const email = mail.send.mock.calls[0][0] as { html: string };
+      expect(email.html).toContain('&lt;b&gt;Maria&lt;/b&gt;');
+      expect(email.html).toContain('&lt;script&gt;');
+      expect(email.html).not.toContain('<script>');
+    });
+
+    it('sends a curator message without changing the status', async () => {
+      visitDelegate.findUnique.mockResolvedValue(visitRecord());
+
+      const entry = await service.sendMessage(
+        VISIT_ID,
+        { subject: 'Visitor list', message: 'Please send the visitor list.' },
+        CURATOR_ID,
+      );
+
+      expect(visitDelegate.update).not.toHaveBeenCalled();
+      expect(mail.send).toHaveBeenCalledWith(
+        expect.objectContaining({ subject: 'Visitor list' }),
+      );
+      expect(entry).toMatchObject({
+        direction: 'OUTBOUND',
+        type: 'MESSAGE_EMAIL',
+        deliveryResult: 'SENT <msg-1>',
+      });
+    });
+  });
+
+  it('finds a request by its 8-character reference code', async () => {
+    visitDelegate.findMany.mockResolvedValue([]);
+
+    await service.findAll({ search: '9A81836F' });
+
+    const { where } = visitDelegate.findMany.mock.calls[0][0] as {
+      where: { OR: object[] };
+    };
+    expect(where.OR).toContainEqual({
+      id: {
+        gte: '9a81836f-0000-0000-0000-000000000000',
+        lte: '9a81836f-ffff-ffff-ffff-ffffffffffff',
+      },
+    });
   });
 
   it.each([
@@ -544,6 +749,55 @@ describe('VisitRequestsService', () => {
 
     await expect(service.findOne(VISIT_ID)).rejects.toBeInstanceOf(
       NotFoundException,
+    );
+  });
+
+  describe('remove', () => {
+    it.each(['DECLINED', 'CANCELLED', 'COMPLETED'])(
+      'deletes a %s request with its timeline and child rows',
+      async (status) => {
+        visitDelegate.findUnique.mockResolvedValue(
+          visitRecord({ status, source_inquiry_id: INQUIRY_ID }),
+        );
+
+        await service.remove(VISIT_ID, CURATOR_ID);
+
+        const byVisit = { where: { visit_id: VISIT_ID } };
+        expect(historyDelegate.deleteMany).toHaveBeenCalledWith({
+          where: { visit_request_id: VISIT_ID },
+        });
+        expect(prisma.visit_request_vehicle.deleteMany).toHaveBeenCalledWith(
+          byVisit,
+        );
+        expect(prisma.visit_request_visitor.deleteMany).toHaveBeenCalledWith(
+          byVisit,
+        );
+        expect(prisma.preferred_visit_date.deleteMany).toHaveBeenCalledWith(
+          byVisit,
+        );
+        expect(visitDelegate.delete).toHaveBeenCalledWith({
+          where: { id: VISIT_ID },
+        });
+        expect(auditDelegate.create).toHaveBeenCalledWith({
+          data: expect.objectContaining({
+            action: 'DELETE_VISIT_REQUEST',
+            details: { previousStatus: status, sourceInquiryId: INQUIRY_ID },
+          }),
+        });
+      },
+    );
+
+    it.each(['PENDING', 'APPROVED_BY_CURATOR', 'SUBMITTED_FOR_CAMPUS_ENTRY'])(
+      'rejects deleting a %s request',
+      async (status) => {
+        visitDelegate.findUnique.mockResolvedValue(visitRecord({ status }));
+
+        await expect(service.remove(VISIT_ID, CURATOR_ID)).rejects.toThrow(
+          'Only a declined, cancelled, or completed visit request',
+        );
+        expect(visitDelegate.delete).not.toHaveBeenCalled();
+        expect(historyDelegate.deleteMany).not.toHaveBeenCalled();
+      },
     );
   });
 });
