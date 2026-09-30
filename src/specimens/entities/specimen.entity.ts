@@ -73,9 +73,44 @@ export class Specimen {
   updatedAt!: Date;
 }
 
+export class SpecimenSearchStorageUnit {
+  @ApiProperty()
+  id!: string;
+
+  @ApiProperty()
+  label!: string;
+
+  @ApiProperty()
+  unitType!: string;
+}
+
+/** Catalog row with the columns the curator specimen table displays. */
+export class SpecimenSearchItem extends Specimen {
+  @ApiProperty({ nullable: true, type: String })
+  family!: string | null;
+
+  @ApiProperty({ nullable: true, type: String })
+  collector!: string | null;
+
+  @ApiProperty({ description: 'Sum of active lot quantities' })
+  totalQuantity!: number;
+
+  @ApiProperty({
+    type: [String],
+    description: 'Distinct condition classes of the active lots',
+  })
+  conditionClasses!: string[];
+
+  @ApiProperty({
+    type: [SpecimenSearchStorageUnit],
+    description: 'Distinct storage units holding the active lots',
+  })
+  storageUnits!: SpecimenSearchStorageUnit[];
+}
+
 export class SpecimenPage {
-  @ApiProperty({ type: [Specimen] })
-  items!: Specimen[];
+  @ApiProperty({ type: [SpecimenSearchItem] })
+  items!: SpecimenSearchItem[];
 
   @ApiProperty()
   total!: number;
