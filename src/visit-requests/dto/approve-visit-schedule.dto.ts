@@ -15,7 +15,7 @@ import { MAX_INTERNAL_NOTE_LENGTH } from '../../communication-history/dto/create
 import { MAX_VISITOR_MESSAGE_LENGTH } from '../../communication-history/dto/send-visitor-message.dto';
 import { MAX_PREFERRED_SCHEDULES } from './create-visit-request.dto';
 
-// Approves one of the visitor's preferred options (REQ-4.9-17). The other
+// Approves one of the visitor's preferred options (RED-4.9.17). The other
 // options stay stored as part of the request history.
 export class ApproveVisitScheduleDto {
   @ApiProperty({
@@ -43,7 +43,7 @@ export class ApproveVisitScheduleDto {
 
   @ApiPropertyOptional({
     default: true,
-    description: 'Email the visitor the confirmed date and time (REQ-4.9-11)',
+    description: 'Email the visitor the approved date and time (REQ-4.9-11)',
   })
   @IsOptional()
   @IsBoolean()
