@@ -21,6 +21,7 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import type { AuthenticatedUser } from '../auth/types/auth.types';
 import { CommunicationEntry } from '../communication-history/communication-history.entity';
 import { CreateInternalNoteDto } from '../communication-history/dto/create-internal-note.dto';
+import { SendVisitorMessageDto } from '../communication-history/dto/send-visitor-message.dto';
 import { PUBLIC_FORM_RATE_LIMIT } from '../config/rate-limit.config';
 import { CreateInquiryDto } from './dto/create-inquiry.dto';
 import { ListInquiriesQueryDto } from './dto/list-inquiries-query.dto';
@@ -119,5 +120,22 @@ export class InquiriesController {
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<CommunicationEntry> {
     return this.inquiriesService.addNote(id, dto, user.accountId);
+  }
+
+  @Roles('CURATOR')
+  @Post(':id/replies')
+  @ApiOperation({
+    summary: "Email a reply to the inquiry's visitor (curator-only)",
+  })
+  @ApiCreatedResponse({
+    type: CommunicationEntry,
+    description: 'The timeline entry; deliveryResult shows whether it was sent',
+  })
+  sendReply(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: SendVisitorMessageDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<CommunicationEntry> {
+    return this.inquiriesService.sendReply(id, dto, user.accountId);
   }
 }
