@@ -1492,6 +1492,85 @@ describe('SpecimenLotsService', () => {
       expect(lotDelegate.create).not.toHaveBeenCalled();
     });
 
+    it('creates lots under serializable isolation', async () => {
+      await service.create(
+        SPECIMEN_ID,
+        { storageUnitId: STORAGE_UNIT_ID, conditionClass: 'Good', quantity: 1 },
+        ACCOUNT_ID,
+      );
+
+      expect(transactionMock).toHaveBeenCalledWith(expect.any(Function), {
+        isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+      });
+    });
+
+    it('ends a concurrent case-different create in a Conflict, not a second lot', async () => {
+      // Two curators create "Good" and "good" lots for the same specimen and
+      // unit at the same time. PostgreSQL aborts this request with a
+      // serialization failure; the retry then sees the other request's lot.
+      transactionMock
+        .mockRejectedValueOnce(
+          new Prisma.PrismaClientKnownRequestError('Write conflict', {
+            code: 'P2034',
+            clientVersion: '7.10.0',
+          }),
+        )
+        .mockImplementationOnce(
+          (callback: (transaction: typeof prismaMock) => unknown) =>
+            Promise.resolve(callback(prismaMock)),
+        );
+      lotDelegate.findFirst.mockResolvedValueOnce({ id: TARGET_LOT_ID });
+
+      await expect(
+        service.create(
+          SPECIMEN_ID,
+          {
+            storageUnitId: STORAGE_UNIT_ID,
+            conditionClass: 'Good',
+            quantity: 1,
+          },
+          ACCOUNT_ID,
+        ),
+      ).rejects.toThrow(
+        new ConflictException(
+          `An active lot already exists for this specimen, storage unit, and condition. Existing lot: ${TARGET_LOT_ID}. Use the quantity-adjustment workflow instead.`,
+        ),
+      );
+      expect(transactionMock).toHaveBeenCalledTimes(2);
+      expect(lotDelegate.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            condition_class: insensitive('Good'),
+          }),
+        }),
+      );
+      expect(lotDelegate.create).not.toHaveBeenCalled();
+      expect(lotTransactionDelegate.create).not.toHaveBeenCalled();
+    });
+
+    it('returns Conflict when concurrent creates keep colliding', async () => {
+      transactionMock.mockRejectedValue(
+        new Prisma.PrismaClientKnownRequestError('Write conflict', {
+          code: 'P2034',
+          clientVersion: '7.10.0',
+        }),
+      );
+
+      await expect(
+        service.create(
+          SPECIMEN_ID,
+          {
+            storageUnitId: STORAGE_UNIT_ID,
+            conditionClass: 'Good',
+            quantity: 1,
+          },
+          ACCOUNT_ID,
+        ),
+      ).rejects.toThrow(ConflictException);
+      expect(transactionMock).toHaveBeenCalledTimes(3);
+      expect(lotDelegate.create).not.toHaveBeenCalled();
+    });
+
     it('merges a moved quantity into a target lot regardless of case', async () => {
       const target = lotRecord({
         id: TARGET_LOT_ID,

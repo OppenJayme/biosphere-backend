@@ -43,6 +43,17 @@ quantities. It is never copied into a manually maintained specimen field.
   as a matching lot, a move or condition change merges into the existing lot
   and keeps that lot's spelling, and a condition change that differs only by
   case is rejected as unchanged.
+- Lot creation runs under `SERIALIZABLE` isolation with up to three retries,
+  like moves, condition changes, and quantity adjustments. The database
+  unique index `uq_active_specimen_lot` compares `condition_class` exactly, so
+  on its own it cannot stop two simultaneous creates that differ only by case
+  (`Good` / `good`). Under `SERIALIZABLE`, each request's case-insensitive
+  lookup conflicts with the other's insert; PostgreSQL aborts one, and its
+  retry finds the first lot and returns `409 Conflict`. This guarantee holds
+  only for writes made through this service at `SERIALIZABLE` isolation. A
+  case-insensitive database index (for example on `lower(condition_class)`)
+  would enforce it for every writer, but needs a reviewed migration and a
+  check for existing rows that differ only by case.
 - Creating a lot records a `QUANTITY_ADJUSTMENT` transaction with adjustment
   type `ADDITION`, the target lot, quantity, optional reason, timestamp, and
   acting curator.
@@ -71,10 +82,32 @@ specimen attribution, creates a specimen revision with
 
 ## Storage capacity warnings
 
-Storage-unit `capacity` is advisory (REQ-4.6-11). It is compared with the sum
-of active lot quantities in the unit, the same measure used by
-`GET /storage-locations/occupancy-summary`. Exceeding it never blocks a lot
-operation; instead the response carries a `capacityWarning`:
+Storage-unit `capacity` is advisory (REQ-4.6-11). Exceeding it never blocks a
+lot operation; instead the response carries a `capacityWarning`.
+
+**What capacity measures (provisional, pending museum confirmation).** The
+SRS says only that the curator is warned when a configured capacity is
+exceeded; it does not say what capacity counts. The backend currently treats
+`storage_unit.capacity` as the **maximum number of individual specimens held
+directly in that unit**, and compares it with the sum of `quantity` across
+the unit's active lots:
+
+- `capacity = 10`, Lot A `quantity = 6`, Lot B `quantity = 5` → occupancy 11
+  → warning (`exceededBy = 1`).
+- Lots in child units do not count toward a parent's capacity.
+- A unit with `capacity = null` never warns.
+
+It does not mean number of lots, number of containers or slots, or volume.
+This is the same measure `GET /storage-locations/occupancy-summary` has
+used since before these warnings existed. Do not treat it as final until the
+museum confirms it; once confirmed, record the decision in the SRS
+(REQ-4.6-11) and remove this note. If a different measure is chosen, the
+occupancy calculation lives in three places that must change together:
+`SpecimenLotsService.findCapacityWarning`,
+`StorageLocationsService.checkCapacity`, and
+`StorageLocationsService.findOccupancySummary`.
+
+A `capacityWarning` looks like this:
 
 ```json
 {
