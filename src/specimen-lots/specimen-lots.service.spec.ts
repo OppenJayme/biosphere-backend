@@ -151,7 +151,13 @@ describe('SpecimenLotsService', () => {
 
     expect(storageUnitDelegate.findUnique).toHaveBeenCalledWith({
       where: { id: STORAGE_UNIT_ID },
-      select: { id: true, holds_specimens: true, archived_at: true },
+      select: {
+        id: true,
+        label: true,
+        capacity: true,
+        holds_specimens: true,
+        archived_at: true,
+      },
     });
     expect(lotDelegate.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
@@ -449,7 +455,13 @@ describe('SpecimenLotsService', () => {
 
     expect(storageUnitDelegate.findUnique).toHaveBeenCalledWith({
       where: { id: TARGET_STORAGE_UNIT_ID },
-      select: { id: true, holds_specimens: true, archived_at: true },
+      select: {
+        id: true,
+        label: true,
+        capacity: true,
+        holds_specimens: true,
+        archived_at: true,
+      },
     });
     expect(lotDelegate.updateMany).toHaveBeenCalledWith({
       where: {
@@ -860,7 +872,13 @@ describe('SpecimenLotsService', () => {
     );
     expect(storageUnitDelegate.findUnique).toHaveBeenCalledWith({
       where: { id: STORAGE_UNIT_ID },
-      select: { id: true, holds_specimens: true, archived_at: true },
+      select: {
+        id: true,
+        label: true,
+        capacity: true,
+        holds_specimens: true,
+        archived_at: true,
+      },
     });
   });
 
@@ -1264,5 +1282,178 @@ describe('SpecimenLotsService', () => {
       ),
     ).rejects.toThrow(BadRequestException);
     expect(lotDelegate.update).not.toHaveBeenCalled();
+  });
+  describe('storage capacity warnings (REQ-4.6-11)', () => {
+    function capacityUnit(capacity: number | null) {
+      return {
+        id: STORAGE_UNIT_ID,
+        label: 'Drawer 3',
+        capacity,
+        holds_specimens: true,
+        archived_at: null,
+      };
+    }
+
+    it('creates the lot and warns when the unit now exceeds its capacity', async () => {
+      storageUnitDelegate.findUnique.mockResolvedValueOnce(capacityUnit(8));
+      lotDelegate.aggregate.mockResolvedValueOnce({ _sum: { quantity: 10 } });
+
+      const result = await service.create(
+        SPECIMEN_ID,
+        {
+          storageUnitId: STORAGE_UNIT_ID,
+          conditionClass: 'GOOD',
+          quantity: 10,
+        },
+        ACCOUNT_ID,
+      );
+
+      expect(lotDelegate.aggregate).toHaveBeenCalledWith({
+        where: { storage_unit_id: STORAGE_UNIT_ID, is_active: true },
+        _sum: { quantity: true },
+      });
+      expect(result.capacityWarning).toEqual({
+        storageUnitId: STORAGE_UNIT_ID,
+        storageUnitLabel: 'Drawer 3',
+        capacity: 8,
+        occupiedQuantity: 10,
+        exceededBy: 2,
+      });
+      expect(auditDelegate.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          action: 'CREATE_SPECIMEN_LOT',
+          details: expect.objectContaining({ capacityExceeded: true }),
+        }),
+      });
+    });
+
+    it('does not warn at exactly the capacity or when no capacity is set', async () => {
+      storageUnitDelegate.findUnique.mockResolvedValueOnce(capacityUnit(10));
+      lotDelegate.aggregate.mockResolvedValueOnce({ _sum: { quantity: 10 } });
+      const atCapacity = await service.create(
+        SPECIMEN_ID,
+        {
+          storageUnitId: STORAGE_UNIT_ID,
+          conditionClass: 'GOOD',
+          quantity: 10,
+        },
+        ACCOUNT_ID,
+      );
+      expect(atCapacity.capacityWarning).toBeNull();
+
+      lotDelegate.aggregate.mockClear();
+      storageUnitDelegate.findUnique.mockResolvedValueOnce(capacityUnit(null));
+      const unlimited = await service.create(
+        SPECIMEN_ID,
+        {
+          storageUnitId: STORAGE_UNIT_ID,
+          conditionClass: 'GOOD',
+          quantity: 10,
+        },
+        ACCOUNT_ID,
+      );
+      expect(unlimited.capacityWarning).toBeNull();
+      expect(lotDelegate.aggregate).not.toHaveBeenCalled();
+    });
+
+    it('checks the target unit when moving part of a lot', async () => {
+      storageUnitDelegate.findUnique.mockResolvedValueOnce({
+        ...capacityUnit(3),
+        id: TARGET_STORAGE_UNIT_ID,
+      });
+      lotDelegate.findFirst
+        .mockResolvedValueOnce(lotRecord({ quantity: 10 }))
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(lotRecord({ quantity: 6 }));
+      lotDelegate.create.mockResolvedValueOnce(
+        lotRecord({
+          id: TARGET_LOT_ID,
+          storage_unit_id: TARGET_STORAGE_UNIT_ID,
+          quantity: 4,
+        }),
+      );
+      lotDelegate.aggregate.mockResolvedValueOnce({ _sum: { quantity: 4 } });
+
+      const result = await service.move(
+        SPECIMEN_ID,
+        LOT_ID,
+        { targetStorageUnitId: TARGET_STORAGE_UNIT_ID, quantity: 4 },
+        ACCOUNT_ID,
+      );
+
+      expect(lotDelegate.aggregate).toHaveBeenCalledWith({
+        where: { storage_unit_id: TARGET_STORAGE_UNIT_ID, is_active: true },
+        _sum: { quantity: true },
+      });
+      expect(result.capacityWarning).toEqual(
+        expect.objectContaining({
+          storageUnitId: TARGET_STORAGE_UNIT_ID,
+          occupiedQuantity: 4,
+          exceededBy: 1,
+        }),
+      );
+    });
+
+    it('never warns for a condition change because occupancy is unchanged', async () => {
+      storageUnitDelegate.findUnique.mockResolvedValueOnce(capacityUnit(1));
+      lotDelegate.findFirst
+        .mockResolvedValueOnce(lotRecord({ quantity: 10 }))
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(lotRecord({ quantity: 9 }));
+      lotDelegate.create.mockResolvedValueOnce(
+        lotRecord({ id: TARGET_LOT_ID, condition_class: 'FAIR', quantity: 1 }),
+      );
+
+      const result = await service.changeCondition(
+        SPECIMEN_ID,
+        LOT_ID,
+        { targetConditionClass: 'FAIR', quantity: 1 },
+        ACCOUNT_ID,
+      );
+
+      expect(result.capacityWarning).toBeNull();
+      expect(lotDelegate.aggregate).not.toHaveBeenCalled();
+    });
+
+    it('warns on quantity increases only', async () => {
+      storageUnitDelegate.findUnique.mockResolvedValueOnce(capacityUnit(12));
+      lotDelegate.findFirst
+        .mockResolvedValueOnce(lotRecord({ quantity: 10 }))
+        .mockResolvedValueOnce(lotRecord({ quantity: 15 }));
+      lotDelegate.aggregate.mockResolvedValueOnce({ _sum: { quantity: 15 } });
+
+      const increased = await service.adjustQuantity(
+        SPECIMEN_ID,
+        LOT_ID,
+        {
+          adjustmentType: QuantityAdjustmentType.ADDITION,
+          quantityDelta: 5,
+          expectedQuantity: 10,
+          reason: 'Newly verified specimens',
+        },
+        ACCOUNT_ID,
+      );
+      expect(increased.capacityWarning).toEqual(
+        expect.objectContaining({ occupiedQuantity: 15, exceededBy: 3 }),
+      );
+
+      lotDelegate.aggregate.mockClear();
+      lotDelegate.findFirst
+        .mockResolvedValueOnce(lotRecord({ quantity: 15 }))
+        .mockResolvedValueOnce(lotRecord({ quantity: 14 }));
+      const decreased = await service.adjustQuantity(
+        SPECIMEN_ID,
+        LOT_ID,
+        {
+          adjustmentType: QuantityAdjustmentType.REMOVAL,
+          quantityDelta: -1,
+          expectedQuantity: 15,
+          reason: 'Sent for conservation',
+        },
+        ACCOUNT_ID,
+      );
+      expect(decreased.capacityWarning).toBeNull();
+      expect(lotDelegate.aggregate).not.toHaveBeenCalled();
+    });
   });
 });

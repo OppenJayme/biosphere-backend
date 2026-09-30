@@ -11,12 +11,18 @@ import {
   type specimen_lot_transaction,
 } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { StorageCapacityWarning } from '../storage-locations/entities/storage-capacity.entity';
+import {
+  evaluateStorageCapacity,
+  type StorageCapacitySnapshot,
+} from '../storage-locations/storage-capacity.policy';
 import { AdjustSpecimenLotQuantityDto } from './dto/adjust-specimen-lot-quantity.dto';
 import { ChangeSpecimenLotConditionDto } from './dto/change-specimen-lot-condition.dto';
 import { CreateSpecimenLotDto } from './dto/create-specimen-lot.dto';
 import { ListLotTransactionsQueryDto } from './dto/list-lot-transactions-query.dto';
 import { MoveSpecimenLotDto } from './dto/move-specimen-lot.dto';
 import { UpdateSpecimenLotNotesDto } from './dto/update-specimen-lot-notes.dto';
+import { CreatedSpecimenLot } from './entities/created-specimen-lot.entity';
 import { SpecimenLotOperationResult } from './entities/specimen-lot-operation-result.entity';
 import { SpecimenLotQuantityAdjustmentResult } from './entities/specimen-lot-quantity-adjustment-result.entity';
 import {
@@ -51,6 +57,8 @@ type LotDimensionChange = {
   revisionOldValue: string;
   revisionNewValue: string;
   newLotStorageNotes: string | null;
+  /** Unit receiving quantity, checked against its optional capacity. */
+  capacityUnit: StorageCapacitySnapshot | null;
 };
 
 @Injectable()
@@ -61,14 +69,17 @@ export class SpecimenLotsService {
     specimenId: string,
     dto: CreateSpecimenLotDto,
     actingCuratorAccountId: string,
-  ): Promise<SpecimenLot> {
+  ): Promise<CreatedSpecimenLot> {
     return this.prisma.$transaction(async (transaction) => {
       const specimenRecord = await this.findSpecimenOrThrow(
         transaction,
         specimenId,
       );
       this.assertSpecimenEditable(specimenRecord);
-      await this.assertAssignableStorageUnit(transaction, dto.storageUnitId);
+      const storageUnit = await this.assertAssignableStorageUnit(
+        transaction,
+        dto.storageUnitId,
+      );
 
       const matchingLot = await transaction.specimen_lot.findFirst({
         where: {
@@ -126,6 +137,10 @@ export class SpecimenLotsService {
         actingCuratorAccountId,
         changedAt,
       );
+      const capacityWarning = await this.findCapacityWarning(
+        transaction,
+        storageUnit,
+      );
       await this.recordAudit(transaction, {
         userId: actingCuratorAccountId,
         lotId: created.id,
@@ -136,10 +151,11 @@ export class SpecimenLotsService {
           conditionClass: dto.conditionClass,
           quantity: dto.quantity,
           adjustmentType: 'ADDITION',
+          capacityExceeded: capacityWarning !== null,
         },
       });
 
-      return this.toEntity(created);
+      return { ...this.toEntity(created), capacityWarning };
     });
   }
 
@@ -227,7 +243,7 @@ export class SpecimenLotsService {
         );
       }
 
-      await this.assertAssignableStorageUnit(
+      const targetStorageUnit = await this.assertAssignableStorageUnit(
         transaction,
         dto.targetStorageUnitId,
       );
@@ -248,6 +264,7 @@ export class SpecimenLotsService {
           // Storage notes describe the old physical placement and should not
           // silently follow a lot into a different storage unit.
           newLotStorageNotes: null,
+          capacityUnit: targetStorageUnit,
         },
         actingCuratorAccountId,
       );
@@ -298,6 +315,8 @@ export class SpecimenLotsService {
           // The physical location is unchanged, so its storage notes remain
           // meaningful when a new target lot is created.
           newLotStorageNotes: source.storage_notes,
+          // The quantity stays in the same unit, so occupancy is unchanged.
+          capacityUnit: null,
         },
         actingCuratorAccountId,
       );
@@ -334,12 +353,13 @@ export class SpecimenLotsService {
       // Increasing inventory is equivalent to assigning more specimens to
       // this location. Reductions remain allowed so an invalid legacy
       // placement can still be emptied and retired safely.
-      if (dto.quantityDelta > 0) {
-        await this.assertAssignableStorageUnit(
-          transaction,
-          existing.storage_unit_id,
-        );
-      }
+      const receivingStorageUnit =
+        dto.quantityDelta > 0
+          ? await this.assertAssignableStorageUnit(
+              transaction,
+              existing.storage_unit_id,
+            )
+          : null;
 
       const resultingQuantity = existing.quantity + dto.quantityDelta;
       if (resultingQuantity < 0) {
@@ -413,6 +433,9 @@ export class SpecimenLotsService {
           source_section: 'specimen_lot',
         },
       });
+      const capacityWarning = receivingStorageUnit
+        ? await this.findCapacityWarning(transaction, receivingStorageUnit)
+        : null;
       await this.recordAudit(transaction, {
         userId: actingCuratorAccountId,
         lotId,
@@ -426,6 +449,7 @@ export class SpecimenLotsService {
           previousQuantity: existing.quantity,
           resultingQuantity,
           lotDeactivated,
+          capacityExceeded: capacityWarning !== null,
         },
       });
 
@@ -437,6 +461,7 @@ export class SpecimenLotsService {
         lot: this.toEntity(updated),
         transaction: this.toTransactionEntity(transactionRecord),
         lotDeactivated,
+        capacityWarning,
       };
     });
   }
@@ -639,6 +664,9 @@ export class SpecimenLotsService {
         source_section: 'specimen_lot',
       },
     });
+    const capacityWarning = change.capacityUnit
+      ? await this.findCapacityWarning(transaction, change.capacityUnit)
+      : null;
     await this.recordAudit(transaction, {
       userId: actingCuratorAccountId,
       lotId: source.id,
@@ -657,6 +685,7 @@ export class SpecimenLotsService {
         toConditionClass: change.targetConditionClass,
         sourceDeactivated,
         mergedIntoExistingTarget: Boolean(matchingTarget),
+        capacityExceeded: capacityWarning !== null,
       },
     });
 
@@ -667,6 +696,7 @@ export class SpecimenLotsService {
       transaction: this.toTransactionEntity(transactionRecord),
       sourceDeactivated,
       mergedIntoExistingTarget: Boolean(matchingTarget),
+      capacityWarning,
     };
   }
 
@@ -723,10 +753,16 @@ export class SpecimenLotsService {
   private async assertAssignableStorageUnit(
     transaction: Prisma.TransactionClient,
     storageUnitId: string,
-  ): Promise<void> {
+  ): Promise<StorageCapacitySnapshot> {
     const unit = await transaction.storage_unit.findUnique({
       where: { id: storageUnitId },
-      select: { id: true, holds_specimens: true, archived_at: true },
+      select: {
+        id: true,
+        label: true,
+        capacity: true,
+        holds_specimens: true,
+        archived_at: true,
+      },
     });
     if (!unit) {
       throw new NotFoundException(`Storage unit ${storageUnitId} not found`);
@@ -741,6 +777,28 @@ export class SpecimenLotsService {
         'This storage unit is not configured to hold specimens.',
       );
     }
+
+    return { id: unit.id, label: unit.label, capacity: unit.capacity ?? null };
+  }
+
+  /**
+   * Capacity is advisory (REQ-4.6-11): the assignment is kept and the curator
+   * is warned when the unit's active quantity now exceeds it.
+   */
+  private async findCapacityWarning(
+    transaction: Prisma.TransactionClient,
+    unit: StorageCapacitySnapshot,
+  ): Promise<StorageCapacityWarning | null> {
+    if (unit.capacity === null) {
+      return null;
+    }
+
+    const occupancy = await transaction.specimen_lot.aggregate({
+      where: { storage_unit_id: unit.id, is_active: true },
+      _sum: { quantity: true },
+    });
+
+    return evaluateStorageCapacity(unit, occupancy._sum.quantity ?? 0);
   }
 
   private assertSpecimenEditable(item: specimen): void {

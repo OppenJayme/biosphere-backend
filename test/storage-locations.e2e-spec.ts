@@ -26,6 +26,7 @@ describe('Storage locations (e2e)', () => {
     count: jest.Mock;
   };
   let movementDelegate: { create: jest.Mock; findMany: jest.Mock };
+  let specimenLotAggregate: jest.Mock;
   let auditCreate: jest.Mock;
 
   const storageUnitRecord = (overrides: Record<string, unknown> = {}) => ({
@@ -58,6 +59,7 @@ describe('Storage locations (e2e)', () => {
       findMany: jest.fn(),
     };
     auditCreate = jest.fn();
+    specimenLotAggregate = jest.fn();
 
     const prismaMock = {
       user_account: {
@@ -85,7 +87,7 @@ describe('Storage locations (e2e)', () => {
       },
       storage_unit: storageUnitDelegate,
       storage_movement_history: movementDelegate,
-      specimen_lot: { count: jest.fn() },
+      specimen_lot: { count: jest.fn(), aggregate: specimenLotAggregate },
       audit_log: { create: auditCreate },
       $transaction: jest.fn(
         (
@@ -270,6 +272,33 @@ describe('Storage locations (e2e)', () => {
 
     const responseBody = response.body as Array<{ id: string }>;
     expect(responseBody.map((unit) => unit.id)).toEqual([oldParentId, unitId]);
+  });
+
+  it('previews whether a quantity would exceed a unit capacity', async () => {
+    storageUnitDelegate.findUnique.mockResolvedValueOnce(
+      storageUnitRecord({ capacity: 10 }),
+    );
+    specimenLotAggregate.mockResolvedValueOnce({ _sum: { quantity: 8 } });
+
+    const response = await request(app.getHttpServer())
+      .get(`/storage-locations/${unitId}/capacity-check?additionalQuantity=3`)
+      .set('Authorization', `Bearer ${curatorToken}`)
+      .expect(200);
+
+    expect(response.body).toEqual({
+      storageUnitId: unitId,
+      storageUnitLabel: 'Cabinet A',
+      capacity: 10,
+      occupiedQuantity: 8,
+      additionalQuantity: 3,
+      projectedQuantity: 11,
+      exceedsCapacity: true,
+    });
+
+    await request(app.getHttpServer())
+      .get(`/storage-locations/${unitId}/capacity-check?additionalQuantity=-1`)
+      .set('Authorization', `Bearer ${curatorToken}`)
+      .expect(400);
   });
 
   it('requires storageType and rejects parent changes through general update', async () => {

@@ -63,10 +63,35 @@ workflows required by SRS section 4.5. A note change updates lot and parent
 specimen attribution, creates a specimen revision with
 `source_section = specimen_lot`, and appends an audit event atomically.
 
-Storage-unit `capacity` is not enforced during lot assignment yet because the
-museum has not frozen whether it represents individual specimens, lots,
-physical slots, volume, or another measure. The existing positive capacity
-value is preserved without inventing a capacity interpretation.
+## Storage capacity warnings
+
+Storage-unit `capacity` is advisory (REQ-4.6-11). It is compared with the sum
+of active lot quantities in the unit, the same measure used by
+`GET /storage-locations/occupancy-summary`. Exceeding it never blocks a lot
+operation; instead the response carries a `capacityWarning`:
+
+```json
+{
+  "storageUnitId": "…",
+  "storageUnitLabel": "Drawer 3",
+  "capacity": 8,
+  "occupiedQuantity": 10,
+  "exceededBy": 2
+}
+```
+
+`capacityWarning` is `null` when the unit has no capacity or is within it.
+
+| Operation                     | Unit checked                      |
+| ----------------------------- | --------------------------------- |
+| `POST …/lots`                 | The new lot's unit                |
+| `POST …/movements`            | The target unit                   |
+| `POST …/quantity-adjustments` | The lot's unit, increases only    |
+| `POST …/condition-changes`    | Never (occupancy does not change) |
+
+The audit event for each of these operations records `capacityExceeded`.
+To warn before submitting, call
+`GET /storage-locations/:id/capacity-check?additionalQuantity=N`.
 
 ## Movement and condition-change workflows
 

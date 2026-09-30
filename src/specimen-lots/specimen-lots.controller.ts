@@ -29,6 +29,7 @@ import { SpecimenLotOperationResult } from './entities/specimen-lot-operation-re
 import { SpecimenLotQuantityAdjustmentResult } from './entities/specimen-lot-quantity-adjustment-result.entity';
 import { SpecimenLotTransactionPage } from './entities/specimen-lot-transaction.entity';
 import { SpecimenLotSummary } from './entities/specimen-lot-summary.entity';
+import { CreatedSpecimenLot } from './entities/created-specimen-lot.entity';
 import { SpecimenLot } from './entities/specimen-lot.entity';
 import { SpecimenLotsService } from './specimen-lots.service';
 
@@ -40,13 +41,13 @@ export class SpecimenLotsController {
 
   @Post()
   @ApiOperation({ summary: 'Create an initial active specimen lot' })
-  @ApiCreatedResponse({ type: SpecimenLot })
+  @ApiCreatedResponse({ type: CreatedSpecimenLot })
   @ApiConflictResponse({ description: 'Matching active lot already exists' })
   create(
     @Param('specimenId', ParseUUIDPipe) specimenId: string,
     @Body() dto: CreateSpecimenLotDto,
     @CurrentUser() user: AuthenticatedUser,
-  ): Promise<SpecimenLot> {
+  ): Promise<CreatedSpecimenLot> {
     return this.service.create(specimenId, dto, user.accountId);
   }
 
