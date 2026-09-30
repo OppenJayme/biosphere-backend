@@ -19,6 +19,8 @@ describe('Developer AR exhibits (e2e)', () => {
   const archivedExhibitId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
   const unapprovedExhibitId = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
   const assetId = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+  // An asset left on the archived exhibit: cleanup-only.
+  const archivedAssetId = 'ffffffff-ffff-4fff-8fff-ffffffffffff';
   const glbHeader = Buffer.from([
     0x67, 0x6c, 0x54, 0x46, 0x02, 0x00, 0x00, 0x00, 0x0c, 0x00, 0x00, 0x00,
   ]);
@@ -29,8 +31,8 @@ describe('Developer AR exhibits (e2e)', () => {
   let arAssetUpdate: jest.Mock;
   let storageMock: { upload: jest.Mock; remove: jest.Mock };
 
-  const asset = (exhibitId: string) => ({
-    id: assetId,
+  const asset = (exhibitId: string, id = assetId) => ({
+    id,
     exhibit_id: exhibitId,
     storage_path: `${exhibitId}/model.glb`,
     model_format: 'glb',
@@ -42,20 +44,36 @@ describe('Developer AR exhibits (e2e)', () => {
     string,
     {
       archived_at: Date | null;
-      specimen: { status: string; public_display_allowed: boolean };
+      specimen: {
+        status: string;
+        public_display_allowed: boolean;
+        archived_at: Date | null;
+      };
     }
   > = {
     [approvedExhibitId]: {
       archived_at: null,
-      specimen: { status: 'CATALOGED', public_display_allowed: true },
+      specimen: {
+        status: 'CATALOGED',
+        public_display_allowed: true,
+        archived_at: null,
+      },
     },
     [archivedExhibitId]: {
       archived_at: new Date('2026-09-01T00:00:00.000Z'),
-      specimen: { status: 'CATALOGED', public_display_allowed: true },
+      specimen: {
+        status: 'CATALOGED',
+        public_display_allowed: true,
+        archived_at: null,
+      },
     },
     [unapprovedExhibitId]: {
       archived_at: null,
-      specimen: { status: 'CATALOGED', public_display_allowed: false },
+      specimen: {
+        status: 'CATALOGED',
+        public_display_allowed: false,
+        archived_at: null,
+      },
     },
   };
 
@@ -71,6 +89,7 @@ describe('Developer AR exhibits (e2e)', () => {
           scientific_name: 'Titanus giganteus',
           status: 'CATALOGED',
           public_display_allowed: true,
+          archived_at: null,
         },
         ar_asset: [],
       },
@@ -84,6 +103,7 @@ describe('Developer AR exhibits (e2e)', () => {
           scientific_name: 'Actias luna',
           status: 'CATALOGED',
           public_display_allowed: true,
+          archived_at: null,
         },
         ar_asset: [asset(archivedExhibitId)],
       },
@@ -130,8 +150,15 @@ describe('Developer AR exhibits (e2e)', () => {
       ar_asset: {
         create: arAssetCreate,
         update: arAssetUpdate,
+        delete: jest.fn(({ where }: { where: { id: string } }) =>
+          asset(archivedExhibitId, where.id),
+        ),
         findUnique: jest.fn(({ where }: { where: { id: string } }) =>
-          where.id === assetId ? asset(approvedExhibitId) : null,
+          where.id === assetId
+            ? asset(approvedExhibitId)
+            : where.id === archivedAssetId
+              ? asset(archivedExhibitId, archivedAssetId)
+              : null,
         ),
       },
       audit_log: { create: jest.fn(() => ({})) },
@@ -205,7 +232,11 @@ describe('Developer AR exhibits (e2e)', () => {
             OR: [
               {
                 archived_at: null,
-                specimen: { status: 'CATALOGED', public_display_allowed: true },
+                specimen: {
+                  status: 'CATALOGED',
+                  public_display_allowed: true,
+                  archived_at: null,
+                },
               },
               { ar_asset: { some: {} } },
             ],
@@ -298,6 +329,52 @@ describe('Developer AR exhibits (e2e)', () => {
       expect(arAssetUpdate).toHaveBeenCalledWith({
         where: { id: assetId },
         data: { exhibit_id: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee' },
+      });
+    });
+  });
+
+  describe('an asset on a non-deployable exhibit (cleanup-only)', () => {
+    const patch = (path: string) =>
+      request(app.getHttpServer())
+        .patch(`/developer/ar-assets/${archivedAssetId}${path}`)
+        .set('Authorization', `Bearer ${developerToken}`);
+
+    it('rejects activation', async () => {
+      await patch('/activate').expect(400);
+      await patch('').field('isEnabled', 'true').expect(400);
+      expect(arAssetUpdate).not.toHaveBeenCalled();
+    });
+
+    it('rejects replacing the file in place', async () => {
+      await patch('').attach('file', glbHeader, 'model.glb').expect(400);
+      expect(storageMock.upload).not.toHaveBeenCalled();
+      expect(arAssetUpdate).not.toHaveBeenCalled();
+    });
+
+    it('allows deactivation', async () => {
+      await patch('/deactivate').expect(200);
+      expect(arAssetUpdate).toHaveBeenCalledWith({
+        where: { id: archivedAssetId },
+        data: { is_enabled: false },
+      });
+    });
+
+    it('allows removal', async () => {
+      await request(app.getHttpServer())
+        .delete(`/developer/ar-assets/${archivedAssetId}`)
+        .set('Authorization', `Bearer ${developerToken}`)
+        .expect(200, { id: archivedAssetId, removed: true });
+      expect(storageMock.remove).toHaveBeenCalledWith(
+        'ar-assets',
+        `${archivedExhibitId}/model.glb`,
+      );
+    });
+
+    it('allows moving it to a deployable exhibit', async () => {
+      await patch('').field('exhibitId', approvedExhibitId).expect(200);
+      expect(arAssetUpdate).toHaveBeenCalledWith({
+        where: { id: archivedAssetId },
+        data: { exhibit_id: approvedExhibitId },
       });
     });
   });

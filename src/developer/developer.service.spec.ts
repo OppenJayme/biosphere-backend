@@ -79,18 +79,27 @@ function fakeFile(
   };
 }
 
-// An exhibit row as assertExhibitDeployable selects it: curator-approved
-// (active, specimen Cataloged and approved for public display) by default.
+// An exhibit row as the deploy checks select it: deployable (exhibit and
+// specimen active, specimen Cataloged and approved for public display) by
+// default.
 function approvedExhibit(
   overrides: {
     archived_at?: Date | null;
-    specimen?: { status: string; public_display_allowed: boolean };
+    specimen?: {
+      status?: string;
+      public_display_allowed?: boolean;
+      archived_at?: Date | null;
+    };
   } = {},
 ) {
   return {
-    archived_at: null,
-    specimen: { status: 'CATALOGED', public_display_allowed: true },
-    ...overrides,
+    archived_at: overrides.archived_at ?? null,
+    specimen: {
+      status: 'CATALOGED',
+      public_display_allowed: true,
+      archived_at: null,
+      ...overrides.specimen,
+    },
   };
 }
 
@@ -108,6 +117,7 @@ describe('DeveloperService', () => {
       error: null,
     });
     storageServiceMock.remove.mockResolvedValue(undefined);
+    prismaMock.exhibit.findUnique.mockResolvedValue(approvedExhibit());
 
     prismaMock.user_account.findUnique.mockResolvedValue({
       id: ACTING_DEVELOPER_ACCOUNT_ID,
@@ -456,6 +466,18 @@ describe('DeveloperService', () => {
       },
     );
 
+    it('throws BadRequestException when the specimen is archived', async () => {
+      prismaMock.exhibit.findUnique.mockResolvedValue(
+        approvedExhibit({ specimen: { archived_at: new Date() } }),
+      );
+
+      await expect(
+        service.createArAsset(fakeFile(), dto, ACTING_DEVELOPER_AUTH_ID),
+      ).rejects.toThrow(BadRequestException);
+      expect(storageServiceMock.upload).not.toHaveBeenCalled();
+      expect(prismaMock.ar_asset.create).not.toHaveBeenCalled();
+    });
+
     it('throws BadRequestException when no file is provided', async () => {
       prismaMock.exhibit.findUnique.mockResolvedValue(approvedExhibit());
 
@@ -721,6 +743,113 @@ describe('DeveloperService', () => {
       ).rejects.toThrow(BadRequestException);
       expect(prismaMock.ar_asset.update).not.toHaveBeenCalled();
     });
+
+    describe('on an exhibit that is no longer deployable', () => {
+      it.each([
+        ['archived', approvedExhibit({ archived_at: new Date() })],
+        [
+          'withdrawn from public display',
+          approvedExhibit({ specimen: { public_display_allowed: false } }),
+        ],
+        [
+          'backed by an archived specimen',
+          approvedExhibit({ specimen: { archived_at: new Date() } }),
+        ],
+      ])(
+        'rejects activating the asset in place when the exhibit is %s',
+        async (_label, exhibit) => {
+          prismaMock.ar_asset.findUnique.mockResolvedValue(existingRow);
+          prismaMock.exhibit.findUnique.mockResolvedValue(exhibit);
+
+          await expect(
+            service.updateArAsset(
+              'asset-1',
+              undefined,
+              { isEnabled: true },
+              ACTING_DEVELOPER_AUTH_ID,
+            ),
+          ).rejects.toThrow(BadRequestException);
+          expect(prismaMock.exhibit.findUnique).toHaveBeenCalledWith(
+            expect.objectContaining({ where: { id: 'exhibit-1' } }),
+          );
+          expect(prismaMock.ar_asset.update).not.toHaveBeenCalled();
+        },
+      );
+
+      it('rejects replacing the file in place, before anything is uploaded', async () => {
+        prismaMock.ar_asset.findUnique.mockResolvedValue(existingRow);
+        prismaMock.exhibit.findUnique.mockResolvedValue(
+          approvedExhibit({ archived_at: new Date() }),
+        );
+
+        await expect(
+          service.updateArAsset(
+            'asset-1',
+            fakeFile(),
+            {},
+            ACTING_DEVELOPER_AUTH_ID,
+          ),
+        ).rejects.toThrow(BadRequestException);
+        expect(storageServiceMock.upload).not.toHaveBeenCalled();
+        expect(prismaMock.ar_asset.update).not.toHaveBeenCalled();
+      });
+
+      it('still allows deactivating the asset', async () => {
+        prismaMock.ar_asset.findUnique.mockResolvedValue({
+          ...existingRow,
+          is_enabled: true,
+        });
+        prismaMock.exhibit.findUnique.mockResolvedValue(
+          approvedExhibit({ archived_at: new Date() }),
+        );
+        prismaMock.ar_asset.update.mockResolvedValue(existingRow);
+
+        await service.updateArAsset(
+          'asset-1',
+          undefined,
+          { isEnabled: false },
+          ACTING_DEVELOPER_AUTH_ID,
+        );
+
+        expect(prismaMock.ar_asset.update).toHaveBeenCalledWith({
+          where: { id: 'asset-1' },
+          data: { is_enabled: false },
+        });
+      });
+
+      it('allows moving the asset to a deployable exhibit and activating it there', async () => {
+        prismaMock.ar_asset.findUnique.mockResolvedValue(existingRow);
+        prismaMock.exhibit.findUnique.mockImplementation(
+          ({ where }: { where: { id: string } }) =>
+            Promise.resolve(
+              where.id === 'exhibit-1'
+                ? approvedExhibit({ archived_at: new Date() })
+                : approvedExhibit(),
+            ),
+        );
+        prismaMock.ar_asset.update.mockResolvedValue({
+          ...existingRow,
+          exhibit_id: 'exhibit-2',
+          is_enabled: true,
+        });
+
+        await service.updateArAsset(
+          'asset-1',
+          undefined,
+          { exhibitId: 'exhibit-2', isEnabled: true },
+          ACTING_DEVELOPER_AUTH_ID,
+        );
+
+        expect(prismaMock.exhibit.findUnique).toHaveBeenCalledTimes(1);
+        expect(prismaMock.exhibit.findUnique).toHaveBeenCalledWith(
+          expect.objectContaining({ where: { id: 'exhibit-2' } }),
+        );
+        expect(prismaMock.ar_asset.update).toHaveBeenCalledWith({
+          where: { id: 'asset-1' },
+          data: { exhibit_id: 'exhibit-2', is_enabled: true },
+        });
+      });
+    });
   });
 
   // ===========================================================
@@ -746,7 +875,11 @@ describe('DeveloperService', () => {
             OR: [
               {
                 archived_at: null,
-                specimen: { status: 'CATALOGED', public_display_allowed: true },
+                specimen: {
+                  status: 'CATALOGED',
+                  public_display_allowed: true,
+                  archived_at: null,
+                },
               },
               { ar_asset: { some: {} } },
             ],
@@ -767,6 +900,7 @@ describe('DeveloperService', () => {
             scientific_name: 'Titanus giganteus',
             status: 'CATALOGED',
             public_display_allowed: true,
+            archived_at: null,
           },
           ar_asset: [],
         },
@@ -780,6 +914,7 @@ describe('DeveloperService', () => {
             scientific_name: 'Actias luna',
             status: 'CATALOGED',
             public_display_allowed: true,
+            archived_at: null,
           },
           ar_asset: [asset],
         },
@@ -793,6 +928,7 @@ describe('DeveloperService', () => {
             scientific_name: 'Rana temporaria',
             status: 'CATALOGED',
             public_display_allowed: false,
+            archived_at: null,
           },
           ar_asset: [{ ...asset, id: 'asset-3', exhibit_id: 'exhibit-3' }],
         },
@@ -886,6 +1022,56 @@ describe('DeveloperService', () => {
           }),
         }),
       );
+    });
+
+    it.each([
+      ['archived', approvedExhibit({ archived_at: new Date() })],
+      [
+        'backed by an archived specimen',
+        approvedExhibit({ specimen: { archived_at: new Date() } }),
+      ],
+    ])(
+      'rejects activating an asset whose exhibit is %s',
+      async (_label, exhibit) => {
+        prismaMock.ar_asset.findUnique.mockResolvedValue({
+          id: 'asset-1',
+          exhibit_id: 'exhibit-1',
+        });
+        prismaMock.exhibit.findUnique.mockResolvedValue(exhibit);
+
+        await expect(
+          service.setArAssetEnabled('asset-1', true, ACTING_DEVELOPER_AUTH_ID),
+        ).rejects.toThrow(BadRequestException);
+        expect(prismaMock.exhibit.findUnique).toHaveBeenCalledWith(
+          expect.objectContaining({ where: { id: 'exhibit-1' } }),
+        );
+        expect(prismaMock.ar_asset.update).not.toHaveBeenCalled();
+      },
+    );
+
+    it('still deactivates an asset whose exhibit is no longer deployable', async () => {
+      prismaMock.ar_asset.findUnique.mockResolvedValue({
+        id: 'asset-1',
+        exhibit_id: 'exhibit-1',
+      });
+      prismaMock.exhibit.findUnique.mockResolvedValue(
+        approvedExhibit({ archived_at: new Date() }),
+      );
+      prismaMock.ar_asset.update.mockResolvedValue({
+        id: 'asset-1',
+        is_enabled: false,
+      });
+
+      await service.setArAssetEnabled(
+        'asset-1',
+        false,
+        ACTING_DEVELOPER_AUTH_ID,
+      );
+
+      expect(prismaMock.ar_asset.update).toHaveBeenCalledWith({
+        where: { id: 'asset-1' },
+        data: { is_enabled: false },
+      });
     });
 
     it('throws InternalServerErrorException and audits FAILED when the update fails', async () => {

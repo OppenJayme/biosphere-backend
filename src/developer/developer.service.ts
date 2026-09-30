@@ -35,16 +35,28 @@ import {
 
 type AuditStatus = 'SUCCESS' | 'FAILED' | 'DENIED';
 
-// A curator-approved exhibit, one the developer may deploy AR assets to: it
-// is not archived and its specimen is still Cataloged and approved for
-// public display, the same rule the curator's exhibit module applies when
-// the exhibit is created (REQ-4.12-02). Which of these exhibits get AR is
-// agreed with the curator outside BioSphere; the curator then turns AR on
-// or off for the exhibit (REQ-4.13-02/03).
+// An AR-deployable exhibit: it is not archived and its specimen is not
+// archived, still Cataloged and approved for public display, the same rule
+// the curator's exhibit module applies to an exhibit's specimen (BR-20).
+// This is eligibility only, not AR selection: which deployable exhibits get
+// AR is the curator's decision, handed to the developer outside BioSphere
+// (REQ-4.13-02). The curator then turns AR on or off for the exhibit.
 const DEPLOYABLE_EXHIBIT: Prisma.exhibitWhereInput = {
   archived_at: null,
-  specimen: { status: 'CATALOGED', public_display_allowed: true },
+  specimen: {
+    status: 'CATALOGED',
+    public_display_allowed: true,
+    archived_at: null,
+  },
 };
+
+// The exhibit fields isDeployable needs.
+const DEPLOYABILITY_SELECT = {
+  archived_at: true,
+  specimen: {
+    select: { status: true, public_display_allowed: true, archived_at: true },
+  },
+} satisfies Prisma.exhibitSelect;
 
 @Injectable()
 export class DeveloperService {
@@ -223,11 +235,12 @@ export class DeveloperService {
   // AR asset deployment — REQ-4.2-04, REQ-4.2-05
   // ===========================================================
 
-  // Exhibits the developer can pick when deploying an AR asset. Only
-  // curator-approved exhibits are deployable (see DEPLOYABLE_EXHIBIT).
-  // Exhibits that are no longer deployable, e.g. archived, are still listed
-  // while they hold assets, so those assets can be deactivated or removed.
-  // Only the exhibit's public identity is returned (REQ-4.2-07/08).
+  // Exhibits the developer can pick when deploying an AR asset (see
+  // DEPLOYABLE_EXHIBIT). Exhibits that are no longer deployable, e.g.
+  // archived, are still listed while they hold assets, so those assets can
+  // be deactivated, removed, or moved; the service rejects activating or
+  // replacing them in place. Only the exhibit's public identity is returned
+  // (REQ-4.2-07/08).
   async listArExhibits(): Promise<ArExhibitEntity[]> {
     const exhibits = await this.prisma.exhibit.findMany({
       where: { OR: [DEPLOYABLE_EXHIBIT, { ar_asset: { some: {} } }] },
@@ -242,6 +255,7 @@ export class DeveloperService {
             scientific_name: true,
             status: true,
             public_display_allowed: true,
+            archived_at: true,
           },
         },
         ar_asset: { orderBy: { id: 'asc' } },
@@ -326,6 +340,11 @@ export class DeveloperService {
 
     if (dto.exhibitId) {
       await this.assertExhibitDeployable(dto.exhibitId);
+    } else if (file || dto.isEnabled) {
+      await this.assertCurrentExhibitDeployable(
+        existing,
+        file ? 'replaced' : 'activated',
+      );
     }
 
     const updateData: Prisma.ar_assetUncheckedUpdateInput = {};
@@ -416,7 +435,11 @@ export class DeveloperService {
     isEnabled: boolean,
     actingDeveloperId: string,
   ): Promise<ArAssetEntity> {
-    await this.findArAssetOrThrow(id);
+    const existing = await this.findArAssetOrThrow(id);
+
+    if (isEnabled) {
+      await this.assertCurrentExhibitDeployable(existing, 'activated');
+    }
 
     let updated: ar_asset;
 
@@ -500,14 +523,11 @@ export class DeveloperService {
   }
 
   // New assets, and assets moved to another exhibit, may only target a
-  // curator-approved exhibit (REQ-4.13-03).
+  // deployable exhibit (REQ-4.13-03).
   private async assertExhibitDeployable(exhibitId: string): Promise<void> {
     const exhibit = await this.prisma.exhibit.findUnique({
       where: { id: exhibitId },
-      select: {
-        archived_at: true,
-        specimen: { select: { status: true, public_display_allowed: true } },
-      },
+      select: DEPLOYABILITY_SELECT,
     });
 
     if (!exhibit) {
@@ -523,7 +543,28 @@ export class DeveloperService {
     if (!this.isDeployable(exhibit)) {
       throw new BadRequestException(
         'AR assets can only be deployed to an exhibit whose specimen is ' +
-          'Cataloged and approved for public display.',
+          'active, Cataloged, and approved for public display.',
+      );
+    }
+  }
+
+  // An asset whose exhibit is no longer deployable is cleanup-only: it can
+  // be deactivated, removed, or moved to a deployable exhibit, but not
+  // activated or replaced where it is.
+  private async assertCurrentExhibitDeployable(
+    asset: ar_asset,
+    action: 'activated' | 'replaced',
+  ): Promise<void> {
+    const exhibit = await this.prisma.exhibit.findUnique({
+      where: { id: asset.exhibit_id },
+      select: DEPLOYABILITY_SELECT,
+    });
+
+    if (!exhibit || !this.isDeployable(exhibit)) {
+      throw new BadRequestException(
+        `This AR asset cannot be ${action} because its exhibit is no longer ` +
+          'deployable. It can only be deactivated, removed, or moved to a ' +
+          'deployable exhibit.',
       );
     }
   }
@@ -531,10 +572,15 @@ export class DeveloperService {
   // Mirrors DEPLOYABLE_EXHIBIT for an exhibit that is already loaded.
   private isDeployable(exhibit: {
     archived_at: Date | null;
-    specimen: { status: string; public_display_allowed: boolean };
+    specimen: {
+      status: string;
+      public_display_allowed: boolean;
+      archived_at: Date | null;
+    };
   }): boolean {
     return (
       exhibit.archived_at === null &&
+      exhibit.specimen.archived_at === null &&
       exhibit.specimen.status === 'CATALOGED' &&
       exhibit.specimen.public_display_allowed
     );
