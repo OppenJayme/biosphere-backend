@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import type { PrismaService } from '../prisma/prisma.service';
 import {
   StorageLocationPathSegment,
@@ -12,6 +13,8 @@ type AncestorRow = {
   label: string;
   unit_type: string;
 };
+
+const logger = new Logger('StorageLocationPaths');
 
 const PATH_SEPARATOR = ' › ';
 // Real hierarchies are a handful of levels deep (room › cabinet › drawer ›
@@ -57,12 +60,18 @@ export async function resolveStorageLocations(
 
   const locations = new Map<string, StorageLocationSummary>();
   for (const unitId of new Set(storageUnitIds)) {
-    const path = walkToRoot(unitsById, unitId);
+    const { path, isComplete } = walkToRoot(unitsById, unitId);
     if (path.length > 0) {
+      if (!isComplete) {
+        logger.warn(
+          `Storage unit ${unitId} has an incomplete hierarchy (missing ancestor or parent cycle); its derived path stops at ${path[0].id}.`,
+        );
+      }
       locations.set(unitId, {
         path,
         rootUnit: path[0],
         pathLabel: path.map((segment) => segment.label).join(PATH_SEPARATOR),
+        isComplete,
       });
     }
   }
@@ -75,20 +84,29 @@ export async function resolveStorageLocations(
  */
 export function unitOnlyLocation(unit: {
   id: string;
+  parent_id: string | null;
   label: string;
   unit_type: string;
 }): StorageLocationSummary {
   const segment = { id: unit.id, label: unit.label, unitType: unit.unit_type };
-  return { path: [segment], rootUnit: segment, pathLabel: unit.label };
+  return {
+    path: [segment],
+    rootUnit: segment,
+    pathLabel: unit.label,
+    isComplete: unit.parent_id === null,
+  };
 }
 
 function walkToRoot(
   unitsById: ReadonlyMap<string, AncestorRow>,
   unitId: string,
-): StorageLocationPathSegment[] {
+): { path: StorageLocationPathSegment[]; isComplete: boolean } {
   const path: StorageLocationPathSegment[] = [];
   const visited = new Set<string>();
   let current = unitsById.get(unitId);
+  // Complete only when the walk ends at a unit with no parent; stopping on
+  // a missing ancestor or a repeated unit leaves a partial path.
+  let isComplete = false;
 
   while (current && !visited.has(current.id)) {
     visited.add(current.id);
@@ -97,8 +115,12 @@ function walkToRoot(
       label: current.label,
       unitType: current.unit_type,
     });
-    current = current.parent_id ? unitsById.get(current.parent_id) : undefined;
+    if (current.parent_id === null) {
+      isComplete = true;
+      break;
+    }
+    current = unitsById.get(current.parent_id);
   }
 
-  return path.reverse();
+  return { path: path.reverse(), isComplete };
 }

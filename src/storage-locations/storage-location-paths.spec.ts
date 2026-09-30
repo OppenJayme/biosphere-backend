@@ -63,6 +63,7 @@ describe('resolveStorageLocations', () => {
     expect(locations.get('drawer-2')?.pathLabel).toBe(
       'Room › Cabinet A › Drawer 2',
     );
+    expect(locations.get('drawer-1')?.isComplete).toBe(true);
     expect(locations.get('drawer-1')?.rootUnit).toEqual({
       id: 'room',
       label: 'Room',
@@ -79,8 +80,12 @@ describe('resolveStorageLocations', () => {
 
     const locations = await resolveStorageLocations(reader, ['cabinet', 'a']);
 
-    expect(locations.get('cabinet')?.pathLabel).toBe('Cabinet A');
-    expect(locations.get('a')?.pathLabel).toBe('B › A');
+    expect(locations.get('cabinet')).toEqual(
+      expect.objectContaining({ pathLabel: 'Cabinet A', isComplete: false }),
+    );
+    expect(locations.get('a')).toEqual(
+      expect.objectContaining({ pathLabel: 'B › A', isComplete: false }),
+    );
   });
 
   it('omits unknown units', async () => {
@@ -98,6 +103,8 @@ describe('unitOnlyLocation', () => {
       path: [{ id: 'cabinet', label: 'Cabinet A', unitType: 'CABINET' }],
       rootUnit: { id: 'cabinet', label: 'Cabinet A', unitType: 'CABINET' },
       pathLabel: 'Cabinet A',
+      isComplete: false,
     });
+    expect(unitOnlyLocation(room).isComplete).toBe(true);
   });
 });

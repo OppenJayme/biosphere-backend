@@ -813,19 +813,25 @@ export class SpecimensService {
     }
 
     const from = query.createdFrom ? new Date(query.createdFrom) : undefined;
-    // A plain date means "through the end of that day".
     const to = query.createdTo ? new Date(query.createdTo) : undefined;
+    // A plain end date means "through the end of that day", so its effective
+    // bound is the following midnight, exclusive. A timestamp is inclusive.
     const toIsDateOnly =
       query.createdTo !== undefined && DATE_ONLY.test(query.createdTo);
-    if (from && to && from > to) {
+    const endExclusive =
+      to && toIsDateOnly ? new Date(to.getTime() + DAY_MS) : undefined;
+    const endInclusive = to && !toIsDateOnly ? to : undefined;
+    // Validate against the effective end, not the start of a date-only end
+    // day: createdFrom=2026-01-31T08:00Z with createdTo=2026-01-31 is valid.
+    if (
+      from &&
+      ((endExclusive && from >= endExclusive) ||
+        (endInclusive && from > endInclusive))
+    ) {
       throw new BadRequestException('createdFrom must not be after createdTo.');
     }
 
-    return {
-      gte: from,
-      lte: to && !toIsDateOnly ? to : undefined,
-      lt: to && toIsDateOnly ? new Date(to.getTime() + DAY_MS) : undefined,
-    };
+    return { gte: from, lte: endInclusive, lt: endExclusive };
   }
 
   private buildSearchOrderBy(

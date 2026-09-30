@@ -116,7 +116,7 @@ for active curator accounts.
 | `tag`                    | Exact tag name, ignoring case                                             |
 | `conditionClass`         | Has an active lot in this condition, ignoring case                        |
 | `storageUnitId`          | Has an active lot in this unit or, unless `includeDescendantUnits=false`, any unit below it |
-| `createdFrom`, `createdTo` | Date added (ISO 8601). A plain `createdTo` date includes that whole UTC day |
+| `createdFrom`, `createdTo` | Date added (ISO 8601). A plain `createdTo` date includes that whole UTC day (its bound is the following midnight, exclusive), so a `createdFrom` timestamp later on that same day is a valid range |
 
 When `conditionClass` and `storageUnitId` are combined, both must match the
 same active lot. `sortBy` accepts `updatedAt`, `createdAt`, `accessionNumber`,
