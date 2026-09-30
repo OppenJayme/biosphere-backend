@@ -1,10 +1,11 @@
 import { Module } from '@nestjs/common';
+import { MailModule } from '../mail/mail.module';
 import { PrismaModule } from '../prisma/prisma.module';
 import { VisitRequestsService } from './visit-requests.service';
 import { VisitRequestsController } from './visit-requests.controller';
 
 @Module({
-  imports: [PrismaModule],
+  imports: [PrismaModule, MailModule],
   controllers: [VisitRequestsController],
   providers: [VisitRequestsService],
   exports: [VisitRequestsService],
