@@ -1,7 +1,6 @@
 import {
   IsBoolean,
   IsIn,
-  IsNotEmpty,
   IsOptional,
   IsString,
   IsUUID,
@@ -33,12 +32,11 @@ export class UpdateArAssetDto {
   isEnabled?: boolean;
 
   // Optional here because deactivating needs no authorization; the service
-  // requires it when the update replaces the file, moves the asset, or
-  // activates it.
+  // requires it (and audits its absence) when the update replaces the file,
+  // moves the asset, or activates it.
   @IsOptional()
   @Transform(trimString)
   @IsString()
-  @IsNotEmpty()
   @MaxLength(AR_AUTHORIZATION_REFERENCE_MAX_LENGTH)
   authorizationReference?: string;
 }

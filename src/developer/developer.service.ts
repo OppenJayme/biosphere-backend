@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
+  HttpException,
   Inject,
   Injectable,
   InternalServerErrorException,
@@ -280,14 +281,29 @@ export class DeveloperService {
     dto: CreateArAssetDto,
     actingDeveloperId: string,
   ): Promise<ArAssetEntity> {
-    await this.assertExhibitDeployable(dto.exhibitId);
-    this.validateArAssetFile(file, dto.modelFormat);
+    const storagePath = await this.auditRejection(
+      actingDeveloperId,
+      {
+        action: 'CREATE_AR_ASSET',
+        details: {
+          exhibitId: dto.exhibitId,
+          modelFormat: dto.modelFormat,
+          isEnabled: dto.isEnabled ?? false,
+          authorizationReference: this.reference(dto.authorizationReference),
+        },
+      },
+      async () => {
+        this.requireAuthorization(dto.authorizationReference, 'upload');
+        await this.assertExhibitDeployable(dto.exhibitId);
+        this.validateArAssetFile(file, dto.modelFormat);
 
-    const storagePath = await this.storageService.upload(
-      AR_ASSET_STORAGE_BUCKET,
-      dto.exhibitId,
-      file.buffer,
-      file.mimetype,
+        return this.storageService.upload(
+          AR_ASSET_STORAGE_BUCKET,
+          dto.exhibitId,
+          file.buffer,
+          file.mimetype,
+        );
+      },
     );
 
     let created: ar_asset;
@@ -345,61 +361,78 @@ export class DeveloperService {
     dto: UpdateArAssetDto,
     actingDeveloperId: string,
   ): Promise<ArAssetEntity> {
-    const existing = await this.findArAssetOrThrow(id);
+    const { existing, updateData, previousStoragePath } =
+      await this.auditRejection(
+        actingDeveloperId,
+        {
+          action: 'UPDATE_AR_ASSET',
+          affectedRecordId: id,
+          details: {
+            exhibitId: dto.exhibitId,
+            modelFormat: dto.modelFormat,
+            isEnabled: dto.isEnabled,
+            fileProvided: file !== undefined,
+            authorizationReference: this.reference(dto.authorizationReference),
+          },
+        },
+        async () => {
+          const existing = await this.findArAssetOrThrow(id);
 
-    // Replacing, moving, or activating deploys something new to visitors,
-    // so it must carry documented authorization (REQ-4.2-05). Checked before
-    // anything is uploaded.
-    if (
-      (file || dto.exhibitId || dto.isEnabled) &&
-      !dto.authorizationReference
-    ) {
-      throw new BadRequestException(
-        'An authorizationReference is required to replace, move, or activate an AR asset.',
+          // Replacing, moving, or activating deploys something new to
+          // visitors, so it must carry documented authorization
+          // (REQ-4.2-05). Checked before anything is uploaded.
+          if (file || dto.exhibitId || dto.isEnabled) {
+            this.requireAuthorization(
+              dto.authorizationReference,
+              'replace, move, or activate',
+            );
+          }
+
+          if (dto.exhibitId) {
+            await this.assertExhibitDeployable(dto.exhibitId);
+          } else if (file || dto.isEnabled) {
+            await this.assertCurrentExhibitDeployable(
+              existing,
+              file ? 'replaced' : 'activated',
+            );
+          }
+
+          const updateData: Prisma.ar_assetUncheckedUpdateInput = {};
+          let previousStoragePath: string | null = null;
+
+          if (file) {
+            const targetFormat: ArModelFormat =
+              dto.modelFormat ?? (existing.model_format as ArModelFormat);
+            this.validateArAssetFile(file, targetFormat);
+
+            const exhibitId = dto.exhibitId ?? existing.exhibit_id;
+            const storagePath = await this.storageService.upload(
+              AR_ASSET_STORAGE_BUCKET,
+              exhibitId,
+              file.buffer,
+              file.mimetype,
+            );
+
+            previousStoragePath = existing.storage_path;
+            updateData.storage_path = storagePath;
+            updateData.model_format = targetFormat;
+          } else if (dto.modelFormat) {
+            throw new BadRequestException(
+              'modelFormat can only change when a replacement file is uploaded.',
+            );
+          }
+
+          if (dto.exhibitId) {
+            updateData.exhibit_id = dto.exhibitId;
+          }
+
+          if (dto.isEnabled !== undefined) {
+            updateData.is_enabled = dto.isEnabled;
+          }
+
+          return { existing, updateData, previousStoragePath };
+        },
       );
-    }
-
-    if (dto.exhibitId) {
-      await this.assertExhibitDeployable(dto.exhibitId);
-    } else if (file || dto.isEnabled) {
-      await this.assertCurrentExhibitDeployable(
-        existing,
-        file ? 'replaced' : 'activated',
-      );
-    }
-
-    const updateData: Prisma.ar_assetUncheckedUpdateInput = {};
-    let previousStoragePath: string | null = null;
-
-    if (file) {
-      const targetFormat: ArModelFormat =
-        dto.modelFormat ?? (existing.model_format as ArModelFormat);
-      this.validateArAssetFile(file, targetFormat);
-
-      const exhibitId = dto.exhibitId ?? existing.exhibit_id;
-      const storagePath = await this.storageService.upload(
-        AR_ASSET_STORAGE_BUCKET,
-        exhibitId,
-        file.buffer,
-        file.mimetype,
-      );
-
-      previousStoragePath = existing.storage_path;
-      updateData.storage_path = storagePath;
-      updateData.model_format = targetFormat;
-    } else if (dto.modelFormat) {
-      throw new BadRequestException(
-        'modelFormat can only change when a replacement file is uploaded.',
-      );
-    }
-
-    if (dto.exhibitId) {
-      updateData.exhibit_id = dto.exhibitId;
-    }
-
-    if (dto.isEnabled !== undefined) {
-      updateData.is_enabled = dto.isEnabled;
-    }
 
     if (Object.keys(updateData).length === 0) {
       return this.toArAssetEntity(existing);
@@ -463,21 +496,29 @@ export class DeveloperService {
     // Required to activate (REQ-4.2-05); ignored when deactivating.
     authorizationReference?: string,
   ): Promise<ArAssetEntity> {
-    if (isEnabled && !authorizationReference?.trim()) {
-      throw new BadRequestException(
-        'An authorizationReference is required to activate an AR asset.',
-      );
-    }
-
-    const existing = await this.findArAssetOrThrow(id);
-
-    if (isEnabled) {
-      await this.assertCurrentExhibitDeployable(existing, 'activated');
-    }
-
     const authorizationDetails = isEnabled
-      ? { authorizationReference: authorizationReference?.trim() }
+      ? { authorizationReference: this.reference(authorizationReference) }
       : {};
+
+    await this.auditRejection(
+      actingDeveloperId,
+      {
+        action: isEnabled ? 'ACTIVATE_AR_ASSET' : 'DEACTIVATE_AR_ASSET',
+        affectedRecordId: id,
+        details: authorizationDetails,
+      },
+      async () => {
+        if (isEnabled) {
+          this.requireAuthorization(authorizationReference, 'activate');
+        }
+
+        const existing = await this.findArAssetOrThrow(id);
+
+        if (isEnabled) {
+          await this.assertCurrentExhibitDeployable(existing, 'activated');
+        }
+      },
+    );
 
     let updated: ar_asset;
 
@@ -516,7 +557,11 @@ export class DeveloperService {
     id: string,
     actingDeveloperId: string,
   ): Promise<{ id: string; removed: true }> {
-    const existing = await this.findArAssetOrThrow(id);
+    const existing = await this.auditRejection(
+      actingDeveloperId,
+      { action: 'REMOVE_AR_ASSET', affectedRecordId: id },
+      () => this.findArAssetOrThrow(id),
+    );
 
     try {
       await this.prisma.ar_asset.delete({ where: { id } });
@@ -550,6 +595,63 @@ export class DeveloperService {
   // ===========================================================
   // Helpers
   // ===========================================================
+
+  /**
+   * Runs the checks and uploads that happen before an AR change is written.
+   * If any of them rejects the attempt, a FAILED audit entry is recorded
+   * (REQ-4.2-09) and the original error is rethrown unchanged. Failures of the
+   * database write itself are audited where they happen, so they are not
+   * wrapped here.
+   */
+  private async auditRejection<T>(
+    actingAuthUserId: string,
+    attempt: {
+      action: string;
+      affectedRecordId?: string;
+      details?: Record<string, unknown>;
+    },
+    step: () => Promise<T>,
+  ): Promise<T> {
+    try {
+      return await step();
+    } catch (error) {
+      await this.recordAudit({
+        actingAuthUserId,
+        action: attempt.action,
+        affectedRecordId: attempt.affectedRecordId,
+        affectedRecordType: 'ar_asset',
+        status: 'FAILED',
+        details: { ...attempt.details, reason: this.rejectionReason(error) },
+      });
+      throw error;
+    }
+  }
+
+  // HttpException messages here are this module's own fixed, user-facing
+  // strings. Anything else (e.g. a raw client error) is summarized so internal
+  // details never reach the audit log.
+  private rejectionReason(error: unknown): string {
+    return error instanceof HttpException
+      ? error.message
+      : 'Unexpected error before the change was saved.';
+  }
+
+  // The DTOs leave authorizationReference optional so a missing one reaches
+  // the service and can be audited; this is where it is enforced.
+  private requireAuthorization(
+    authorizationReference: string | undefined,
+    action: string,
+  ): void {
+    if (!authorizationReference?.trim()) {
+      throw new BadRequestException(
+        `An authorizationReference is required to ${action} an AR asset.`,
+      );
+    }
+  }
+
+  private reference(authorizationReference: string | undefined) {
+    return authorizationReference?.trim() || undefined;
+  }
 
   private async findArAssetOrThrow(id: string): Promise<ar_asset> {
     const asset = await this.prisma.ar_asset.findUnique({ where: { id } });

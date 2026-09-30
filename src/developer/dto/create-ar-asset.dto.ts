@@ -1,7 +1,6 @@
 import {
   IsBoolean,
   IsIn,
-  IsNotEmpty,
   IsOptional,
   IsString,
   IsUUID,
@@ -39,9 +38,12 @@ export class CreateArAssetDto {
   @Transform(({ value }) => value === 'true' || value === true)
   isEnabled?: boolean = false;
 
+  // Required, but enforced by DeveloperService rather than here: a missing
+  // or blank reference must reach the service so the rejected attempt is
+  // audited (REQ-4.2-09). Only the type and length are checked here.
+  @IsOptional()
   @Transform(trimString)
   @IsString()
-  @IsNotEmpty()
   @MaxLength(AR_AUTHORIZATION_REFERENCE_MAX_LENGTH)
-  authorizationReference!: string;
+  authorizationReference?: string;
 }
