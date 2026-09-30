@@ -104,6 +104,7 @@ function approvedExhibit(
 }
 
 const ACTING_DEVELOPER_AUTH_ID = 'auth-dev-uuid-1';
+const AUTH_REF = 'Curator AR approval memo 2026-07';
 const ACTING_DEVELOPER_ACCOUNT_ID = 'account-dev-uuid-1';
 
 describe('DeveloperService', () => {
@@ -424,6 +425,7 @@ describe('DeveloperService', () => {
       exhibitId: 'exhibit-1',
       modelFormat: 'glb' as const,
       isEnabled: false,
+      authorizationReference: AUTH_REF,
     };
 
     it('throws NotFoundException when the exhibit does not exist', async () => {
@@ -544,6 +546,9 @@ describe('DeveloperService', () => {
           data: expect.objectContaining({
             action: 'CREATE_AR_ASSET',
             status: 'SUCCESS',
+            details: expect.objectContaining({
+              authorizationReference: AUTH_REF,
+            }),
           }),
         }),
       );
@@ -618,6 +623,53 @@ describe('DeveloperService', () => {
       expect(prismaMock.ar_asset.update).not.toHaveBeenCalled();
     });
 
+    // REQ-4.2-05: documented authorization before anything new reaches visitors.
+    it.each([
+      ['replacing the file', fakeFile(), {}],
+      ['moving the asset', undefined, { exhibitId: 'exhibit-2' }],
+      ['activating the asset', undefined, { isEnabled: true }],
+    ])(
+      'rejects %s without an authorizationReference, before any upload',
+      async (_label, file, dto) => {
+        prismaMock.ar_asset.findUnique.mockResolvedValue(existingRow);
+
+        await expect(
+          service.updateArAsset('asset-1', file, dto, ACTING_DEVELOPER_AUTH_ID),
+        ).rejects.toThrow(/authorizationReference is required/);
+        expect(storageServiceMock.upload).not.toHaveBeenCalled();
+        expect(prismaMock.ar_asset.update).not.toHaveBeenCalled();
+      },
+    );
+
+    it('records the authorizationReference in the UPDATE_AR_ASSET audit entry', async () => {
+      prismaMock.ar_asset.findUnique.mockResolvedValue(existingRow);
+      storageServiceMock.upload.mockResolvedValue('exhibit-1/new-path.glb');
+      prismaMock.ar_asset.update.mockResolvedValue({
+        ...existingRow,
+        storage_path: 'exhibit-1/new-path.glb',
+      });
+
+      await service.updateArAsset(
+        'asset-1',
+        fakeFile(),
+        { authorizationReference: AUTH_REF },
+        ACTING_DEVELOPER_AUTH_ID,
+      );
+
+      expect(prismaMock.audit_log.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            action: 'UPDATE_AR_ASSET',
+            status: 'SUCCESS',
+            details: expect.objectContaining({
+              fileReplaced: true,
+              authorizationReference: AUTH_REF,
+            }),
+          }),
+        }),
+      );
+    });
+
     it('toggles isEnabled only, without touching storage', async () => {
       prismaMock.ar_asset.findUnique.mockResolvedValue(existingRow);
       prismaMock.ar_asset.update.mockResolvedValue({
@@ -628,7 +680,7 @@ describe('DeveloperService', () => {
       const result = await service.updateArAsset(
         'asset-1',
         undefined,
-        { isEnabled: true },
+        { isEnabled: true, authorizationReference: AUTH_REF },
         ACTING_DEVELOPER_AUTH_ID,
       );
 
@@ -652,7 +704,7 @@ describe('DeveloperService', () => {
       const result = await service.updateArAsset(
         'asset-1',
         fakeFile(),
-        {},
+        { authorizationReference: AUTH_REF },
         ACTING_DEVELOPER_AUTH_ID,
       );
 
@@ -679,7 +731,7 @@ describe('DeveloperService', () => {
         service.updateArAsset(
           'asset-1',
           fakeFile(),
-          {},
+          { authorizationReference: AUTH_REF },
           ACTING_DEVELOPER_AUTH_ID,
         ),
       ).rejects.toThrow(InternalServerErrorException);
@@ -702,7 +754,10 @@ describe('DeveloperService', () => {
         service.updateArAsset(
           'asset-1',
           undefined,
-          { exhibitId: 'nonexistent-exhibit' },
+          {
+            exhibitId: 'nonexistent-exhibit',
+            authorizationReference: AUTH_REF,
+          },
           ACTING_DEVELOPER_AUTH_ID,
         ),
       ).rejects.toThrow(NotFoundException);
@@ -720,7 +775,7 @@ describe('DeveloperService', () => {
         service.updateArAsset(
           'asset-1',
           undefined,
-          { exhibitId: 'exhibit-2' },
+          { exhibitId: 'exhibit-2', authorizationReference: AUTH_REF },
           ACTING_DEVELOPER_AUTH_ID,
         ),
       ).rejects.toThrow(BadRequestException);
@@ -737,7 +792,7 @@ describe('DeveloperService', () => {
         service.updateArAsset(
           'asset-1',
           undefined,
-          { exhibitId: 'exhibit-2' },
+          { exhibitId: 'exhibit-2', authorizationReference: AUTH_REF },
           ACTING_DEVELOPER_AUTH_ID,
         ),
       ).rejects.toThrow(BadRequestException);
@@ -765,7 +820,7 @@ describe('DeveloperService', () => {
             service.updateArAsset(
               'asset-1',
               undefined,
-              { isEnabled: true },
+              { isEnabled: true, authorizationReference: AUTH_REF },
               ACTING_DEVELOPER_AUTH_ID,
             ),
           ).rejects.toThrow(BadRequestException);
@@ -786,7 +841,7 @@ describe('DeveloperService', () => {
           service.updateArAsset(
             'asset-1',
             fakeFile(),
-            {},
+            { authorizationReference: AUTH_REF },
             ACTING_DEVELOPER_AUTH_ID,
           ),
         ).rejects.toThrow(BadRequestException);
@@ -836,7 +891,11 @@ describe('DeveloperService', () => {
         await service.updateArAsset(
           'asset-1',
           undefined,
-          { exhibitId: 'exhibit-2', isEnabled: true },
+          {
+            exhibitId: 'exhibit-2',
+            isEnabled: true,
+            authorizationReference: AUTH_REF,
+          },
           ACTING_DEVELOPER_AUTH_ID,
         );
 
@@ -969,7 +1028,12 @@ describe('DeveloperService', () => {
       prismaMock.ar_asset.findUnique.mockResolvedValue(null);
 
       await expect(
-        service.setArAssetEnabled('missing', true, ACTING_DEVELOPER_AUTH_ID),
+        service.setArAssetEnabled(
+          'missing',
+          true,
+          ACTING_DEVELOPER_AUTH_ID,
+          AUTH_REF,
+        ),
       ).rejects.toThrow(NotFoundException);
     });
 
@@ -984,6 +1048,7 @@ describe('DeveloperService', () => {
         'asset-1',
         true,
         ACTING_DEVELOPER_AUTH_ID,
+        AUTH_REF,
       );
 
       expect(prismaMock.ar_asset.update).toHaveBeenCalledWith({
@@ -996,10 +1061,27 @@ describe('DeveloperService', () => {
           data: expect.objectContaining({
             action: 'ACTIVATE_AR_ASSET',
             status: 'SUCCESS',
+            details: { authorizationReference: AUTH_REF },
           }),
         }),
       );
     });
+
+    it.each([undefined, '', '   '])(
+      'rejects activation with authorizationReference %p, before any lookup',
+      async (reference) => {
+        await expect(
+          service.setArAssetEnabled(
+            'asset-1',
+            true,
+            ACTING_DEVELOPER_AUTH_ID,
+            reference,
+          ),
+        ).rejects.toThrow(BadRequestException);
+        expect(prismaMock.ar_asset.findUnique).not.toHaveBeenCalled();
+        expect(prismaMock.ar_asset.update).not.toHaveBeenCalled();
+      },
+    );
 
     it('deactivates and audits DEACTIVATE_AR_ASSET', async () => {
       prismaMock.ar_asset.findUnique.mockResolvedValue({ id: 'asset-1' });
@@ -1040,7 +1122,12 @@ describe('DeveloperService', () => {
         prismaMock.exhibit.findUnique.mockResolvedValue(exhibit);
 
         await expect(
-          service.setArAssetEnabled('asset-1', true, ACTING_DEVELOPER_AUTH_ID),
+          service.setArAssetEnabled(
+            'asset-1',
+            true,
+            ACTING_DEVELOPER_AUTH_ID,
+            AUTH_REF,
+          ),
         ).rejects.toThrow(BadRequestException);
         expect(prismaMock.exhibit.findUnique).toHaveBeenCalledWith(
           expect.objectContaining({ where: { id: 'exhibit-1' } }),
@@ -1079,7 +1166,12 @@ describe('DeveloperService', () => {
       prismaMock.ar_asset.update.mockRejectedValue(new Error('db error'));
 
       await expect(
-        service.setArAssetEnabled('asset-1', true, ACTING_DEVELOPER_AUTH_ID),
+        service.setArAssetEnabled(
+          'asset-1',
+          true,
+          ACTING_DEVELOPER_AUTH_ID,
+          AUTH_REF,
+        ),
       ).rejects.toThrow(InternalServerErrorException);
 
       expect(prismaMock.audit_log.create).toHaveBeenCalledWith(
@@ -1168,6 +1260,7 @@ describe('DeveloperService', () => {
         'asset-1',
         true,
         ACTING_DEVELOPER_AUTH_ID,
+        AUTH_REF,
       );
 
       expect(result).toEqual({
@@ -1191,6 +1284,7 @@ describe('DeveloperService', () => {
         'asset-1',
         true,
         ACTING_DEVELOPER_AUTH_ID,
+        AUTH_REF,
       );
 
       expect(prismaMock.audit_log.create).not.toHaveBeenCalled();

@@ -24,6 +24,7 @@ describe('Developer AR exhibits (e2e)', () => {
   const glbHeader = Buffer.from([
     0x67, 0x6c, 0x54, 0x46, 0x02, 0x00, 0x00, 0x00, 0x0c, 0x00, 0x00, 0x00,
   ]);
+  const authorizationReference = 'Curator AR approval memo 2026-07';
 
   let app: INestApplication<App>;
   let exhibitFindMany: jest.Mock;
@@ -283,6 +284,7 @@ describe('Developer AR exhibits (e2e)', () => {
         .set('Authorization', `Bearer ${developerToken}`)
         .field('exhibitId', exhibitId)
         .field('modelFormat', 'glb')
+        .field('authorizationReference', authorizationReference)
         .attach('file', glbHeader, 'model.glb');
 
     it('deploys to a curator-approved exhibit', async () => {
@@ -306,6 +308,18 @@ describe('Developer AR exhibits (e2e)', () => {
       expect(storageMock.upload).not.toHaveBeenCalled();
       expect(arAssetCreate).not.toHaveBeenCalled();
     });
+
+    it('rejects an upload without an authorizationReference (REQ-4.2-05)', async () => {
+      await request(app.getHttpServer())
+        .post('/developer/ar-assets')
+        .set('Authorization', `Bearer ${developerToken}`)
+        .field('exhibitId', approvedExhibitId)
+        .field('modelFormat', 'glb')
+        .attach('file', glbHeader, 'model.glb')
+        .expect(400);
+      expect(storageMock.upload).not.toHaveBeenCalled();
+      expect(arAssetCreate).not.toHaveBeenCalled();
+    });
   });
 
   describe('PATCH /developer/ar-assets/:id', () => {
@@ -313,7 +327,8 @@ describe('Developer AR exhibits (e2e)', () => {
       request(app.getHttpServer())
         .patch(`/developer/ar-assets/${assetId}`)
         .set('Authorization', `Bearer ${developerToken}`)
-        .field('exhibitId', exhibitId);
+        .field('exhibitId', exhibitId)
+        .field('authorizationReference', authorizationReference);
 
     it('rejects moving an asset to an exhibit that is not curator-approved', async () => {
       await move(unapprovedExhibitId).expect(400);
@@ -339,14 +354,22 @@ describe('Developer AR exhibits (e2e)', () => {
         .patch(`/developer/ar-assets/${archivedAssetId}${path}`)
         .set('Authorization', `Bearer ${developerToken}`);
 
+    // Each request carries an authorizationReference, so the 400 comes from
+    // the deployability rule rather than the missing authorization.
     it('rejects activation', async () => {
-      await patch('/activate').expect(400);
-      await patch('').field('isEnabled', 'true').expect(400);
+      await patch('/activate').send({ authorizationReference }).expect(400);
+      await patch('')
+        .field('isEnabled', 'true')
+        .field('authorizationReference', authorizationReference)
+        .expect(400);
       expect(arAssetUpdate).not.toHaveBeenCalled();
     });
 
     it('rejects replacing the file in place', async () => {
-      await patch('').attach('file', glbHeader, 'model.glb').expect(400);
+      await patch('')
+        .field('authorizationReference', authorizationReference)
+        .attach('file', glbHeader, 'model.glb')
+        .expect(400);
       expect(storageMock.upload).not.toHaveBeenCalled();
       expect(arAssetUpdate).not.toHaveBeenCalled();
     });
@@ -371,7 +394,10 @@ describe('Developer AR exhibits (e2e)', () => {
     });
 
     it('allows moving it to a deployable exhibit', async () => {
-      await patch('').field('exhibitId', approvedExhibitId).expect(200);
+      await patch('')
+        .field('exhibitId', approvedExhibitId)
+        .field('authorizationReference', authorizationReference)
+        .expect(200);
       expect(arAssetUpdate).toHaveBeenCalledWith({
         where: { id: archivedAssetId },
         data: { exhibit_id: approvedExhibitId },

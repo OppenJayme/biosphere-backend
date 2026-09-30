@@ -311,7 +311,11 @@ export class DeveloperService {
         action: 'CREATE_AR_ASSET',
         affectedRecordType: 'ar_asset',
         status: 'FAILED',
-        details: { exhibitId: dto.exhibitId, reason: this.errorMessage(error) },
+        details: {
+          exhibitId: dto.exhibitId,
+          authorizationReference: dto.authorizationReference,
+          reason: this.errorMessage(error),
+        },
       });
       throw new InternalServerErrorException(
         'Unable to create the AR asset record.',
@@ -324,7 +328,12 @@ export class DeveloperService {
       affectedRecordId: created.id,
       affectedRecordType: 'ar_asset',
       status: 'SUCCESS',
-      details: { exhibitId: dto.exhibitId, modelFormat: dto.modelFormat },
+      details: {
+        exhibitId: dto.exhibitId,
+        modelFormat: dto.modelFormat,
+        isEnabled: dto.isEnabled ?? false,
+        authorizationReference: dto.authorizationReference,
+      },
     });
 
     return this.toArAssetEntity(created);
@@ -337,6 +346,18 @@ export class DeveloperService {
     actingDeveloperId: string,
   ): Promise<ArAssetEntity> {
     const existing = await this.findArAssetOrThrow(id);
+
+    // Replacing, moving, or activating deploys something new to visitors,
+    // so it must carry documented authorization (REQ-4.2-05). Checked before
+    // anything is uploaded.
+    if (
+      (file || dto.exhibitId || dto.isEnabled) &&
+      !dto.authorizationReference
+    ) {
+      throw new BadRequestException(
+        'An authorizationReference is required to replace, move, or activate an AR asset.',
+      );
+    }
 
     if (dto.exhibitId) {
       await this.assertExhibitDeployable(dto.exhibitId);
@@ -403,7 +424,10 @@ export class DeveloperService {
         affectedRecordId: id,
         affectedRecordType: 'ar_asset',
         status: 'FAILED',
-        details: { reason: this.errorMessage(error) },
+        details: {
+          authorizationReference: dto.authorizationReference,
+          reason: this.errorMessage(error),
+        },
       });
       throw new InternalServerErrorException('Unable to update the AR asset.');
     }
@@ -424,6 +448,8 @@ export class DeveloperService {
         exhibitId: dto.exhibitId,
         modelFormat: dto.modelFormat,
         isEnabled: dto.isEnabled,
+        fileReplaced: previousStoragePath !== null,
+        authorizationReference: dto.authorizationReference,
       },
     });
 
@@ -434,12 +460,24 @@ export class DeveloperService {
     id: string,
     isEnabled: boolean,
     actingDeveloperId: string,
+    // Required to activate (REQ-4.2-05); ignored when deactivating.
+    authorizationReference?: string,
   ): Promise<ArAssetEntity> {
+    if (isEnabled && !authorizationReference?.trim()) {
+      throw new BadRequestException(
+        'An authorizationReference is required to activate an AR asset.',
+      );
+    }
+
     const existing = await this.findArAssetOrThrow(id);
 
     if (isEnabled) {
       await this.assertCurrentExhibitDeployable(existing, 'activated');
     }
+
+    const authorizationDetails = isEnabled
+      ? { authorizationReference: authorizationReference?.trim() }
+      : {};
 
     let updated: ar_asset;
 
@@ -455,7 +493,7 @@ export class DeveloperService {
         affectedRecordId: id,
         affectedRecordType: 'ar_asset',
         status: 'FAILED',
-        details: { reason: this.errorMessage(error) },
+        details: { ...authorizationDetails, reason: this.errorMessage(error) },
       });
       throw new InternalServerErrorException(
         `Unable to ${isEnabled ? 'activate' : 'deactivate'} the AR asset.`,
@@ -468,6 +506,7 @@ export class DeveloperService {
       affectedRecordId: id,
       affectedRecordType: 'ar_asset',
       status: 'SUCCESS',
+      ...(isEnabled ? { details: authorizationDetails } : {}),
     });
 
     return this.toArAssetEntity(updated);

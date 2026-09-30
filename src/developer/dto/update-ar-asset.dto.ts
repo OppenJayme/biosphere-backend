@@ -1,6 +1,16 @@
-import { IsBoolean, IsIn, IsOptional, IsUUID } from 'class-validator';
-import { Transform } from 'class-transformer';
 import {
+  IsBoolean,
+  IsIn,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  IsUUID,
+  MaxLength,
+} from 'class-validator';
+import { Transform } from 'class-transformer';
+import { trimString } from '../../common/transforms/trim-string.transform';
+import {
+  AR_AUTHORIZATION_REFERENCE_MAX_LENGTH,
   SUPPORTED_AR_MODEL_FORMATS,
   type ArModelFormat,
 } from './create-ar-asset.dto';
@@ -21,4 +31,14 @@ export class UpdateArAssetDto {
   @IsBoolean()
   @Transform(({ value }) => value === 'true' || value === true)
   isEnabled?: boolean;
+
+  // Optional here because deactivating needs no authorization; the service
+  // requires it when the update replaces the file, moves the asset, or
+  // activates it.
+  @IsOptional()
+  @Transform(trimString)
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(AR_AUTHORIZATION_REFERENCE_MAX_LENGTH)
+  authorizationReference?: string;
 }
