@@ -11,6 +11,7 @@ import {
   type specimen_lot_transaction,
 } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { conditionClassEquals, isSameConditionClass } from './condition-class';
 import { AdjustSpecimenLotQuantityDto } from './dto/adjust-specimen-lot-quantity.dto';
 import { ChangeSpecimenLotConditionDto } from './dto/change-specimen-lot-condition.dto';
 import { CreateSpecimenLotDto } from './dto/create-specimen-lot.dto';
@@ -74,7 +75,7 @@ export class SpecimenLotsService {
         where: {
           specimen_id: specimenId,
           storage_unit_id: dto.storageUnitId,
-          condition_class: dto.conditionClass,
+          condition_class: conditionClassEquals(dto.conditionClass),
           is_active: true,
         },
         select: { id: true },
@@ -269,7 +270,9 @@ export class SpecimenLotsService {
       const source = await this.findLotOrThrow(transaction, specimenId, lotId);
       this.assertLotActive(source);
 
-      if (dto.targetConditionClass === source.condition_class) {
+      if (
+        isSameConditionClass(dto.targetConditionClass, source.condition_class)
+      ) {
         throw new BadRequestException(
           'The lot already has that condition classification.',
         );
@@ -518,7 +521,7 @@ export class SpecimenLotsService {
       where: {
         specimen_id: specimenId,
         storage_unit_id: change.targetStorageUnitId,
-        condition_class: change.targetConditionClass,
+        condition_class: conditionClassEquals(change.targetConditionClass),
         is_active: true,
         id: { not: source.id },
       },

@@ -1265,4 +1265,84 @@ describe('SpecimenLotsService', () => {
     ).rejects.toThrow(BadRequestException);
     expect(lotDelegate.update).not.toHaveBeenCalled();
   });
+  describe('condition-class matching (REQ-4.5-07)', () => {
+    const insensitive = (value: string) => ({
+      equals: value,
+      mode: Prisma.QueryMode.insensitive,
+    });
+
+    it('treats a differently-cased condition as the existing lot on create', async () => {
+      lotDelegate.findFirst.mockResolvedValueOnce({ id: LOT_ID });
+
+      await expect(
+        service.create(
+          SPECIMEN_ID,
+          {
+            storageUnitId: STORAGE_UNIT_ID,
+            conditionClass: 'good',
+            quantity: 1,
+          },
+          ACCOUNT_ID,
+        ),
+      ).rejects.toThrow(ConflictException);
+      expect(lotDelegate.findFirst).toHaveBeenCalledWith({
+        where: {
+          specimen_id: SPECIMEN_ID,
+          storage_unit_id: STORAGE_UNIT_ID,
+          condition_class: insensitive('good'),
+          is_active: true,
+        },
+        select: { id: true },
+      });
+      expect(lotDelegate.create).not.toHaveBeenCalled();
+    });
+
+    it('merges a moved quantity into a target lot regardless of case', async () => {
+      const target = lotRecord({
+        id: TARGET_LOT_ID,
+        storage_unit_id: TARGET_STORAGE_UNIT_ID,
+        condition_class: 'good',
+        quantity: 2,
+      });
+      lotDelegate.findFirst
+        .mockResolvedValueOnce(lotRecord({ quantity: 10 }))
+        .mockResolvedValueOnce(target)
+        .mockResolvedValueOnce({ ...target, quantity: 5 })
+        .mockResolvedValueOnce(lotRecord({ quantity: 7 }));
+
+      const result = await service.move(
+        SPECIMEN_ID,
+        LOT_ID,
+        { targetStorageUnitId: TARGET_STORAGE_UNIT_ID, quantity: 3 },
+        ACCOUNT_ID,
+      );
+
+      expect(lotDelegate.findFirst).toHaveBeenNthCalledWith(2, {
+        where: {
+          specimen_id: SPECIMEN_ID,
+          storage_unit_id: TARGET_STORAGE_UNIT_ID,
+          condition_class: insensitive('GOOD'),
+          is_active: true,
+          id: { not: LOT_ID },
+        },
+      });
+      expect(lotDelegate.create).not.toHaveBeenCalled();
+      expect(result.mergedIntoExistingTarget).toBe(true);
+      expect(result.targetLot.conditionClass).toBe('good');
+    });
+
+    it('rejects a condition change that only differs by case', async () => {
+      lotDelegate.findFirst.mockResolvedValueOnce(lotRecord());
+
+      await expect(
+        service.changeCondition(
+          SPECIMEN_ID,
+          LOT_ID,
+          { targetConditionClass: 'Good', quantity: 1 },
+          ACCOUNT_ID,
+        ),
+      ).rejects.toThrow(BadRequestException);
+      expect(lotDelegate.updateMany).not.toHaveBeenCalled();
+    });
+  });
 });

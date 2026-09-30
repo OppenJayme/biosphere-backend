@@ -35,8 +35,14 @@ quantities. It is never copied into a manually maintained specimen field.
 - Quantity must be a positive integer.
 - Condition classifications remain curator-extensible text and are not frozen
   as PostgreSQL or TypeScript enums.
-- A specimen cannot have two active lots with the same storage unit and exact
-  condition classification.
+- Condition classifications are trimmed and internal whitespace is collapsed
+  to a single space before saving.
+- A specimen cannot have two active lots with the same storage unit and
+  condition classification. Condition matching ignores letter case, so
+  `Good` and `good` are the same condition (REQ-4.5-07): a create is rejected
+  as a matching lot, a move or condition change merges into the existing lot
+  and keeps that lot's spelling, and a condition change that differs only by
+  case is rejected as unchanged.
 - Creating a lot records a `QUANTITY_ADJUSTMENT` transaction with adjustment
   type `ADDITION`, the target lot, quantity, optional reason, timestamp, and
   acting curator.
