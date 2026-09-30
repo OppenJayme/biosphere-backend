@@ -31,6 +31,7 @@ const prismaMock = {
   },
   exhibit: {
     findUnique: jest.fn(),
+    findMany: jest.fn(),
   },
   audit_log: {
     create: jest.fn(),
@@ -74,6 +75,21 @@ function fakeFile(
     filename: '',
     path: '',
     stream: undefined as never,
+    ...overrides,
+  };
+}
+
+// An exhibit row as assertExhibitDeployable selects it: curator-approved
+// (active, specimen Cataloged and approved for public display) by default.
+function approvedExhibit(
+  overrides: {
+    archived_at?: Date | null;
+    specimen?: { status: string; public_display_allowed: boolean };
+  } = {},
+) {
+  return {
+    archived_at: null,
+    specimen: { status: 'CATALOGED', public_display_allowed: true },
     ...overrides,
   };
 }
@@ -410,10 +426,9 @@ describe('DeveloperService', () => {
     });
 
     it('throws BadRequestException when the exhibit is archived', async () => {
-      prismaMock.exhibit.findUnique.mockResolvedValue({
-        id: 'exhibit-1',
-        archived_at: new Date(),
-      });
+      prismaMock.exhibit.findUnique.mockResolvedValue(
+        approvedExhibit({ archived_at: new Date() }),
+      );
 
       await expect(
         service.createArAsset(fakeFile(), dto, ACTING_DEVELOPER_AUTH_ID),
@@ -421,11 +436,28 @@ describe('DeveloperService', () => {
       expect(storageServiceMock.upload).not.toHaveBeenCalled();
     });
 
+    it.each([
+      ['not approved for public display', 'CATALOGED', false],
+      ['not Cataloged', 'UNCATALOGED', true],
+    ])(
+      'throws BadRequestException when the specimen is %s',
+      async (_label, status, publicDisplayAllowed) => {
+        prismaMock.exhibit.findUnique.mockResolvedValue(
+          approvedExhibit({
+            specimen: { status, public_display_allowed: publicDisplayAllowed },
+          }),
+        );
+
+        await expect(
+          service.createArAsset(fakeFile(), dto, ACTING_DEVELOPER_AUTH_ID),
+        ).rejects.toThrow(BadRequestException);
+        expect(storageServiceMock.upload).not.toHaveBeenCalled();
+        expect(prismaMock.ar_asset.create).not.toHaveBeenCalled();
+      },
+    );
+
     it('throws BadRequestException when no file is provided', async () => {
-      prismaMock.exhibit.findUnique.mockResolvedValue({
-        id: 'exhibit-1',
-        archivedAt: null,
-      });
+      prismaMock.exhibit.findUnique.mockResolvedValue(approvedExhibit());
 
       await expect(
         service.createArAsset(
@@ -437,10 +469,7 @@ describe('DeveloperService', () => {
     });
 
     it('throws BadRequestException when the file exceeds the size limit', async () => {
-      prismaMock.exhibit.findUnique.mockResolvedValue({
-        id: 'exhibit-1',
-        archivedAt: null,
-      });
+      prismaMock.exhibit.findUnique.mockResolvedValue(approvedExhibit());
       const oversized = fakeFile({ size: 100 * 1024 * 1024 });
 
       await expect(
@@ -449,10 +478,7 @@ describe('DeveloperService', () => {
     });
 
     it('throws BadRequestException when the file extension does not match modelFormat', async () => {
-      prismaMock.exhibit.findUnique.mockResolvedValue({
-        id: 'exhibit-1',
-        archivedAt: null,
-      });
+      prismaMock.exhibit.findUnique.mockResolvedValue(approvedExhibit());
       const wrongExt = fakeFile({ originalname: 'model.gltf' });
 
       await expect(
@@ -461,10 +487,7 @@ describe('DeveloperService', () => {
     });
 
     it('uploads then creates the row on success, and audits SUCCESS', async () => {
-      prismaMock.exhibit.findUnique.mockResolvedValue({
-        id: 'exhibit-1',
-        archivedAt: null,
-      });
+      prismaMock.exhibit.findUnique.mockResolvedValue(approvedExhibit());
       storageServiceMock.upload.mockResolvedValue('exhibit-1/some-path.glb');
       const createdRow = {
         id: 'asset-1',
@@ -505,10 +528,7 @@ describe('DeveloperService', () => {
     });
 
     it('cleans up the uploaded file and audits FAILED when the DB insert fails', async () => {
-      prismaMock.exhibit.findUnique.mockResolvedValue({
-        id: 'exhibit-1',
-        archivedAt: null,
-      });
+      prismaMock.exhibit.findUnique.mockResolvedValue(approvedExhibit());
       storageServiceMock.upload.mockResolvedValue('exhibit-1/some-path.glb');
       prismaMock.ar_asset.create.mockRejectedValue(new Error('insert failed'));
 
@@ -664,6 +684,144 @@ describe('DeveloperService', () => {
           ACTING_DEVELOPER_AUTH_ID,
         ),
       ).rejects.toThrow(NotFoundException);
+    });
+
+    it('throws BadRequestException when moved to an exhibit that is not curator-approved', async () => {
+      prismaMock.ar_asset.findUnique.mockResolvedValue(existingRow);
+      prismaMock.exhibit.findUnique.mockResolvedValue(
+        approvedExhibit({
+          specimen: { status: 'CATALOGED', public_display_allowed: false },
+        }),
+      );
+
+      await expect(
+        service.updateArAsset(
+          'asset-1',
+          undefined,
+          { exhibitId: 'exhibit-2' },
+          ACTING_DEVELOPER_AUTH_ID,
+        ),
+      ).rejects.toThrow(BadRequestException);
+      expect(prismaMock.ar_asset.update).not.toHaveBeenCalled();
+    });
+
+    it('throws BadRequestException when moved to an archived exhibit', async () => {
+      prismaMock.ar_asset.findUnique.mockResolvedValue(existingRow);
+      prismaMock.exhibit.findUnique.mockResolvedValue(
+        approvedExhibit({ archived_at: new Date() }),
+      );
+
+      await expect(
+        service.updateArAsset(
+          'asset-1',
+          undefined,
+          { exhibitId: 'exhibit-2' },
+          ACTING_DEVELOPER_AUTH_ID,
+        ),
+      ).rejects.toThrow(BadRequestException);
+      expect(prismaMock.ar_asset.update).not.toHaveBeenCalled();
+    });
+  });
+
+  // ===========================================================
+  // listArExhibits — REQ-4.13-03 (curator-approved exhibits only)
+  // ===========================================================
+  describe('listArExhibits', () => {
+    const asset = {
+      id: 'asset-1',
+      exhibit_id: 'exhibit-2',
+      storage_path: 'exhibit-2/model.glb',
+      model_format: 'glb',
+      is_enabled: true,
+    };
+
+    it('queries only curator-approved exhibits, plus any exhibit that still holds assets', async () => {
+      prismaMock.exhibit.findMany.mockResolvedValue([]);
+
+      await service.listArExhibits();
+
+      expect(prismaMock.exhibit.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            OR: [
+              {
+                archived_at: null,
+                specimen: { status: 'CATALOGED', public_display_allowed: true },
+              },
+              { ar_asset: { some: {} } },
+            ],
+          },
+        }),
+      );
+    });
+
+    it('marks approved exhibits deployable and cleanup-only exhibits not deployable', async () => {
+      prismaMock.exhibit.findMany.mockResolvedValue([
+        {
+          id: 'exhibit-1',
+          public_slug: 'giant-beetle',
+          status: 'PUBLISHED',
+          archived_at: null,
+          specimen: {
+            common_name: 'Giant Beetle',
+            scientific_name: 'Titanus giganteus',
+            status: 'CATALOGED',
+            public_display_allowed: true,
+          },
+          ar_asset: [],
+        },
+        {
+          id: 'exhibit-2',
+          public_slug: 'old-moth',
+          status: 'DISABLED',
+          archived_at: new Date(),
+          specimen: {
+            common_name: 'Old Moth',
+            scientific_name: 'Actias luna',
+            status: 'CATALOGED',
+            public_display_allowed: true,
+          },
+          ar_asset: [asset],
+        },
+        {
+          id: 'exhibit-3',
+          public_slug: 'withdrawn-frog',
+          status: 'UNPUBLISHED',
+          archived_at: null,
+          specimen: {
+            common_name: 'Withdrawn Frog',
+            scientific_name: 'Rana temporaria',
+            status: 'CATALOGED',
+            public_display_allowed: false,
+          },
+          ar_asset: [{ ...asset, id: 'asset-3', exhibit_id: 'exhibit-3' }],
+        },
+      ]);
+
+      await expect(service.listArExhibits()).resolves.toEqual([
+        {
+          id: 'exhibit-1',
+          publicSlug: 'giant-beetle',
+          status: 'PUBLISHED',
+          archived: false,
+          deployable: true,
+          commonName: 'Giant Beetle',
+          scientificName: 'Titanus giganteus',
+          assets: [],
+        },
+        expect.objectContaining({
+          id: 'exhibit-2',
+          archived: true,
+          deployable: false,
+          assets: [expect.objectContaining({ id: 'asset-1', isEnabled: true })],
+        }),
+        expect.objectContaining({
+          id: 'exhibit-3',
+          archived: false,
+          deployable: false,
+          assets: [expect.objectContaining({ id: 'asset-3' })],
+        }),
+      ]);
     });
   });
 
