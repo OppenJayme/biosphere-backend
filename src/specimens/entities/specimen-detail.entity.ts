@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { StorageLocationSummary } from '../../storage-locations/entities/storage-location-path.entity';
 import { StorageUnit } from '../../storage-locations/entities/storage-unit.entity';
 import { SpecimenLot } from '../../specimen-lots/entities/specimen-lot.entity';
 import { MuseumCollection } from './collection.entity';
@@ -11,6 +12,12 @@ import { Tag } from './tag.entity';
 export class SpecimenDetailLot extends SpecimenLot {
   @ApiProperty({ type: StorageUnit })
   storageUnit!: StorageUnit;
+
+  @ApiProperty({
+    type: StorageLocationSummary,
+    description: 'Room-to-unit path derived from the storage hierarchy',
+  })
+  storageLocation!: StorageLocationSummary;
 }
 
 export class SpecimenLotOverview {

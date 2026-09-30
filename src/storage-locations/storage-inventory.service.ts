@@ -13,6 +13,10 @@ import {
   StorageInventoryPage,
 } from './entities/storage-inventory.entity';
 import { StorageUnit } from './entities/storage-unit.entity';
+import {
+  resolveStorageLocations,
+  unitOnlyLocation,
+} from './storage-location-paths';
 
 const STORAGE_INVENTORY_INCLUDE = {
   specimen: true,
@@ -59,8 +63,14 @@ export class StorageInventoryService {
       throw new NotFoundException(`Storage unit ${storageUnitId} not found`);
     }
 
+    const locations = await resolveStorageLocations(this.prisma, [
+      storageUnitId,
+    ]);
+
     return {
       storageUnit: this.toStorageUnit(storageUnit),
+      storageLocation:
+        locations.get(storageUnitId) ?? unitOnlyLocation(storageUnit),
       items: records.map((record) => this.toInventoryItem(record)),
       totalLots: inventoryTotals._count.id,
       totalQuantity: inventoryTotals._sum.quantity ?? 0,
