@@ -393,6 +393,14 @@ describe('Specimens (e2e)', () => {
   });
 
   it('searches with validated filters and returns a bounded catalog page', async () => {
+    specimenDelegate.findMany.mockImplementationOnce(() => [
+      {
+        ...specimenRecord,
+        specimen_taxonomy: { family: 'Felidae' },
+        specimen_provenance: null,
+        specimen_lot: [],
+      },
+    ]);
     const response = await request(app.getHttpServer())
       .get('/specimens/search')
       .query({
@@ -408,7 +416,16 @@ describe('Specimens (e2e)', () => {
       .expect(200);
 
     expect(response.body).toEqual({
-      items: [expect.objectContaining({ id: specimenId })],
+      items: [
+        expect.objectContaining({
+          id: specimenId,
+          family: 'Felidae',
+          collector: null,
+          totalQuantity: 0,
+          conditionClasses: [],
+          storageUnits: [],
+        }),
+      ],
       total: 1,
       page: 2,
       limit: 10,
@@ -435,6 +452,12 @@ describe('Specimens (e2e)', () => {
     await request(app.getHttpServer())
       .get('/specimens/search')
       .query({ publicDisplay: 'yes', limit: '101', sortBy: 'remarks' })
+      .set('Authorization', `Bearer ${curatorToken}`)
+      .expect(400);
+
+    await request(app.getHttpServer())
+      .get('/specimens/search')
+      .query({ createdFrom: 'last week', storageUnitId: 'drawer-1' })
       .set('Authorization', `Bearer ${curatorToken}`)
       .expect(400);
 

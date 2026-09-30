@@ -1,6 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { SpecimenLot } from '../../specimen-lots/entities/specimen-lot.entity';
 import { Specimen } from '../../specimens/entities/specimen.entity';
+import { StorageLocationSummary } from './storage-location-path.entity';
 import { StorageUnit } from './storage-unit.entity';
 
 export class StorageInventoryItem {
@@ -14,6 +15,12 @@ export class StorageInventoryItem {
 export class StorageInventoryPage {
   @ApiProperty({ type: StorageUnit })
   storageUnit!: StorageUnit;
+
+  @ApiProperty({
+    type: StorageLocationSummary,
+    description: 'Room-to-unit path derived from the storage hierarchy',
+  })
+  storageLocation!: StorageLocationSummary;
 
   @ApiProperty({ type: [StorageInventoryItem] })
   items!: StorageInventoryItem[];

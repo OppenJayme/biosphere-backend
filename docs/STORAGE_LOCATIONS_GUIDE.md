@@ -136,6 +136,27 @@ mix hierarchy states from concurrent container moves. The service safely
 rejects a missing selected unit and reports a conflict if legacy or manually
 modified data contains a parent cycle or missing ancestor.
 
+The same derivation is embedded as `storageLocation` in
+`GET /specimens/:id/details` (one per active lot) and
+`GET /storage-locations/:id/inventory` (for the selected unit), so clients do
+not need one `/path` call per lot:
+
+```json
+{
+  "path": [
+    { "id": "…", "label": "Zoology Room", "unitType": "ROOM" },
+    { "id": "…", "label": "Cabinet A", "unitType": "CABINET" }
+  ],
+  "rootUnit": { "id": "…", "label": "Zoology Room", "unitType": "ROOM" },
+  "pathLabel": "Zoology Room › Cabinet A"
+}
+```
+
+`src/storage-locations/storage-location-paths.ts` loads one hierarchy level per
+query for all requested units together. Unlike `/path`, it does not fail on a
+missing ancestor or a parent cycle; it returns the part of the path it could
+walk, ending at the assigned unit.
+
 ## Direct inventory view
 
 The inventory endpoint returns active specimen lots assigned directly to the
