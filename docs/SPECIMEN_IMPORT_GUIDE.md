@@ -151,6 +151,12 @@ their usual revision history and audit events (`CREATE_SPECIMEN_TAXONOMY`,
 <importBatchId>)`. If any part fails (for example, the storage unit was
 archived after preview), the whole row is rolled back and reported as failed.
 
+Each row's transaction runs under `SERIALIZABLE` isolation and is retried up
+to three times on a serialization failure, so an imported lot cannot race
+another lot create that differs only by condition case (see
+`docs/SPECIMEN_LOTS_GUIDE.md`). A row that still conflicts is reported as
+failed and can be committed again.
+
 Every created record is attributed to the authenticated curator and appends
 a `CREATE_SPECIMEN`-equivalent `audit_log` entry with `action =
 'IMPORT_SPECIMEN'`. Because the current schema has no `import_source` column

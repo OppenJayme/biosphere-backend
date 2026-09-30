@@ -728,6 +728,45 @@ describe('SpecimenImportService', () => {
       );
     });
 
+    it('commits each row under serializable isolation and retries a write conflict', async () => {
+      specimensServiceMock.createUncatalogedRecordFor.mockResolvedValue({
+        id: 'created-1',
+      });
+      specimensServiceMock.findOneInTransaction.mockResolvedValue({
+        id: 'created-1',
+      });
+      const { previewId } = await service.previewImport(
+        csvFile(
+          'commonName,Storage Unit,Condition,Quantity\nCivet,Cabinet A > Drawer 1,Good,1\n',
+        ),
+        CURATOR_ID,
+      );
+      transactionMock
+        .mockRejectedValueOnce(
+          new Prisma.PrismaClientKnownRequestError('Write conflict', {
+            code: 'P2034',
+            clientVersion: '7.10.0',
+          }),
+        )
+        .mockImplementationOnce(
+          (operation: (transaction: typeof prismaMock) => unknown) =>
+            Promise.resolve(operation(prismaMock)),
+        );
+
+      const result = await service.commitImport(
+        previewId,
+        undefined,
+        CURATOR_ID,
+      );
+
+      expect(result.createdCount).toBe(1);
+      expect(transactionMock).toHaveBeenCalledTimes(2);
+      expect(transactionMock).toHaveBeenLastCalledWith(expect.any(Function), {
+        isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+      });
+      expect(lotsServiceMock.createInTransaction).toHaveBeenCalledTimes(1);
+    });
+
     it('reports the row as failed when a related record cannot be created', async () => {
       specimensServiceMock.createUncatalogedRecordFor.mockResolvedValue({
         id: 'created-1',

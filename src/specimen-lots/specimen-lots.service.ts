@@ -80,7 +80,12 @@ export class SpecimenLotsService {
     dto: CreateSpecimenLotDto,
     actingCuratorAccountId: string,
   ): Promise<CreatedSpecimenLot> {
-    return this.prisma.$transaction((transaction) =>
+    // The database unique index on active lots compares condition_class
+    // exactly, so it cannot stop two concurrent creates that differ only by
+    // case ("Good" / "good"). Under SERIALIZABLE isolation both requests'
+    // case-insensitive lookups conflict with each other's insert, PostgreSQL
+    // aborts one, and its retry finds the winner and returns a Conflict.
+    return this.runSerializableLotMutation((transaction) =>
       this.createInTransaction(
         transaction,
         specimenId,
@@ -92,7 +97,9 @@ export class SpecimenLotsService {
 
   /**
    * Creates the lot inside a caller-owned transaction so it commits or
-   * rolls back together with other writes, such as a bulk-import row.
+   * rolls back together with other writes, such as a bulk-import row. The
+   * caller's transaction must use SERIALIZABLE isolation; otherwise two
+   * concurrent creates that differ only by condition case can both succeed.
    */
   async createInTransaction(
     transaction: Prisma.TransactionClient,

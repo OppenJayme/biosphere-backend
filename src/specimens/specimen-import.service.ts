@@ -12,6 +12,7 @@ import type { ValidationError } from 'class-validator';
 import { plainToInstance } from 'class-transformer';
 import type { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { runSerializableTransaction } from '../prisma/serializable-transaction';
 import { CreateSpecimenLotDto } from '../specimen-lots/dto/create-specimen-lot.dto';
 import { SpecimenLotsService } from '../specimen-lots/specimen-lots.service';
 import { MAX_IMPORT_ROWS } from './dto/commit-specimen-import.dto';
@@ -420,14 +421,18 @@ export class SpecimenImportService {
       // see this promise already set and await it, never start a second
       // create for the same row.
       if (!cachedRow.inFlight) {
-        cachedRow.inFlight = this.prisma
-          .$transaction((transaction) =>
+        // SERIALIZABLE so a row's lot cannot race another lot create that
+        // differs only by condition case (see SpecimenLotsService.create).
+        cachedRow.inFlight = runSerializableTransaction(
+          this.prisma,
+          (transaction) =>
             this.createRow(transaction, cachedRow, actingCuratorAccountId, {
               rowNumber,
               importBatchId,
               previewId,
             }),
-          )
+          'This row conflicted with another change to the same records. Commit it again.',
+        )
           .then((specimen) => {
             cachedRow.committed = specimen;
             return specimen;
