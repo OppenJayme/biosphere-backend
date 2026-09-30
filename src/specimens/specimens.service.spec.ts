@@ -1,4 +1,8 @@
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  NotFoundException,
+} from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
@@ -9,6 +13,7 @@ import {
 } from './dto/search-specimens-query.dto';
 import { ListSpecimenRevisionsQueryDto } from './dto/list-specimen-revisions-query.dto';
 import { SpecimenGender, SpecimenStatus } from './entities/specimen.entity';
+import { SpecimenAccessionService } from './specimen-accession.service';
 import { SpecimenCatalogingService } from './specimen-cataloging.service';
 import { SpecimensService } from './specimens.service';
 
@@ -28,6 +33,7 @@ const revisionDelegate = {
 };
 const auditDelegate = { create: jest.fn() };
 const transactionMock = jest.fn();
+const queryRawMock = jest.fn();
 
 const prismaMock = {
   specimen: specimenDelegate,
@@ -36,6 +42,7 @@ const prismaMock = {
   specimen_revision_history: revisionDelegate,
   audit_log: auditDelegate,
   $transaction: transactionMock,
+  $queryRaw: queryRawMock,
 };
 
 const ACCOUNT_ID = '22222222-2222-4222-8222-222222222222';
@@ -103,11 +110,13 @@ describe('SpecimensService', () => {
     revisionDelegate.count.mockResolvedValue(0);
     auditDelegate.create.mockResolvedValue({});
     specimenLotDelegate.count.mockResolvedValue(0);
+    queryRawMock.mockResolvedValue([]);
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         SpecimensService,
         SpecimenCatalogingService,
+        SpecimenAccessionService,
         { provide: PrismaService, useValue: prismaMock },
       ],
     }).compile();
@@ -181,6 +190,156 @@ describe('SpecimensService', () => {
           clientDraftId: '55555555-5555-4555-8555-555555555555',
         },
       }),
+    });
+  });
+
+  describe('accession-number uniqueness (REQ-4.4-04, BR-01)', () => {
+    const holder = (overrides: Record<string, unknown> = {}) => ({
+      id: '66666666-6666-4666-8666-666666666666',
+      accession_number: '2026.1.1',
+      scientific_name: 'Other specimen',
+      common_name: null,
+      status: 'CATALOGED',
+      ...overrides,
+    });
+
+    it('looks the number up trimmed, case-insensitively, across all statuses', async () => {
+      specimenDelegate.create.mockResolvedValue(
+        specimenRecord({ accession_number: '2026.1.1' }),
+      );
+
+      await service.create({ accessionNumber: '2026.1.1' }, ACCOUNT_ID);
+
+      const [sql] = queryRawMock.mock.calls[0] as [Prisma.Sql];
+      expect(sql.text.replace(/\s+/g, ' ')).toContain(
+        'lower(btrim(s.accession_number)) = lower(btrim($1))',
+      );
+      expect(sql.values).toEqual(['2026.1.1']);
+      expect(specimenDelegate.create).toHaveBeenCalled();
+    });
+
+    it('rejects a number a legacy record stores with surrounding spaces', async () => {
+      queryRawMock.mockResolvedValue([
+        holder({ accession_number: ' 2026.1.1 ' }),
+      ]);
+
+      await expect(
+        service.create({ accessionNumber: '2026.1.1' }, ACCOUNT_ID),
+      ).rejects.toThrow(ConflictException);
+      expect(specimenDelegate.create).not.toHaveBeenCalled();
+    });
+
+    it('rejects a create whose number is already assigned', async () => {
+      queryRawMock.mockResolvedValue([holder()]);
+
+      const error = await service
+        .create({ accessionNumber: '2026.1.1' }, ACCOUNT_ID)
+        .catch((caught: unknown) => caught);
+
+      expect(error).toBeInstanceOf(ConflictException);
+      expect((error as ConflictException).getResponse()).toMatchObject({
+        code: 'ACCESSION_NUMBER_TAKEN',
+        accessionNumber: '2026.1.1',
+        conflictingSpecimen: {
+          id: '66666666-6666-4666-8666-666666666666',
+          status: 'CATALOGED',
+        },
+      });
+      expect(specimenDelegate.create).not.toHaveBeenCalled();
+      expect(auditDelegate.create).not.toHaveBeenCalled();
+    });
+
+    it('explains that an Archived record keeps its number', async () => {
+      queryRawMock.mockResolvedValue([holder({ status: 'ARCHIVED' })]);
+
+      await expect(
+        service.create({ accessionNumber: '2026.1.1' }, ACCOUNT_ID),
+      ).rejects.toThrow(/Archived record; archived numbers are not reused/);
+    });
+
+    it('maps a unique-index race on create to the same conflict', async () => {
+      specimenDelegate.create.mockRejectedValue(
+        new Prisma.PrismaClientKnownRequestError('Unique constraint failed', {
+          code: 'P2002',
+          clientVersion: '7.10.0',
+        }),
+      );
+
+      await expect(
+        service.create({ accessionNumber: '2026.1.1' }, ACCOUNT_ID),
+      ).rejects.toThrow(ConflictException);
+    });
+
+    it('skips the lookup when no number is given', async () => {
+      specimenDelegate.create.mockResolvedValue(specimenRecord());
+
+      await service.create({ commonName: 'Test specimen' }, ACCOUNT_ID);
+
+      expect(queryRawMock).not.toHaveBeenCalled();
+    });
+
+    it('excludes the edited record so it can keep or re-case its own number', async () => {
+      specimenDelegate.findUnique.mockResolvedValue(
+        specimenRecord({ accession_number: 'abc-1' }),
+      );
+      specimenDelegate.update.mockResolvedValue(
+        specimenRecord({ accession_number: 'ABC-1' }),
+      );
+
+      await service.update(
+        SPECIMEN_ID,
+        { accessionNumber: 'ABC-1' },
+        ACCOUNT_ID,
+      );
+
+      const [sql] = queryRawMock.mock.calls[0] as [Prisma.Sql];
+      expect(sql.values).toEqual(['ABC-1', SPECIMEN_ID]);
+      expect(specimenDelegate.update).toHaveBeenCalled();
+    });
+
+    it('rejects an update to a number held by another record', async () => {
+      specimenDelegate.findUnique.mockResolvedValue(specimenRecord());
+      queryRawMock.mockResolvedValue([holder()]);
+
+      await expect(
+        service.update(
+          SPECIMEN_ID,
+          { accessionNumber: '2026.1.1' },
+          ACCOUNT_ID,
+        ),
+      ).rejects.toThrow(ConflictException);
+      expect(specimenDelegate.update).not.toHaveBeenCalled();
+      expect(revisionDelegate.createMany).not.toHaveBeenCalled();
+    });
+
+    it('allows clearing an Uncataloged record number without a lookup', async () => {
+      specimenDelegate.findUnique.mockResolvedValue(
+        specimenRecord({ accession_number: '2026.1.1' }),
+      );
+      specimenDelegate.update.mockResolvedValue(specimenRecord());
+
+      await service.update(SPECIMEN_ID, { accessionNumber: null }, ACCOUNT_ID);
+
+      expect(queryRawMock).not.toHaveBeenCalled();
+      expect(specimenDelegate.update).toHaveBeenCalled();
+    });
+
+    it('maps a unique-index race on update to the same conflict', async () => {
+      specimenDelegate.findUnique.mockResolvedValue(specimenRecord());
+      specimenDelegate.update.mockRejectedValue(
+        new Prisma.PrismaClientKnownRequestError('Unique constraint failed', {
+          code: 'P2002',
+          clientVersion: '7.10.0',
+        }),
+      );
+
+      await expect(
+        service.update(
+          SPECIMEN_ID,
+          { accessionNumber: '2026.1.1' },
+          ACCOUNT_ID,
+        ),
+      ).rejects.toThrow(ConflictException);
     });
   });
 

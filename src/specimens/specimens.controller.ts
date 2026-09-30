@@ -9,6 +9,7 @@ import {
   Query,
 } from '@nestjs/common';
 import {
+  ApiConflictResponse,
   ApiCreatedResponse,
   ApiOkResponse,
   ApiOperation,
@@ -17,16 +18,19 @@ import {
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
 import type { AuthenticatedUser } from '../auth/types/auth.types';
+import { CheckAccessionNumberQueryDto } from './dto/check-accession-number.dto';
 import { CreateSpecimenDto } from './dto/create-specimen.dto';
 import { ListSpecimenRevisionsQueryDto } from './dto/list-specimen-revisions-query.dto';
 import { ReopenCatalogingDto } from './dto/reopen-cataloging.dto';
 import { SearchSpecimensQueryDto } from './dto/search-specimens-query.dto';
 import { SetPublicDisplayDto } from './dto/set-public-display.dto';
 import { UpdateSpecimenDto } from './dto/update-specimen.dto';
+import { AccessionNumberAvailability } from './entities/accession-number.entity';
 import { CatalogReadiness } from './entities/catalog-readiness.entity';
 import { SpecimenCreateResult } from './entities/specimen-duplicate.entity';
 import { SpecimenRevisionPage } from './entities/specimen-revision.entity';
 import { Specimen, SpecimenPage } from './entities/specimen.entity';
+import { SpecimenAccessionService } from './specimen-accession.service';
 import { SpecimenCatalogingService } from './specimen-cataloging.service';
 import { SpecimenDuplicatesService } from './specimen-duplicates.service';
 import { SpecimensService } from './specimens.service';
@@ -39,6 +43,7 @@ export class SpecimensController {
     private readonly service: SpecimensService,
     private readonly duplicates: SpecimenDuplicatesService,
     private readonly catalogingService: SpecimenCatalogingService,
+    private readonly accession: SpecimenAccessionService,
   ) {}
 
   @Post()
@@ -47,6 +52,9 @@ export class SpecimensController {
       'Create an Uncataloged specimen record, warning on possible duplicates (REQ-4.4-21)',
   })
   @ApiCreatedResponse({ type: SpecimenCreateResult })
+  @ApiConflictResponse({
+    description: 'ACCESSION_NUMBER_TAKEN: the accession number is in use',
+  })
   async create(
     @Body() dto: CreateSpecimenDto,
     @CurrentUser() user: AuthenticatedUser,
@@ -76,6 +84,23 @@ export class SpecimensController {
   @ApiOkResponse({ type: SpecimenPage })
   search(@Query() query: SearchSpecimensQueryDto): Promise<SpecimenPage> {
     return this.service.search(query);
+  }
+
+  @Get('accession-number-availability')
+  @ApiOperation({
+    summary:
+      'Check whether an accession number is free to assign (REQ-4.4-04, BR-01)',
+    description:
+      'Numbers are compared trimmed and case-insensitively against every specimen record, Archived ones included. Create and update enforce the same rule and return 409 ACCESSION_NUMBER_TAKEN on a conflict.',
+  })
+  @ApiOkResponse({ type: AccessionNumberAvailability })
+  checkAccessionNumber(
+    @Query() query: CheckAccessionNumberQueryDto,
+  ): Promise<AccessionNumberAvailability> {
+    return this.accession.checkAvailability(
+      query.accessionNumber,
+      query.excludeSpecimenId,
+    );
   }
 
   @Get(':id/revisions')
@@ -108,6 +133,9 @@ export class SpecimensController {
   @Patch(':id')
   @ApiOperation({ summary: 'Update an active specimen core record' })
   @ApiOkResponse({ type: Specimen })
+  @ApiConflictResponse({
+    description: 'ACCESSION_NUMBER_TAKEN: the accession number is in use',
+  })
   update(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateSpecimenDto,

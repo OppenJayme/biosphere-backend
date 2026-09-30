@@ -92,10 +92,10 @@ records, or deletes anything. The curator decides. Preview uses the shared
 matcher described in `docs/SPECIMEN_DUPLICATES_GUIDE.md`, and each row
 reports:
 
-- `duplicateWarnings`: the same short messages as before. A row is flagged
-  when its `accessionNumber` matches an active specimen or another row in
-  the file, or when its `scientificName` **and** `commonName` together
-  match one.
+- `duplicateWarnings`: a row is flagged when its `scientificName` **and**
+  `commonName` together match an active specimen or another row in the
+  file. Accession-number clashes are row **errors**, not warnings (see
+  `docs/ACCESSION_NUMBER_GUIDE.md`).
 - `possibleDuplicates`: the existing records behind those warnings (id,
   names, status, confidence, and matched/differing fields), so the curator
   can open them before committing.
@@ -224,7 +224,6 @@ needs no special flag outside Jest's sandboxed module loader.
 
 ## Deferred boundaries
 
-This slice does not decide catalog completeness, enforce accession-number
-uniqueness, support spreadsheet formats other than CSV, or auto-merge
+This slice does not decide catalog completeness, support spreadsheet formats other than CSV, or auto-merge
 possible duplicates. Those remain governed by the same boundaries documented
 in `docs/SPECIMEN_CORE_GUIDE.md` and `docs/SPECIMEN_DETAIL_GUIDE.md`.

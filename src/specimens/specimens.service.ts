@@ -35,6 +35,7 @@ import {
   assertCatalogedValueRetained,
   hasCatalogText,
 } from './catalog-completion.policy';
+import { SpecimenAccessionService } from './specimen-accession.service';
 import { SpecimenCatalogingService } from './specimen-cataloging.service';
 
 interface RevisionChange {
@@ -66,6 +67,7 @@ export class SpecimensService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly catalogingService: SpecimenCatalogingService,
+    private readonly accession: SpecimenAccessionService,
   ) {}
 
   async create(
@@ -261,6 +263,13 @@ export class SpecimensService {
         if (dto.collectionId) {
           await this.assertCollectionExists(transaction, dto.collectionId);
         }
+        if (dto.accessionNumber !== undefined) {
+          await this.accession.assertAvailable(
+            transaction,
+            dto.accessionNumber,
+            id,
+          );
+        }
 
         const data: Prisma.specimenUncheckedUpdateInput = {};
         const changes: RevisionChange[] = [];
@@ -361,14 +370,19 @@ export class SpecimensService {
           );
         }
 
-        const updated = await transaction.specimen.update({
-          where: { id },
-          data: {
-            ...data,
-            updated_by: actingCuratorAccountId,
-            updated_at: new Date(),
-          },
-        });
+        let updated: specimen;
+        try {
+          updated = await transaction.specimen.update({
+            where: { id },
+            data: {
+              ...data,
+              updated_by: actingCuratorAccountId,
+              updated_at: new Date(),
+            },
+          });
+        } catch (error) {
+          throw this.toAccessionConflict(error, dto.accessionNumber);
+        }
 
         await this.recordRevisions(
           transaction,
@@ -733,23 +747,29 @@ export class SpecimensService {
     if (dto.collectionId) {
       await this.assertCollectionExists(transaction, dto.collectionId);
     }
+    await this.accession.assertAvailable(transaction, dto.accessionNumber);
 
-    const created = await transaction.specimen.create({
-      data: {
-        collection_id: dto.collectionId,
-        created_by: actingCuratorAccountId,
-        updated_by: actingCuratorAccountId,
-        accession_number: dto.accessionNumber,
-        specimen_category: dto.specimenCategory,
-        scientific_name: dto.scientificName,
-        common_name: dto.commonName,
-        gender: dto.gender,
-        classification_status: dto.classificationStatus,
-        status: 'UNCATALOGED',
-        public_display_allowed: false,
-        remarks: dto.remarks,
-      },
-    });
+    let created: specimen;
+    try {
+      created = await transaction.specimen.create({
+        data: {
+          collection_id: dto.collectionId,
+          created_by: actingCuratorAccountId,
+          updated_by: actingCuratorAccountId,
+          accession_number: dto.accessionNumber,
+          specimen_category: dto.specimenCategory,
+          scientific_name: dto.scientificName,
+          common_name: dto.commonName,
+          gender: dto.gender,
+          classification_status: dto.classificationStatus,
+          status: 'UNCATALOGED',
+          public_display_allowed: false,
+          remarks: dto.remarks,
+        },
+      });
+    } catch (error) {
+      throw this.toAccessionConflict(error, dto.accessionNumber);
+    }
 
     await this.recordAudit(transaction, {
       userId: actingCuratorAccountId,
@@ -759,6 +779,17 @@ export class SpecimensService {
     });
 
     return this.toEntity(created);
+  }
+
+  /** Maps the unique-index race loser to the same 409 as the pre-check. */
+  private toAccessionConflict(
+    error: unknown,
+    accessionNumber: string | null | undefined,
+  ): unknown {
+    if (accessionNumber && this.accession.isUniqueViolation(error)) {
+      return this.accession.conflict(accessionNumber);
+    }
+    return error;
   }
 
   private assertExists(
