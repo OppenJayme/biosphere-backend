@@ -15,6 +15,9 @@ export class VisitRequestSubmissionReceipt {
   @ApiProperty()
   id!: string;
 
+  @ApiProperty({ example: '9A81836F' })
+  referenceCode!: string;
+
   @ApiProperty({ enum: VisitRequestStatus })
   status!: VisitRequestStatus;
 
@@ -67,6 +70,13 @@ export class VisitRequestVehicle {
 export class VisitRequest {
   @ApiProperty()
   id!: string;
+
+  @ApiProperty({
+    example: '9A81836F',
+    description:
+      'Short reference shown to the visitor and in emails; searchable',
+  })
+  referenceCode!: string;
 
   @ApiProperty()
   name!: string;
