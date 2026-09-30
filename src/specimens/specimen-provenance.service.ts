@@ -42,60 +42,78 @@ export class SpecimenProvenanceService {
     dto: CreateSpecimenProvenanceDto,
     actingCuratorAccountId: string,
   ): Promise<SpecimenProvenance> {
-    return this.prisma.$transaction(async (transaction) => {
-      const specimenRecord = await this.findSpecimenOrThrow(
+    return this.prisma.$transaction((transaction) =>
+      this.createInTransaction(
         transaction,
         specimenId,
-      );
-      this.assertEditable(specimenRecord);
-
-      const existing = await transaction.specimen_provenance.findUnique({
-        where: { specimen_id: specimenId },
-      });
-      if (existing) {
-        throw new ConflictException(
-          `Provenance already exists for specimen ${specimenId}`,
-        );
-      }
-
-      const values = this.createValues(dto);
-      const changes = this.collectCreateChanges(values);
-      if (changes.length === 0) {
-        throw new BadRequestException(
-          'At least one provenance field must contain a value.',
-        );
-      }
-
-      const changedAt = new Date();
-      const created = await transaction.specimen_provenance.create({
-        data: {
-          specimen_id: specimenId,
-          ...values,
-          updated_at: changedAt,
-        },
-      });
-
-      await this.touchSpecimen(
-        transaction,
-        specimenId,
+        dto,
         actingCuratorAccountId,
-        changedAt,
-      );
-      await this.recordRevisions(
-        transaction,
-        specimenId,
-        actingCuratorAccountId,
-        changes,
-      );
-      await this.recordAudit(transaction, {
-        userId: actingCuratorAccountId,
-        specimenId,
-        action: 'CREATE_SPECIMEN_PROVENANCE',
-        fields: changes.map((change) => change.fieldChanged),
-      });
+      ),
+    );
+  }
 
-      return this.toEntity(created);
+  /**
+   * Creates the provenance inside a caller-owned transaction so it commits or
+   * rolls back together with other writes, such as a bulk-import row.
+   */
+  async createInTransaction(
+    transaction: Prisma.TransactionClient,
+    specimenId: string,
+    dto: CreateSpecimenProvenanceDto,
+    actingCuratorAccountId: string,
+  ): Promise<SpecimenProvenance> {
+    const specimenRecord = await this.findSpecimenOrThrow(
+      transaction,
+      specimenId,
+    );
+    this.assertEditable(specimenRecord);
+
+    const existing = await transaction.specimen_provenance.findUnique({
+      where: { specimen_id: specimenId },
     });
+    if (existing) {
+      throw new ConflictException(
+        `Provenance already exists for specimen ${specimenId}`,
+      );
+    }
+
+    const values = this.createValues(dto);
+    const changes = this.collectCreateChanges(values);
+    if (changes.length === 0) {
+      throw new BadRequestException(
+        'At least one provenance field must contain a value.',
+      );
+    }
+
+    const changedAt = new Date();
+    const created = await transaction.specimen_provenance.create({
+      data: {
+        specimen_id: specimenId,
+        ...values,
+        updated_at: changedAt,
+      },
+    });
+
+    await this.touchSpecimen(
+      transaction,
+      specimenId,
+      actingCuratorAccountId,
+      changedAt,
+    );
+    await this.recordRevisions(
+      transaction,
+      specimenId,
+      actingCuratorAccountId,
+      changes,
+    );
+    await this.recordAudit(transaction, {
+      userId: actingCuratorAccountId,
+      specimenId,
+      action: 'CREATE_SPECIMEN_PROVENANCE',
+      fields: changes.map((change) => change.fieldChanged),
+    });
+
+    return this.toEntity(created);
   }
 
   async findOne(specimenId: string): Promise<SpecimenProvenance> {
