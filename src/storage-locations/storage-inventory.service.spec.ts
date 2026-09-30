@@ -13,6 +13,8 @@ const TEST_DATE = new Date('2026-09-01T00:00:00.000Z');
 const storageFindUnique = jest.fn();
 const lotFindMany = jest.fn();
 const lotAggregate = jest.fn();
+const lotTransactionFindMany = jest.fn();
+const lotTransactionCount = jest.fn();
 const transactionMock = jest.fn();
 
 const prismaMock = {
@@ -20,6 +22,10 @@ const prismaMock = {
   specimen_lot: {
     findMany: lotFindMany,
     aggregate: lotAggregate,
+  },
+  specimen_lot_transaction: {
+    findMany: lotTransactionFindMany,
+    count: lotTransactionCount,
   },
   $transaction: transactionMock,
 };
@@ -167,5 +173,78 @@ describe('StorageInventoryService', () => {
     ).rejects.toThrow(
       new NotFoundException(`Storage unit ${STORAGE_ID} not found`),
     );
+  });
+  describe('findLotMovements', () => {
+    it('lists transactions on lots held in the unit, newest first', async () => {
+      lotTransactionFindMany.mockResolvedValue([
+        {
+          id: 'tx-1',
+          source_lot_id: null,
+          target_lot_id: LOT_ID,
+          transaction_type: 'QUANTITY_ADJUSTMENT',
+          quantity_affected: 4,
+          adjustment_type: 'ADDITION',
+          reason: null,
+          performed_by: ACCOUNT_ID,
+          created_at: TEST_DATE,
+          user_account: { full_name: 'Maria Curator' },
+          specimen_lot_specimen_lot_transaction_source_lot_idTospecimen_lot:
+            null,
+          specimen_lot_specimen_lot_transaction_target_lot_idTospecimen_lot: {
+            specimen_id: SPECIMEN_ID,
+            storage_unit_id: STORAGE_ID,
+            condition_class: 'GOOD',
+          },
+        },
+      ]);
+      lotTransactionCount.mockResolvedValue(1);
+
+      const page = await service.findLotMovements(STORAGE_ID, {
+        page: 1,
+        limit: 50,
+      });
+
+      const lotFilter = { is: { storage_unit_id: STORAGE_ID } };
+      expect(lotTransactionFindMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            OR: [
+              {
+                specimen_lot_specimen_lot_transaction_source_lot_idTospecimen_lot:
+                  lotFilter,
+              },
+              {
+                specimen_lot_specimen_lot_transaction_target_lot_idTospecimen_lot:
+                  lotFilter,
+              },
+            ],
+            transaction_type: undefined,
+          },
+          orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
+          skip: 0,
+          take: 50,
+        }),
+      );
+      expect(page.items[0]).toEqual(
+        expect.objectContaining({
+          specimenId: SPECIMEN_ID,
+          performedByName: 'Maria Curator',
+          fromStorageUnitId: null,
+          toStorageUnitId: STORAGE_ID,
+          adjustmentType: 'ADDITION',
+        }),
+      );
+      expect(page.total).toBe(1);
+    });
+
+    it('rejects an unknown storage unit', async () => {
+      storageFindUnique.mockResolvedValueOnce(null);
+      lotTransactionFindMany.mockResolvedValue([]);
+      lotTransactionCount.mockResolvedValue(0);
+
+      await expect(
+        service.findLotMovements(STORAGE_ID, { page: 1, limit: 50 }),
+      ).rejects.toThrow(NotFoundException);
+    });
   });
 });

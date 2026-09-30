@@ -14,7 +14,9 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AdjustSpecimenLotQuantityDto } from './dto/adjust-specimen-lot-quantity.dto';
 import { ChangeSpecimenLotConditionDto } from './dto/change-specimen-lot-condition.dto';
 import { CreateSpecimenLotDto } from './dto/create-specimen-lot.dto';
+import { ListLotHistoryQueryDto } from './dto/list-lot-history-query.dto';
 import { ListLotTransactionsQueryDto } from './dto/list-lot-transactions-query.dto';
+import { ListSpecimenLotsQueryDto } from './dto/list-specimen-lots-query.dto';
 import { MoveSpecimenLotDto } from './dto/move-specimen-lot.dto';
 import { UpdateSpecimenLotNotesDto } from './dto/update-specimen-lot-notes.dto';
 import { SpecimenLotOperationResult } from './entities/specimen-lot-operation-result.entity';
@@ -27,6 +29,13 @@ import {
 } from './entities/specimen-lot-transaction.entity';
 import { SpecimenLotSummary } from './entities/specimen-lot-summary.entity';
 import { SpecimenLot } from './entities/specimen-lot.entity';
+import { SpecimenLotHistoryPage } from './entities/specimen-lot-history.entity';
+import {
+  LOT_HISTORY_INCLUDE,
+  LOT_HISTORY_ORDER_BY,
+  toLotHistoryEntry,
+  touchingLots,
+} from './lot-history';
 
 const POSTGRES_INTEGER_MAX = 2_147_483_647;
 const SERIALIZABLE_RETRY_LIMIT = 3;
@@ -143,11 +152,18 @@ export class SpecimenLotsService {
     });
   }
 
-  async findActive(specimenId: string): Promise<SpecimenLot[]> {
+  async findActive(
+    specimenId: string,
+    query: Partial<ListSpecimenLotsQueryDto> = {},
+  ): Promise<SpecimenLot[]> {
     await this.findSpecimenOrThrow(this.prisma, specimenId);
     const lots = await this.prisma.specimen_lot.findMany({
-      where: { specimen_id: specimenId, is_active: true },
-      orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
+      where: query.includeInactive
+        ? { specimen_id: specimenId }
+        : { specimen_id: specimenId, is_active: true },
+      orderBy: query.includeInactive
+        ? [{ is_active: 'desc' }, { created_at: 'asc' }, { id: 'asc' }]
+        : [{ created_at: 'asc' }, { id: 'asc' }],
     });
 
     return lots.map((lot) => this.toEntity(lot));
@@ -200,6 +216,39 @@ export class SpecimenLotsService {
       items: transactions.map((transaction) =>
         this.toTransactionEntity(transaction),
       ),
+      page: query.page,
+      limit: query.limit,
+      total,
+    };
+  }
+
+  /**
+   * Every lot transaction for the specimen, including transactions on lots
+   * that are now inactive, newest first.
+   */
+  async findHistory(
+    specimenId: string,
+    query: ListLotHistoryQueryDto,
+  ): Promise<SpecimenLotHistoryPage> {
+    await this.findSpecimenOrThrow(this.prisma, specimenId);
+
+    const where: Prisma.specimen_lot_transactionWhereInput = {
+      ...touchingLots({ specimen_id: specimenId }),
+      transaction_type: query.transactionType,
+    };
+    const [transactions, total] = await Promise.all([
+      this.prisma.specimen_lot_transaction.findMany({
+        where,
+        include: LOT_HISTORY_INCLUDE,
+        orderBy: LOT_HISTORY_ORDER_BY,
+        skip: (query.page - 1) * query.limit,
+        take: query.limit,
+      }),
+      this.prisma.specimen_lot_transaction.count({ where }),
+    ]);
+
+    return {
+      items: transactions.map((transaction) => toLotHistoryEntry(transaction)),
       page: query.page,
       limit: query.limit,
       total,

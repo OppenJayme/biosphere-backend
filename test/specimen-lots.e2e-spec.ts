@@ -382,6 +382,59 @@ describe('Specimen lots (e2e)', () => {
     });
   });
 
+  it('serves specimen-wide lot history instead of treating it as a lot id', async () => {
+    transactionDelegate.findMany.mockImplementationOnce(() => [
+      {
+        id: transactionId,
+        source_lot_id: null,
+        target_lot_id: lotId,
+        transaction_type: 'QUANTITY_ADJUSTMENT',
+        quantity_affected: 10,
+        adjustment_type: 'ADDITION',
+        reason: null,
+        performed_by: curatorAccountId,
+        created_at: testDate,
+        user_account: { full_name: 'Test Curator' },
+        specimen_lot_specimen_lot_transaction_source_lot_idTospecimen_lot: null,
+        specimen_lot_specimen_lot_transaction_target_lot_idTospecimen_lot: {
+          specimen_id: specimenId,
+          storage_unit_id: storageUnitId,
+          condition_class: 'GOOD',
+        },
+      },
+    ]);
+
+    const response = await request(app.getHttpServer())
+      .get(
+        `/specimens/${specimenId}/lots/history?transactionType=QUANTITY_ADJUSTMENT`,
+      )
+      .set('Authorization', `Bearer ${curatorToken}`)
+      .expect(200);
+
+    expect(response.body).toEqual({
+      items: [
+        expect.objectContaining({
+          id: transactionId,
+          specimenId,
+          performedByName: 'Test Curator',
+          toStorageUnitId: storageUnitId,
+        }),
+      ],
+      page: 1,
+      limit: 50,
+      total: 1,
+    });
+
+    await request(app.getHttpServer())
+      .get(`/specimens/${specimenId}/lots/history?transactionType=TELEPORT`)
+      .set('Authorization', `Bearer ${curatorToken}`)
+      .expect(400);
+    await request(app.getHttpServer())
+      .get(`/specimens/${specimenId}/lots?includeInactive=maybe`)
+      .set('Authorization', `Bearer ${curatorToken}`)
+      .expect(400);
+  });
+
   it('validates movement and condition-change commands', async () => {
     lotRecord = {
       id: lotId,

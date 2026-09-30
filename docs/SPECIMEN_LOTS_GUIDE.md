@@ -153,8 +153,9 @@ and cannot change the total quantity.
 ## Endpoints
 
 - `POST /specimens/:specimenId/lots`
-- `GET /specimens/:specimenId/lots`
+- `GET /specimens/:specimenId/lots?includeInactive=false`
 - `GET /specimens/:specimenId/lots/summary`
+- `GET /specimens/:specimenId/lots/history?page=1&limit=50&transactionType=MOVEMENT`
 - `GET /specimens/:specimenId/lots/:lotId`
 - `GET /specimens/:specimenId/lots/:lotId/transactions?page=1&limit=50`
 - `POST /specimens/:specimenId/lots/:lotId/movements`
@@ -164,6 +165,30 @@ and cannot change the total quantity.
 
 Quantity adjustments must not be represented as internal storage movements or
 condition changes.
+
+## History feeds
+
+`GET /specimens/:specimenId/lots?includeInactive=true` also returns lots that
+were emptied or fully moved, after the active ones.
+
+`GET /specimens/:specimenId/lots/history` returns every lot transaction for the
+specimen, including those on inactive lots, newest first, optionally filtered
+by `transactionType`. `GET /storage-locations/:id/lot-movements` returns the
+same entries for transactions whose source or target lot is held directly in
+that unit (REQ-4.6-09). Each entry is a lot transaction plus:
+
+| Field                | Meaning                                              |
+| -------------------- | ---------------------------------------------------- |
+| `specimenId`         | Specimen the lots belong to                          |
+| `performedByName`    | Acting curator's full name                           |
+| `fromStorageUnitId`  | Source lot's unit; `null` for additions              |
+| `toStorageUnitId`    | Target lot's unit; `null` for removals               |
+| `fromConditionClass` | Source lot's condition; `null` for additions         |
+| `toConditionClass`   | Target lot's condition; `null` for removals          |
+
+A lot's unit and condition never change after it is created (moves and
+condition changes create or merge into another lot), so these values are the
+before and after state of the transaction.
 
 Automatic catalog promotion remains deferred until the curator-approved
 completeness rules for core, taxonomy, provenance, and lots are frozen.

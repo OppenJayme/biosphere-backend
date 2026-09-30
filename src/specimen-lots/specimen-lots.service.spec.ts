@@ -8,7 +8,10 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { SpecimenLotsService } from './specimen-lots.service';
-import { QuantityAdjustmentType } from './entities/specimen-lot-transaction.entity';
+import {
+  LotTransactionType,
+  QuantityAdjustmentType,
+} from './entities/specimen-lot-transaction.entity';
 
 const specimenDelegate = { findUnique: jest.fn(), update: jest.fn() };
 const storageUnitDelegate = { findUnique: jest.fn() };
@@ -1264,5 +1267,117 @@ describe('SpecimenLotsService', () => {
       ),
     ).rejects.toThrow(BadRequestException);
     expect(lotDelegate.update).not.toHaveBeenCalled();
+  });
+  describe('lot history feeds', () => {
+    it('can list inactive lots after the active ones', async () => {
+      lotDelegate.findMany.mockResolvedValue([
+        lotRecord(),
+        lotRecord({ id: TARGET_LOT_ID, is_active: false }),
+      ]);
+
+      const lots = await service.findActive(SPECIMEN_ID, {
+        includeInactive: true,
+      });
+
+      expect(lots.map((lot) => lot.isActive)).toEqual([true, false]);
+      expect(lotDelegate.findMany).toHaveBeenCalledWith({
+        where: { specimen_id: SPECIMEN_ID },
+        orderBy: [{ is_active: 'desc' }, { created_at: 'asc' }, { id: 'asc' }],
+      });
+    });
+
+    it('returns specimen-wide history with resolved locations and curator name', async () => {
+      lotTransactionDelegate.findMany.mockResolvedValue([
+        {
+          id: TRANSACTION_ID,
+          source_lot_id: LOT_ID,
+          target_lot_id: TARGET_LOT_ID,
+          transaction_type: 'MOVEMENT',
+          quantity_affected: 4,
+          adjustment_type: null,
+          reason: 'Reorganized drawers',
+          performed_by: ACCOUNT_ID,
+          created_at: TEST_DATE,
+          user_account: { full_name: 'Maria Curator' },
+          specimen_lot_specimen_lot_transaction_source_lot_idTospecimen_lot: {
+            specimen_id: SPECIMEN_ID,
+            storage_unit_id: STORAGE_UNIT_ID,
+            condition_class: 'GOOD',
+          },
+          specimen_lot_specimen_lot_transaction_target_lot_idTospecimen_lot: {
+            specimen_id: SPECIMEN_ID,
+            storage_unit_id: TARGET_STORAGE_UNIT_ID,
+            condition_class: 'GOOD',
+          },
+        },
+      ]);
+      lotTransactionDelegate.count.mockResolvedValue(1);
+
+      const page = await service.findHistory(SPECIMEN_ID, {
+        page: 2,
+        limit: 10,
+        transactionType: LotTransactionType.MOVEMENT,
+      });
+
+      const lotFilter = { is: { specimen_id: SPECIMEN_ID } };
+      const expectedWhere = {
+        OR: [
+          {
+            specimen_lot_specimen_lot_transaction_source_lot_idTospecimen_lot:
+              lotFilter,
+          },
+          {
+            specimen_lot_specimen_lot_transaction_target_lot_idTospecimen_lot:
+              lotFilter,
+          },
+        ],
+        transaction_type: LotTransactionType.MOVEMENT,
+      };
+      expect(lotTransactionDelegate.findMany).toHaveBeenCalledWith({
+        where: expectedWhere,
+        include: expect.objectContaining({
+          user_account: { select: { full_name: true } },
+        }),
+        orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
+        skip: 10,
+        take: 10,
+      });
+      expect(lotTransactionDelegate.count).toHaveBeenCalledWith({
+        where: expectedWhere,
+      });
+      expect(page).toEqual({
+        items: [
+          {
+            id: TRANSACTION_ID,
+            sourceLotId: LOT_ID,
+            targetLotId: TARGET_LOT_ID,
+            transactionType: 'MOVEMENT',
+            quantityAffected: 4,
+            adjustmentType: null,
+            reason: 'Reorganized drawers',
+            performedBy: ACCOUNT_ID,
+            createdAt: TEST_DATE,
+            specimenId: SPECIMEN_ID,
+            performedByName: 'Maria Curator',
+            fromStorageUnitId: STORAGE_UNIT_ID,
+            toStorageUnitId: TARGET_STORAGE_UNIT_ID,
+            fromConditionClass: 'GOOD',
+            toConditionClass: 'GOOD',
+          },
+        ],
+        page: 2,
+        limit: 10,
+        total: 1,
+      });
+    });
+
+    it('rejects history for an unknown specimen', async () => {
+      specimenDelegate.findUnique.mockResolvedValueOnce(null);
+
+      await expect(
+        service.findHistory(SPECIMEN_ID, { page: 1, limit: 50 }),
+      ).rejects.toThrow(NotFoundException);
+      expect(lotTransactionDelegate.findMany).not.toHaveBeenCalled();
+    });
   });
 });

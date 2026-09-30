@@ -92,6 +92,7 @@ the same assignment rule enforced by the specimen-lot service.
 - `GET /storage-locations/:id/children`
 - `GET /storage-locations/:id/movements`
 - `GET /storage-locations/:id/inventory?page=1&limit=50`
+- `GET /storage-locations/:id/lot-movements?page=1&limit=50&transactionType=MOVEMENT`
 - `PATCH /storage-locations/:id`
 - `PATCH /storage-locations/:id/move`
 - `PATCH /storage-locations/:id/archive`

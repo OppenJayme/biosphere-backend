@@ -22,11 +22,14 @@ import type { AuthenticatedUser } from '../auth/types/auth.types';
 import { AdjustSpecimenLotQuantityDto } from './dto/adjust-specimen-lot-quantity.dto';
 import { ChangeSpecimenLotConditionDto } from './dto/change-specimen-lot-condition.dto';
 import { CreateSpecimenLotDto } from './dto/create-specimen-lot.dto';
+import { ListLotHistoryQueryDto } from './dto/list-lot-history-query.dto';
 import { ListLotTransactionsQueryDto } from './dto/list-lot-transactions-query.dto';
+import { ListSpecimenLotsQueryDto } from './dto/list-specimen-lots-query.dto';
 import { MoveSpecimenLotDto } from './dto/move-specimen-lot.dto';
 import { UpdateSpecimenLotNotesDto } from './dto/update-specimen-lot-notes.dto';
 import { SpecimenLotOperationResult } from './entities/specimen-lot-operation-result.entity';
 import { SpecimenLotQuantityAdjustmentResult } from './entities/specimen-lot-quantity-adjustment-result.entity';
+import { SpecimenLotHistoryPage } from './entities/specimen-lot-history.entity';
 import { SpecimenLotTransactionPage } from './entities/specimen-lot-transaction.entity';
 import { SpecimenLotSummary } from './entities/specimen-lot-summary.entity';
 import { SpecimenLot } from './entities/specimen-lot.entity';
@@ -51,12 +54,28 @@ export class SpecimenLotsController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'List active lots for a specimen' })
+  @ApiOperation({
+    summary: 'List active lots for a specimen, optionally with inactive lots',
+  })
   @ApiOkResponse({ type: [SpecimenLot] })
   findActive(
     @Param('specimenId', ParseUUIDPipe) specimenId: string,
+    @Query() query: ListSpecimenLotsQueryDto,
   ): Promise<SpecimenLot[]> {
-    return this.service.findActive(specimenId);
+    return this.service.findActive(specimenId, query);
+  }
+
+  @Get('history')
+  @ApiOperation({
+    summary:
+      'Get paginated transaction history across all lots of a specimen, including inactive lots',
+  })
+  @ApiOkResponse({ type: SpecimenLotHistoryPage })
+  findHistory(
+    @Param('specimenId', ParseUUIDPipe) specimenId: string,
+    @Query() query: ListLotHistoryQueryDto,
+  ): Promise<SpecimenLotHistoryPage> {
+    return this.service.findHistory(specimenId, query);
   }
 
   @Get('summary')
