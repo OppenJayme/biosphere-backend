@@ -13,6 +13,9 @@ export class InquirySubmissionReceipt {
   @ApiProperty()
   id!: string;
 
+  @ApiProperty({ example: '9A81836F' })
+  referenceCode!: string;
+
   @ApiProperty({ enum: InquiryStatus })
   status!: InquiryStatus;
 
@@ -24,6 +27,13 @@ export class InquirySubmissionReceipt {
 export class Inquiry {
   @ApiProperty()
   id!: string;
+
+  @ApiProperty({
+    example: '9A81836F',
+    description:
+      'Short reference shown to the visitor and in emails; searchable',
+  })
+  referenceCode!: string;
 
   @ApiProperty()
   name!: string;
