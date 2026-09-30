@@ -56,12 +56,14 @@ SRS B.3: Unpublished -> Published -> Unpublished or Disabled.
 | --- | --- | --- | --- | --- |
 | `UNPUBLISHED` | yes (re-checks specimen eligibility) | no-op | 400 | yes |
 | `PUBLISHED` | no-op | yes | yes | yes |
-| `DISABLED` | yes (re-checks eligibility) | 400 | no-op | yes |
+| `DISABLED` | 400 | 400 | no-op | yes |
 | archived | 400 | 400 | 400 | no-op |
 
 Only a published exhibit can be disabled; retire an unpublished draft with
-archive. Archiving is final: the exhibit leaves curator lists, and its QR code and label
-can no longer be generated.
+archive. B.3 has no Disabled -> Published transition, so a disabled exhibit
+stays disabled until it is archived. Archiving is final: the exhibit becomes
+read-only (including its images), leaves curator lists, and its QR code and
+label can no longer be generated.
 
 ## Public page
 
@@ -121,9 +123,15 @@ Curator responses include `arEnabled` (at least one asset enabled) and
 `arAssetCount` (assets uploaded). `GET /exhibits?arEnabled=true|false` filters
 on the same rule.
 
-Because there is no exhibit-level AR column, a curator cannot mark an exhibit
-for AR before the developer uploads a model; the curator's AR decision is the
-on/off switch once an asset exists.
+### AR preparation request (REQ-4.13-02)
+
+Marking an exhibit as requested for AR preparation is an operational handoff,
+not a stored state: the curator selects the exhibit and asks the developer
+outside BioSphere, the developer uploads the asset to that exhibit, and the
+curator then decides with the on/off switch whether it is shown. No schema
+field records the request. Being public-display approved makes an exhibit
+eligible to receive an AR asset; it does not mean the curator selected it for
+AR. REQ-4.13-02 should be updated in the SRS to describe this workflow.
 
 ## Configuration
 
