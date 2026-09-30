@@ -797,4 +797,80 @@ describe('SpecimenImportService', () => {
       });
     });
   });
+  describe('catalog readiness in the preview (REQ-4.4-08, REQ-4.4-20)', () => {
+    beforeEach(() => {
+      storageUnitDelegate.findMany.mockResolvedValue(storageUnits());
+    });
+
+    it('reports a row that meets every catalog requirement', async () => {
+      collectionDelegate.findMany.mockResolvedValue([{ id: COLLECTION_ID }]);
+
+      const result = await service.previewImport(
+        csvFile(
+          [
+            'collectionId,accessionNumber,commonName,Kingdom,Collection Date,Preservation Type,Preservation Method,Storage Unit,Condition,Quantity',
+            `${COLLECTION_ID},USC-0001,Civet,Animalia,2026-03-14,Dry,Skin mount,Cabinet A > Drawer 1,Good,2`,
+          ].join('\n'),
+        ),
+        CURATOR_ID,
+      );
+
+      expect(result.rows[0].valid).toBe(true);
+      expect(result.rows[0].catalogReadiness).toEqual({
+        requirementsMet: true,
+        resultingStatus: 'UNCATALOGED',
+        checks: expect.arrayContaining([
+          {
+            key: 'activeLot',
+            label:
+              'An active lot has positive quantity in a specimen-holding storage location',
+            passed: true,
+          },
+        ]),
+        missingRequirements: [],
+      });
+      expect(result.rows[0].catalogReadiness.checks).toHaveLength(8);
+      expect(result.catalogReadyRows).toBe(1);
+    });
+
+    it('lists the missing requirements of an incomplete row without invalidating it', async () => {
+      const result = await service.previewImport(
+        csvFile('commonName,Kingdom\nCivet,Animalia\n'),
+        CURATOR_ID,
+      );
+
+      expect(result.rows[0].valid).toBe(true);
+      expect(result.rows[0].errors).toEqual([]);
+      expect(result.rows[0].catalogReadiness).toEqual(
+        expect.objectContaining({
+          requirementsMet: false,
+          resultingStatus: 'UNCATALOGED',
+          missingRequirements: [
+            'Collection is assigned',
+            'Accession number is assigned',
+            'Collection date is recorded',
+            'Preservation type is recorded',
+            'Preservation method is recorded',
+            'An active lot has positive quantity in a specimen-holding storage location',
+          ],
+        }),
+      );
+      expect(result.catalogReadyRows).toBe(0);
+    });
+
+    it('does not count a lot that failed validation as an active lot', async () => {
+      const result = await service.previewImport(
+        csvFile(
+          'commonName,Storage Unit,Condition,Quantity\nCivet,Zoology Room,Good,2\n',
+        ),
+        CURATOR_ID,
+      );
+
+      expect(result.rows[0].valid).toBe(false);
+      expect(result.rows[0].catalogReadiness.missingRequirements).toContain(
+        'An active lot has positive quantity in a specimen-holding storage location',
+      );
+      expect(result.catalogReadyRows).toBe(0);
+    });
+  });
 });

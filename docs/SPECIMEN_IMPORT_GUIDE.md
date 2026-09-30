@@ -107,6 +107,40 @@ The uploaded file is capped at `MAX_IMPORT_ROWS` (500) data rows and 5 MB.
 Both bounds are a pragmatic implementation limit, not an SRS-specified number,
 chosen to keep the duplicate-check queries and per-row commit loop bounded.
 
+## Catalog readiness (REQ-4.4-06/07/08)
+
+Every preview row carries `catalogReadiness`, evaluated with the same
+`catalog-completion.policy.ts` rules as
+`GET /specimens/:id/catalog-readiness`, using the values the row supplies:
+
+- `requirementsMet`: `true` when the row supplies every catalog requirement.
+- `checks`: each requirement with `key`, `label`, and `passed`.
+- `missingRequirements`: labels of the requirements the row does not meet,
+  for example `Collection date is recorded`.
+- `resultingStatus`: the status the record will have after commit.
+
+Missing requirements are **not** row errors and do not set `valid: false`:
+BioSphere saves incomplete records as Uncataloged (REQ-4.4-06). The lot
+requirement passes only when the row's lot columns validated and resolved to
+an active unit that holds specimens. The preview total `catalogReadyRows`
+counts valid rows with `requirementsMet: true`.
+
+### Imported-record status (pending team decision)
+
+Import always creates records as `UNCATALOGED`, including rows with
+`requirementsMet: true`, so `resultingStatus` is always `UNCATALOGED`. A
+curator then marks a ready record Cataloged with
+`PATCH /specimens/:id/complete-cataloging`, the same verification step as
+manual entry. This matches the existing rule that a record becomes Cataloged
+only through an explicit curator action, never automatically.
+
+Whether complete imported rows should instead become Cataloged at commit is
+not yet decided for the pilot migration. Until the team and museum confirm
+it, do not treat the current behavior as final. If automatic cataloging is
+chosen, the change belongs in `SpecimenImportService.createRow` (complete
+cataloging inside the row's transaction when `requirementsMet` is true) and
+`resultingStatus` would then report `CATALOGED` for those rows.
+
 ## Duplicate warnings (REQ-4.4-21/22/23, BR-09)
 
 Duplicate detection is informational only. It never blocks a row, merges
@@ -261,6 +295,9 @@ needs no special flag outside Jest's sandboxed module loader.
 
 ## Deferred boundaries
 
-This slice does not decide catalog completeness, support spreadsheet formats other than CSV, or auto-merge
-possible duplicates. Those remain governed by the same boundaries documented
+This slice reports catalog completeness in the preview but does not change a
+record's status, does not support spreadsheet formats other than CSV, and
+does not auto-merge possible duplicates. The column mappings are not final
+until the museum approves the CSV template and they are validated against
+representative museum data. Those remain governed by the same boundaries documented
 in `docs/SPECIMEN_CORE_GUIDE.md` and `docs/SPECIMEN_DETAIL_GUIDE.md`.

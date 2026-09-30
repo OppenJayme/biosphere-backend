@@ -25,9 +25,14 @@ import {
   PossibleDuplicate,
 } from './entities/specimen-duplicate.entity';
 import {
+  ImportCatalogReadiness,
   SpecimenImportCommitResult,
   SpecimenImportPreviewResult,
 } from './entities/specimen-import.entity';
+import {
+  CATALOG_REQUIREMENTS,
+  evaluateCatalogRequirements,
+} from './catalog-completion.policy';
 import { AccessionNumberHolder } from './entities/accession-number.entity';
 import { Specimen, SpecimenStatus } from './entities/specimen.entity';
 import {
@@ -327,6 +332,7 @@ export class SpecimenImportService {
           duplicateWarnings,
           possibleDuplicates,
           valid: errors.length === 0,
+          catalogReadiness: this.buildCatalogReadiness(context.fields, extras),
           dto: this.toCreateSpecimenDto(context.fields),
           extras,
         };
@@ -355,11 +361,15 @@ export class SpecimenImportService {
         duplicateWarnings: row.duplicateWarnings,
         possibleDuplicates: row.possibleDuplicates,
         valid: row.valid,
+        catalogReadiness: row.catalogReadiness,
       })),
       unmappedColumns,
       totalRows: rows.length,
       validRows: rows.filter((row) => row.valid).length,
       invalidRows: rows.filter((row) => !row.valid).length,
+      catalogReadyRows: rows.filter(
+        (row) => row.valid && row.catalogReadiness.requirementsMet,
+      ).length,
       rowsWithWarnings: rows.filter((row) => row.duplicateWarnings.length > 0)
         .length,
     };
@@ -767,6 +777,50 @@ export class SpecimenImportService {
     }
 
     return this.specimens.findOneInTransaction(transaction, specimen.id);
+  }
+
+  /**
+   * Applies the manual-cataloging completion rules to the values a row
+   * supplies, so the curator sees what is still missing before saving.
+   * Missing requirements do not invalidate the row: BioSphere saves
+   * incomplete records as Uncataloged (REQ-4.4-06).
+   */
+  private buildCatalogReadiness(
+    fields: RowFields,
+    extras: RowExtras,
+  ): ImportCatalogReadiness {
+    const collectionDate = fields.collectionDate
+      ? new Date(fields.collectionDate)
+      : null;
+    const results = evaluateCatalogRequirements({
+      collectionId: fields.collectionId ?? null,
+      accessionNumber: fields.accessionNumber ?? null,
+      commonName: fields.commonName ?? null,
+      kingdom: fields.kingdom ?? null,
+      collectionDate:
+        collectionDate && !Number.isNaN(collectionDate.getTime())
+          ? collectionDate
+          : null,
+      preservationType: fields.preservationType ?? null,
+      preservationMethod: fields.preservationMethod ?? null,
+      // Set only when the lot columns validated and the unit can hold
+      // specimens, which is what the manual rule checks.
+      hasActiveLot: extras.lot !== undefined,
+    });
+    const checks = CATALOG_REQUIREMENTS.map((requirement) => ({
+      ...requirement,
+      passed: results[requirement.key],
+    }));
+    const missingRequirements = checks
+      .filter((check) => !check.passed)
+      .map((check) => check.label);
+
+    return {
+      requirementsMet: missingRequirements.length === 0,
+      resultingStatus: SpecimenStatus.UNCATALOGED,
+      checks,
+      missingRequirements,
+    };
   }
 
   private async loadStorageUnitResolver(
