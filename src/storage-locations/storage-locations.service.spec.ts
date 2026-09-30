@@ -21,6 +21,7 @@ const movementDelegate = {
   findMany: jest.fn(),
 };
 const specimenLotDelegate = {
+  aggregate: jest.fn(),
   count: jest.fn(),
 };
 const auditDelegate = {
@@ -602,5 +603,58 @@ describe('StorageLocationsService', () => {
         reason: 'Reorganized collection',
       },
     ]);
+  });
+  describe('checkCapacity', () => {
+    it('projects the occupancy after placing an additional quantity', async () => {
+      storageUnitDelegate.findUnique.mockResolvedValueOnce(
+        storageUnitRecord({ capacity: 20 }),
+      );
+      specimenLotDelegate.aggregate.mockResolvedValueOnce({
+        _sum: { quantity: 18 },
+      });
+
+      await expect(
+        service.checkCapacity('unit-1', { additionalQuantity: 3 }),
+      ).resolves.toEqual({
+        storageUnitId: 'unit-1',
+        storageUnitLabel: 'Cabinet A',
+        capacity: 20,
+        occupiedQuantity: 18,
+        additionalQuantity: 3,
+        projectedQuantity: 21,
+        exceedsCapacity: true,
+      });
+      expect(specimenLotDelegate.aggregate).toHaveBeenCalledWith({
+        where: { storage_unit_id: 'unit-1', is_active: true },
+        _sum: { quantity: true },
+      });
+    });
+
+    it('never reports an excess for units without a capacity', async () => {
+      storageUnitDelegate.findUnique.mockResolvedValueOnce(
+        storageUnitRecord({ capacity: null }),
+      );
+      specimenLotDelegate.aggregate.mockResolvedValueOnce({
+        _sum: { quantity: null },
+      });
+
+      await expect(
+        service.checkCapacity('unit-1', { additionalQuantity: 500 }),
+      ).resolves.toEqual(
+        expect.objectContaining({
+          occupiedQuantity: 0,
+          projectedQuantity: 500,
+          exceedsCapacity: false,
+        }),
+      );
+    });
+
+    it('rejects an unknown unit', async () => {
+      storageUnitDelegate.findUnique.mockResolvedValueOnce(null);
+
+      await expect(
+        service.checkCapacity('missing', { additionalQuantity: 1 }),
+      ).rejects.toThrow(NotFoundException);
+    });
   });
 });

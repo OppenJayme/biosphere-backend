@@ -35,8 +35,14 @@ quantities. It is never copied into a manually maintained specimen field.
 - Quantity must be a positive integer.
 - Condition classifications remain curator-extensible text and are not frozen
   as PostgreSQL or TypeScript enums.
-- A specimen cannot have two active lots with the same storage unit and exact
-  condition classification.
+- Condition classifications are trimmed and internal whitespace is collapsed
+  to a single space before saving.
+- A specimen cannot have two active lots with the same storage unit and
+  condition classification. Condition matching ignores letter case, so
+  `Good` and `good` are the same condition (REQ-4.5-07): a create is rejected
+  as a matching lot, a move or condition change merges into the existing lot
+  and keeps that lot's spelling, and a condition change that differs only by
+  case is rejected as unchanged.
 - Creating a lot records a `QUANTITY_ADJUSTMENT` transaction with adjustment
   type `ADDITION`, the target lot, quantity, optional reason, timestamp, and
   acting curator.
@@ -63,10 +69,35 @@ workflows required by SRS section 4.5. A note change updates lot and parent
 specimen attribution, creates a specimen revision with
 `source_section = specimen_lot`, and appends an audit event atomically.
 
-Storage-unit `capacity` is not enforced during lot assignment yet because the
-museum has not frozen whether it represents individual specimens, lots,
-physical slots, volume, or another measure. The existing positive capacity
-value is preserved without inventing a capacity interpretation.
+## Storage capacity warnings
+
+Storage-unit `capacity` is advisory (REQ-4.6-11). It is compared with the sum
+of active lot quantities in the unit, the same measure used by
+`GET /storage-locations/occupancy-summary`. Exceeding it never blocks a lot
+operation; instead the response carries a `capacityWarning`:
+
+```json
+{
+  "storageUnitId": "…",
+  "storageUnitLabel": "Drawer 3",
+  "capacity": 8,
+  "occupiedQuantity": 10,
+  "exceededBy": 2
+}
+```
+
+`capacityWarning` is `null` when the unit has no capacity or is within it.
+
+| Operation                     | Unit checked                      |
+| ----------------------------- | --------------------------------- |
+| `POST …/lots`                 | The new lot's unit                |
+| `POST …/movements`            | The target unit                   |
+| `POST …/quantity-adjustments` | The lot's unit, increases only    |
+| `POST …/condition-changes`    | Never (occupancy does not change) |
+
+The audit event for each of these operations records `capacityExceeded`.
+To warn before submitting, call
+`GET /storage-locations/:id/capacity-check?additionalQuantity=N`.
 
 ## Movement and condition-change workflows
 
@@ -153,8 +184,9 @@ and cannot change the total quantity.
 ## Endpoints
 
 - `POST /specimens/:specimenId/lots`
-- `GET /specimens/:specimenId/lots`
+- `GET /specimens/:specimenId/lots?includeInactive=false`
 - `GET /specimens/:specimenId/lots/summary`
+- `GET /specimens/:specimenId/lots/history?page=1&limit=50&transactionType=MOVEMENT`
 - `GET /specimens/:specimenId/lots/:lotId`
 - `GET /specimens/:specimenId/lots/:lotId/transactions?page=1&limit=50`
 - `POST /specimens/:specimenId/lots/:lotId/movements`
@@ -164,6 +196,30 @@ and cannot change the total quantity.
 
 Quantity adjustments must not be represented as internal storage movements or
 condition changes.
+
+## History feeds
+
+`GET /specimens/:specimenId/lots?includeInactive=true` also returns lots that
+were emptied or fully moved, after the active ones.
+
+`GET /specimens/:specimenId/lots/history` returns every lot transaction for the
+specimen, including those on inactive lots, newest first, optionally filtered
+by `transactionType`. `GET /storage-locations/:id/lot-movements` returns the
+same entries for transactions whose source or target lot is held directly in
+that unit (REQ-4.6-09). Each entry is a lot transaction plus:
+
+| Field                | Meaning                                              |
+| -------------------- | ---------------------------------------------------- |
+| `specimenId`         | Specimen the lots belong to                          |
+| `performedByName`    | Acting curator's full name                           |
+| `fromStorageUnitId`  | Source lot's unit; `null` for additions              |
+| `toStorageUnitId`    | Target lot's unit; `null` for removals               |
+| `fromConditionClass` | Source lot's condition; `null` for additions         |
+| `toConditionClass`   | Target lot's condition; `null` for removals          |
+
+A lot's unit and condition never change after it is created (moves and
+condition changes create or merge into another lot), so these values are the
+before and after state of the transaction.
 
 Automatic catalog promotion remains deferred until the curator-approved
 completeness rules for core, taxonomy, provenance, and lots are frozen.

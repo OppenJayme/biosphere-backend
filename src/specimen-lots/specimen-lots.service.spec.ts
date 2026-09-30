@@ -8,7 +8,10 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { SpecimenLotsService } from './specimen-lots.service';
-import { QuantityAdjustmentType } from './entities/specimen-lot-transaction.entity';
+import {
+  LotTransactionType,
+  QuantityAdjustmentType,
+} from './entities/specimen-lot-transaction.entity';
 
 const specimenDelegate = { findUnique: jest.fn(), update: jest.fn() };
 const storageUnitDelegate = { findUnique: jest.fn() };
@@ -151,7 +154,13 @@ describe('SpecimenLotsService', () => {
 
     expect(storageUnitDelegate.findUnique).toHaveBeenCalledWith({
       where: { id: STORAGE_UNIT_ID },
-      select: { id: true, holds_specimens: true, archived_at: true },
+      select: {
+        id: true,
+        label: true,
+        capacity: true,
+        holds_specimens: true,
+        archived_at: true,
+      },
     });
     expect(lotDelegate.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
@@ -449,7 +458,13 @@ describe('SpecimenLotsService', () => {
 
     expect(storageUnitDelegate.findUnique).toHaveBeenCalledWith({
       where: { id: TARGET_STORAGE_UNIT_ID },
-      select: { id: true, holds_specimens: true, archived_at: true },
+      select: {
+        id: true,
+        label: true,
+        capacity: true,
+        holds_specimens: true,
+        archived_at: true,
+      },
     });
     expect(lotDelegate.updateMany).toHaveBeenCalledWith({
       where: {
@@ -860,7 +875,13 @@ describe('SpecimenLotsService', () => {
     );
     expect(storageUnitDelegate.findUnique).toHaveBeenCalledWith({
       where: { id: STORAGE_UNIT_ID },
-      select: { id: true, holds_specimens: true, archived_at: true },
+      select: {
+        id: true,
+        label: true,
+        capacity: true,
+        holds_specimens: true,
+        archived_at: true,
+      },
     });
   });
 
@@ -1264,5 +1285,372 @@ describe('SpecimenLotsService', () => {
       ),
     ).rejects.toThrow(BadRequestException);
     expect(lotDelegate.update).not.toHaveBeenCalled();
+  });
+  describe('storage capacity warnings (REQ-4.6-11)', () => {
+    function capacityUnit(capacity: number | null) {
+      return {
+        id: STORAGE_UNIT_ID,
+        label: 'Drawer 3',
+        capacity,
+        holds_specimens: true,
+        archived_at: null,
+      };
+    }
+
+    it('creates the lot and warns when the unit now exceeds its capacity', async () => {
+      storageUnitDelegate.findUnique.mockResolvedValueOnce(capacityUnit(8));
+      lotDelegate.aggregate.mockResolvedValueOnce({ _sum: { quantity: 10 } });
+
+      const result = await service.create(
+        SPECIMEN_ID,
+        {
+          storageUnitId: STORAGE_UNIT_ID,
+          conditionClass: 'GOOD',
+          quantity: 10,
+        },
+        ACCOUNT_ID,
+      );
+
+      expect(lotDelegate.aggregate).toHaveBeenCalledWith({
+        where: { storage_unit_id: STORAGE_UNIT_ID, is_active: true },
+        _sum: { quantity: true },
+      });
+      expect(result.capacityWarning).toEqual({
+        storageUnitId: STORAGE_UNIT_ID,
+        storageUnitLabel: 'Drawer 3',
+        capacity: 8,
+        occupiedQuantity: 10,
+        exceededBy: 2,
+      });
+      expect(auditDelegate.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          action: 'CREATE_SPECIMEN_LOT',
+          details: expect.objectContaining({ capacityExceeded: true }),
+        }),
+      });
+    });
+
+    it('does not warn at exactly the capacity or when no capacity is set', async () => {
+      storageUnitDelegate.findUnique.mockResolvedValueOnce(capacityUnit(10));
+      lotDelegate.aggregate.mockResolvedValueOnce({ _sum: { quantity: 10 } });
+      const atCapacity = await service.create(
+        SPECIMEN_ID,
+        {
+          storageUnitId: STORAGE_UNIT_ID,
+          conditionClass: 'GOOD',
+          quantity: 10,
+        },
+        ACCOUNT_ID,
+      );
+      expect(atCapacity.capacityWarning).toBeNull();
+
+      lotDelegate.aggregate.mockClear();
+      storageUnitDelegate.findUnique.mockResolvedValueOnce(capacityUnit(null));
+      const unlimited = await service.create(
+        SPECIMEN_ID,
+        {
+          storageUnitId: STORAGE_UNIT_ID,
+          conditionClass: 'GOOD',
+          quantity: 10,
+        },
+        ACCOUNT_ID,
+      );
+      expect(unlimited.capacityWarning).toBeNull();
+      expect(lotDelegate.aggregate).not.toHaveBeenCalled();
+    });
+
+    it('checks the target unit when moving part of a lot', async () => {
+      storageUnitDelegate.findUnique.mockResolvedValueOnce({
+        ...capacityUnit(3),
+        id: TARGET_STORAGE_UNIT_ID,
+      });
+      lotDelegate.findFirst
+        .mockResolvedValueOnce(lotRecord({ quantity: 10 }))
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(lotRecord({ quantity: 6 }));
+      lotDelegate.create.mockResolvedValueOnce(
+        lotRecord({
+          id: TARGET_LOT_ID,
+          storage_unit_id: TARGET_STORAGE_UNIT_ID,
+          quantity: 4,
+        }),
+      );
+      lotDelegate.aggregate.mockResolvedValueOnce({ _sum: { quantity: 4 } });
+
+      const result = await service.move(
+        SPECIMEN_ID,
+        LOT_ID,
+        { targetStorageUnitId: TARGET_STORAGE_UNIT_ID, quantity: 4 },
+        ACCOUNT_ID,
+      );
+
+      expect(lotDelegate.aggregate).toHaveBeenCalledWith({
+        where: { storage_unit_id: TARGET_STORAGE_UNIT_ID, is_active: true },
+        _sum: { quantity: true },
+      });
+      expect(result.capacityWarning).toEqual(
+        expect.objectContaining({
+          storageUnitId: TARGET_STORAGE_UNIT_ID,
+          occupiedQuantity: 4,
+          exceededBy: 1,
+        }),
+      );
+    });
+
+    it('never warns for a condition change because occupancy is unchanged', async () => {
+      storageUnitDelegate.findUnique.mockResolvedValueOnce(capacityUnit(1));
+      lotDelegate.findFirst
+        .mockResolvedValueOnce(lotRecord({ quantity: 10 }))
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(lotRecord({ quantity: 9 }));
+      lotDelegate.create.mockResolvedValueOnce(
+        lotRecord({ id: TARGET_LOT_ID, condition_class: 'FAIR', quantity: 1 }),
+      );
+
+      const result = await service.changeCondition(
+        SPECIMEN_ID,
+        LOT_ID,
+        { targetConditionClass: 'FAIR', quantity: 1 },
+        ACCOUNT_ID,
+      );
+
+      expect(result.capacityWarning).toBeNull();
+      expect(lotDelegate.aggregate).not.toHaveBeenCalled();
+    });
+
+    it('warns on quantity increases only', async () => {
+      storageUnitDelegate.findUnique.mockResolvedValueOnce(capacityUnit(12));
+      lotDelegate.findFirst
+        .mockResolvedValueOnce(lotRecord({ quantity: 10 }))
+        .mockResolvedValueOnce(lotRecord({ quantity: 15 }));
+      lotDelegate.aggregate.mockResolvedValueOnce({ _sum: { quantity: 15 } });
+
+      const increased = await service.adjustQuantity(
+        SPECIMEN_ID,
+        LOT_ID,
+        {
+          adjustmentType: QuantityAdjustmentType.ADDITION,
+          quantityDelta: 5,
+          expectedQuantity: 10,
+          reason: 'Newly verified specimens',
+        },
+        ACCOUNT_ID,
+      );
+      expect(increased.capacityWarning).toEqual(
+        expect.objectContaining({ occupiedQuantity: 15, exceededBy: 3 }),
+      );
+
+      lotDelegate.aggregate.mockClear();
+      lotDelegate.findFirst
+        .mockResolvedValueOnce(lotRecord({ quantity: 15 }))
+        .mockResolvedValueOnce(lotRecord({ quantity: 14 }));
+      const decreased = await service.adjustQuantity(
+        SPECIMEN_ID,
+        LOT_ID,
+        {
+          adjustmentType: QuantityAdjustmentType.REMOVAL,
+          quantityDelta: -1,
+          expectedQuantity: 15,
+          reason: 'Sent for conservation',
+        },
+        ACCOUNT_ID,
+      );
+      expect(decreased.capacityWarning).toBeNull();
+      expect(lotDelegate.aggregate).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('condition-class matching (REQ-4.5-07)', () => {
+    const insensitive = (value: string) => ({
+      equals: value,
+      mode: Prisma.QueryMode.insensitive,
+    });
+
+    it('treats a differently-cased condition as the existing lot on create', async () => {
+      lotDelegate.findFirst.mockResolvedValueOnce({ id: LOT_ID });
+
+      await expect(
+        service.create(
+          SPECIMEN_ID,
+          {
+            storageUnitId: STORAGE_UNIT_ID,
+            conditionClass: 'good',
+            quantity: 1,
+          },
+          ACCOUNT_ID,
+        ),
+      ).rejects.toThrow(ConflictException);
+      expect(lotDelegate.findFirst).toHaveBeenCalledWith({
+        where: {
+          specimen_id: SPECIMEN_ID,
+          storage_unit_id: STORAGE_UNIT_ID,
+          condition_class: insensitive('good'),
+          is_active: true,
+        },
+        select: { id: true },
+      });
+      expect(lotDelegate.create).not.toHaveBeenCalled();
+    });
+
+    it('merges a moved quantity into a target lot regardless of case', async () => {
+      const target = lotRecord({
+        id: TARGET_LOT_ID,
+        storage_unit_id: TARGET_STORAGE_UNIT_ID,
+        condition_class: 'good',
+        quantity: 2,
+      });
+      lotDelegate.findFirst
+        .mockResolvedValueOnce(lotRecord({ quantity: 10 }))
+        .mockResolvedValueOnce(target)
+        .mockResolvedValueOnce({ ...target, quantity: 5 })
+        .mockResolvedValueOnce(lotRecord({ quantity: 7 }));
+
+      const result = await service.move(
+        SPECIMEN_ID,
+        LOT_ID,
+        { targetStorageUnitId: TARGET_STORAGE_UNIT_ID, quantity: 3 },
+        ACCOUNT_ID,
+      );
+
+      expect(lotDelegate.findFirst).toHaveBeenNthCalledWith(2, {
+        where: {
+          specimen_id: SPECIMEN_ID,
+          storage_unit_id: TARGET_STORAGE_UNIT_ID,
+          condition_class: insensitive('GOOD'),
+          is_active: true,
+          id: { not: LOT_ID },
+        },
+      });
+      expect(lotDelegate.create).not.toHaveBeenCalled();
+      expect(result.mergedIntoExistingTarget).toBe(true);
+      expect(result.targetLot.conditionClass).toBe('good');
+    });
+
+    it('rejects a condition change that only differs by case', async () => {
+      lotDelegate.findFirst.mockResolvedValueOnce(lotRecord());
+
+      await expect(
+        service.changeCondition(
+          SPECIMEN_ID,
+          LOT_ID,
+          { targetConditionClass: 'Good', quantity: 1 },
+          ACCOUNT_ID,
+        ),
+      ).rejects.toThrow(BadRequestException);
+      expect(lotDelegate.updateMany).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('lot history feeds', () => {
+    it('can list inactive lots after the active ones', async () => {
+      lotDelegate.findMany.mockResolvedValue([
+        lotRecord(),
+        lotRecord({ id: TARGET_LOT_ID, is_active: false }),
+      ]);
+
+      const lots = await service.findActive(SPECIMEN_ID, {
+        includeInactive: true,
+      });
+
+      expect(lots.map((lot) => lot.isActive)).toEqual([true, false]);
+      expect(lotDelegate.findMany).toHaveBeenCalledWith({
+        where: { specimen_id: SPECIMEN_ID },
+        orderBy: [{ is_active: 'desc' }, { created_at: 'asc' }, { id: 'asc' }],
+      });
+    });
+
+    it('returns specimen-wide history with resolved locations and curator name', async () => {
+      lotTransactionDelegate.findMany.mockResolvedValue([
+        {
+          id: TRANSACTION_ID,
+          source_lot_id: LOT_ID,
+          target_lot_id: TARGET_LOT_ID,
+          transaction_type: 'MOVEMENT',
+          quantity_affected: 4,
+          adjustment_type: null,
+          reason: 'Reorganized drawers',
+          performed_by: ACCOUNT_ID,
+          created_at: TEST_DATE,
+          user_account: { full_name: 'Maria Curator' },
+          specimen_lot_specimen_lot_transaction_source_lot_idTospecimen_lot: {
+            specimen_id: SPECIMEN_ID,
+            storage_unit_id: STORAGE_UNIT_ID,
+            condition_class: 'GOOD',
+          },
+          specimen_lot_specimen_lot_transaction_target_lot_idTospecimen_lot: {
+            specimen_id: SPECIMEN_ID,
+            storage_unit_id: TARGET_STORAGE_UNIT_ID,
+            condition_class: 'GOOD',
+          },
+        },
+      ]);
+      lotTransactionDelegate.count.mockResolvedValue(1);
+
+      const page = await service.findHistory(SPECIMEN_ID, {
+        page: 2,
+        limit: 10,
+        transactionType: LotTransactionType.MOVEMENT,
+      });
+
+      const lotFilter = { is: { specimen_id: SPECIMEN_ID } };
+      const expectedWhere = {
+        OR: [
+          {
+            specimen_lot_specimen_lot_transaction_source_lot_idTospecimen_lot:
+              lotFilter,
+          },
+          {
+            specimen_lot_specimen_lot_transaction_target_lot_idTospecimen_lot:
+              lotFilter,
+          },
+        ],
+        transaction_type: LotTransactionType.MOVEMENT,
+      };
+      expect(lotTransactionDelegate.findMany).toHaveBeenCalledWith({
+        where: expectedWhere,
+        include: expect.objectContaining({
+          user_account: { select: { full_name: true } },
+        }),
+        orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
+        skip: 10,
+        take: 10,
+      });
+      expect(lotTransactionDelegate.count).toHaveBeenCalledWith({
+        where: expectedWhere,
+      });
+      expect(page).toEqual({
+        items: [
+          {
+            id: TRANSACTION_ID,
+            sourceLotId: LOT_ID,
+            targetLotId: TARGET_LOT_ID,
+            transactionType: 'MOVEMENT',
+            quantityAffected: 4,
+            adjustmentType: null,
+            reason: 'Reorganized drawers',
+            performedBy: ACCOUNT_ID,
+            createdAt: TEST_DATE,
+            specimenId: SPECIMEN_ID,
+            performedByName: 'Maria Curator',
+            fromStorageUnitId: STORAGE_UNIT_ID,
+            toStorageUnitId: TARGET_STORAGE_UNIT_ID,
+            fromConditionClass: 'GOOD',
+            toConditionClass: 'GOOD',
+          },
+        ],
+        page: 2,
+        limit: 10,
+        total: 1,
+      });
+    });
+
+    it('rejects history for an unknown specimen', async () => {
+      specimenDelegate.findUnique.mockResolvedValueOnce(null);
+
+      await expect(
+        service.findHistory(SPECIMEN_ID, { page: 1, limit: 50 }),
+      ).rejects.toThrow(NotFoundException);
+      expect(lotTransactionDelegate.findMany).not.toHaveBeenCalled();
+    });
   });
 });
