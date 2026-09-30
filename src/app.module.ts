@@ -23,6 +23,7 @@ import { OfflineSyncModule } from './offline-sync/offline-sync.module';
 import { ExhibitsModule } from './exhibit/exhibits.module';
 import { BackupModule } from './backup/backup.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { ReportsModule } from './reports/reports.module';
 
 @Module({
   imports: [
@@ -45,6 +46,7 @@ import { NotificationsModule } from './notifications/notifications.module';
     FaqModule,
     AuditModule,
     BackupModule,
+    ReportsModule,
     OfflineSyncModule,
   ],
   controllers: [AppController],
