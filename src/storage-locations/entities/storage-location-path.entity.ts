@@ -30,4 +30,10 @@ export class StorageLocationSummary {
 
   @ApiProperty({ example: 'Zoology Room › Cabinet A › Drawer 3' })
   pathLabel!: string;
+
+  @ApiProperty({
+    description:
+      'False when the hierarchy could not be walked up to a top-level unit (a missing ancestor or a parent cycle). path and rootUnit then cover only the part that was resolved.',
+  })
+  isComplete!: boolean;
 }

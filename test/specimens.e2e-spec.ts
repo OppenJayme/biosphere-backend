@@ -446,12 +446,43 @@ describe('Specimens (e2e)', () => {
     );
   });
 
+  it('accepts a timestamp createdFrom on the same day as a date-only createdTo', async () => {
+    specimenDelegate.findMany.mockImplementationOnce(() => []);
+
+    await request(app.getHttpServer())
+      .get('/specimens/search')
+      .query({
+        createdFrom: '2026-01-31T08:00:00.000Z',
+        createdTo: '2026-01-31',
+      })
+      .set('Authorization', `Bearer ${curatorToken}`)
+      .expect(200);
+
+    expect(specimenDelegate.findMany).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          created_at: {
+            gte: new Date('2026-01-31T08:00:00.000Z'),
+            lte: undefined,
+            lt: new Date('2026-02-01T00:00:00.000Z'),
+          },
+        }),
+      }),
+    );
+  });
+
   it('rejects invalid catalog query values before accessing specimens', async () => {
     specimenDelegate.findMany.mockClear();
 
     await request(app.getHttpServer())
       .get('/specimens/search')
       .query({ publicDisplay: 'yes', limit: '101', sortBy: 'remarks' })
+      .set('Authorization', `Bearer ${curatorToken}`)
+      .expect(400);
+
+    await request(app.getHttpServer())
+      .get('/specimens/search')
+      .query({ createdFrom: '2026-02-01', createdTo: '2026-01-31' })
       .set('Authorization', `Bearer ${curatorToken}`)
       .expect(400);
 

@@ -250,6 +250,7 @@ describe('SpecimenDetailsService', () => {
       ],
       rootUnit: { id: ROOM_ID, label: 'Zoology Room', unitType: 'ROOM' },
       pathLabel: 'Zoology Room › Cabinet 1',
+      isComplete: true,
     });
   });
 

@@ -148,14 +148,17 @@ not need one `/path` call per lot:
     { "id": "…", "label": "Cabinet A", "unitType": "CABINET" }
   ],
   "rootUnit": { "id": "…", "label": "Zoology Room", "unitType": "ROOM" },
-  "pathLabel": "Zoology Room › Cabinet A"
+  "pathLabel": "Zoology Room › Cabinet A",
+  "isComplete": true
 }
 ```
 
 `src/storage-locations/storage-location-paths.ts` loads one hierarchy level per
 query for all requested units together. Unlike `/path`, it does not fail on a
 missing ancestor or a parent cycle; it returns the part of the path it could
-walk, ending at the assigned unit.
+walk, ending at the assigned unit, sets `isComplete` to `false`, and logs a
+warning naming the unit. When `isComplete` is `false`, `rootUnit` is only the
+highest unit that could be resolved, not necessarily a room or gallery.
 
 ## Direct inventory view
 

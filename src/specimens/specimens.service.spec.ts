@@ -1098,6 +1098,41 @@ describe('SpecimensService', () => {
       });
     });
 
+    it('accepts a timestamp start on the same day as a date-only end', async () => {
+      await service.search(
+        searchQuery({
+          createdFrom: '2026-01-31T08:00:00.000Z',
+          createdTo: '2026-01-31',
+        }),
+      );
+
+      expect(whereOfLastSearch().created_at).toEqual({
+        gte: new Date('2026-01-31T08:00:00.000Z'),
+        lte: undefined,
+        lt: new Date('2026-02-01T00:00:00.000Z'),
+      });
+    });
+
+    it('rejects a start at or past the end of a date-only end day', async () => {
+      await expect(
+        service.search(
+          searchQuery({
+            createdFrom: '2026-02-01T00:00:00.000Z',
+            createdTo: '2026-01-31',
+          }),
+        ),
+      ).rejects.toThrow(BadRequestException);
+      await expect(
+        service.search(
+          searchQuery({
+            createdFrom: '2026-01-31T08:00:00.001Z',
+            createdTo: '2026-01-31T08:00:00.000Z',
+          }),
+        ),
+      ).rejects.toThrow(BadRequestException);
+      expect(specimenDelegate.findMany).not.toHaveBeenCalled();
+    });
+
     it('rejects a date range that ends before it starts', async () => {
       await expect(
         service.search(
