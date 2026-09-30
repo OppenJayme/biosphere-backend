@@ -322,7 +322,7 @@ export class ExhibitsService {
 
   // ===========================================================
   // Lifecycle — SRS B.3: Unpublished -> Published -> Unpublished or
-  // Disabled; a disabled exhibit may be published again; archive is final.
+  // Disabled. Disabled is terminal apart from archive; archive is final.
   // Every change is audited (REQ-4.12-11).
   // ===========================================================
 
@@ -333,6 +333,12 @@ export class ExhibitsService {
 
       if (existing.status === 'PUBLISHED') {
         return this.toEntity(existing);
+      }
+      // SRS B.3 has no Disabled -> Published transition.
+      if (existing.status === 'DISABLED') {
+        throw new BadRequestException(
+          'A disabled exhibit cannot be published again.',
+        );
       }
 
       // Re-check eligibility at publish time, not just at creation time —
@@ -703,18 +709,29 @@ export class ExhibitsService {
     mediaId: string,
     actingCuratorAccountId: string,
   ): Promise<{ id: string; removed: true }> {
-    const media = await this.findMediaOrThrow(this.prisma, exhibitId, mediaId);
+    // The row delete and its audit entry commit together; the stored file is
+    // removed only after that, since storage cannot join the transaction.
+    const media = await this.prisma.$transaction(async (transaction) => {
+      const exhibitRecord = await this.findOneOrThrow(transaction, exhibitId);
+      this.assertNotArchived(exhibitRecord);
+      const existing = await this.findMediaOrThrow(
+        transaction,
+        exhibitId,
+        mediaId,
+      );
 
-    await this.prisma.exhibit_media.delete({ where: { id: mediaId } });
+      await transaction.exhibit_media.delete({ where: { id: mediaId } });
+
+      await this.recordAudit(transaction, {
+        userId: actingCuratorAccountId,
+        exhibitId,
+        action: 'REMOVE_EXHIBIT_MEDIA',
+        details: { mediaId },
+      });
+      return existing;
+    });
 
     await this.safeRemoveMediaFile(EXHIBIT_MEDIA_BUCKET, media.storage_path);
-
-    await this.recordAudit(this.prisma, {
-      userId: actingCuratorAccountId,
-      exhibitId,
-      action: 'REMOVE_EXHIBIT_MEDIA',
-      details: { mediaId },
-    });
 
     return { id: mediaId, removed: true };
   }
