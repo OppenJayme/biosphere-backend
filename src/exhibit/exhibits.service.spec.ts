@@ -447,6 +447,19 @@ describe('ExhibitsService', () => {
       expect(exhibitDelegate.update).not.toHaveBeenCalled();
     });
 
+    it('rejects publishing a disabled exhibit (no Disabled -> Published in SRS B.3)', async () => {
+      exhibitDelegate.findUnique.mockResolvedValue(
+        exhibitRecord({ status: 'DISABLED' }),
+      );
+      specimenDelegate.findUnique.mockResolvedValue(specimenRecord());
+
+      await expect(service.publish(EXHIBIT_ID, ACCOUNT_ID)).rejects.toThrow(
+        'A disabled exhibit cannot be published again.',
+      );
+      expect(exhibitDelegate.update).not.toHaveBeenCalled();
+      expect(auditDelegate.create).not.toHaveBeenCalled();
+    });
+
     it('unpublishes a published exhibit', async () => {
       exhibitDelegate.findUnique.mockResolvedValue(
         exhibitRecord({ status: 'PUBLISHED' }),
@@ -897,15 +910,23 @@ describe('ExhibitsService', () => {
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
-    it('removes media and cleans up storage', async () => {
+    it('removes media, audits it in the same transaction, and cleans up storage', async () => {
+      exhibitDelegate.findUnique.mockResolvedValue(exhibitRecord());
       exhibitMediaDelegate.findUnique.mockResolvedValue(mediaRecord());
       storageServiceMock.remove.mockResolvedValue(undefined);
 
       await expect(
         service.removeMedia(EXHIBIT_ID, MEDIA_ID, ACCOUNT_ID),
       ).resolves.toEqual({ id: MEDIA_ID, removed: true });
+      expect(transactionMock).toHaveBeenCalledTimes(1);
       expect(exhibitMediaDelegate.delete).toHaveBeenCalledWith({
         where: { id: MEDIA_ID },
+      });
+      expect(auditDelegate.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          action: 'REMOVE_EXHIBIT_MEDIA',
+          details: { mediaId: MEDIA_ID },
+        }),
       });
       expect(storageServiceMock.remove).toHaveBeenCalledWith(
         'exhibit-media',
@@ -913,7 +934,32 @@ describe('ExhibitsService', () => {
       );
     });
 
+    it('rejects removing media from an archived exhibit', async () => {
+      exhibitDelegate.findUnique.mockResolvedValue(
+        exhibitRecord({ archived_at: TEST_DATE }),
+      );
+      exhibitMediaDelegate.findUnique.mockResolvedValue(mediaRecord());
+
+      await expect(
+        service.removeMedia(EXHIBIT_ID, MEDIA_ID, ACCOUNT_ID),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(exhibitMediaDelegate.delete).not.toHaveBeenCalled();
+      expect(storageServiceMock.remove).not.toHaveBeenCalled();
+    });
+
+    it('keeps the stored file when the audit write fails, so the rolled-back row still has it', async () => {
+      exhibitDelegate.findUnique.mockResolvedValue(exhibitRecord());
+      exhibitMediaDelegate.findUnique.mockResolvedValue(mediaRecord());
+      auditDelegate.create.mockRejectedValue(new Error('audit down'));
+
+      await expect(
+        service.removeMedia(EXHIBIT_ID, MEDIA_ID, ACCOUNT_ID),
+      ).rejects.toThrow('audit down');
+      expect(storageServiceMock.remove).not.toHaveBeenCalled();
+    });
+
     it('404s when removing media that does not belong to the exhibit', async () => {
+      exhibitDelegate.findUnique.mockResolvedValue(exhibitRecord());
       exhibitMediaDelegate.findUnique.mockResolvedValue(
         mediaRecord({ exhibit_id: 'another-exhibit' }),
       );

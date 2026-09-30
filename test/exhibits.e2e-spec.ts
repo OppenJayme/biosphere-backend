@@ -498,6 +498,18 @@ describe('Exhibits (e2e)', () => {
         .expect(400);
     });
 
+    it('rejects publishing a disabled exhibit', async () => {
+      exhibitRecord.status = 'DISABLED';
+
+      await request(app.getHttpServer())
+        .patch(`/exhibits/${exhibitId}/publish`)
+        .set('Authorization', `Bearer ${curatorToken}`)
+        .expect(400);
+      expect(auditDelegate.create).not.toHaveBeenCalledWith({
+        data: expect.objectContaining({ action: 'PUBLISH_EXHIBIT' }),
+      });
+    });
+
     it('disables a published exhibit', async () => {
       exhibitRecord.status = 'PUBLISHED';
 
@@ -577,6 +589,26 @@ describe('Exhibits (e2e)', () => {
       expect(storageRemoveMock).toHaveBeenCalledWith([
         `${exhibitId}/photo.jpg`,
       ]);
+      expect(auditDelegate.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({ action: 'REMOVE_EXHIBIT_MEDIA' }),
+      });
+    });
+
+    it('rejects removing media from an archived exhibit', async () => {
+      exhibitRecord.archived_at = testDate;
+      exhibitMediaDelegate.findUnique.mockResolvedValueOnce({
+        id: mediaId,
+        exhibit_id: exhibitId,
+        storage_path: `${exhibitId}/photo.jpg`,
+      });
+
+      await request(app.getHttpServer())
+        .delete(`/exhibits/${exhibitId}/media/${mediaId}`)
+        .set('Authorization', `Bearer ${curatorToken}`)
+        .expect(400);
+
+      expect(exhibitMediaDelegate.delete).not.toHaveBeenCalled();
+      expect(storageRemoveMock).not.toHaveBeenCalled();
     });
 
     it('404s when the media does not belong to the exhibit', async () => {
