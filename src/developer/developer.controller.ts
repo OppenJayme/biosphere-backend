@@ -50,6 +50,13 @@ export class DeveloperController {
 
   // ---- AR asset deployment (REQ-4.2-04, REQ-4.2-05) ----
 
+  // Curator-approved exhibits the developer can deploy AR assets to
+  // (REQ-4.13-03), plus any exhibit that still holds assets, for cleanup.
+  @Get('ar-exhibits')
+  listArExhibits() {
+    return this.developerService.listArExhibits();
+  }
+
   @Post('ar-assets')
   @UseInterceptors(
     FileInterceptor('file', { limits: { fileSize: MAX_AR_ASSET_SIZE_BYTES } }),
