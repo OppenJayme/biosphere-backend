@@ -11,12 +11,12 @@ tables. It does not introduce or alter database structures.
   `PUBLIC_FORM_RATE_LIMIT`.
 - Every other route handles visitor personal data and requires an
   authenticated, active `CURATOR` account (NFR-SEC-10). Developers receive 403.
-- The public `POST` returns only a receipt: `{ id, status, submittedAt }`. It
-  never echoes the submitted personal data.
-- `DELETE` only removes a finished record: a Closed or Turned to Visit Request
-  inquiry, or a Declined, Cancelled, or Completed visit request. Active records
-  return 400, so the workflow history is kept while a record is in progress
-  (REQ-4.8-12, 4.9-14).
+- The public `POST` returns only a receipt:
+  `{ id, status, referenceCode, submittedAt }`. It never echoes the submitted
+  personal data.
+- There is no `DELETE`. Closed inquiries and Declined, Cancelled, or Completed
+  visit requests are kept as the archive and history (REQ-4.8-12, 4.9-14).
+  Deletion waits for the approved visitor-data retention policy.
 
 ## Endpoints
 
@@ -31,9 +31,6 @@ General Inquiry:
   request (REQ-4.8-07). See [Referral](#referral).
 - `GET /inquiries/:id/history`: the inquiry's timeline, oldest first.
 - `POST /inquiries/:id/notes` with `{ message }`: internal curator note.
-- `DELETE /inquiries/:id`: 204. Only `CLOSED` or `TURNED_TO_VISIT_REQUEST`;
-  other statuses return 400. A referred inquiry returns 409 while its visit
-  request still exists, so delete that request first. Removes the timeline too.
 
 Visit Request:
 
@@ -44,16 +41,13 @@ Visit Request:
 - `PATCH /visit-requests/:id` with `{ status, note? }`:
   `SUBMITTED_FOR_CAMPUS_ENTRY`, `COMPLETED`, `DECLINED`, or `CANCELLED`.
 - `PATCH /visit-requests/:id/approve-schedule` with
-  `{ preferenceOrder, note? }`: approves one preferred option (REQ-4.9-17).
+  `{ preferenceOrder, note? }`: approves one preferred option (RED-4.9.17).
 - `GET /visit-requests/:id/campus-entry-summary`: approved visitor, schedule,
   and vehicle details for the manual USC campus-entry process (REQ-4.9-12).
   Only available once a schedule is approved. BioSphere never submits it to
   USC itself (REQ-4.9-13).
 - `GET /visit-requests/:id/history`: the request's timeline, oldest first.
 - `POST /visit-requests/:id/notes` with `{ message }`: internal curator note.
-- `DELETE /visit-requests/:id`: 204. Only `DECLINED`, `CANCELLED`, or
-  `COMPLETED`; other statuses return 400. Removes the preferred schedules,
-  visitors, vehicles, and timeline too.
 
 `PATCH` changes workflow status only. Submitted visitor content cannot be
 edited; extra fields are rejected with 400. Setting the current status again is
@@ -131,7 +125,7 @@ email on submission: the public receipt shows the reference number on screen.
 
 | Curator action | Email | SRS |
 | --- | --- | --- |
-| `approve-schedule` | "Your BioSphere museum visit is confirmed": date, time, visitors, organization | REQ-4.9-11 |
+| `approve-schedule` | "Your BioSphere museum visit schedule has been approved": date, time, visitors, organization | REQ-4.9-11 |
 | `PATCH` to `DECLINED` | "Update on your BioSphere visit request" | REQ-4.9-11 |
 | `PATCH` to `CANCELLED` | "Your BioSphere museum visit has been cancelled" | REQ-4.9-11 |
 | `POST /inquiries/:id/replies` | the curator's reply | REQ-4.8-05/09 |
@@ -143,6 +137,9 @@ email on submission: the public receipt shows the reference number on screen.
 - `replies` and `messages` take `{ subject?, message }` (subject max 150,
   message max 5000) and return the timeline entry. The status does not change.
 - Every email includes the record's reference number.
+- The approval email approves the museum visit schedule only. It says USC
+  campus entry is processed separately, because `APPROVED_BY_CURATOR` is not
+  campus-entry approval (REQ-4.9-13).
 - The email is sent after the decision is saved. A failed send never undoes
   it: the timeline entry records `FAILED ...` with no `sent_at`, and the
   curator can send a follow-up message.
@@ -197,10 +194,8 @@ Every action is also written to `audit_log` in the same transaction:
 `SUBMIT_INQUIRY`, `UPDATE_INQUIRY_STATUS`, `REFER_INQUIRY`,
 `ADD_INQUIRY_NOTE`, `SUBMIT_VISIT_REQUEST`, `UPDATE_VISIT_REQUEST_STATUS`,
 `APPROVE_VISIT_SCHEDULE`, `CREATE_VISIT_REQUEST_FROM_REFERRAL`,
-`ADD_VISIT_REQUEST_NOTE`, `DELETE_INQUIRY`, and `DELETE_VISIT_REQUEST`. Audit
-details never contain visitor personal data or note text, so the audit log
-still records a deletion after the record and its timeline are gone. Public
-submissions have a null `user_id`.
+`ADD_VISIT_REQUEST_NOTE`, and `EMAIL_VISITOR`. Audit details never contain
+visitor personal data or note text. Public submissions have a null `user_id`.
 
 ## Not yet implemented
 
@@ -209,3 +204,5 @@ submissions have a null `user_id`.
 - Bounce and delivery-status tracking after Brevo accepts an email (would need
   a Brevo webhook).
 - Visitor-list file upload on the visit form.
+- Deleting or anonymizing finished records. The SRS leaves the visitor-data
+  retention period and deletion procedure for USC-BM/university approval.
