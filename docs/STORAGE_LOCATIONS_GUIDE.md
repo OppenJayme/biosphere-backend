@@ -16,7 +16,7 @@ new database structures.
 | `size`           | `size`                    | Optional curator-managed size description |
 | `storageType`    | `storage_type`            | Curator-managed storage classification    |
 | `holdsSpecimens` | `holds_specimens`         | Whether the unit is intended to hold lots |
-| `capacity`       | `capacity`                | Optional positive capacity                |
+| `capacity`       | `capacity`                | Optional positive number of specimens held directly in the unit (provisional; see `SPECIMEN_LOTS_GUIDE.md`) |
 | `archivedAt`     | `archived_at`             | Archive timestamp, or `null` while active |
 | `createdAt`      | `created_at`              | Creation timestamp                        |
 | `updatedAt`      | `updated_at`              | Last application-managed update timestamp |

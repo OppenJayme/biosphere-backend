@@ -80,7 +80,12 @@ export class SpecimenLotsService {
     dto: CreateSpecimenLotDto,
     actingCuratorAccountId: string,
   ): Promise<CreatedSpecimenLot> {
-    return this.prisma.$transaction(async (transaction) => {
+    // The database unique index on active lots compares condition_class
+    // exactly, so it cannot stop two concurrent creates that differ only by
+    // case ("Good" / "good"). Under SERIALIZABLE isolation both requests'
+    // case-insensitive lookups conflict with each other's insert, PostgreSQL
+    // aborts one, and its retry finds the winner and returns a Conflict.
+    return this.runSerializableLotMutation(async (transaction) => {
       const specimenRecord = await this.findSpecimenOrThrow(
         transaction,
         specimenId,
