@@ -1,10 +1,7 @@
 import {
   Body,
   Controller,
-  Delete,
   Get,
-  HttpCode,
-  HttpStatus,
   Param,
   ParseUUIDPipe,
   Patch,
@@ -13,7 +10,6 @@ import {
 } from '@nestjs/common';
 import {
   ApiCreatedResponse,
-  ApiNoContentResponse,
   ApiOkResponse,
   ApiOperation,
   ApiTags,
@@ -41,8 +37,8 @@ import { VisitRequestsService } from './visit-requests.service';
 // POST is the only public route (SRS §4.9). Every other route handles
 // visitor personal data, so it is curator-only (NFR-SEC-10); @Roles is set
 // per method because a class-level @Roles would also block the public POST.
-// DELETE only removes a finished (declined, cancelled, or completed)
-// request; active ones keep their workflow history (REQ-4.9-14).
+// There is no DELETE: Declined, Cancelled, and Completed requests are kept
+// as history (REQ-4.9-14).
 @ApiTags('visit-requests')
 @Controller('visit-requests')
 export class VisitRequestsController {
@@ -162,20 +158,5 @@ export class VisitRequestsController {
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<CommunicationEntry> {
     return this.visitRequestsService.sendMessage(id, dto, user.accountId);
-  }
-
-  @Roles('CURATOR')
-  @Delete(':id')
-  @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiOperation({
-    summary:
-      'Delete a declined, cancelled, or completed visit request (curator-only)',
-  })
-  @ApiNoContentResponse()
-  remove(
-    @Param('id', ParseUUIDPipe) id: string,
-    @CurrentUser() user: AuthenticatedUser,
-  ): Promise<void> {
-    return this.visitRequestsService.remove(id, user.accountId);
   }
 }

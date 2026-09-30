@@ -46,11 +46,3 @@ export function assertVisitRequestTransition(
     );
   }
 }
-
-// Only a finished request can be deleted; active ones must be declined,
-// cancelled, or completed first.
-export const DELETABLE_VISIT_REQUEST_STATUSES: readonly VisitRequestStatus[] = [
-  VisitRequestStatus.DECLINED,
-  VisitRequestStatus.CANCELLED,
-  VisitRequestStatus.COMPLETED,
-];

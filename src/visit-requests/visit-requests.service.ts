@@ -38,7 +38,6 @@ import {
 } from './entities/visit-request.entity';
 import {
   CAMPUS_ENTRY_STATUSES,
-  DELETABLE_VISIT_REQUEST_STATUSES,
   assertVisitRequestTransition,
 } from './visit-request-status.policy';
 
@@ -286,9 +285,9 @@ export class VisitRequestsService {
     return result;
   }
 
-  // Approves one preferred option (REQ-4.9-17). The approved date and time
+  // Approves one preferred option (RED-4.9.17). The approved date and time
   // are copied onto the request; every submitted option stays stored. The
-  // visitor is emailed the confirmed schedule unless notifyVisitor is false.
+  // visitor is emailed the approved schedule unless notifyVisitor is false.
   async approveSchedule(
     id: string,
     dto: ApproveVisitScheduleDto,
@@ -457,47 +456,6 @@ export class VisitRequestsService {
     return listEntries(this.prisma, { visitRequestId: id });
   }
 
-  // Deletes a finished request with its timeline and child rows (they have
-  // no ON DELETE CASCADE). The audit log keeps a record of the deletion.
-  async remove(id: string, actingCuratorAccountId: string): Promise<void> {
-    await runSerializableTransaction(
-      this.prisma,
-      async (transaction) => {
-        const existing = await this.findOneOrThrow(transaction, id);
-        const previousStatus = existing.status as VisitRequestStatus;
-        if (!DELETABLE_VISIT_REQUEST_STATUSES.includes(previousStatus)) {
-          throw new BadRequestException(
-            'Only a declined, cancelled, or completed visit request can be deleted.',
-          );
-        }
-
-        await transaction.communication_history.deleteMany({
-          where: { visit_request_id: id },
-        });
-        await transaction.visit_request_vehicle.deleteMany({
-          where: { visit_id: id },
-        });
-        await transaction.visit_request_visitor.deleteMany({
-          where: { visit_id: id },
-        });
-        await transaction.preferred_visit_date.deleteMany({
-          where: { visit_id: id },
-        });
-        await transaction.visit_request.delete({ where: { id } });
-        await this.recordAudit(transaction, {
-          userId: actingCuratorAccountId,
-          visitRequestId: id,
-          action: 'DELETE_VISIT_REQUEST',
-          details: {
-            previousStatus,
-            sourceInquiryId: existing.source_inquiry_id,
-          },
-        });
-      },
-      CONFLICT_MESSAGE,
-    );
-  }
-
   // Sends the email, then records it (with its delivery result) in the
   // timeline and audit log. The audit keeps no message text or address.
   private async emailVisitor(
@@ -554,9 +512,11 @@ export class VisitRequestsService {
       const schedule = request.approvedSchedule;
       return {
         ...base,
-        subject: `Your BioSphere museum visit is confirmed (Ref ${reference})`,
+        subject: `Your BioSphere museum visit schedule has been approved (Ref ${reference})`,
         paragraphs: [
-          `Good news: ${requestLine} has been approved. We look forward to your visit.`,
+          `Good news: the museum has approved the schedule below for ${requestLine}.`,
+          // APPROVED_BY_CURATOR is not campus-entry approval (REQ-4.9-13).
+          'This approves your museum visit schedule only. USC campus entry is processed separately, and the museum will contact you with any update.',
         ],
         details: [
           ['Date', formatLongDate(schedule.date)],

@@ -1,6 +1,5 @@
 import {
   BadRequestException,
-  ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -35,10 +34,7 @@ import {
   InquiryStatus,
   InquirySubmissionReceipt,
 } from './entities/inquiry.entity';
-import {
-  DELETABLE_INQUIRY_STATUSES,
-  assertInquiryTransition,
-} from './inquiry-status.policy';
+import { assertInquiryTransition } from './inquiry-status.policy';
 
 const DEFAULT_INQUIRY_TYPE = 'GENERAL';
 
@@ -333,41 +329,6 @@ export class InquiriesService {
       });
       return entry;
     });
-  }
-
-  // Deletes a finished inquiry and its timeline. A referred inquiry stays
-  // while its visit request exists, so the referral link is never broken.
-  // The audit log keeps a record of the deletion.
-  async remove(id: string, actingCuratorAccountId: string): Promise<void> {
-    await runSerializableTransaction(
-      this.prisma,
-      async (transaction) => {
-        const existing = await this.findOneOrThrow(transaction, id);
-        const previousStatus = existing.status as InquiryStatus;
-        if (!DELETABLE_INQUIRY_STATUSES.includes(previousStatus)) {
-          throw new BadRequestException(
-            'Only a closed or referred inquiry can be deleted. Close it first.',
-          );
-        }
-        if (existing.visit_request) {
-          throw new ConflictException(
-            `This inquiry was referred to visit request ${existing.visit_request.id}. Delete that request first.`,
-          );
-        }
-
-        await transaction.communication_history.deleteMany({
-          where: { inquiry_id: id },
-        });
-        await transaction.inquiry.delete({ where: { id } });
-        await this.recordAudit(transaction, {
-          userId: actingCuratorAccountId,
-          inquiryId: id,
-          action: 'DELETE_INQUIRY',
-          details: { previousStatus },
-        });
-      },
-      CONFLICT_MESSAGE,
-    );
   }
 
   private async findOneOrThrow(

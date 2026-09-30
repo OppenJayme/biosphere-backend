@@ -69,21 +69,12 @@ describe('VisitRequestsService', () => {
     findMany: jest.fn(),
     findUnique: jest.fn(),
     update: jest.fn(),
-    delete: jest.fn(),
   };
-  const historyDelegate = {
-    create: jest.fn(),
-    findMany: jest.fn(),
-    deleteMany: jest.fn(),
-  };
+  const historyDelegate = { create: jest.fn(), findMany: jest.fn() };
   const auditDelegate = { create: jest.fn() };
   const mail = { send: jest.fn() };
-  const childDelegate = () => ({ deleteMany: jest.fn() });
   const prisma = {
     visit_request: visitDelegate,
-    visit_request_vehicle: childDelegate(),
-    visit_request_visitor: childDelegate(),
-    preferred_visit_date: childDelegate(),
     communication_history: historyDelegate,
     audit_log: auditDelegate,
     $transaction: jest.fn(),
@@ -317,7 +308,7 @@ describe('VisitRequestsService', () => {
       approved_end_time: new Date('1970-01-01T11:00:00.000Z'),
     });
 
-    it('emails the confirmed schedule after approval and records it', async () => {
+    it('emails the approved schedule after approval and records it', async () => {
       visitDelegate.findUnique.mockResolvedValue(visitRecord());
       visitDelegate.update.mockResolvedValue(approvedRecord);
 
@@ -339,12 +330,15 @@ describe('VisitRequestsService', () => {
       };
       expect(email.to).toBe('maria@example.com');
       expect(email.subject).toBe(
-        'Your BioSphere museum visit is confirmed (Ref 11111111)',
+        'Your BioSphere museum visit schedule has been approved (Ref 11111111)',
       );
       expect(email.text).toContain('Tuesday, October 15, 2030');
       expect(email.text).toContain('09:00 - 11:00');
       expect(email.text).toContain('Please arrive 15 minutes early.');
       expect(email.text).toContain('Reference number: 11111111');
+      // Curator approval is not USC campus-entry approval (REQ-4.9-13).
+      expect(email.text).toContain('USC campus entry is processed separately');
+      expect(email.text).not.toMatch(/confirmed/i);
       expect(historyDelegate.create).toHaveBeenCalledWith({
         data: expect.objectContaining({
           visit_request_id: VISIT_ID,
@@ -749,55 +743,6 @@ describe('VisitRequestsService', () => {
 
     await expect(service.findOne(VISIT_ID)).rejects.toBeInstanceOf(
       NotFoundException,
-    );
-  });
-
-  describe('remove', () => {
-    it.each(['DECLINED', 'CANCELLED', 'COMPLETED'])(
-      'deletes a %s request with its timeline and child rows',
-      async (status) => {
-        visitDelegate.findUnique.mockResolvedValue(
-          visitRecord({ status, source_inquiry_id: INQUIRY_ID }),
-        );
-
-        await service.remove(VISIT_ID, CURATOR_ID);
-
-        const byVisit = { where: { visit_id: VISIT_ID } };
-        expect(historyDelegate.deleteMany).toHaveBeenCalledWith({
-          where: { visit_request_id: VISIT_ID },
-        });
-        expect(prisma.visit_request_vehicle.deleteMany).toHaveBeenCalledWith(
-          byVisit,
-        );
-        expect(prisma.visit_request_visitor.deleteMany).toHaveBeenCalledWith(
-          byVisit,
-        );
-        expect(prisma.preferred_visit_date.deleteMany).toHaveBeenCalledWith(
-          byVisit,
-        );
-        expect(visitDelegate.delete).toHaveBeenCalledWith({
-          where: { id: VISIT_ID },
-        });
-        expect(auditDelegate.create).toHaveBeenCalledWith({
-          data: expect.objectContaining({
-            action: 'DELETE_VISIT_REQUEST',
-            details: { previousStatus: status, sourceInquiryId: INQUIRY_ID },
-          }),
-        });
-      },
-    );
-
-    it.each(['PENDING', 'APPROVED_BY_CURATOR', 'SUBMITTED_FOR_CAMPUS_ENTRY'])(
-      'rejects deleting a %s request',
-      async (status) => {
-        visitDelegate.findUnique.mockResolvedValue(visitRecord({ status }));
-
-        await expect(service.remove(VISIT_ID, CURATOR_ID)).rejects.toThrow(
-          'Only a declined, cancelled, or completed visit request',
-        );
-        expect(visitDelegate.delete).not.toHaveBeenCalled();
-        expect(historyDelegate.deleteMany).not.toHaveBeenCalled();
-      },
     );
   });
 });

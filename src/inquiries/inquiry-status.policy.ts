@@ -28,9 +28,3 @@ export function assertInquiryTransition(
     );
   }
 }
-
-// Only a finished inquiry can be deleted; active ones must be closed first.
-export const DELETABLE_INQUIRY_STATUSES: readonly InquiryStatus[] = [
-  InquiryStatus.CLOSED,
-  InquiryStatus.TURNED_TO_VISIT_REQUEST,
-];

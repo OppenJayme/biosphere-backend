@@ -1,8 +1,4 @@
-import {
-  BadRequestException,
-  ConflictException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { MailService } from '../mail/mail.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { VisitRequestsService } from '../visit-requests/visit-requests.service';
@@ -55,13 +51,8 @@ describe('InquiriesService', () => {
     findMany: jest.fn(),
     findUnique: jest.fn(),
     update: jest.fn(),
-    delete: jest.fn(),
   };
-  const historyDelegate = {
-    create: jest.fn(),
-    findMany: jest.fn(),
-    deleteMany: jest.fn(),
-  };
+  const historyDelegate = { create: jest.fn(), findMany: jest.fn() };
   const auditDelegate = { create: jest.fn() };
   const mail = { send: jest.fn() };
   const prisma = {
@@ -496,67 +487,5 @@ describe('InquiriesService', () => {
     await expect(service.listHistory(INQUIRY_ID)).rejects.toBeInstanceOf(
       NotFoundException,
     );
-  });
-
-  describe('remove', () => {
-    it('deletes a closed inquiry with its timeline and audits it', async () => {
-      inquiryDelegate.findUnique.mockResolvedValue(
-        inquiryRecord({ status: 'CLOSED' }),
-      );
-
-      await service.remove(INQUIRY_ID, CURATOR_ID);
-
-      expect(historyDelegate.deleteMany).toHaveBeenCalledWith({
-        where: { inquiry_id: INQUIRY_ID },
-      });
-      expect(inquiryDelegate.delete).toHaveBeenCalledWith({
-        where: { id: INQUIRY_ID },
-      });
-      expect(auditDelegate.create).toHaveBeenCalledWith({
-        data: expect.objectContaining({
-          user_id: CURATOR_ID,
-          action: 'DELETE_INQUIRY',
-          affected_record_id: INQUIRY_ID,
-          details: { previousStatus: 'CLOSED' },
-        }),
-      });
-    });
-
-    it.each(['PENDING', 'REVIEWED'])(
-      'rejects deleting a %s inquiry',
-      async (status) => {
-        inquiryDelegate.findUnique.mockResolvedValue(inquiryRecord({ status }));
-
-        await expect(
-          service.remove(INQUIRY_ID, CURATOR_ID),
-        ).rejects.toBeInstanceOf(BadRequestException);
-        expect(inquiryDelegate.delete).not.toHaveBeenCalled();
-        expect(historyDelegate.deleteMany).not.toHaveBeenCalled();
-      },
-    );
-
-    it('keeps a referred inquiry while its visit request exists', async () => {
-      inquiryDelegate.findUnique.mockResolvedValue(
-        inquiryRecord({
-          status: 'TURNED_TO_VISIT_REQUEST',
-          visit_request: { id: VISIT_ID },
-        }),
-      );
-
-      await expect(
-        service.remove(INQUIRY_ID, CURATOR_ID),
-      ).rejects.toBeInstanceOf(ConflictException);
-      expect(inquiryDelegate.delete).not.toHaveBeenCalled();
-    });
-
-    it('deletes a referred inquiry once its visit request is gone', async () => {
-      inquiryDelegate.findUnique.mockResolvedValue(
-        inquiryRecord({ status: 'TURNED_TO_VISIT_REQUEST' }),
-      );
-
-      await service.remove(INQUIRY_ID, CURATOR_ID);
-
-      expect(inquiryDelegate.delete).toHaveBeenCalled();
-    });
   });
 });

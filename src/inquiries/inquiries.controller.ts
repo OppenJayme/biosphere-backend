@@ -1,10 +1,7 @@
 import {
   Body,
   Controller,
-  Delete,
   Get,
-  HttpCode,
-  HttpStatus,
   Param,
   ParseUUIDPipe,
   Patch,
@@ -13,7 +10,6 @@ import {
 } from '@nestjs/common';
 import {
   ApiCreatedResponse,
-  ApiNoContentResponse,
   ApiOkResponse,
   ApiOperation,
   ApiTags,
@@ -41,8 +37,7 @@ import { InquiriesService } from './inquiries.service';
 // POST is the only public route (SRS §4.8). Every other route handles
 // visitor personal data, so it is curator-only (NFR-SEC-10); @Roles is set
 // per method because a class-level @Roles would also block the public POST.
-// DELETE only removes a finished (closed or referred) inquiry; active ones
-// must be closed first so the workflow history is kept (REQ-4.8-12).
+// There is no DELETE: Closed inquiries are kept as history (REQ-4.8-12).
 @ApiTags('inquiries')
 @Controller('inquiries')
 export class InquiriesController {
@@ -142,19 +137,5 @@ export class InquiriesController {
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<CommunicationEntry> {
     return this.inquiriesService.sendReply(id, dto, user.accountId);
-  }
-
-  @Roles('CURATOR')
-  @Delete(':id')
-  @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiOperation({
-    summary: 'Delete a closed or referred inquiry (curator-only)',
-  })
-  @ApiNoContentResponse()
-  remove(
-    @Param('id', ParseUUIDPipe) id: string,
-    @CurrentUser() user: AuthenticatedUser,
-  ): Promise<void> {
-    return this.inquiriesService.remove(id, user.accountId);
   }
 }

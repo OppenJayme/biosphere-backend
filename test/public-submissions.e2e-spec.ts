@@ -103,10 +103,6 @@ describe('Inquiries and visit requests (e2e)', () => {
             return found;
           },
         ),
-        delete: jest.fn(({ where }: { where: { id: string } }) => {
-          inquiryWrites('delete');
-          inquiries = inquiries.filter((item) => item.id !== where.id);
-        }),
       },
       visit_request: {
         create: jest.fn(
@@ -151,25 +147,6 @@ describe('Inquiries and visit requests (e2e)', () => {
             return found;
           },
         ),
-        delete: jest.fn(({ where }: { where: { id: string } }) => {
-          visitWrites('delete');
-          visits = visits.filter((item) => item.id !== where.id);
-        }),
-      },
-      visit_request_vehicle: {
-        deleteMany: jest.fn(() => {
-          visitWrites('child');
-        }),
-      },
-      visit_request_visitor: {
-        deleteMany: jest.fn(() => {
-          visitWrites('child');
-        }),
-      },
-      preferred_visit_date: {
-        deleteMany: jest.fn(() => {
-          visitWrites('child');
-        }),
       },
       communication_history: {
         create: jest.fn(({ data }: { data: Record<string, unknown> }) => {
@@ -199,20 +176,6 @@ describe('Inquiries and visit requests (e2e)', () => {
                 ? entry.inquiry_id === where.inquiry_id
                 : entry.visit_request_id === where.visit_request_id,
             ),
-        ),
-        deleteMany: jest.fn(
-          ({
-            where,
-          }: {
-            where: { inquiry_id?: string; visit_request_id?: string };
-          }) => {
-            historyWrites('delete');
-            history = history.filter((entry) =>
-              where.inquiry_id
-                ? entry.inquiry_id !== where.inquiry_id
-                : entry.visit_request_id !== where.visit_request_id,
-            );
-          },
         ),
       },
       audit_log: { create: auditCreate },
@@ -382,7 +345,7 @@ describe('Inquiries and visit requests (e2e)', () => {
   });
 
   type Route = {
-    method: 'get' | 'post' | 'patch' | 'delete';
+    method: 'get' | 'post' | 'patch';
     path: string;
     body?: object;
   };
@@ -415,7 +378,6 @@ describe('Inquiries and visit requests (e2e)', () => {
         path: `/inquiries/${inquiryId}/notes`,
         body: noteBody,
       },
-      { method: 'delete', path: `/inquiries/${inquiryId}` },
       {
         method: 'post',
         path: `/inquiries/${inquiryId}/replies`,
@@ -445,7 +407,6 @@ describe('Inquiries and visit requests (e2e)', () => {
         path: `/visit-requests/${visitId}/notes`,
         body: noteBody,
       },
-      { method: 'delete', path: `/visit-requests/${visitId}` },
       {
         method: 'post',
         path: `/visit-requests/${visitId}/messages`,
@@ -495,17 +456,11 @@ describe('Inquiries and visit requests (e2e)', () => {
       expectNoWrites();
     });
 
-    it('only delete finished records, with their timeline', async () => {
+    // Deletion waits for the approved retention policy, so even a finished
+    // record and its timeline are kept.
+    it('have no DELETE route, even for a finished record', async () => {
       await seed();
       const auth = `Bearer ${curatorToken}`;
-      await request(app.getHttpServer())
-        .delete(`/${resource}/${id}`)
-        .set('Authorization', auth)
-        .expect(400);
-      expectNoWrites();
-
-      // Finish the record: an inquiry is reviewed then closed; a pending
-      // visit request is declined.
       const finish =
         resource === 'inquiries' ? ['REVIEWED', 'CLOSED'] : ['DECLINED'];
       for (const status of finish) {
@@ -515,27 +470,17 @@ describe('Inquiries and visit requests (e2e)', () => {
           .send({ status })
           .expect(200);
       }
-      expect(
-        history.filter((entry) => entry.communication_type === 'STATUS_CHANGE'),
-      ).toHaveLength(finish.length);
+      const historyCount = history.length;
 
       await request(app.getHttpServer())
         .delete(`/${resource}/${id}`)
         .set('Authorization', auth)
-        .expect(204);
+        .expect(404);
       await request(app.getHttpServer())
         .get(`/${resource}/${id}`)
         .set('Authorization', auth)
-        .expect(404);
-      expect(history).toHaveLength(0);
-      expect(auditCreate).toHaveBeenLastCalledWith({
-        data: expect.objectContaining({
-          action:
-            resource === 'inquiries'
-              ? 'DELETE_INQUIRY'
-              : 'DELETE_VISIT_REQUEST',
-        }),
-      });
+        .expect(200);
+      expect(history).toHaveLength(historyCount);
     });
 
     it('let a Curator list, search, read, and change status', async () => {
@@ -767,7 +712,7 @@ describe('Inquiries and visit requests (e2e)', () => {
   describe('visitor emails', () => {
     const auth = `Bearer ${curatorToken}`;
 
-    it('email the confirmed schedule on approval and record the result', async () => {
+    it('email the approved schedule on approval and record the result', async () => {
       await request(app.getHttpServer())
         .post('/visit-requests')
         .send(validVisit)
@@ -785,7 +730,8 @@ describe('Inquiries and visit requests (e2e)', () => {
       expect(mailSend).toHaveBeenCalledWith(
         expect.objectContaining({
           to: validVisit.email,
-          subject: 'Your BioSphere museum visit is confirmed (Ref 55555555)',
+          subject:
+            'Your BioSphere museum visit schedule has been approved (Ref 55555555)',
           text: expect.stringContaining('Please arrive 15 minutes early.'),
         }),
       );
