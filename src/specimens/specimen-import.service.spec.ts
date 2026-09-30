@@ -6,19 +6,24 @@ import {
 import { Test, TestingModule } from '@nestjs/testing';
 import { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { SpecimenLotsService } from '../specimen-lots/specimen-lots.service';
 import { SpecimenAccessionService } from './specimen-accession.service';
 import { SpecimenDuplicatesService } from './specimen-duplicates.service';
 import { SpecimenImportService } from './specimen-import.service';
+import { SpecimenProvenanceService } from './specimen-provenance.service';
+import { SpecimenTaxonomyService } from './specimen-taxonomy.service';
 import { SpecimensService } from './specimens.service';
 
 const specimenDelegate = { findMany: jest.fn() };
 const collectionDelegate = { findMany: jest.fn() };
+const storageUnitDelegate = { findMany: jest.fn() };
 const transactionMock = jest.fn();
 const queryRawMock = jest.fn();
 
 const prismaMock = {
   specimen: specimenDelegate,
   collection: collectionDelegate,
+  storage_unit: storageUnitDelegate,
   $transaction: transactionMock,
   $queryRaw: queryRawMock,
 };
@@ -38,7 +43,31 @@ function accessionHolderRow(overrides: Record<string, unknown> = {}) {
 
 const specimensServiceMock = {
   createUncatalogedRecordFor: jest.fn(),
+  findOneInTransaction: jest.fn(),
 };
+const taxonomyServiceMock = { createInTransaction: jest.fn() };
+const provenanceServiceMock = { createInTransaction: jest.fn() };
+const lotsServiceMock = { createInTransaction: jest.fn() };
+
+const ROOM_ID = '55555555-5555-4555-8555-555555555555';
+const CABINET_ID = '66666666-6666-4666-8666-666666666666';
+const DRAWER_ID = '77777777-7777-4777-8777-777777777777';
+const OTHER_DRAWER_ID = '88888888-8888-4888-8888-888888888888';
+
+function storageUnits() {
+  const unit = (
+    id: string,
+    parent_id: string | null,
+    label: string,
+    holds_specimens: boolean,
+  ) => ({ id, parent_id, label, holds_specimens, archived_at: null });
+  return [
+    unit(ROOM_ID, null, 'Zoology Room', false),
+    unit(CABINET_ID, ROOM_ID, 'Cabinet A', false),
+    unit(DRAWER_ID, CABINET_ID, 'Drawer 1', true),
+    unit(OTHER_DRAWER_ID, ROOM_ID, 'Drawer 1', true),
+  ];
+}
 
 const COLLECTION_ID = '44444444-4444-4444-8444-444444444444';
 const CURATOR_ID = 'curator-1';
@@ -71,6 +100,9 @@ describe('SpecimenImportService', () => {
         SpecimenAccessionService,
         { provide: PrismaService, useValue: prismaMock },
         { provide: SpecimensService, useValue: specimensServiceMock },
+        { provide: SpecimenTaxonomyService, useValue: taxonomyServiceMock },
+        { provide: SpecimenProvenanceService, useValue: provenanceServiceMock },
+        { provide: SpecimenLotsService, useValue: lotsServiceMock },
       ],
     }).compile();
 
@@ -550,6 +582,180 @@ describe('SpecimenImportService', () => {
       expect(
         specimensServiceMock.createUncatalogedRecordFor,
       ).toHaveBeenCalledTimes(500);
+    });
+  });
+  describe('taxonomy, provenance, and lot columns', () => {
+    const HEADER =
+      'commonName,Kingdom,Class,Order,Family,Collector,Collection Date,Preservation Method,Storage Unit,Condition,Quantity,Storage Notes';
+
+    beforeEach(() => {
+      storageUnitDelegate.findMany.mockResolvedValue(storageUnits());
+    });
+
+    it('validates and resolves a full row, including a storage path', async () => {
+      const result = await service.previewImport(
+        csvFile(
+          `${HEADER}\nCivet,Animalia,Mammalia,Carnivora,Viverridae,J. Cruz,2026-03-14,Dry skin,Zoology Room > Cabinet A > Drawer 1,Good ,"1,200",Top shelf\n`,
+        ),
+        CURATOR_ID,
+      );
+
+      expect(result.unmappedColumns).toEqual([]);
+      expect(result.rows[0]).toEqual(
+        expect.objectContaining({ valid: true, errors: [] }),
+      );
+      expect(storageUnitDelegate.findMany).toHaveBeenCalledTimes(1);
+    });
+
+    it('matches a shortened path when it names exactly one unit', async () => {
+      const result = await service.previewImport(
+        csvFile(
+          'commonName,Storage Unit,Condition,Quantity\nCivet,cabinet a › DRAWER 1,Good,2\n',
+        ),
+        CURATOR_ID,
+      );
+
+      expect(result.rows[0].errors).toEqual([]);
+    });
+
+    it('reports lot, taxonomy, and provenance problems as row errors', async () => {
+      const result = await service.previewImport(
+        csvFile(
+          [
+            'commonName,Family,Collection Date,Storage Unit,Condition,Quantity',
+            `Civet,${'x'.repeat(101)},14/03/2026,Drawer 1,Good,0`,
+            'Civet,,,Zoology Room,Good,',
+            `Civet,,,${DRAWER_ID},,3`,
+            'Civet,,,Nowhere,Good,3',
+          ].join('\n'),
+        ),
+        CURATOR_ID,
+      );
+
+      const [first, second, third, fourth] = result.rows;
+      expect(first.valid).toBe(false);
+      expect(first.errors).toEqual(
+        expect.arrayContaining([
+          expect.stringMatching(/^Taxonomy: family/),
+          expect.stringMatching(/^Provenance: /),
+          'Lot: quantity must be a whole number of at least 1.',
+          expect.stringMatching(/^Lot: "Drawer 1" matches 2 storage units/),
+        ]),
+      );
+      expect(second.errors).toEqual(
+        expect.arrayContaining([
+          'Lot: quantity is required when a lot is given.',
+          'Lot: Storage unit "Zoology Room" is not configured to hold specimens.',
+        ]),
+      );
+      expect(third.errors).toEqual([
+        'Lot: conditionClass is required when a lot is given.',
+      ]);
+      expect(fourth.errors).toEqual([
+        expect.stringMatching(/^Lot: No active storage unit matches "Nowhere"/),
+      ]);
+    });
+
+    it('skips the storage lookup when no row has a lot', async () => {
+      await service.previewImport(
+        csvFile('commonName,Family\nCivet,Viverridae\n'),
+        CURATOR_ID,
+      );
+
+      expect(storageUnitDelegate.findMany).not.toHaveBeenCalled();
+    });
+
+    it('creates taxonomy, provenance, and the lot in the row transaction', async () => {
+      specimensServiceMock.createUncatalogedRecordFor.mockResolvedValue({
+        id: 'created-1',
+      });
+      specimensServiceMock.findOneInTransaction.mockResolvedValue({
+        id: 'created-1',
+        updatedAt: 'after-extras',
+      });
+      const { previewId } = await service.previewImport(
+        csvFile(
+          `${HEADER}\nCivet,Animalia,Mammalia,Carnivora,Viverridae,J. Cruz,2026-03-14,Dry skin,Cabinet A > Drawer 1,Good,12,Top shelf\n`,
+        ),
+        CURATOR_ID,
+      );
+
+      const result = await service.commitImport(
+        previewId,
+        undefined,
+        CURATOR_ID,
+      );
+
+      expect(result.createdCount).toBe(1);
+      expect(result.results[0]).toEqual(
+        expect.objectContaining({
+          specimen: { id: 'created-1', updatedAt: 'after-extras' },
+        }),
+      );
+      expect(transactionMock).toHaveBeenCalledTimes(1);
+      expect(taxonomyServiceMock.createInTransaction).toHaveBeenCalledWith(
+        prismaMock,
+        'created-1',
+        expect.objectContaining({
+          kingdom: 'Animalia',
+          class: 'Mammalia',
+          orderName: 'Carnivora',
+          family: 'Viverridae',
+        }),
+        CURATOR_ID,
+      );
+      expect(provenanceServiceMock.createInTransaction).toHaveBeenCalledWith(
+        prismaMock,
+        'created-1',
+        expect.objectContaining({
+          collector: 'J. Cruz',
+          collectionDate: '2026-03-14',
+          preservationMethod: 'Dry skin',
+        }),
+        CURATOR_ID,
+      );
+      expect(lotsServiceMock.createInTransaction).toHaveBeenCalledWith(
+        prismaMock,
+        'created-1',
+        expect.objectContaining({
+          storageUnitId: DRAWER_ID,
+          conditionClass: 'Good',
+          quantity: 12,
+          storageNotes: 'Top shelf',
+          reason: expect.stringMatching(/^Imported from CSV row 1 \(batch /),
+        }),
+        CURATOR_ID,
+      );
+    });
+
+    it('reports the row as failed when a related record cannot be created', async () => {
+      specimensServiceMock.createUncatalogedRecordFor.mockResolvedValue({
+        id: 'created-1',
+      });
+      lotsServiceMock.createInTransaction.mockRejectedValue(
+        new BadRequestException(
+          'Archived storage units cannot receive specimen lots.',
+        ),
+      );
+      const { previewId } = await service.previewImport(
+        csvFile(
+          'commonName,Storage Unit,Condition,Quantity\nCivet,Cabinet A > Drawer 1,Good,1\n',
+        ),
+        CURATOR_ID,
+      );
+
+      const result = await service.commitImport(
+        previewId,
+        undefined,
+        CURATOR_ID,
+      );
+
+      expect(result.failedCount).toBe(1);
+      expect(result.results[0]).toEqual({
+        rowNumber: 1,
+        success: false,
+        errors: ['Archived storage units cannot receive specimen lots.'],
+      });
     });
   });
 });

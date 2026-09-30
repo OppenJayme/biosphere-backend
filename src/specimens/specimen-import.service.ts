@@ -10,8 +10,13 @@ import { parse } from 'csv-parse/sync';
 import { isUUID, validate } from 'class-validator';
 import type { ValidationError } from 'class-validator';
 import { plainToInstance } from 'class-transformer';
+import type { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { CreateSpecimenLotDto } from '../specimen-lots/dto/create-specimen-lot.dto';
+import { SpecimenLotsService } from '../specimen-lots/specimen-lots.service';
 import { MAX_IMPORT_ROWS } from './dto/commit-specimen-import.dto';
+import { CreateSpecimenProvenanceDto } from './dto/create-specimen-provenance.dto';
+import { CreateSpecimenTaxonomyDto } from './dto/create-specimen-taxonomy.dto';
 import { CreateSpecimenDto } from './dto/create-specimen.dto';
 import { ImportSpecimenRowDto } from './dto/import-specimen-row.dto';
 import {
@@ -33,6 +38,9 @@ import {
   SpecimenDuplicatesService,
 } from './specimen-duplicates.service';
 import { SpecimensService } from './specimens.service';
+import { ImportStorageUnitResolver } from './import-storage-unit.resolver';
+import { SpecimenProvenanceService } from './specimen-provenance.service';
+import { SpecimenTaxonomyService } from './specimen-taxonomy.service';
 
 export const MAX_IMPORT_FILE_BYTES = 5 * 1024 * 1024;
 
@@ -44,12 +52,43 @@ export const MAX_IMPORT_FILE_BYTES = 5 * 1024 * 1024;
 export const PREVIEW_TTL_MS = 30 * 60 * 1000;
 
 const SUPPORTED_COLUMNS =
-  'collectionId, accessionNumber, specimenCategory, scientificName, commonName, gender, classificationStatus, remarks';
+  'collectionId, accessionNumber, specimenCategory, scientificName, commonName, gender, classificationStatus, remarks, kingdom, phylum, class, order, family, genus, species, habitat, ecologicalRole, conservationStatus, collector, donor, collectionDate, collectionLocation, preservationType, preservationMethod, storageUnit, conditionClass, quantity, storageNotes';
+
+const TAXONOMY_ROW_FIELDS = [
+  'kingdom',
+  'phylum',
+  'taxonClass',
+  'taxonOrder',
+  'family',
+  'genus',
+  'species',
+  'habitat',
+  'ecologicalRole',
+  'conservationStatus',
+] as const;
+
+const PROVENANCE_ROW_FIELDS = [
+  'collector',
+  'donor',
+  'collectionDate',
+  'collectionLocation',
+  'preservationType',
+  'preservationMethod',
+] as const;
+
+const LOT_ROW_FIELDS = [
+  'storageUnit',
+  'conditionClass',
+  'quantity',
+  'storageNotes',
+] as const;
+
+const MAX_LOT_QUANTITY = 2_147_483_647;
 
 // Canonical import fields, keyed by a normalized (lowercased, separators
 // stripped) header name so the CSV template can use spaces, underscores, or
 // mixed case (e.g. "Scientific Name", "scientific_name", "scientificName").
-const CANONICAL_FIELDS: Record<string, keyof ImportSpecimenRowDto> = {
+const CANONICAL_FIELDS: Record<string, keyof RowFields> = {
   collectionid: 'collectionId',
   accessionnumber: 'accessionNumber',
   specimencategory: 'specimenCategory',
@@ -58,6 +97,33 @@ const CANONICAL_FIELDS: Record<string, keyof ImportSpecimenRowDto> = {
   gender: 'gender',
   classificationstatus: 'classificationStatus',
   remarks: 'remarks',
+  kingdom: 'kingdom',
+  phylum: 'phylum',
+  class: 'taxonClass',
+  taxonclass: 'taxonClass',
+  order: 'taxonOrder',
+  ordername: 'taxonOrder',
+  taxonorder: 'taxonOrder',
+  family: 'family',
+  genus: 'genus',
+  species: 'species',
+  habitat: 'habitat',
+  ecologicalrole: 'ecologicalRole',
+  conservationstatus: 'conservationStatus',
+  collector: 'collector',
+  donor: 'donor',
+  collectiondate: 'collectionDate',
+  collectionlocation: 'collectionLocation',
+  preservationtype: 'preservationType',
+  preservationmethod: 'preservationMethod',
+  storageunit: 'storageUnit',
+  storageunitid: 'storageUnit',
+  storagelocation: 'storageUnit',
+  condition: 'conditionClass',
+  conditionclass: 'conditionClass',
+  quantity: 'quantity',
+  qty: 'quantity',
+  storagenotes: 'storageNotes',
 };
 
 interface RowFields {
@@ -69,6 +135,34 @@ interface RowFields {
   gender?: string;
   classificationStatus?: string;
   remarks?: string;
+  kingdom?: string;
+  phylum?: string;
+  taxonClass?: string;
+  taxonOrder?: string;
+  family?: string;
+  genus?: string;
+  species?: string;
+  habitat?: string;
+  ecologicalRole?: string;
+  conservationStatus?: string;
+  collector?: string;
+  donor?: string;
+  collectionDate?: string;
+  collectionLocation?: string;
+  preservationType?: string;
+  preservationMethod?: string;
+  /** Storage unit UUID or its label path, e.g. "Room > Cabinet > Drawer". */
+  storageUnit?: string;
+  conditionClass?: string;
+  quantity?: string;
+  storageNotes?: string;
+}
+
+/** Related records created with the specimen when the row supplies them. */
+interface RowExtras {
+  taxonomy?: CreateSpecimenTaxonomyDto;
+  provenance?: CreateSpecimenProvenanceDto;
+  lot?: CreateSpecimenLotDto;
 }
 
 interface RowContext {
@@ -83,6 +177,7 @@ interface InBatchMatch {
 
 interface CachedPreviewRow {
   dto: CreateSpecimenDto;
+  extras: RowExtras;
   valid: boolean;
   committed?: Specimen;
   /**
@@ -120,6 +215,9 @@ export class SpecimenImportService {
     private readonly specimens: SpecimensService,
     private readonly duplicates: SpecimenDuplicatesService,
     private readonly accession: SpecimenAccessionService,
+    private readonly taxonomy: SpecimenTaxonomyService,
+    private readonly provenance: SpecimenProvenanceService,
+    private readonly lots: SpecimenLotsService,
   ) {}
 
   async previewImport(
@@ -152,14 +250,19 @@ export class SpecimenImportService {
     );
 
     const candidates = contexts.map((context) => context.fields);
-    const [existingDuplicates, existingCollectionIds, accessionHolders] =
-      await Promise.all([
-        this.duplicates.findForCandidates(candidates),
-        this.findExistingCollectionIds(contexts),
-        this.accession.findHolders(
-          candidates.map((candidate) => candidate.accessionNumber),
-        ),
-      ]);
+    const [
+      existingDuplicates,
+      existingCollectionIds,
+      accessionHolders,
+      storageUnitResolver,
+    ] = await Promise.all([
+      this.duplicates.findForCandidates(candidates),
+      this.findExistingCollectionIds(contexts),
+      this.accession.findHolders(
+        candidates.map((candidate) => candidate.accessionNumber),
+      ),
+      this.loadStorageUnitResolver(contexts),
+    ]);
     const accessionRowsByKey = this.groupRowsByAccessionKey(contexts);
     const inBatchDuplicates = this.duplicates
       .compareWithinBatch(candidates)
@@ -204,6 +307,12 @@ export class SpecimenImportService {
           ),
         );
 
+        const { extras, errors: extraErrors } = await this.buildRowExtras(
+          context.fields,
+          storageUnitResolver,
+        );
+        errors.push(...extraErrors);
+
         const possibleDuplicates = existingDuplicates[index];
         const duplicateWarnings = this.buildDuplicateWarnings(
           possibleDuplicates,
@@ -218,6 +327,7 @@ export class SpecimenImportService {
           possibleDuplicates,
           valid: errors.length === 0,
           dto: this.toCreateSpecimenDto(context.fields),
+          extras,
         };
       }),
     );
@@ -227,7 +337,10 @@ export class SpecimenImportService {
       createdBy: actingCuratorAccountId,
       createdAt: Date.now(),
       rows: new Map(
-        rows.map((row) => [row.rowNumber, { dto: row.dto, valid: row.valid }]),
+        rows.map((row) => [
+          row.rowNumber,
+          { dto: row.dto, extras: row.extras, valid: row.valid },
+        ]),
       ),
     });
 
@@ -309,13 +422,11 @@ export class SpecimenImportService {
       if (!cachedRow.inFlight) {
         cachedRow.inFlight = this.prisma
           .$transaction((transaction) =>
-            this.specimens.createUncatalogedRecordFor(
-              transaction,
-              cachedRow.dto,
-              actingCuratorAccountId,
-              'IMPORT_SPECIMEN',
-              { rowNumber, importBatchId, previewId },
-            ),
+            this.createRow(transaction, cachedRow, actingCuratorAccountId, {
+              rowNumber,
+              importBatchId,
+              previewId,
+            }),
           )
           .then((specimen) => {
             cachedRow.committed = specimen;
@@ -410,10 +521,10 @@ export class SpecimenImportService {
   }
 
   private mapHeaders(headers: string[]): {
-    headerMap: Map<keyof ImportSpecimenRowDto, string>;
+    headerMap: Map<keyof RowFields, string>;
     unmappedColumns: string[];
   } {
-    const headerMap = new Map<keyof ImportSpecimenRowDto, string>();
+    const headerMap = new Map<keyof RowFields, string>();
     const unmappedColumns: string[] = [];
 
     for (const header of headers) {
@@ -438,9 +549,9 @@ export class SpecimenImportService {
   private buildRowContext(
     record: Record<string, string>,
     rowNumber: number,
-    headerMap: Map<keyof ImportSpecimenRowDto, string>,
+    headerMap: Map<keyof RowFields, string>,
   ): RowContext {
-    const extract = (field: keyof ImportSpecimenRowDto): string | undefined => {
+    const extract = (field: keyof RowFields): string | undefined => {
       const header = headerMap.get(field);
       if (!header) return undefined;
       const raw = record[header];
@@ -459,6 +570,13 @@ export class SpecimenImportService {
       classificationStatus: extract('classificationStatus'),
       remarks: extract('remarks'),
     };
+    for (const field of [
+      ...TAXONOMY_ROW_FIELDS,
+      ...PROVENANCE_ROW_FIELDS,
+      ...LOT_ROW_FIELDS,
+    ]) {
+      fields[field] = extract(field);
+    }
 
     return { rowNumber, fields };
   }
@@ -588,6 +706,190 @@ export class SpecimenImportService {
     }
 
     return warnings;
+  }
+
+  private async createRow(
+    transaction: Prisma.TransactionClient,
+    row: CachedPreviewRow,
+    actingCuratorAccountId: string,
+    importDetails: {
+      rowNumber: number;
+      importBatchId: string;
+      previewId: string;
+    },
+  ): Promise<Specimen> {
+    const specimen = await this.specimens.createUncatalogedRecordFor(
+      transaction,
+      row.dto,
+      actingCuratorAccountId,
+      'IMPORT_SPECIMEN',
+      importDetails,
+    );
+    const { taxonomy, provenance, lot } = row.extras;
+    if (!taxonomy && !provenance && !lot) {
+      return specimen;
+    }
+
+    // Created through the same services as manual entry, so each part gets
+    // its usual revision history and audit event, all in this one row's
+    // transaction.
+    if (taxonomy) {
+      await this.taxonomy.createInTransaction(
+        transaction,
+        specimen.id,
+        taxonomy,
+        actingCuratorAccountId,
+      );
+    }
+    if (provenance) {
+      await this.provenance.createInTransaction(
+        transaction,
+        specimen.id,
+        provenance,
+        actingCuratorAccountId,
+      );
+    }
+    if (lot) {
+      await this.lots.createInTransaction(
+        transaction,
+        specimen.id,
+        {
+          ...lot,
+          reason: `Imported from CSV row ${importDetails.rowNumber} (batch ${importDetails.importBatchId})`,
+        },
+        actingCuratorAccountId,
+      );
+    }
+
+    return this.specimens.findOneInTransaction(transaction, specimen.id);
+  }
+
+  private async loadStorageUnitResolver(
+    contexts: RowContext[],
+  ): Promise<ImportStorageUnitResolver | null> {
+    if (!contexts.some((context) => context.fields.storageUnit)) {
+      return null;
+    }
+
+    const units = await this.prisma.storage_unit.findMany({
+      select: {
+        id: true,
+        parent_id: true,
+        label: true,
+        holds_specimens: true,
+        archived_at: true,
+      },
+    });
+    return new ImportStorageUnitResolver(units);
+  }
+
+  private async buildRowExtras(
+    fields: RowFields,
+    storageUnitResolver: ImportStorageUnitResolver | null,
+  ): Promise<{ extras: RowExtras; errors: string[] }> {
+    const extras: RowExtras = {};
+    const errors: string[] = [];
+
+    if (TAXONOMY_ROW_FIELDS.some((field) => fields[field] !== undefined)) {
+      const taxonomy = plainToInstance(CreateSpecimenTaxonomyDto, {
+        kingdom: fields.kingdom,
+        phylum: fields.phylum,
+        class: fields.taxonClass,
+        orderName: fields.taxonOrder,
+        family: fields.family,
+        genus: fields.genus,
+        species: fields.species,
+        habitat: fields.habitat,
+        ecologicalRole: fields.ecologicalRole,
+        conservationStatus: fields.conservationStatus,
+      });
+      const taxonomyErrors = this.flattenValidationErrors(
+        await validate(taxonomy),
+      );
+      errors.push(...taxonomyErrors.map((message) => `Taxonomy: ${message}`));
+      extras.taxonomy = taxonomy;
+    }
+
+    if (PROVENANCE_ROW_FIELDS.some((field) => fields[field] !== undefined)) {
+      const provenance = plainToInstance(CreateSpecimenProvenanceDto, {
+        collector: fields.collector,
+        donor: fields.donor,
+        collectionDate: fields.collectionDate,
+        collectionLocation: fields.collectionLocation,
+        preservationType: fields.preservationType,
+        preservationMethod: fields.preservationMethod,
+      });
+      const provenanceErrors = this.flattenValidationErrors(
+        await validate(provenance),
+      );
+      errors.push(
+        ...provenanceErrors.map((message) => `Provenance: ${message}`),
+      );
+      extras.provenance = provenance;
+    }
+
+    if (LOT_ROW_FIELDS.some((field) => fields[field] !== undefined)) {
+      const lotErrors = await this.buildLot(
+        fields,
+        storageUnitResolver,
+        extras,
+      );
+      errors.push(...lotErrors.map((message) => `Lot: ${message}`));
+    }
+
+    return { extras, errors };
+  }
+
+  private async buildLot(
+    fields: RowFields,
+    storageUnitResolver: ImportStorageUnitResolver | null,
+    extras: RowExtras,
+  ): Promise<string[]> {
+    const errors: string[] = [];
+    if (!fields.storageUnit) {
+      errors.push('storageUnit is required when a lot is given.');
+    }
+    if (!fields.conditionClass) {
+      errors.push('conditionClass is required when a lot is given.');
+    }
+    if (!fields.quantity) {
+      errors.push('quantity is required when a lot is given.');
+    }
+
+    const quantity = fields.quantity?.replace(/,/g, '');
+    if (
+      quantity !== undefined &&
+      (!/^\d+$/.test(quantity) ||
+        Number(quantity) < 1 ||
+        Number(quantity) > MAX_LOT_QUANTITY)
+    ) {
+      errors.push('quantity must be a whole number of at least 1.');
+    }
+
+    let storageUnitId: string | undefined;
+    if (fields.storageUnit && storageUnitResolver) {
+      const resolution = storageUnitResolver.resolve(fields.storageUnit);
+      if ('error' in resolution) {
+        errors.push(resolution.error);
+      } else {
+        storageUnitId = resolution.storageUnitId;
+      }
+    }
+    if (errors.length > 0) {
+      return errors;
+    }
+
+    const lot = plainToInstance(CreateSpecimenLotDto, {
+      storageUnitId,
+      conditionClass: fields.conditionClass?.replace(/\s+/g, ' '),
+      quantity: Number(quantity),
+      storageNotes: fields.storageNotes,
+    });
+    const lotErrors = this.flattenValidationErrors(await validate(lot));
+    if (lotErrors.length === 0) {
+      extras.lot = lot;
+    }
+    return lotErrors;
   }
 
   private flattenValidationErrors(errors: ValidationError[]): string[] {

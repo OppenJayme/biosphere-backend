@@ -9,10 +9,10 @@ database structures.
 ## Scope
 
 Import creates the same core `UNCATALOGED` specimen record as
-`POST /specimens`. Taxonomy, provenance, lots, media, and tags are outside
-this slice, consistent with `docs/SPECIMEN_CORE_GUIDE.md`. The approved CSV
-template is not yet frozen by the museum; the supported columns below mirror
-`CreateSpecimenDto` and may be extended once a template is confirmed.
+`POST /specimens`, plus, when the row supplies them, its taxonomy, provenance,
+and one initial specimen lot. Media and tags are outside this slice. The
+approved CSV template is not yet frozen by the museum; the supported columns
+below may be extended once a template is confirmed.
 
 ## Two-phase flow
 
@@ -64,6 +64,28 @@ Headers are matched case-insensitively and ignoring spaces/underscores/hyphens
 | `classificationStatus` | `classificationStatus`        |                                           |
 | `remarks`            | `remarks`                       |                                           |
 
+Taxonomy columns (validated like `POST /specimens/:id/taxonomy`):
+`kingdom`, `phylum`, `class` (or `taxonClass`), `order` (or `orderName`,
+`taxonOrder`), `family`, `genus`, `species`, `habitat`, `ecologicalRole`,
+`conservationStatus`.
+
+Provenance columns (validated like `POST /specimens/:id/provenance`):
+`collector`, `donor`, `collectionDate` (`YYYY-MM-DD`), `collectionLocation`,
+`preservationType`, `preservationMethod`.
+
+Lot columns (validated like `POST /specimens/:id/lots`):
+
+| Column           | Notes                                                                 |
+| ---------------- | --------------------------------------------------------------------- |
+| `storageUnit`    | Also `storageUnitId` / `storageLocation`. A unit UUID, or its labels from the room down separated by `>`, `›` or `/` (`Zoology Room > Cabinet A > Drawer 1`). Leading levels may be left out when the rest names exactly one active unit. Labels ignore case. |
+| `conditionClass` | Also `condition`                                                      |
+| `quantity`       | Also `qty`. Whole number of at least 1; thousands separators allowed  |
+| `storageNotes`   | Optional                                                              |
+
+A lot needs `storageUnit`, `conditionClass`, and `quantity` together. The unit
+must be active and configured to hold specimens. Problems with these columns
+are row errors prefixed with `Taxonomy:`, `Provenance:`, or `Lot:`.
+
 An unrecognized column is not an error; it is reported once in the preview's
 `unmappedColumns` list so the curator can confirm nothing was silently
 dropped. An empty cell is treated as "not provided," not as an empty string.
@@ -100,11 +122,12 @@ reports:
   names, status, confidence, and matched/differing fields), so the curator
   can open them before committing.
 
-The import template has no provenance columns, so import rows are matched
-on accession number and names only. Gender is not treated as a
-distinction: two rows that differ only in gender are still flagged. The
-collector/donor distinctions (BR-09) need a value on both records, so they
-never suppress an import warning. Physical grouping and storage assignment
+Import rows are matched on accession number and names, and a row's
+`collector`, `donor`, `collectionDate`, and `collectionLocation` columns feed
+the same collector/donor distinctions (BR-09) used for manual entry. Those
+distinctions need a value on both records, so a row without provenance
+columns is matched on accession number and names only. Gender is not treated
+as a distinction: two rows that differ only in gender are still flagged. Physical grouping and storage assignment
 are deferred (see the duplicates guide).
 
 ## Commit behavior
@@ -119,6 +142,14 @@ per-row result:
   requested row number was never part of that preview, or was part of it but
   marked invalid. Unexpected errors are logged server-side and returned as a
   generic message rather than leaking internal details.
+
+A row's taxonomy, provenance, and lot are created in the same transaction as
+its specimen, through the same service methods as manual entry, so they get
+their usual revision history and audit events (`CREATE_SPECIMEN_TAXONOMY`,
+`CREATE_SPECIMEN_PROVENANCE`, `CREATE_SPECIMEN_LOT`). The lot's initial
+`ADDITION` transaction records the reason `Imported from CSV row N (batch
+<importBatchId>)`. If any part fails (for example, the storage unit was
+archived after preview), the whole row is rolled back and reported as failed.
 
 Every created record is attributed to the authenticated curator and appends
 a `CREATE_SPECIMEN`-equivalent `audit_log` entry with `action =

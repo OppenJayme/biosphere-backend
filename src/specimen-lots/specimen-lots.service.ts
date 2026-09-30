@@ -62,85 +62,103 @@ export class SpecimenLotsService {
     dto: CreateSpecimenLotDto,
     actingCuratorAccountId: string,
   ): Promise<SpecimenLot> {
-    return this.prisma.$transaction(async (transaction) => {
-      const specimenRecord = await this.findSpecimenOrThrow(
+    return this.prisma.$transaction((transaction) =>
+      this.createInTransaction(
         transaction,
         specimenId,
-      );
-      this.assertSpecimenEditable(specimenRecord);
-      await this.assertAssignableStorageUnit(transaction, dto.storageUnitId);
+        dto,
+        actingCuratorAccountId,
+      ),
+    );
+  }
 
-      const matchingLot = await transaction.specimen_lot.findFirst({
-        where: {
+  /**
+   * Creates the lot inside a caller-owned transaction so it commits or
+   * rolls back together with other writes, such as a bulk-import row.
+   */
+  async createInTransaction(
+    transaction: Prisma.TransactionClient,
+    specimenId: string,
+    dto: CreateSpecimenLotDto,
+    actingCuratorAccountId: string,
+  ): Promise<SpecimenLot> {
+    const specimenRecord = await this.findSpecimenOrThrow(
+      transaction,
+      specimenId,
+    );
+    this.assertSpecimenEditable(specimenRecord);
+    await this.assertAssignableStorageUnit(transaction, dto.storageUnitId);
+
+    const matchingLot = await transaction.specimen_lot.findFirst({
+      where: {
+        specimen_id: specimenId,
+        storage_unit_id: dto.storageUnitId,
+        condition_class: dto.conditionClass,
+        is_active: true,
+      },
+      select: { id: true },
+    });
+    if (matchingLot) {
+      throw this.matchingLotConflict(matchingLot.id);
+    }
+
+    const changedAt = new Date();
+    let created: specimen_lot;
+    try {
+      created = await transaction.specimen_lot.create({
+        data: {
           specimen_id: specimenId,
           storage_unit_id: dto.storageUnitId,
           condition_class: dto.conditionClass,
-          is_active: true,
-        },
-        select: { id: true },
-      });
-      if (matchingLot) {
-        throw this.matchingLotConflict(matchingLot.id);
-      }
-
-      const changedAt = new Date();
-      let created: specimen_lot;
-      try {
-        created = await transaction.specimen_lot.create({
-          data: {
-            specimen_id: specimenId,
-            storage_unit_id: dto.storageUnitId,
-            condition_class: dto.conditionClass,
-            quantity: dto.quantity,
-            storage_notes: dto.storageNotes,
-            is_active: true,
-            created_by: actingCuratorAccountId,
-            updated_by: actingCuratorAccountId,
-            created_at: changedAt,
-            updated_at: changedAt,
-          },
-        });
-      } catch (error) {
-        if (this.isUniqueConstraintError(error)) {
-          throw this.matchingLotConflict();
-        }
-        throw error;
-      }
-
-      await transaction.specimen_lot_transaction.create({
-        data: {
-          source_lot_id: null,
-          target_lot_id: created.id,
-          transaction_type: 'QUANTITY_ADJUSTMENT',
-          quantity_affected: dto.quantity,
-          adjustment_type: 'ADDITION',
-          reason: dto.reason,
-          performed_by: actingCuratorAccountId,
-          created_at: changedAt,
-        },
-      });
-
-      await this.touchSpecimen(
-        transaction,
-        specimenId,
-        actingCuratorAccountId,
-        changedAt,
-      );
-      await this.recordAudit(transaction, {
-        userId: actingCuratorAccountId,
-        lotId: created.id,
-        action: 'CREATE_SPECIMEN_LOT',
-        details: {
-          specimenId,
-          storageUnitId: dto.storageUnitId,
-          conditionClass: dto.conditionClass,
           quantity: dto.quantity,
-          adjustmentType: 'ADDITION',
+          storage_notes: dto.storageNotes,
+          is_active: true,
+          created_by: actingCuratorAccountId,
+          updated_by: actingCuratorAccountId,
+          created_at: changedAt,
+          updated_at: changedAt,
         },
       });
+    } catch (error) {
+      if (this.isUniqueConstraintError(error)) {
+        throw this.matchingLotConflict();
+      }
+      throw error;
+    }
 
-      return this.toEntity(created);
+    await transaction.specimen_lot_transaction.create({
+      data: {
+        source_lot_id: null,
+        target_lot_id: created.id,
+        transaction_type: 'QUANTITY_ADJUSTMENT',
+        quantity_affected: dto.quantity,
+        adjustment_type: 'ADDITION',
+        reason: dto.reason,
+        performed_by: actingCuratorAccountId,
+        created_at: changedAt,
+      },
     });
+
+    await this.touchSpecimen(
+      transaction,
+      specimenId,
+      actingCuratorAccountId,
+      changedAt,
+    );
+    await this.recordAudit(transaction, {
+      userId: actingCuratorAccountId,
+      lotId: created.id,
+      action: 'CREATE_SPECIMEN_LOT',
+      details: {
+        specimenId,
+        storageUnitId: dto.storageUnitId,
+        conditionClass: dto.conditionClass,
+        quantity: dto.quantity,
+        adjustmentType: 'ADDITION',
+      },
+    });
+
+    return this.toEntity(created);
   }
 
   async findActive(specimenId: string): Promise<SpecimenLot[]> {
