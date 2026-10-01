@@ -24,12 +24,30 @@ describe('Developer AR exhibits (e2e)', () => {
   const glbHeader = Buffer.from([
     0x67, 0x6c, 0x54, 0x46, 0x02, 0x00, 0x00, 0x00, 0x0c, 0x00, 0x00, 0x00,
   ]);
+  const authorizationReference = 'Curator AR approval memo 2026-07';
 
   let app: INestApplication<App>;
   let exhibitFindMany: jest.Mock;
   let arAssetCreate: jest.Mock;
   let arAssetUpdate: jest.Mock;
+  let auditLogCreate: jest.Mock;
   let storageMock: { upload: jest.Mock; remove: jest.Mock };
+
+  const developerAccountId = '44444444-4444-4444-8444-444444444444';
+
+  // One FAILED audit entry for the rejected attempt (REQ-4.2-09).
+  const expectFailedAudit = (action: string, reason: RegExp) => {
+    expect(auditLogCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        user_id: developerAccountId,
+        action,
+        status: 'FAILED',
+        details: expect.objectContaining({
+          reason: expect.stringMatching(reason),
+        }),
+      }),
+    });
+  };
 
   const asset = (exhibitId: string, id = assetId) => ({
     id,
@@ -112,6 +130,7 @@ describe('Developer AR exhibits (e2e)', () => {
       asset(data.exhibit_id),
     );
     arAssetUpdate = jest.fn(() => asset(approvedExhibitId));
+    auditLogCreate = jest.fn(() => ({}));
     storageMock = {
       upload: jest.fn(
         (_bucket: string, folder: string) => `${folder}/model.glb`,
@@ -132,7 +151,7 @@ describe('Developer AR exhibits (e2e)', () => {
             }
             if (where.auth_user_id === developerAuthId) {
               return {
-                id: '44444444-4444-4444-8444-444444444444',
+                id: developerAccountId,
                 role: 'DEVELOPER',
                 status: 'ACTIVE',
               };
@@ -161,7 +180,7 @@ describe('Developer AR exhibits (e2e)', () => {
               : null,
         ),
       },
-      audit_log: { create: jest.fn(() => ({})) },
+      audit_log: { create: auditLogCreate },
     };
     const getUser = jest.fn((token: string) => {
       const id =
@@ -283,6 +302,7 @@ describe('Developer AR exhibits (e2e)', () => {
         .set('Authorization', `Bearer ${developerToken}`)
         .field('exhibitId', exhibitId)
         .field('modelFormat', 'glb')
+        .field('authorizationReference', authorizationReference)
         .attach('file', glbHeader, 'model.glb');
 
     it('deploys to a curator-approved exhibit', async () => {
@@ -299,12 +319,58 @@ describe('Developer AR exhibits (e2e)', () => {
       await upload(unapprovedExhibitId).expect(400);
       expect(storageMock.upload).not.toHaveBeenCalled();
       expect(arAssetCreate).not.toHaveBeenCalled();
+      expectFailedAudit('CREATE_AR_ASSET', /approved for public display/);
     });
 
     it('rejects an archived exhibit', async () => {
       await upload(archivedExhibitId).expect(400);
       expect(storageMock.upload).not.toHaveBeenCalled();
       expect(arAssetCreate).not.toHaveBeenCalled();
+    });
+
+    it('rejects an upload without an authorizationReference (REQ-4.2-05)', async () => {
+      await request(app.getHttpServer())
+        .post('/developer/ar-assets')
+        .set('Authorization', `Bearer ${developerToken}`)
+        .field('exhibitId', approvedExhibitId)
+        .field('modelFormat', 'glb')
+        .attach('file', glbHeader, 'model.glb')
+        .expect(400);
+      expect(storageMock.upload).not.toHaveBeenCalled();
+      expect(arAssetCreate).not.toHaveBeenCalled();
+      expectFailedAudit(
+        'CREATE_AR_ASSET',
+        /authorizationReference is required/,
+      );
+    });
+  });
+
+  describe('PATCH /developer/ar-assets/:id/activate', () => {
+    it('rejects and audits an activation without documented authorization (REQ-4.2-05/09)', async () => {
+      await request(app.getHttpServer())
+        .patch(`/developer/ar-assets/${assetId}/activate`)
+        .set('Authorization', `Bearer ${developerToken}`)
+        .expect(400);
+
+      expect(arAssetUpdate).not.toHaveBeenCalled();
+      expectFailedAudit(
+        'ACTIVATE_AR_ASSET',
+        /authorizationReference is required/,
+      );
+    });
+
+    it('rejects and audits a blank authorization reference', async () => {
+      await request(app.getHttpServer())
+        .patch(`/developer/ar-assets/${assetId}/activate`)
+        .set('Authorization', `Bearer ${developerToken}`)
+        .send({ authorizationReference: '   ' })
+        .expect(400);
+
+      expect(arAssetUpdate).not.toHaveBeenCalled();
+      expectFailedAudit(
+        'ACTIVATE_AR_ASSET',
+        /authorizationReference is required/,
+      );
     });
   });
 
@@ -313,7 +379,8 @@ describe('Developer AR exhibits (e2e)', () => {
       request(app.getHttpServer())
         .patch(`/developer/ar-assets/${assetId}`)
         .set('Authorization', `Bearer ${developerToken}`)
-        .field('exhibitId', exhibitId);
+        .field('exhibitId', exhibitId)
+        .field('authorizationReference', authorizationReference);
 
     it('rejects moving an asset to an exhibit that is not curator-approved', async () => {
       await move(unapprovedExhibitId).expect(400);
@@ -339,14 +406,24 @@ describe('Developer AR exhibits (e2e)', () => {
         .patch(`/developer/ar-assets/${archivedAssetId}${path}`)
         .set('Authorization', `Bearer ${developerToken}`);
 
+    // Each request carries an authorizationReference, so the 400 comes from
+    // the deployability rule rather than the missing authorization.
     it('rejects activation', async () => {
-      await patch('/activate').expect(400);
-      await patch('').field('isEnabled', 'true').expect(400);
+      await patch('/activate').send({ authorizationReference }).expect(400);
+      await patch('')
+        .field('isEnabled', 'true')
+        .field('authorizationReference', authorizationReference)
+        .expect(400);
       expect(arAssetUpdate).not.toHaveBeenCalled();
+      expectFailedAudit('ACTIVATE_AR_ASSET', /no longer deployable/);
+      expectFailedAudit('UPDATE_AR_ASSET', /no longer deployable/);
     });
 
     it('rejects replacing the file in place', async () => {
-      await patch('').attach('file', glbHeader, 'model.glb').expect(400);
+      await patch('')
+        .field('authorizationReference', authorizationReference)
+        .attach('file', glbHeader, 'model.glb')
+        .expect(400);
       expect(storageMock.upload).not.toHaveBeenCalled();
       expect(arAssetUpdate).not.toHaveBeenCalled();
     });
@@ -371,7 +448,10 @@ describe('Developer AR exhibits (e2e)', () => {
     });
 
     it('allows moving it to a deployable exhibit', async () => {
-      await patch('').field('exhibitId', approvedExhibitId).expect(200);
+      await patch('')
+        .field('exhibitId', approvedExhibitId)
+        .field('authorizationReference', authorizationReference)
+        .expect(200);
       expect(arAssetUpdate).toHaveBeenCalledWith({
         where: { id: archivedAssetId },
         data: { exhibit_id: approvedExhibitId },
