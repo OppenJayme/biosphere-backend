@@ -1,5 +1,6 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { MailService } from '../mail/mail.service';
+import { SubmissionNotificationsService } from '../notifications/submission-notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateVisitRequestDto } from './dto/create-visit-request.dto';
 import { VisitRequestStatus } from './entities/visit-request.entity';
@@ -73,6 +74,7 @@ describe('VisitRequestsService', () => {
   const historyDelegate = { create: jest.fn(), findMany: jest.fn() };
   const auditDelegate = { create: jest.fn() };
   const mail = { send: jest.fn() };
+  const submissionNotifications = { announce: jest.fn() };
   const prisma = {
     visit_request: visitDelegate,
     communication_history: historyDelegate,
@@ -104,6 +106,7 @@ describe('VisitRequestsService', () => {
     service = new VisitRequestsService(
       prisma as unknown as PrismaService,
       mail as unknown as MailService,
+      submissionNotifications as unknown as SubmissionNotificationsService,
     );
   });
 
@@ -152,6 +155,17 @@ describe('VisitRequestsService', () => {
         action: 'SUBMIT_VISIT_REQUEST',
         details: { preferredScheduleCount: 2, visitorCount: 20 },
       }),
+    });
+    expect(submissionNotifications.announce).toHaveBeenCalledWith({
+      recordType: 'visit_request',
+      id: VISIT_ID,
+      submittedAt: CREATED_AT,
+      visitorName: 'Maria Santos',
+      visitorEmail: 'maria@example.com',
+      receiptDetails: [
+        ['Preferred option 1', 'Tuesday, October 15, 2030, 09:00 - 11:00'],
+        ['Preferred option 2', expect.stringContaining('2030')],
+      ],
     });
   });
 
@@ -244,6 +258,52 @@ describe('VisitRequestsService', () => {
         },
       }),
     );
+  });
+
+  it('filters by submission date and by approved or preferred visit date', async () => {
+    visitDelegate.findMany.mockResolvedValue([]);
+
+    await service.findAll({
+      submittedFrom: '2026-09-01',
+      visitDateFrom: '2026-10-01',
+      visitDateTo: '2026-10-31',
+    });
+
+    const visitDate = {
+      gte: new Date('2026-10-01T00:00:00.000Z'),
+      lte: new Date('2026-10-31T00:00:00.000Z'),
+    };
+    expect(visitDelegate.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          status: undefined,
+          created_at: { gte: new Date('2026-08-31T16:00:00.000Z') },
+          AND: [
+            {
+              OR: [
+                { approved_date: visitDate },
+                {
+                  approved_date: null,
+                  preferred_visit_date: {
+                    some: { preferred_date: visitDate },
+                  },
+                },
+              ],
+            },
+          ],
+        },
+      }),
+    );
+  });
+
+  it('rejects a visit date range that ends before it starts', async () => {
+    await expect(
+      service.findAll({
+        visitDateFrom: '2026-10-31',
+        visitDateTo: '2026-10-01',
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(visitDelegate.findMany).not.toHaveBeenCalled();
   });
 
   it('changes status, records it in the timeline, and audits it', async () => {

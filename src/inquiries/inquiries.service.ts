@@ -12,6 +12,7 @@ import {
   recordOutboundEmail,
 } from '../communication-history/communication-history';
 import { CreateInternalNoteDto } from '../communication-history/dto/create-internal-note.dto';
+import { submittedAtRange } from '../communication-history/dto/date-filter';
 import { SendVisitorMessageDto } from '../communication-history/dto/send-visitor-message.dto';
 import { Prisma } from '../generated/prisma/client';
 import { MailService } from '../mail/mail.service';
@@ -21,6 +22,8 @@ import {
   referenceCode,
   referenceIdRange,
 } from '../mail/visitor-email';
+import { NotificationRecordType } from '../notifications/entities/curator-notification.entity';
+import { SubmissionNotificationsService } from '../notifications/submission-notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { runSerializableTransaction } from '../prisma/serializable-transaction';
 import { VisitRequestsService } from '../visit-requests/visit-requests.service';
@@ -55,12 +58,15 @@ export class InquiriesService {
     private readonly prisma: PrismaService,
     private readonly visitRequestsService: VisitRequestsService,
     private readonly mail: MailService,
+    private readonly submissionNotifications: SubmissionNotificationsService,
   ) {}
 
   // Public submission (REQ-4.8-01/04). Stored with its consent timestamp and
-  // audited without any visitor personal data in the audit details.
+  // audited without any visitor personal data in the audit details. Once
+  // saved, the visitor gets a receipt and curators are alerted (REQ-4.8-08)
+  // in the background, so a slow mail server never delays the response.
   async create(dto: CreateInquiryDto): Promise<InquirySubmissionReceipt> {
-    return this.prisma.$transaction(async (transaction) => {
+    const receipt = await this.prisma.$transaction(async (transaction) => {
       const submittedAt = new Date();
       const created = await transaction.inquiry.create({
         data: {
@@ -90,15 +96,26 @@ export class InquiriesService {
         submittedAt: created.created_at,
       };
     });
+
+    void this.submissionNotifications.announce({
+      recordType: NotificationRecordType.INQUIRY,
+      id: receipt.id,
+      submittedAt: receipt.submittedAt,
+      visitorName: dto.name,
+      visitorEmail: dto.email,
+    });
+    return receipt;
   }
 
   async findAll(query: ListInquiriesQueryDto): Promise<Inquiry[]> {
     const search = query.search
       ? { contains: query.search, mode: Prisma.QueryMode.insensitive }
       : undefined;
+    const createdAt = submittedAtRange(query.submittedFrom, query.submittedTo);
     const items = await this.prisma.inquiry.findMany({
       where: {
         status: query.status,
+        created_at: createdAt,
         ...(search && {
           OR: [
             { full_name: search },
