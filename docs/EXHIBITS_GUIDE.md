@@ -28,8 +28,8 @@ upload AR assets.
 - `GET /exhibits/:id`: includes images with short-lived `previewUrl`s.
 - `PATCH /exhibits/:id`: edit `publicDescription`, `interestingFacts`,
   `distribution`, `diet`, `layoutType`, and `publicSpecimenFields`. The public
-  URL never changes here (REQ-4.12-10). A published exhibit cannot clear its
-  public description (400).
+  URL never changes here (REQ-4.12-10). On a published exhibit, an edit that
+  would break the [publish-readiness rule](#publish-readiness) returns 400.
 - `PATCH /exhibits/:id/replace-url` `{ publicSlug }`: intentional page
   replacement. QR codes printed for the old URL stop working and show the
   unavailable state. Audited with both slugs. A retired slug stays reserved,
@@ -56,9 +56,10 @@ records `changedFields` and, when the selection changed,
 into the audit log.
 
 Curator responses include `publicSpecimenFields` (the selection, in display
-order) and `missingForPublish` (the required content still empty, i.e.
-`["publicDescription"]` or `[]`), so the frontend can show the field toggles
-and disable Publish.
+order), `missingForPublish` (why it cannot be published yet: `identifyingName`
+and/or `publicInformation`, or `[]`), and `emptySelectedFields` (selected
+fields this specimen has no value for), so the frontend can show the field
+toggles, warn about empty fields, and disable Publish.
 
 ## Public specimen fields (REQ-4.12-03)
 
@@ -81,11 +82,33 @@ checked against a strict allowlist (`src/exhibit/exhibit-public-fields.ts`):
   (`publicDescription`, `interestingFacts`, `distribution`, `diet`,
   `layoutType`) and its images in `exhibit_media` are not part of it.
 
-**Required content.** `publish` returns 400, naming what is missing, until
-`publicDescription` is filled, and a published exhibit cannot clear it.
-`interestingFacts`, `distribution`, and `diet` are optional, because they can
-be unknown or not apply (e.g. diet for a plant); the public page hides them
-when empty.
+A selected field with no value for this specimen is left off the public page
+and listed in `emptySelectedFields` as a warning; it never blocks publishing.
+
+## Publish readiness
+
+An exhibit only needs enough approved information to be meaningful to a
+visitor. `publish` succeeds when all of these hold:
+
+- The specimen is Cataloged, not archived, and approved for public display
+  (REQ-4.12-02, BR-20).
+- The exhibit has a unique public URL (checked when it is created or its URL
+  is replaced).
+- **`identifyingName`:** `commonName` or `scientificName` is selected and has a
+  value.
+- **`publicInformation`:** at least one other piece of public information has a
+  value: the description, interesting facts, distribution, or diet, or any
+  other selected specimen field (collection, a taxonomy rank, habitat,
+  ecological role, conservation status).
+
+Otherwise it returns 400, naming each unmet requirement, e.g.
+`Missing: identifyingName.` No single content item is required: a specimen
+may have no known diet, distribution, images, or AR. Images and AR are always
+optional.
+
+A published exhibit must stay publishable: an edit that would hide every name
+or remove the last piece of public information returns 400. An unpublished
+draft can be edited freely.
 
 ## Lifecycle
 
@@ -93,10 +116,15 @@ SRS B.3: Unpublished -> Published -> Unpublished or Disabled.
 
 | From | `publish` | `unpublish` | `disable` | `archive` |
 | --- | --- | --- | --- | --- |
-| `UNPUBLISHED` | yes (re-checks specimen eligibility and required content) | no-op | 400 | yes |
+| `UNPUBLISHED` | yes (re-checks specimen eligibility and [publish readiness](#publish-readiness)) | no-op | 400 | yes |
 | `PUBLISHED` | no-op | yes | yes | yes |
 | `DISABLED` | 400 | 400 | no-op | yes |
 | archived | 400 | 400 | 400 | no-op |
+
+- `UNPUBLISHED`: a draft, or a page taken offline for now. It can be published
+  again.
+- `DISABLED`: intentionally retired from public use.
+- Archived: final and read-only.
 
 Only a published exhibit can be disabled; retire an unpublished draft with
 archive. B.3 has no Disabled -> Published transition, so a disabled exhibit
@@ -110,14 +138,16 @@ label can no longer be generated.
 (REQ-4.12-08, REQ-4.13-07): the specimen fields the curator selected
 (REQ-4.12-03), the curator's description, facts, distribution, and diet, the
 layout, images as short-lived signed URLs, and the AR block. A specimen field
-that is not selected is left out of the response, not sent as `null`; selected
-taxonomy ranks are grouped under `taxonomy`, which is left out when no rank is
-selected. It never returns storage locations, condition notes, remarks,
+that is not selected, or is selected but has no value, is left out of the
+response rather than sent empty; the shown taxonomy ranks are grouped under
+`taxonomy`, which is left out when none are shown. It never returns storage locations, condition notes, remarks,
 accession numbers, curator attribution, or audit data.
 
 A missing, unpublished, disabled, or archived page, or one whose specimen is no
-longer Cataloged and public-display approved, returns the same 404 message, so
-nothing about it is revealed (REQ-4.12-09).
+longer Cataloged, is archived, or is no longer approved for public display,
+returns the same 404 message, so nothing about it is revealed (REQ-4.12-09).
+Specimen eligibility is checked on every request, so the page stops being
+public as soon as the specimen changes.
 
 ## QR code and label
 
