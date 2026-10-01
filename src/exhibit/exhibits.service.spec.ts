@@ -9,6 +9,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../supabase/storage.service';
 import { ExhibitStatus } from './entities/exhibit.entity';
+import { PUBLIC_SPECIMEN_FIELDS } from './exhibit-public-fields';
 import { ExhibitQrService } from './exhibit-qr.service';
 import { ExhibitsService } from './exhibits.service';
 
@@ -76,6 +77,7 @@ function exhibitRecord(overrides: Record<string, unknown> = {}) {
     distribution: null,
     diet: null,
     layout_type: null,
+    public_specimen_fields: [...PUBLIC_SPECIMEN_FIELDS],
     status: 'UNPUBLISHED',
     published_at: null,
     archived_at: null,
@@ -90,6 +92,14 @@ function exhibitRecord(overrides: Record<string, unknown> = {}) {
     ...overrides,
   };
 }
+
+// Exhibit content required before publishing.
+const FILLED_CONTENT = {
+  public_description: 'A rare specimen.',
+  interesting_facts: 'It has six legs.',
+  distribution: 'Philippines',
+  diet: 'Grass',
+};
 
 // Shape returned with the public include.
 function publicRecord(overrides: Record<string, unknown> = {}) {
@@ -418,7 +428,9 @@ describe('ExhibitsService', () => {
 
   describe('lifecycle', () => {
     it('publishes an eligible unpublished exhibit', async () => {
-      exhibitDelegate.findUnique.mockResolvedValue(exhibitRecord());
+      exhibitDelegate.findUnique.mockResolvedValue(
+        exhibitRecord(FILLED_CONTENT),
+      );
       specimenDelegate.findUnique.mockResolvedValue(specimenRecord());
       exhibitDelegate.update.mockResolvedValue(
         exhibitRecord({ status: 'PUBLISHED', published_at: TEST_DATE }),
@@ -436,7 +448,9 @@ describe('ExhibitsService', () => {
     });
 
     it('blocks publishing when the specimen is no longer eligible', async () => {
-      exhibitDelegate.findUnique.mockResolvedValue(exhibitRecord());
+      exhibitDelegate.findUnique.mockResolvedValue(
+        exhibitRecord(FILLED_CONTENT),
+      );
       specimenDelegate.findUnique.mockResolvedValue(
         specimenRecord({ public_display_allowed: false }),
       );
@@ -526,6 +540,221 @@ describe('ExhibitsService', () => {
       );
       await service.archive(EXHIBIT_ID, ACCOUNT_ID);
       expect(exhibitDelegate.update).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('public specimen fields and required content (REQ-4.12-03)', () => {
+    it('shows every approved field by default on create', async () => {
+      specimenDelegate.findUnique.mockResolvedValue(specimenRecord());
+      exhibitDelegate.findFirst.mockResolvedValue(null);
+      exhibitDelegate.findUnique.mockResolvedValue(null);
+      exhibitDelegate.create.mockResolvedValue(exhibitRecord());
+
+      const result = await service.create(
+        { specimenId: SPECIMEN_ID, publicSlug: 'six-legged-carabao' },
+        ACCOUNT_ID,
+      );
+
+      expect(exhibitDelegate.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            public_specimen_fields: [...PUBLIC_SPECIMEN_FIELDS],
+          }),
+        }),
+      );
+      expect(result.publicSpecimenFields).toEqual([...PUBLIC_SPECIMEN_FIELDS]);
+      expect(result.missingForPublish).toEqual([
+        'publicDescription',
+        'interestingFacts',
+        'distribution',
+        'diet',
+      ]);
+    });
+
+    it('stores a chosen selection in allowlist order and audits it', async () => {
+      specimenDelegate.findUnique.mockResolvedValue(specimenRecord());
+      exhibitDelegate.findFirst.mockResolvedValue(null);
+      exhibitDelegate.findUnique.mockResolvedValue(null);
+      exhibitDelegate.create.mockImplementation(
+        ({ data }: { data: Record<string, unknown> }) =>
+          Promise.resolve(exhibitRecord(data)),
+      );
+
+      await service.create(
+        {
+          specimenId: SPECIMEN_ID,
+          publicSlug: 'six-legged-carabao',
+          publicSpecimenFields: ['habitat', 'commonName', 'family'],
+        },
+        ACCOUNT_ID,
+      );
+
+      expect(auditDelegate.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          action: 'CREATE_EXHIBIT',
+          details: expect.objectContaining({
+            publicSpecimenFields: ['commonName', 'family', 'habitat'],
+          }),
+        }),
+      });
+    });
+
+    it('updates the selection and audits the previous and current fields', async () => {
+      exhibitDelegate.findUnique.mockResolvedValue(exhibitRecord());
+      exhibitDelegate.update.mockImplementation(
+        ({ data }: { data: Record<string, unknown> }) =>
+          Promise.resolve(exhibitRecord(data)),
+      );
+
+      const result = await service.update(
+        EXHIBIT_ID,
+        { publicSpecimenFields: ['scientificName', 'commonName'] },
+        ACCOUNT_ID,
+      );
+
+      expect(exhibitDelegate.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            public_specimen_fields: ['commonName', 'scientificName'],
+          }),
+        }),
+      );
+      expect(result.publicSpecimenFields).toEqual([
+        'commonName',
+        'scientificName',
+      ]);
+      expect(auditDelegate.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          action: 'UPDATE_EXHIBIT',
+          details: {
+            changedFields: ['publicSpecimenFields'],
+            publicSpecimenFields: {
+              previous: [...PUBLIC_SPECIMEN_FIELDS],
+              current: ['commonName', 'scientificName'],
+            },
+          },
+        }),
+      });
+    });
+
+    it('leaves the visibility diff out of the audit when the selection is unchanged', async () => {
+      exhibitDelegate.findUnique.mockResolvedValue(exhibitRecord());
+      exhibitDelegate.update.mockResolvedValue(exhibitRecord());
+
+      await service.update(
+        EXHIBIT_ID,
+        { diet: 'Grass', publicSpecimenFields: [...PUBLIC_SPECIMEN_FIELDS] },
+        ACCOUNT_ID,
+      );
+
+      expect(auditDelegate.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          details: { changedFields: ['diet', 'publicSpecimenFields'] },
+        }),
+      });
+    });
+
+    it('refuses to publish until the exhibit content is filled, naming what is missing', async () => {
+      exhibitDelegate.findUnique.mockResolvedValue(
+        exhibitRecord({ ...FILLED_CONTENT, diet: '   ', distribution: null }),
+      );
+      specimenDelegate.findUnique.mockResolvedValue(specimenRecord());
+
+      await expect(service.publish(EXHIBIT_ID, ACCOUNT_ID)).rejects.toThrow(
+        'Missing: distribution, diet.',
+      );
+      expect(exhibitDelegate.update).not.toHaveBeenCalled();
+    });
+
+    it('keeps required content on a published exhibit but lets a draft clear it', async () => {
+      exhibitDelegate.findUnique.mockResolvedValue(
+        exhibitRecord({ ...FILLED_CONTENT, status: 'PUBLISHED' }),
+      );
+      await expect(
+        service.update(EXHIBIT_ID, { diet: null }, ACCOUNT_ID),
+      ).rejects.toThrow('Missing: diet.');
+      expect(exhibitDelegate.update).not.toHaveBeenCalled();
+
+      exhibitDelegate.findUnique.mockResolvedValue(
+        exhibitRecord(FILLED_CONTENT),
+      );
+      exhibitDelegate.update.mockResolvedValue(
+        exhibitRecord({ ...FILLED_CONTENT, diet: null }),
+      );
+      await expect(
+        service.update(EXHIBIT_ID, { diet: null }, ACCOUNT_ID),
+      ).resolves.toMatchObject({ missingForPublish: ['diet'] });
+    });
+
+    it('sends only the selected specimen fields on the public page', async () => {
+      exhibitDelegate.findUnique.mockResolvedValue(
+        publicRecord({
+          ...FILLED_CONTENT,
+          public_specimen_fields: ['scientificName', 'family', 'habitat'],
+        }),
+      );
+
+      const page = await service.findPublishedBySlug('six-legged-carabao');
+
+      expect(page).toMatchObject({
+        scientificName: 'Bubalus bubalis',
+        taxonomy: { family: 'Bovidae' },
+        habitat: 'Wetlands',
+        // Exhibit content and media are not affected by the selection.
+        publicDescription: 'A rare specimen.',
+        diet: 'Grass',
+        media: [expect.objectContaining({ isCover: true })],
+      });
+      for (const hidden of [
+        'commonName',
+        'collection',
+        'ecologicalRole',
+        'conservationStatus',
+      ]) {
+        expect(page).not.toHaveProperty(hidden);
+      }
+      expect(Object.keys(page.taxonomy ?? {})).toEqual(['family']);
+      const serialized = JSON.stringify(page);
+      for (const value of [
+        'Six-legged Carabao',
+        'Mammals',
+        'Animalia',
+        'Grazer',
+      ]) {
+        expect(serialized).not.toContain(value);
+      }
+    });
+
+    it('leaves taxonomy out entirely when no rank is selected', async () => {
+      exhibitDelegate.findUnique.mockResolvedValue(
+        publicRecord({ public_specimen_fields: [] }),
+      );
+
+      const page = await service.findPublishedBySlug('six-legged-carabao');
+
+      expect(page).not.toHaveProperty('taxonomy');
+      expect(page).not.toHaveProperty('commonName');
+      expect(page.publicDescription).toBe('A rare specimen.');
+    });
+
+    it('never lets an unknown stored key widen the page, and treats a null column as the default', async () => {
+      exhibitDelegate.findUnique.mockResolvedValue(
+        publicRecord({
+          public_specimen_fields: ['genus', 'remarks', 'accessionNumber'],
+        }),
+      );
+      const narrowed = await service.findPublishedBySlug('six-legged-carabao');
+      expect(narrowed.taxonomy).toEqual({ genus: 'Bubalus' });
+      expect(JSON.stringify(narrowed)).not.toContain('USCBM-MAM-001');
+
+      exhibitDelegate.findUnique.mockResolvedValue(
+        publicRecord({ public_specimen_fields: null }),
+      );
+      const fallback = await service.findPublishedBySlug('six-legged-carabao');
+      expect(fallback).toMatchObject({
+        commonName: 'Six-legged Carabao',
+        conservationStatus: 'Domesticated',
+      });
     });
   });
 

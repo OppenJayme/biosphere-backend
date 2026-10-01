@@ -42,6 +42,29 @@ describe('Exhibits (e2e)', () => {
   let storageUploadMock: jest.Mock;
   let storageRemoveMock: jest.Mock;
 
+  // The migration default for exhibit.public_specimen_fields.
+  const allPublicFields = [
+    'commonName',
+    'scientificName',
+    'collection',
+    'kingdom',
+    'phylum',
+    'class',
+    'order',
+    'family',
+    'genus',
+    'species',
+    'habitat',
+    'ecologicalRole',
+    'conservationStatus',
+  ];
+  const filledContent = {
+    public_description: 'A rare specimen.',
+    interesting_facts: 'It has six legs.',
+    distribution: 'Philippines',
+    diet: 'Grass',
+  };
+
   beforeEach(async () => {
     specimenRecord = {
       id: specimenId,
@@ -60,6 +83,7 @@ describe('Exhibits (e2e)', () => {
       distribution: null,
       diet: null,
       layout_type: null,
+      public_specimen_fields: [...allPublicFields],
       status: 'UNPUBLISHED',
       published_at: null,
       archived_at: null,
@@ -477,6 +501,7 @@ describe('Exhibits (e2e)', () => {
 
   describe('lifecycle', () => {
     it('publishes an eligible exhibit', async () => {
+      Object.assign(exhibitRecord, filledContent);
       const response = await request(app.getHttpServer())
         .patch(`/exhibits/${exhibitId}/publish`)
         .set('Authorization', `Bearer ${curatorToken}`)
@@ -922,6 +947,123 @@ describe('Exhibits (e2e)', () => {
         .get('/exhibits?status=LIVE')
         .set('Authorization', `Bearer ${curatorToken}`)
         .expect(400);
+    });
+  });
+  describe('public specimen fields (REQ-4.12-03)', () => {
+    const auth = () => `Bearer ${curatorToken}`;
+
+    it('exposes the selection and what is missing for publishing on curator views', async () => {
+      const response = await request(app.getHttpServer())
+        .get(`/exhibits/${exhibitId}`)
+        .set('Authorization', auth())
+        .expect(200);
+
+      expect(response.body.publicSpecimenFields).toEqual(allPublicFields);
+      expect(response.body.missingForPublish).toEqual([
+        'publicDescription',
+        'interestingFacts',
+        'distribution',
+        'diet',
+      ]);
+    });
+
+    it('stores a selection on create in allowlist order', async () => {
+      exhibitDelegate.findUnique.mockResolvedValueOnce(null); // slug pre-check
+
+      const response = await request(app.getHttpServer())
+        .post('/exhibits')
+        .set('Authorization', auth())
+        .send({
+          specimenId,
+          publicSlug: 'six-legged-carabao',
+          publicSpecimenFields: ['habitat', 'commonName'],
+        })
+        .expect(201);
+
+      expect(response.body.publicSpecimenFields).toEqual([
+        'commonName',
+        'habitat',
+      ]);
+    });
+
+    it.each([
+      ['an unknown field', ['commonName', 'accessionNumber']],
+      ['a restricted field', ['remarks']],
+      ['a duplicate', ['commonName', 'commonName']],
+      ['a non-array', 'commonName'],
+      ['null', null],
+    ])('rejects %s with 400 and writes nothing', async (_label, value) => {
+      await request(app.getHttpServer())
+        .patch(`/exhibits/${exhibitId}`)
+        .set('Authorization', auth())
+        .send({ publicSpecimenFields: value })
+        .expect(400);
+      expect(exhibitDelegate.update).not.toHaveBeenCalled();
+    });
+
+    it('updates the selection, audits the change, and filters the public page', async () => {
+      Object.assign(exhibitRecord, filledContent, { status: 'PUBLISHED' });
+
+      const updated = await request(app.getHttpServer())
+        .patch(`/exhibits/${exhibitId}`)
+        .set('Authorization', auth())
+        .send({ publicSpecimenFields: ['scientificName', 'family'] })
+        .expect(200);
+      expect(updated.body.publicSpecimenFields).toEqual([
+        'scientificName',
+        'family',
+      ]);
+      expect(auditDelegate.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          action: 'UPDATE_EXHIBIT',
+          details: {
+            changedFields: ['publicSpecimenFields'],
+            publicSpecimenFields: {
+              previous: allPublicFields,
+              current: ['scientificName', 'family'],
+            },
+          },
+        }),
+      });
+
+      const page = await request(app.getHttpServer())
+        .get(`/exhibits/public/${exhibitRecord.public_slug as string}`)
+        .expect(200);
+      expect(page.body).toEqual({
+        publicSlug: 'six-legged-carabao',
+        scientificName: 'Bubalus bubalis',
+        taxonomy: { family: null },
+        interestingFacts: 'It has six legs.',
+        publicDescription: 'A rare specimen.',
+        distribution: 'Philippines',
+        diet: 'Grass',
+        layoutType: null,
+        media: [],
+        ar: { available: false, models: [] },
+      });
+    });
+
+    it('refuses to publish without the exhibit content and names what is missing', async () => {
+      const response = await request(app.getHttpServer())
+        .patch(`/exhibits/${exhibitId}/publish`)
+        .set('Authorization', auth())
+        .expect(400);
+
+      expect(response.body.message).toContain(
+        'Missing: publicDescription, interestingFacts, distribution, diet.',
+      );
+      expect(exhibitRecord.status).toBe('UNPUBLISHED');
+    });
+
+    it('does not let a published exhibit lose required content', async () => {
+      Object.assign(exhibitRecord, filledContent, { status: 'PUBLISHED' });
+
+      await request(app.getHttpServer())
+        .patch(`/exhibits/${exhibitId}`)
+        .set('Authorization', auth())
+        .send({ distribution: null })
+        .expect(400);
+      expect(exhibitDelegate.update).not.toHaveBeenCalled();
     });
   });
 });
