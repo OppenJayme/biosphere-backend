@@ -11,6 +11,7 @@ const ACCOUNT_ID = '44444444-4444-4444-8444-444444444444';
 const TEST_DATE = new Date('2026-09-01T00:00:00.000Z');
 
 const storageFindUnique = jest.fn();
+const storageFindMany = jest.fn();
 const lotFindMany = jest.fn();
 const lotAggregate = jest.fn();
 const lotTransactionFindMany = jest.fn();
@@ -18,7 +19,7 @@ const lotTransactionCount = jest.fn();
 const transactionMock = jest.fn();
 
 const prismaMock = {
-  storage_unit: { findUnique: storageFindUnique },
+  storage_unit: { findUnique: storageFindUnique, findMany: storageFindMany },
   specimen_lot: {
     findMany: lotFindMany,
     aggregate: lotAggregate,
@@ -88,6 +89,7 @@ describe('StorageInventoryService', () => {
       Promise.all(operations),
     );
     storageFindUnique.mockResolvedValue(storageUnitRecord);
+    storageFindMany.mockResolvedValue([storageUnitRecord]);
     lotFindMany.mockResolvedValue([lotRecord]);
     lotAggregate.mockResolvedValue({
       _count: { id: 1 },
@@ -123,6 +125,7 @@ describe('StorageInventoryService', () => {
         id: STORAGE_ID,
         label: 'Cabinet A',
       }),
+      storageLocation: expect.objectContaining({ pathLabel: 'Cabinet A' }),
       items: [
         {
           lot: expect.objectContaining({ id: LOT_ID, quantity: 4 }),
@@ -174,6 +177,31 @@ describe('StorageInventoryService', () => {
       new NotFoundException(`Storage unit ${STORAGE_ID} not found`),
     );
   });
+  it('includes the derived room-to-unit location of the storage unit', async () => {
+    storageFindMany
+      .mockResolvedValueOnce([{ ...storageUnitRecord, parent_id: 'room-1' }])
+      .mockResolvedValueOnce([
+        {
+          id: 'room-1',
+          parent_id: null,
+          label: 'Main Room',
+          unit_type: 'ROOM',
+        },
+      ]);
+
+    const result = await service.findForStorageUnit(
+      STORAGE_ID,
+      Object.assign(new ListStorageInventoryQueryDto(), { page: 1, limit: 50 }),
+    );
+
+    expect(result.storageLocation.pathLabel).toBe('Main Room › Cabinet A');
+    expect(result.storageLocation.rootUnit).toEqual({
+      id: 'room-1',
+      label: 'Main Room',
+      unitType: 'ROOM',
+    });
+  });
+
   describe('findLotMovements', () => {
     it('lists transactions on lots held in the unit, newest first', async () => {
       lotTransactionFindMany.mockResolvedValue([
