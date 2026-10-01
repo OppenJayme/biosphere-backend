@@ -228,7 +228,7 @@ describe('Specimen tags (e2e)', () => {
       .expect(403);
   });
 
-  it('rejects tag changes from unauthenticated users and Developers without writing', async () => {
+  it('rejects tag changes from unauthenticated users and Developers, auditing only the Developer denial', async () => {
     attachments.push({
       id: attachmentId,
       specimen_id: specimenId,
@@ -241,6 +241,9 @@ describe('Specimen tags (e2e)', () => {
       .patch(`/specimens/${specimenId}/tags/${endemicTagId}`)
       .send({ tagName: 'Visayas' })
       .expect(401);
+    // Anonymous requests cannot be attributed to an account and are not audited.
+    expect(auditCreate).not.toHaveBeenCalled();
+
     await request(app.getHttpServer())
       .patch(`/specimens/${specimenId}/tags/${endemicTagId}`)
       .set('Authorization', `Bearer ${developerToken}`)
@@ -250,7 +253,20 @@ describe('Specimen tags (e2e)', () => {
     expect(attachments).toEqual(attachmentsBefore);
     expect(tags).toEqual(tagsBefore);
     expect(revisionCreate).not.toHaveBeenCalled();
-    expect(auditCreate).not.toHaveBeenCalled();
+    expect(auditCreate).toHaveBeenCalledTimes(1);
+    expect(auditCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        action: 'ACCESS_DENIED',
+        module: 'auth',
+        status: 'DENIED',
+        details: expect.objectContaining({
+          reason: 'ROLE_NOT_PERMITTED',
+          role: 'DEVELOPER',
+          method: 'PATCH',
+          path: `/specimens/${specimenId}/tags/${endemicTagId}`,
+        }),
+      }),
+    });
   });
 
   it('strictly validates IDs, query bounds, and tag bodies', async () => {
