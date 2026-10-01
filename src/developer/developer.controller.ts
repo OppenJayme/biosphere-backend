@@ -19,6 +19,7 @@ import { OnboardCuratorDto } from './dto/onboard-curator.dto';
 import { UpdateCuratorStatusDto } from './dto/update-curator-status.dto';
 import { CreateArAssetDto } from './dto/create-ar-asset.dto';
 import { UpdateArAssetDto } from './dto/update-ar-asset.dto';
+import { ActivateArAssetDto } from './dto/activate-ar-asset.dto';
 import { MAX_AR_ASSET_SIZE_BYTES } from './developer.constants';
 
 @Roles('DEVELOPER')
@@ -85,9 +86,15 @@ export class DeveloperController {
   @Patch('ar-assets/:id/activate')
   activateArAsset(
     @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: ActivateArAssetDto,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.developerService.setArAssetEnabled(id, true, user.id);
+    return this.developerService.setArAssetEnabled(
+      id,
+      true,
+      user.id,
+      dto.authorizationReference,
+    );
   }
 
   @Patch('ar-assets/:id/deactivate')
