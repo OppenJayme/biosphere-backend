@@ -49,13 +49,14 @@ export function normalizePublicSpecimenFields(
   return PUBLIC_SPECIMEN_FIELDS.filter((field) => selected.has(field));
 }
 
-// Reads a stored selection defensively. A null column (rows written outside
-// the app) falls back to every field, the migration default; unknown keys are
-// dropped so a bad value can never widen what the public page shows.
+// Reads a stored selection defensively and fails closed: the column is
+// NOT NULL, but a missing selection (null or not an array) shows no specimen
+// fields, and unknown keys are dropped, so a corrupt value can never widen
+// what the public page shows.
 export function storedPublicSpecimenFields(
   stored: readonly string[] | null | undefined,
 ): PublicSpecimenField[] {
-  if (!stored) return [...PUBLIC_SPECIMEN_FIELDS];
+  if (!Array.isArray(stored)) return [];
   return normalizePublicSpecimenFields(stored.filter(isPublicSpecimenField));
 }
 

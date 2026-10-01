@@ -881,7 +881,7 @@ describe('ExhibitsService', () => {
       expect(page.publicDescription).toBe('A rare specimen.');
     });
 
-    it('never lets an unknown stored key widen the page, and treats a null column as the default', async () => {
+    it('never lets an unknown stored key or a missing selection widen the page', async () => {
       exhibitDelegate.findUnique.mockResolvedValue(
         publicRecord({
           public_specimen_fields: ['genus', 'remarks', 'accessionNumber'],
@@ -891,14 +891,29 @@ describe('ExhibitsService', () => {
       expect(narrowed.taxonomy).toEqual({ genus: 'Bubalus' });
       expect(JSON.stringify(narrowed)).not.toContain('USCBM-MAM-001');
 
+      // Fails closed: a missing selection shows no specimen fields at all.
+      for (const corrupt of [null, undefined, 'commonName']) {
+        exhibitDelegate.findUnique.mockResolvedValue(
+          publicRecord({ public_specimen_fields: corrupt }),
+        );
+        const page = await service.findPublishedBySlug('six-legged-carabao');
+        for (const field of PUBLIC_SPECIMEN_FIELDS) {
+          expect(page).not.toHaveProperty(field);
+        }
+        expect(page).not.toHaveProperty('taxonomy');
+        expect(page.publicDescription).toBe('A rare specimen.');
+      }
+    });
+
+    it('reports a missing selection as unpublishable on curator views', async () => {
       exhibitDelegate.findUnique.mockResolvedValue(
-        publicRecord({ public_specimen_fields: null }),
+        exhibitRecord({ public_specimen_fields: null, exhibit_media: [] }),
       );
-      const fallback = await service.findPublishedBySlug('six-legged-carabao');
-      expect(fallback).toMatchObject({
-        commonName: 'Six-legged Carabao',
-        conservationStatus: 'Domesticated',
-      });
+
+      const exhibit = await service.findOne(EXHIBIT_ID);
+
+      expect(exhibit.publicSpecimenFields).toEqual([]);
+      expect(exhibit.missingForPublish).toContain('identifyingName');
     });
   });
 

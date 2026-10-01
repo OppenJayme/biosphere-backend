@@ -76,8 +76,11 @@ checked against a strict allowlist (`src/exhibit/exhibit-public-fields.ts`):
   or audit data) are not on the list and can never be shown (REQ-4.12-08).
 - The selection is stored in allowlist order, whatever order it was sent in.
   An empty list shows no specimen fields.
-- The migration default is the full list, so existing exhibits keep the page
-  they had until a curator changes it.
+- The column is `NOT NULL`, and its migration default is the full list, so
+  existing exhibits keep the page they had until a curator changes it.
+- It fails closed: if a stored selection is ever missing or not a list, the
+  public page shows no specimen fields, and unknown stored keys are ignored.
+  A bad value can only hide fields, never show more.
 - The selection covers specimen-derived fields only. The exhibit's own content
   (`publicDescription`, `interestingFacts`, `distribution`, `diet`,
   `layoutType`) and its images in `exhibit_media` are not part of it.
