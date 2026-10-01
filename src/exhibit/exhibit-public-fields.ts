@@ -34,18 +34,6 @@ export const TAXONOMY_RANK_FIELDS = [
   'species',
 ] as const satisfies readonly PublicSpecimenField[];
 
-// Exhibit content that must be filled before an exhibit can be published,
-// and that cannot be cleared while it is published. Only the description:
-// interesting facts, distribution, and diet stay optional because they can be
-// unknown or not apply (e.g. diet for a plant), and the public page hides
-// them when empty.
-export const REQUIRED_EXHIBIT_CONTENT = [
-  { key: 'publicDescription', column: 'public_description' },
-] as const;
-
-export type RequiredContentColumn =
-  (typeof REQUIRED_EXHIBIT_CONTENT)[number]['column'];
-
 export function isPublicSpecimenField(
   value: unknown,
 ): value is PublicSpecimenField {
@@ -71,21 +59,134 @@ export function storedPublicSpecimenFields(
   return normalizePublicSpecimenFields(stored.filter(isPublicSpecimenField));
 }
 
-// The exhibit content an exhibit is missing for publishing, by API name.
-export function missingRequiredContent(
-  values: Record<RequiredContentColumn, string | null>,
-): string[] {
-  return REQUIRED_EXHIBIT_CONTENT.filter(
-    ({ column }) => !values[column]?.trim(),
-  ).map(({ key }) => key);
+// Specimen fields that identify the exhibit to a visitor.
+export const IDENTIFYING_FIELDS = [
+  'commonName',
+  'scientificName',
+] as const satisfies readonly PublicSpecimenField[];
+
+// The exhibit's own written content. Every item is optional on its own:
+// a specimen may have no known diet or distribution (e.g. a plant).
+export const EXHIBIT_CONTENT_FIELDS = [
+  { key: 'publicDescription', column: 'public_description' },
+  { key: 'interestingFacts', column: 'interesting_facts' },
+  { key: 'distribution', column: 'distribution' },
+  { key: 'diet', column: 'diet' },
+] as const;
+
+export type ExhibitContentColumn =
+  (typeof EXHIBIT_CONTENT_FIELDS)[number]['column'];
+
+// Why an exhibit cannot be published yet; returned as missingForPublish.
+export enum PublishRequirement {
+  // No common or scientific name is both selected and filled in.
+  IDENTIFYING_NAME = 'identifyingName',
+  // No other selected specimen field and no exhibit content has a value.
+  PUBLIC_INFORMATION = 'publicInformation',
 }
 
-export function assertRequiredContent(
-  values: Record<RequiredContentColumn, string | null>,
+const REQUIREMENT_MESSAGES: Record<PublishRequirement, string> = {
+  [PublishRequirement.IDENTIFYING_NAME]:
+    'show a common or scientific name that has a value',
+  [PublishRequirement.PUBLIC_INFORMATION]:
+    'add at least one piece of public information (a description, interesting facts, distribution, diet, or a selected specimen field with a value)',
+};
+
+export type SpecimenFieldValues = Record<PublicSpecimenField, string | null>;
+
+// The specimen columns behind the allowlisted fields.
+export interface SpecimenFieldSource {
+  common_name: string | null;
+  scientific_name: string | null;
+  collection: { collection_name: string } | null;
+  specimen_taxonomy: {
+    kingdom: string | null;
+    phylum: string | null;
+    class: string | null;
+    order_name: string | null;
+    family: string | null;
+    genus: string | null;
+    species: string | null;
+    habitat: string | null;
+    ecological_role: string | null;
+    conservation_status: string | null;
+  } | null;
+}
+
+export function specimenFieldValues(
+  specimen: SpecimenFieldSource,
+): SpecimenFieldValues {
+  const taxonomy = specimen.specimen_taxonomy;
+  return {
+    commonName: specimen.common_name,
+    scientificName: specimen.scientific_name,
+    collection: specimen.collection?.collection_name ?? null,
+    kingdom: taxonomy?.kingdom ?? null,
+    phylum: taxonomy?.phylum ?? null,
+    class: taxonomy?.class ?? null,
+    order: taxonomy?.order_name ?? null,
+    family: taxonomy?.family ?? null,
+    genus: taxonomy?.genus ?? null,
+    species: taxonomy?.species ?? null,
+    habitat: taxonomy?.habitat ?? null,
+    ecologicalRole: taxonomy?.ecological_role ?? null,
+    conservationStatus: taxonomy?.conservation_status ?? null,
+  };
+}
+
+export function hasPublicValue(value: string | null | undefined): boolean {
+  return Boolean(value?.trim());
+}
+
+export interface PublishReadiness {
+  missing: PublishRequirement[];
+  // Selected fields the specimen has no value for. They are left off the
+  // public page; the curator is warned instead of being blocked.
+  emptySelectedFields: PublicSpecimenField[];
+}
+
+// Minimum publish-readiness rule: an identifying name a visitor can see,
+// plus at least one meaningful piece of public information. Images, AR, and
+// any single content item stay optional.
+export function publishReadiness(input: {
+  selected: readonly PublicSpecimenField[];
+  values: SpecimenFieldValues;
+  content: Record<ExhibitContentColumn, string | null>;
+}): PublishReadiness {
+  const filled = input.selected.filter((field) =>
+    hasPublicValue(input.values[field]),
+  );
+  const isIdentifying = (field: PublicSpecimenField) =>
+    (IDENTIFYING_FIELDS as readonly string[]).includes(field);
+
+  const missing: PublishRequirement[] = [];
+  if (!filled.some(isIdentifying)) {
+    missing.push(PublishRequirement.IDENTIFYING_NAME);
+  }
+  const hasInformation =
+    filled.some((field) => !isIdentifying(field)) ||
+    EXHIBIT_CONTENT_FIELDS.some(({ column }) =>
+      hasPublicValue(input.content[column]),
+    );
+  if (!hasInformation) missing.push(PublishRequirement.PUBLIC_INFORMATION);
+
+  return {
+    missing,
+    emptySelectedFields: input.selected.filter(
+      (field) => !hasPublicValue(input.values[field]),
+    ),
+  };
+}
+
+export function assertPublishReady(
+  readiness: PublishReadiness,
   message: string,
 ): void {
-  const missing = missingRequiredContent(values);
-  if (missing.length > 0) {
-    throw new BadRequestException(`${message} Missing: ${missing.join(', ')}.`);
-  }
+  if (readiness.missing.length === 0) return;
+  const steps = readiness.missing.map(
+    (requirement) => REQUIREMENT_MESSAGES[requirement],
+  );
+  throw new BadRequestException(
+    `${message} To publish, ${steps.join(' and ')}. Missing: ${readiness.missing.join(', ')}.`,
+  );
 }

@@ -1,7 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   PUBLIC_SPECIMEN_FIELDS,
-  REQUIRED_EXHIBIT_CONTENT,
+  PublishRequirement,
   type PublicSpecimenField,
 } from '../exhibit-public-fields';
 import { ExhibitMedia, PublicExhibitMedia } from './exhibit-media.entity';
@@ -71,12 +71,20 @@ export class Exhibit {
   publicSpecimenFields!: PublicSpecimenField[];
 
   @ApiProperty({
-    enum: REQUIRED_EXHIBIT_CONTENT.map(({ key }) => key),
+    enum: PublishRequirement,
     isArray: true,
     description:
-      'Exhibit content still empty; the exhibit can be published only when this is empty',
+      'Why the exhibit cannot be published yet: identifyingName (no common or scientific name is selected and filled in) and/or publicInformation (no other selected specimen field and no exhibit content has a value). Empty when it can be published.',
   })
-  missingForPublish!: string[];
+  missingForPublish!: PublishRequirement[];
+
+  @ApiProperty({
+    enum: PUBLIC_SPECIMEN_FIELDS,
+    isArray: true,
+    description:
+      'Selected specimen fields with no value for this specimen. They are left off the public page; a warning, not a blocker.',
+  })
+  emptySelectedFields!: PublicSpecimenField[];
 
   @ApiProperty({ enum: ExhibitStatus, default: ExhibitStatus.UNPUBLISHED })
   status!: ExhibitStatus;

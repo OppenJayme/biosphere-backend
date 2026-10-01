@@ -563,7 +563,14 @@ describe('ExhibitsService', () => {
         }),
       );
       expect(result.publicSpecimenFields).toEqual([...PUBLIC_SPECIMEN_FIELDS]);
-      expect(result.missingForPublish).toEqual(['publicDescription']);
+      // The fixture specimen has names but no collection or taxonomy, and the
+      // new exhibit has no content yet.
+      expect(result.missingForPublish).toEqual(['publicInformation']);
+      expect(result.emptySelectedFields).toEqual(
+        PUBLIC_SPECIMEN_FIELDS.filter(
+          (field) => field !== 'commonName' && field !== 'scientificName',
+        ),
+      );
     });
 
     it('stores a chosen selection in allowlist order and audits it', async () => {
@@ -649,66 +656,178 @@ describe('ExhibitsService', () => {
       });
     });
 
-    it('refuses to publish without a public description, naming what is missing', async () => {
-      exhibitDelegate.findUnique.mockResolvedValue(
-        exhibitRecord({ ...FILLED_CONTENT, public_description: '   ' }),
-      );
-      specimenDelegate.findUnique.mockResolvedValue(specimenRecord());
+    describe('publish readiness', () => {
+      // A specimen with a collection, so 'collection' can carry information.
+      const withCollection = (overrides: Record<string, unknown> = {}) =>
+        exhibitRecord({
+          specimen: {
+            common_name: 'Six-legged Carabao',
+            scientific_name: 'Bubalus bubalis',
+            accession_number: 'USCBM-MAM-001',
+            collection: { collection_name: 'Mammals' },
+            specimen_taxonomy: null,
+          },
+          ...overrides,
+        });
 
-      await expect(service.publish(EXHIBIT_ID, ACCOUNT_ID)).rejects.toThrow(
-        'Missing: publicDescription.',
-      );
-      expect(exhibitDelegate.update).not.toHaveBeenCalled();
-    });
+      // The exhibit under test; update() merges its changes onto it, like
+      // the database would.
+      let current: Record<string, unknown>;
+      const stage = (record: Record<string, unknown>) => {
+        current = record;
+        exhibitDelegate.findUnique.mockResolvedValue(record);
+      };
 
-    it('keeps the description on a published exhibit but lets a draft clear it', async () => {
-      exhibitDelegate.findUnique.mockResolvedValue(
-        exhibitRecord({ ...FILLED_CONTENT, status: 'PUBLISHED' }),
-      );
-      await expect(
-        service.update(EXHIBIT_ID, { publicDescription: null }, ACCOUNT_ID),
-      ).rejects.toThrow('Missing: publicDescription.');
-      expect(exhibitDelegate.update).not.toHaveBeenCalled();
-
-      exhibitDelegate.findUnique.mockResolvedValue(
-        exhibitRecord(FILLED_CONTENT),
-      );
-      exhibitDelegate.update.mockResolvedValue(
-        exhibitRecord({ ...FILLED_CONTENT, public_description: null }),
-      );
-      await expect(
-        service.update(EXHIBIT_ID, { publicDescription: null }, ACCOUNT_ID),
-      ).resolves.toMatchObject({ missingForPublish: ['publicDescription'] });
-    });
-
-    it('publishes with only a description, and lets a published exhibit clear the optional content', async () => {
-      exhibitDelegate.findUnique.mockResolvedValue(
-        exhibitRecord({ public_description: 'A fern.' }),
-      );
-      specimenDelegate.findUnique.mockResolvedValue(specimenRecord());
-      exhibitDelegate.update.mockResolvedValue(
-        exhibitRecord({ public_description: 'A fern.', status: 'PUBLISHED' }),
-      );
-      await expect(
-        service.publish(EXHIBIT_ID, ACCOUNT_ID),
-      ).resolves.toMatchObject({
-        status: ExhibitStatus.PUBLISHED,
-        missingForPublish: [],
+      beforeEach(() => {
+        specimenDelegate.findUnique.mockResolvedValue(specimenRecord());
+        exhibitDelegate.update.mockImplementation(
+          ({ data }: { data: Record<string, unknown> }) =>
+            Promise.resolve({ ...current, ...data }),
+        );
       });
 
-      exhibitDelegate.findUnique.mockResolvedValue(
-        exhibitRecord({ ...FILLED_CONTENT, status: 'PUBLISHED' }),
-      );
-      exhibitDelegate.update.mockResolvedValue(
-        exhibitRecord({ ...FILLED_CONTENT, status: 'PUBLISHED', diet: null }),
-      );
-      await expect(
-        service.update(
-          EXHIBIT_ID,
-          { diet: null, interestingFacts: null, distribution: null },
-          ACCOUNT_ID,
-        ),
-      ).resolves.toMatchObject({ status: ExhibitStatus.PUBLISHED });
+      it('refuses to publish when no identifying name is shown', async () => {
+        stage(
+          withCollection({
+            ...FILLED_CONTENT,
+            public_specimen_fields: ['collection'],
+          }),
+        );
+
+        await expect(service.publish(EXHIBIT_ID, ACCOUNT_ID)).rejects.toThrow(
+          'To publish, show a common or scientific name that has a value. Missing: identifyingName.',
+        );
+        expect(exhibitDelegate.update).not.toHaveBeenCalled();
+      });
+
+      it('does not count a selected name that has no value', async () => {
+        stage(
+          withCollection({
+            ...FILLED_CONTENT,
+            public_specimen_fields: ['commonName'],
+            specimen: {
+              common_name: '  ',
+              scientific_name: 'Bubalus bubalis',
+              accession_number: null,
+              collection: null,
+              specimen_taxonomy: null,
+            },
+          }),
+        );
+
+        await expect(service.publish(EXHIBIT_ID, ACCOUNT_ID)).rejects.toThrow(
+          'Missing: identifyingName.',
+        );
+      });
+
+      it('refuses to publish a name with no public information', async () => {
+        stage(
+          withCollection({
+            public_specimen_fields: ['commonName', 'scientificName'],
+          }),
+        );
+
+        await expect(service.publish(EXHIBIT_ID, ACCOUNT_ID)).rejects.toThrow(
+          'Missing: publicInformation.',
+        );
+      });
+
+      it('publishes with a name and a single selected specimen field, no content needed', async () => {
+        stage(
+          withCollection({
+            public_specimen_fields: ['commonName', 'collection'],
+          }),
+        );
+
+        await expect(
+          service.publish(EXHIBIT_ID, ACCOUNT_ID),
+        ).resolves.toMatchObject({
+          status: ExhibitStatus.PUBLISHED,
+          missingForPublish: [],
+        });
+      });
+
+      it('publishes with a name and any one content item, e.g. only the diet', async () => {
+        stage(
+          withCollection({
+            public_specimen_fields: ['scientificName'],
+            diet: 'Grass',
+          }),
+        );
+
+        await expect(
+          service.publish(EXHIBIT_ID, ACCOUNT_ID),
+        ).resolves.toMatchObject({ missingForPublish: [] });
+      });
+
+      it('warns about selected fields with no value without blocking publication', async () => {
+        stage(
+          withCollection({
+            public_specimen_fields: ['commonName', 'collection', 'habitat'],
+          }),
+        );
+
+        await expect(
+          service.publish(EXHIBIT_ID, ACCOUNT_ID),
+        ).resolves.toMatchObject({
+          missingForPublish: [],
+          emptySelectedFields: ['habitat'],
+        });
+      });
+
+      it('keeps a published exhibit publishable but lets a draft drop below the rule', async () => {
+        const published = withCollection({
+          ...FILLED_CONTENT,
+          status: 'PUBLISHED',
+          public_specimen_fields: ['commonName', 'collection'],
+        });
+        stage(published);
+
+        // Hiding every name would leave the page without a title.
+        await expect(
+          service.update(
+            EXHIBIT_ID,
+            { publicSpecimenFields: ['collection'] },
+            ACCOUNT_ID,
+          ),
+        ).rejects.toThrow('Missing: identifyingName.');
+        // Clearing all content is fine while a selected field still informs.
+        await expect(
+          service.update(
+            EXHIBIT_ID,
+            {
+              publicDescription: null,
+              interestingFacts: null,
+              distribution: null,
+              diet: null,
+            },
+            ACCOUNT_ID,
+          ),
+        ).resolves.toMatchObject({ status: ExhibitStatus.PUBLISHED });
+        // Removing the last piece of information is not.
+        await expect(
+          service.update(
+            EXHIBIT_ID,
+            {
+              publicDescription: null,
+              interestingFacts: null,
+              distribution: null,
+              diet: null,
+              publicSpecimenFields: ['commonName'],
+            },
+            ACCOUNT_ID,
+          ),
+        ).rejects.toThrow('Missing: publicInformation.');
+
+        stage(withCollection({ public_specimen_fields: ['commonName'] }));
+        await expect(
+          service.update(
+            EXHIBIT_ID,
+            { publicSpecimenFields: ['collection'] },
+            ACCOUNT_ID,
+          ),
+        ).resolves.toMatchObject({ missingForPublish: ['identifyingName'] });
+      });
     });
 
     it('sends only the selected specimen fields on the public page', async () => {

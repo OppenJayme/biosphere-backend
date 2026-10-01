@@ -35,9 +35,11 @@ import {
   PUBLIC_SPECIMEN_FIELDS,
   PublicSpecimenField,
   TAXONOMY_RANK_FIELDS,
-  assertRequiredContent,
-  missingRequiredContent,
+  assertPublishReady,
+  hasPublicValue,
   normalizePublicSpecimenFields,
+  publishReadiness,
+  specimenFieldValues,
   storedPublicSpecimenFields,
 } from './exhibit-public-fields';
 import { ExhibitQrService } from './exhibit-qr.service';
@@ -51,11 +53,32 @@ const PUBLIC_AR_URL_LIFETIME_SECONDS = 900;
 const DEFAULT_QR_SIZE = 1024;
 
 // What curator views need besides the exhibit row itself.
+// The specimen columns behind the allowlisted public fields. Curator views
+// read them too, to report publish readiness and empty selected fields.
+const PUBLIC_FIELD_SPECIMEN_SELECT = {
+  common_name: true,
+  scientific_name: true,
+  collection: { select: { collection_name: true } },
+  specimen_taxonomy: {
+    select: {
+      kingdom: true,
+      phylum: true,
+      class: true,
+      order_name: true,
+      family: true,
+      genus: true,
+      species: true,
+      habitat: true,
+      ecological_role: true,
+      conservation_status: true,
+    },
+  },
+} satisfies Prisma.specimenSelect;
+
 const CURATOR_INCLUDE = {
   specimen: {
     select: {
-      common_name: true,
-      scientific_name: true,
+      ...PUBLIC_FIELD_SPECIMEN_SELECT,
       accession_number: true,
     },
   },
@@ -75,23 +98,7 @@ const PUBLIC_INCLUDE = {
       status: true,
       archived_at: true,
       public_display_allowed: true,
-      common_name: true,
-      scientific_name: true,
-      collection: { select: { collection_name: true } },
-      specimen_taxonomy: {
-        select: {
-          kingdom: true,
-          phylum: true,
-          class: true,
-          order_name: true,
-          family: true,
-          genus: true,
-          species: true,
-          habitat: true,
-          ecological_role: true,
-          conservation_status: true,
-        },
-      },
+      ...PUBLIC_FIELD_SPECIMEN_SELECT,
     },
   },
   ar_asset: {
@@ -279,16 +286,28 @@ export class ExhibitsService {
       if (Object.keys(data).length === 0) {
         throw new BadRequestException('At least one field must be updated.');
       }
-      // A published page must keep its required content.
+      // A published page must stay publishable after the edit.
       if (existing.status === 'PUBLISHED') {
-        assertRequiredContent(
-          {
-            public_description:
-              dto.publicDescription !== undefined
-                ? dto.publicDescription
-                : existing.public_description,
-          },
-          'A published exhibit must keep its public description.',
+        const pick = <T>(next: T | undefined, current: T) =>
+          next !== undefined ? next : current;
+        assertPublishReady(
+          this.readiness(
+            {
+              public_specimen_fields: nextFields,
+              public_description: pick(
+                dto.publicDescription,
+                existing.public_description,
+              ),
+              interesting_facts: pick(
+                dto.interestingFacts,
+                existing.interesting_facts,
+              ),
+              distribution: pick(dto.distribution, existing.distribution),
+              diet: pick(dto.diet, existing.diet),
+            },
+            existing.specimen,
+          ),
+          'This change would leave the published exhibit without enough public information.',
         );
       }
       data.updated_at = new Date();
@@ -399,9 +418,9 @@ export class ExhibitsService {
         where: { id: existing.specimen_id },
       });
       this.assertSpecimenEligible(specimenRecord, existing.specimen_id);
-      assertRequiredContent(
-        existing,
-        'Add a public description before publishing.',
+      assertPublishReady(
+        this.readiness(existing, existing.specimen),
+        'This exhibit is not ready to publish.',
       );
 
       const publishedAt = new Date();
@@ -938,6 +957,34 @@ export class ExhibitsService {
     });
   }
 
+  // Minimum publish-readiness rule (see publishReadiness) for an exhibit
+  // row, optionally with pending changes merged in.
+  private readiness(
+    exhibit: Pick<
+      ExhibitRecord,
+      | 'public_specimen_fields'
+      | 'public_description'
+      | 'interesting_facts'
+      | 'distribution'
+      | 'diet'
+    >,
+    specimen: ExhibitRecord['specimen'],
+  ) {
+    return publishReadiness({
+      selected: storedPublicSpecimenFields(exhibit.public_specimen_fields),
+      values: specimenFieldValues(specimen),
+      content: exhibit,
+    });
+  }
+
+  private readinessFields(item: ExhibitRecord) {
+    const { missing, emptySelectedFields } = this.readiness(
+      item,
+      item.specimen,
+    );
+    return { missingForPublish: missing, emptySelectedFields };
+  }
+
   private toEntity(item: ExhibitRecord, media?: ExhibitMedia[]): Exhibit {
     const arAssetCount = item.ar_asset.length;
     return {
@@ -954,7 +1001,7 @@ export class ExhibitsService {
       publicSpecimenFields: storedPublicSpecimenFields(
         item.public_specimen_fields,
       ),
-      missingForPublish: missingRequiredContent(item),
+      ...this.readinessFields(item),
       status: item.status as ExhibitStatus,
       arEnabled: item.ar_asset.some((asset) => asset.is_enabled),
       arAssetCount,
@@ -976,7 +1023,6 @@ export class ExhibitsService {
   private async toPublicEntity(
     item: PublicExhibitRecord,
   ): Promise<PublicExhibitResponse> {
-    const taxonomy = item.specimen.specimen_taxonomy;
     const [media, models] = await Promise.all([
       Promise.all(
         item.exhibit_media.map((entry) => this.toPublicMediaEntity(entry)),
@@ -991,30 +1037,20 @@ export class ExhibitsService {
       ),
     ]);
 
-    // Only the specimen fields the curator selected are sent (REQ-4.12-03);
-    // a hidden field is left out of the response, not just blanked.
+    // Only the specimen fields the curator selected are sent (REQ-4.12-03),
+    // and only when they have a value: a hidden or empty field is left out
+    // of the response, never shown blank.
     const shown = new Set(
       storedPublicSpecimenFields(item.public_specimen_fields),
     );
-    const specimenValues: Record<PublicSpecimenField, string | null> = {
-      commonName: item.specimen.common_name,
-      scientificName: item.specimen.scientific_name,
-      collection: item.specimen.collection?.collection_name ?? null,
-      kingdom: taxonomy?.kingdom ?? null,
-      phylum: taxonomy?.phylum ?? null,
-      class: taxonomy?.class ?? null,
-      order: taxonomy?.order_name ?? null,
-      family: taxonomy?.family ?? null,
-      genus: taxonomy?.genus ?? null,
-      species: taxonomy?.species ?? null,
-      habitat: taxonomy?.habitat ?? null,
-      ecologicalRole: taxonomy?.ecological_role ?? null,
-      conservationStatus: taxonomy?.conservation_status ?? null,
-    };
+    const specimenValues = specimenFieldValues(item.specimen);
     const pick = (fields: readonly PublicSpecimenField[]) =>
       Object.fromEntries(
         fields
-          .filter((field) => shown.has(field))
+          .filter(
+            (field) =>
+              shown.has(field) && hasPublicValue(specimenValues[field]),
+          )
           .map((field) => [field, specimenValues[field]]),
       );
     const taxonomyRanks = pick(TAXONOMY_RANK_FIELDS);

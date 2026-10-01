@@ -316,23 +316,12 @@ describe('Exhibits (e2e)', () => {
         .get(`/exhibits/public/${exhibitRecord.public_slug as string}`)
         .expect(200);
 
+      // Every field is selected by default, but this specimen has no
+      // collection or taxonomy, so those are left out rather than sent empty.
       expect(response.body).toEqual({
         publicSlug: 'six-legged-carabao',
         commonName: 'Six-legged Carabao',
         scientificName: 'Bubalus bubalis',
-        collection: null,
-        taxonomy: {
-          kingdom: null,
-          phylum: null,
-          class: null,
-          order: null,
-          family: null,
-          genus: null,
-          species: null,
-        },
-        habitat: null,
-        ecologicalRole: null,
-        conservationStatus: null,
         interestingFacts: null,
         publicDescription: null,
         distribution: null,
@@ -959,7 +948,13 @@ describe('Exhibits (e2e)', () => {
         .expect(200);
 
       expect(response.body.publicSpecimenFields).toEqual(allPublicFields);
-      expect(response.body.missingForPublish).toEqual(['publicDescription']);
+      // Names are shown, but nothing else has a value yet.
+      expect(response.body.missingForPublish).toEqual(['publicInformation']);
+      expect(response.body.emptySelectedFields).toEqual(
+        allPublicFields.filter(
+          (field) => field !== 'commonName' && field !== 'scientificName',
+        ),
+      );
     });
 
     it('stores a selection on create in allowlist order', async () => {
@@ -1008,6 +1003,8 @@ describe('Exhibits (e2e)', () => {
         'scientificName',
         'family',
       ]);
+      // This specimen has no family recorded: a warning, not a blocker.
+      expect(updated.body.emptySelectedFields).toEqual(['family']);
       expect(auditDelegate.create).toHaveBeenCalledWith({
         data: expect.objectContaining({
           action: 'UPDATE_EXHIBIT',
@@ -1027,7 +1024,6 @@ describe('Exhibits (e2e)', () => {
       expect(page.body).toEqual({
         publicSlug: 'six-legged-carabao',
         scientificName: 'Bubalus bubalis',
-        taxonomy: { family: null },
         interestingFacts: 'It has six legs.',
         publicDescription: 'A rare specimen.',
         distribution: 'Philippines',
@@ -1038,29 +1034,31 @@ describe('Exhibits (e2e)', () => {
       });
     });
 
-    it('refuses to publish without a public description and names what is missing', async () => {
+    it('refuses to publish a name with no public information, naming what is missing', async () => {
       const response = await request(app.getHttpServer())
         .patch(`/exhibits/${exhibitId}/publish`)
         .set('Authorization', auth())
         .expect(400);
 
-      expect(response.body.message).toContain('Missing: publicDescription.');
+      expect(response.body.message).toContain('Missing: publicInformation.');
       expect(exhibitRecord.status).toBe('UNPUBLISHED');
     });
 
-    it('does not let a published exhibit lose its description', async () => {
-      Object.assign(exhibitRecord, filledContent, { status: 'PUBLISHED' });
+    it('refuses to publish when no identifying name is shown', async () => {
+      Object.assign(exhibitRecord, filledContent, {
+        public_specimen_fields: ['habitat'],
+      });
 
-      await request(app.getHttpServer())
-        .patch(`/exhibits/${exhibitId}`)
+      const response = await request(app.getHttpServer())
+        .patch(`/exhibits/${exhibitId}/publish`)
         .set('Authorization', auth())
-        .send({ publicDescription: null })
         .expect(400);
-      expect(exhibitDelegate.update).not.toHaveBeenCalled();
+
+      expect(response.body.message).toContain('Missing: identifyingName.');
     });
 
-    it('publishes with only a description, since facts, distribution, and diet are optional', async () => {
-      exhibitRecord.public_description = 'A fern.';
+    it('publishes with a name and a single content item, e.g. only the diet', async () => {
+      exhibitRecord.diet = 'Grass';
 
       const response = await request(app.getHttpServer())
         .patch(`/exhibits/${exhibitId}/publish`)
@@ -1070,12 +1068,35 @@ describe('Exhibits (e2e)', () => {
         status: 'PUBLISHED',
         missingForPublish: [],
       });
+    });
 
-      // A published exhibit can still clear the optional content.
+    it('keeps a published exhibit publishable', async () => {
+      Object.assign(exhibitRecord, filledContent, { status: 'PUBLISHED' });
+
+      // Hiding both names would leave the page without a title.
       await request(app.getHttpServer())
         .patch(`/exhibits/${exhibitId}`)
         .set('Authorization', auth())
-        .send({ diet: null, interestingFacts: null })
+        .send({ publicSpecimenFields: ['habitat'] })
+        .expect(400);
+      // Removing every piece of public information is not allowed either.
+      await request(app.getHttpServer())
+        .patch(`/exhibits/${exhibitId}`)
+        .set('Authorization', auth())
+        .send({
+          publicDescription: null,
+          interestingFacts: null,
+          distribution: null,
+          diet: null,
+        })
+        .expect(400);
+      expect(exhibitDelegate.update).not.toHaveBeenCalled();
+
+      // Clearing optional content is fine while something else remains.
+      await request(app.getHttpServer())
+        .patch(`/exhibits/${exhibitId}`)
+        .set('Authorization', auth())
+        .send({ diet: null, interestingFacts: null, distribution: null })
         .expect(200);
     });
   });
