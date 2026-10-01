@@ -4,6 +4,7 @@ import {
   IsBoolean,
   IsEnum,
   IsInt,
+  IsISO8601,
   IsNotEmpty,
   IsOptional,
   IsString,
@@ -22,6 +23,8 @@ export enum SpecimenSortField {
   SCIENTIFIC_NAME = 'scientificName',
   COMMON_NAME = 'commonName',
   STATUS = 'status',
+  SPECIMEN_CATEGORY = 'specimenCategory',
+  FAMILY = 'family',
 }
 
 export enum SortDirection {
@@ -39,7 +42,7 @@ export class SearchSpecimensQueryDto {
   @ApiPropertyOptional({
     maxLength: 100,
     description:
-      'Search identifiers, names, category, classification, remarks, or collection name',
+      'Search identifiers, names, category, classification, remarks, collection name, taxonomy, collector, or tag names',
   })
   @IsOptional()
   @Transform(trimString)
@@ -76,6 +79,153 @@ export class SearchSpecimensQueryDto {
   @Transform(parseBooleanQuery)
   @IsBoolean()
   publicDisplay?: boolean;
+
+  @ApiPropertyOptional({
+    maxLength: 100,
+    description: 'Exact classification status, ignoring case',
+  })
+  @IsOptional()
+  @Transform(trimString)
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(100)
+  classificationStatus?: string;
+
+  @ApiPropertyOptional({
+    maxLength: 100,
+    description: 'Exact taxonomic kingdom, ignoring case',
+  })
+  @IsOptional()
+  @Transform(trimString)
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(100)
+  kingdom?: string;
+
+  @ApiPropertyOptional({
+    maxLength: 100,
+    description: 'Exact taxonomic phylum, ignoring case',
+  })
+  @IsOptional()
+  @Transform(trimString)
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(100)
+  phylum?: string;
+
+  @ApiPropertyOptional({
+    maxLength: 100,
+    description: 'Exact taxonomic class, ignoring case',
+  })
+  @IsOptional()
+  @Transform(trimString)
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(100)
+  taxonClass?: string;
+
+  @ApiPropertyOptional({
+    maxLength: 100,
+    description: 'Exact taxonomic order, ignoring case',
+  })
+  @IsOptional()
+  @Transform(trimString)
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(100)
+  taxonOrder?: string;
+
+  @ApiPropertyOptional({
+    maxLength: 100,
+    description: 'Exact taxonomic family, ignoring case',
+  })
+  @IsOptional()
+  @Transform(trimString)
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(100)
+  family?: string;
+
+  @ApiPropertyOptional({
+    maxLength: 100,
+    description: 'Exact taxonomic genus, ignoring case',
+  })
+  @IsOptional()
+  @Transform(trimString)
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(100)
+  genus?: string;
+
+  @ApiPropertyOptional({
+    maxLength: 100,
+    description: 'Exact taxonomic species, ignoring case',
+  })
+  @IsOptional()
+  @Transform(trimString)
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(100)
+  species?: string;
+
+  @ApiPropertyOptional({
+    maxLength: 100,
+    description: 'Exact tag name, ignoring case',
+  })
+  @IsOptional()
+  @Transform(trimString)
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(100)
+  tag?: string;
+
+  @ApiPropertyOptional({
+    maxLength: 100,
+    description:
+      'Only specimens with an active lot in this condition, ignoring case',
+  })
+  @IsOptional()
+  @Transform(trimString)
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(100)
+  conditionClass?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Only specimens with an active lot in this storage unit (and, by default, its descendants)',
+  })
+  @IsOptional()
+  @IsUUID()
+  storageUnitId?: string;
+
+  @ApiPropertyOptional({
+    type: Boolean,
+    default: true,
+    description:
+      'Whether storageUnitId also matches lots in child units, e.g. every drawer of a cabinet',
+  })
+  @IsOptional()
+  @Transform(parseBooleanQuery)
+  @IsBoolean()
+  includeDescendantUnits = true;
+
+  @ApiPropertyOptional({
+    description: 'Date added on or after this ISO 8601 date or timestamp',
+    example: '2026-01-01',
+  })
+  @IsOptional()
+  @IsISO8601({ strict: true })
+  createdFrom?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Date added on or before this ISO 8601 timestamp; a plain date includes that whole day (UTC)',
+    example: '2026-12-31',
+  })
+  @IsOptional()
+  @IsISO8601({ strict: true })
+  createdTo?: string;
 
   @ApiPropertyOptional({ default: 1, minimum: 1, maximum: 1000000 })
   @IsOptional()
