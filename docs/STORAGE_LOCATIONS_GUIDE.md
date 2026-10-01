@@ -16,7 +16,7 @@ new database structures.
 | `size`           | `size`                    | Optional curator-managed size description |
 | `storageType`    | `storage_type`            | Curator-managed storage classification    |
 | `holdsSpecimens` | `holds_specimens`         | Whether the unit is intended to hold lots |
-| `capacity`       | `capacity`                | Optional positive capacity                |
+| `capacity`       | `capacity`                | Optional positive number of specimens held directly in the unit (provisional; see `SPECIMEN_LOTS_GUIDE.md`) |
 | `archivedAt`     | `archived_at`             | Archive timestamp, or `null` while active |
 | `createdAt`      | `created_at`              | Creation timestamp                        |
 | `updatedAt`      | `updated_at`              | Last application-managed update timestamp |
@@ -89,14 +89,22 @@ the same assignment rule enforced by the specimen-lot service.
 - `GET /storage-locations/search?page=1&limit=25`
 - `GET /storage-locations/:id`
 - `GET /storage-locations/:id/path`
+- `GET /storage-locations/:id/capacity-check?additionalQuantity=0`
 - `GET /storage-locations/:id/children`
 - `GET /storage-locations/:id/movements`
 - `GET /storage-locations/:id/inventory?page=1&limit=50`
+- `GET /storage-locations/:id/lot-movements?page=1&limit=50&transactionType=MOVEMENT`
 - `PATCH /storage-locations/:id`
 - `PATCH /storage-locations/:id/move`
 - `PATCH /storage-locations/:id/archive`
 
 All endpoints require an active BioSphere account with the `CURATOR` role.
+
+`capacity-check` returns the unit's current active lot quantity, the projected
+quantity after adding `additionalQuantity`, and `exceedsCapacity`. It lets the
+curator be warned before assigning or moving specimens (REQ-4.6-11); lot
+operations themselves also return a `capacityWarning` (see the specimen lot
+guide).
 
 ## Search and selection
 

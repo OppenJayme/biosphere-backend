@@ -7,6 +7,14 @@ import {
   SpecimenGender,
   SpecimenStatus,
 } from '../specimens/entities/specimen.entity';
+import { ListLotHistoryQueryDto } from '../specimen-lots/dto/list-lot-history-query.dto';
+import { SpecimenLotHistoryPage } from '../specimen-lots/entities/specimen-lot-history.entity';
+import {
+  LOT_HISTORY_INCLUDE,
+  LOT_HISTORY_ORDER_BY,
+  toLotHistoryEntry,
+  touchingLots,
+} from '../specimen-lots/lot-history';
 import { ListStorageInventoryQueryDto } from './dto/list-storage-inventory-query.dto';
 import {
   StorageInventoryItem,
@@ -66,6 +74,46 @@ export class StorageInventoryService {
       totalQuantity: inventoryTotals._sum.quantity ?? 0,
       page: query.page,
       limit: query.limit,
+    };
+  }
+
+  /**
+   * Lot transactions that moved quantity into or out of this unit, or
+   * changed lots held in it (REQ-4.6-09). Only this unit's own lots count;
+   * child units have their own feed.
+   */
+  async findLotMovements(
+    storageUnitId: string,
+    query: ListLotHistoryQueryDto,
+  ): Promise<SpecimenLotHistoryPage> {
+    const where: Prisma.specimen_lot_transactionWhereInput = {
+      ...touchingLots({ storage_unit_id: storageUnitId }),
+      transaction_type: query.transactionType,
+    };
+    const [storageUnit, transactions, total] = await this.prisma.$transaction([
+      this.prisma.storage_unit.findUnique({
+        where: { id: storageUnitId },
+        select: { id: true },
+      }),
+      this.prisma.specimen_lot_transaction.findMany({
+        where,
+        include: LOT_HISTORY_INCLUDE,
+        orderBy: LOT_HISTORY_ORDER_BY,
+        skip: (query.page - 1) * query.limit,
+        take: query.limit,
+      }),
+      this.prisma.specimen_lot_transaction.count({ where }),
+    ]);
+
+    if (!storageUnit) {
+      throw new NotFoundException(`Storage unit ${storageUnitId} not found`);
+    }
+
+    return {
+      items: transactions.map((transaction) => toLotHistoryEntry(transaction)),
+      page: query.page,
+      limit: query.limit,
+      total,
     };
   }
 
