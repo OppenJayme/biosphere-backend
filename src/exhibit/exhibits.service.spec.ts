@@ -563,12 +563,7 @@ describe('ExhibitsService', () => {
         }),
       );
       expect(result.publicSpecimenFields).toEqual([...PUBLIC_SPECIMEN_FIELDS]);
-      expect(result.missingForPublish).toEqual([
-        'publicDescription',
-        'interestingFacts',
-        'distribution',
-        'diet',
-      ]);
+      expect(result.missingForPublish).toEqual(['publicDescription']);
     });
 
     it('stores a chosen selection in allowlist order and audits it', async () => {
@@ -654,36 +649,66 @@ describe('ExhibitsService', () => {
       });
     });
 
-    it('refuses to publish until the exhibit content is filled, naming what is missing', async () => {
+    it('refuses to publish without a public description, naming what is missing', async () => {
       exhibitDelegate.findUnique.mockResolvedValue(
-        exhibitRecord({ ...FILLED_CONTENT, diet: '   ', distribution: null }),
+        exhibitRecord({ ...FILLED_CONTENT, public_description: '   ' }),
       );
       specimenDelegate.findUnique.mockResolvedValue(specimenRecord());
 
       await expect(service.publish(EXHIBIT_ID, ACCOUNT_ID)).rejects.toThrow(
-        'Missing: distribution, diet.',
+        'Missing: publicDescription.',
       );
       expect(exhibitDelegate.update).not.toHaveBeenCalled();
     });
 
-    it('keeps required content on a published exhibit but lets a draft clear it', async () => {
+    it('keeps the description on a published exhibit but lets a draft clear it', async () => {
       exhibitDelegate.findUnique.mockResolvedValue(
         exhibitRecord({ ...FILLED_CONTENT, status: 'PUBLISHED' }),
       );
       await expect(
-        service.update(EXHIBIT_ID, { diet: null }, ACCOUNT_ID),
-      ).rejects.toThrow('Missing: diet.');
+        service.update(EXHIBIT_ID, { publicDescription: null }, ACCOUNT_ID),
+      ).rejects.toThrow('Missing: publicDescription.');
       expect(exhibitDelegate.update).not.toHaveBeenCalled();
 
       exhibitDelegate.findUnique.mockResolvedValue(
         exhibitRecord(FILLED_CONTENT),
       );
       exhibitDelegate.update.mockResolvedValue(
-        exhibitRecord({ ...FILLED_CONTENT, diet: null }),
+        exhibitRecord({ ...FILLED_CONTENT, public_description: null }),
       );
       await expect(
-        service.update(EXHIBIT_ID, { diet: null }, ACCOUNT_ID),
-      ).resolves.toMatchObject({ missingForPublish: ['diet'] });
+        service.update(EXHIBIT_ID, { publicDescription: null }, ACCOUNT_ID),
+      ).resolves.toMatchObject({ missingForPublish: ['publicDescription'] });
+    });
+
+    it('publishes with only a description, and lets a published exhibit clear the optional content', async () => {
+      exhibitDelegate.findUnique.mockResolvedValue(
+        exhibitRecord({ public_description: 'A fern.' }),
+      );
+      specimenDelegate.findUnique.mockResolvedValue(specimenRecord());
+      exhibitDelegate.update.mockResolvedValue(
+        exhibitRecord({ public_description: 'A fern.', status: 'PUBLISHED' }),
+      );
+      await expect(
+        service.publish(EXHIBIT_ID, ACCOUNT_ID),
+      ).resolves.toMatchObject({
+        status: ExhibitStatus.PUBLISHED,
+        missingForPublish: [],
+      });
+
+      exhibitDelegate.findUnique.mockResolvedValue(
+        exhibitRecord({ ...FILLED_CONTENT, status: 'PUBLISHED' }),
+      );
+      exhibitDelegate.update.mockResolvedValue(
+        exhibitRecord({ ...FILLED_CONTENT, status: 'PUBLISHED', diet: null }),
+      );
+      await expect(
+        service.update(
+          EXHIBIT_ID,
+          { diet: null, interestingFacts: null, distribution: null },
+          ACCOUNT_ID,
+        ),
+      ).resolves.toMatchObject({ status: ExhibitStatus.PUBLISHED });
     });
 
     it('sends only the selected specimen fields on the public page', async () => {

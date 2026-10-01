@@ -35,12 +35,12 @@ export const TAXONOMY_RANK_FIELDS = [
 ] as const satisfies readonly PublicSpecimenField[];
 
 // Exhibit content that must be filled before an exhibit can be published,
-// and that cannot be cleared while it is published.
+// and that cannot be cleared while it is published. Only the description:
+// interesting facts, distribution, and diet stay optional because they can be
+// unknown or not apply (e.g. diet for a plant), and the public page hides
+// them when empty.
 export const REQUIRED_EXHIBIT_CONTENT = [
   { key: 'publicDescription', column: 'public_description' },
-  { key: 'interestingFacts', column: 'interesting_facts' },
-  { key: 'distribution', column: 'distribution' },
-  { key: 'diet', column: 'diet' },
 ] as const;
 
 export type RequiredContentColumn =

@@ -959,12 +959,7 @@ describe('Exhibits (e2e)', () => {
         .expect(200);
 
       expect(response.body.publicSpecimenFields).toEqual(allPublicFields);
-      expect(response.body.missingForPublish).toEqual([
-        'publicDescription',
-        'interestingFacts',
-        'distribution',
-        'diet',
-      ]);
+      expect(response.body.missingForPublish).toEqual(['publicDescription']);
     });
 
     it('stores a selection on create in allowlist order', async () => {
@@ -1043,27 +1038,45 @@ describe('Exhibits (e2e)', () => {
       });
     });
 
-    it('refuses to publish without the exhibit content and names what is missing', async () => {
+    it('refuses to publish without a public description and names what is missing', async () => {
       const response = await request(app.getHttpServer())
         .patch(`/exhibits/${exhibitId}/publish`)
         .set('Authorization', auth())
         .expect(400);
 
-      expect(response.body.message).toContain(
-        'Missing: publicDescription, interestingFacts, distribution, diet.',
-      );
+      expect(response.body.message).toContain('Missing: publicDescription.');
       expect(exhibitRecord.status).toBe('UNPUBLISHED');
     });
 
-    it('does not let a published exhibit lose required content', async () => {
+    it('does not let a published exhibit lose its description', async () => {
       Object.assign(exhibitRecord, filledContent, { status: 'PUBLISHED' });
 
       await request(app.getHttpServer())
         .patch(`/exhibits/${exhibitId}`)
         .set('Authorization', auth())
-        .send({ distribution: null })
+        .send({ publicDescription: null })
         .expect(400);
       expect(exhibitDelegate.update).not.toHaveBeenCalled();
+    });
+
+    it('publishes with only a description, since facts, distribution, and diet are optional', async () => {
+      exhibitRecord.public_description = 'A fern.';
+
+      const response = await request(app.getHttpServer())
+        .patch(`/exhibits/${exhibitId}/publish`)
+        .set('Authorization', auth())
+        .expect(200);
+      expect(response.body).toMatchObject({
+        status: 'PUBLISHED',
+        missingForPublish: [],
+      });
+
+      // A published exhibit can still clear the optional content.
+      await request(app.getHttpServer())
+        .patch(`/exhibits/${exhibitId}`)
+        .set('Authorization', auth())
+        .send({ diet: null, interestingFacts: null })
+        .expect(200);
     });
   });
 });

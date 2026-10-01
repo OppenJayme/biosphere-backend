@@ -29,7 +29,7 @@ upload AR assets.
 - `PATCH /exhibits/:id`: edit `publicDescription`, `interestingFacts`,
   `distribution`, `diet`, `layoutType`, and `publicSpecimenFields`. The public
   URL never changes here (REQ-4.12-10). A published exhibit cannot clear its
-  description, interesting facts, distribution, or diet (400).
+  public description (400).
 - `PATCH /exhibits/:id/replace-url` `{ publicSlug }`: intentional page
   replacement. QR codes printed for the old URL stop working and show the
   unavailable state. Audited with both slugs. A retired slug stays reserved,
@@ -56,8 +56,9 @@ records `changedFields` and, when the selection changed,
 into the audit log.
 
 Curator responses include `publicSpecimenFields` (the selection, in display
-order) and `missingForPublish` (the required content still empty, e.g.
-`["diet"]`), so the frontend can show the field toggles and disable Publish.
+order) and `missingForPublish` (the required content still empty, i.e.
+`["publicDescription"]` or `[]`), so the frontend can show the field toggles
+and disable Publish.
 
 ## Public specimen fields (REQ-4.12-03)
 
@@ -81,8 +82,10 @@ checked against a strict allowlist (`src/exhibit/exhibit-public-fields.ts`):
   `layoutType`) and its images in `exhibit_media` are not part of it.
 
 **Required content.** `publish` returns 400, naming what is missing, until
-`publicDescription`, `interestingFacts`, `distribution`, and `diet` are all
-filled. A published exhibit cannot clear any of them.
+`publicDescription` is filled, and a published exhibit cannot clear it.
+`interestingFacts`, `distribution`, and `diet` are optional, because they can
+be unknown or not apply (e.g. diet for a plant); the public page hides them
+when empty.
 
 ## Lifecycle
 

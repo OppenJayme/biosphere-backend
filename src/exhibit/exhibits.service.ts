@@ -287,17 +287,8 @@ export class ExhibitsService {
               dto.publicDescription !== undefined
                 ? dto.publicDescription
                 : existing.public_description,
-            interesting_facts:
-              dto.interestingFacts !== undefined
-                ? dto.interestingFacts
-                : existing.interesting_facts,
-            distribution:
-              dto.distribution !== undefined
-                ? dto.distribution
-                : existing.distribution,
-            diet: dto.diet !== undefined ? dto.diet : existing.diet,
           },
-          'A published exhibit must keep its description, interesting facts, distribution, and diet.',
+          'A published exhibit must keep its public description.',
         );
       }
       data.updated_at = new Date();
@@ -410,7 +401,7 @@ export class ExhibitsService {
       this.assertSpecimenEligible(specimenRecord, existing.specimen_id);
       assertRequiredContent(
         existing,
-        'Add the description, interesting facts, distribution, and diet before publishing.',
+        'Add a public description before publishing.',
       );
 
       const publishedAt = new Date();
