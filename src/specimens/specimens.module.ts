@@ -1,6 +1,7 @@
 // src/specimens/specimens.module.ts
 import { Module } from '@nestjs/common';
 import { PrismaModule } from '../prisma/prisma.module';
+import { SpecimenLotsModule } from '../specimen-lots/specimen-lots.module';
 import { SpecimenProvenanceController } from './specimen-provenance.controller';
 import { SpecimenProvenanceService } from './specimen-provenance.service';
 import { SpecimenMediaController } from './specimen-media.controller';
@@ -24,7 +25,7 @@ import { SpecimenDuplicatesController } from './specimen-duplicates.controller';
 import { SpecimenDuplicatesService } from './specimen-duplicates.service';
 
 @Module({
-  imports: [PrismaModule],
+  imports: [PrismaModule, SpecimenLotsModule],
   controllers: [
     SpecimenDetailsController,
     SpecimensController,

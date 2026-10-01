@@ -16,7 +16,9 @@ import {
   SearchStorageLocationsQueryDto,
   StorageUnitLifecycleFilter,
 } from './dto/search-storage-locations-query.dto';
+import { StorageCapacityCheckQueryDto } from './dto/storage-capacity-check-query.dto';
 import { UpdateStorageUnitDto } from './dto/update-storage-unit.dto';
+import { StorageCapacityCheck } from './entities/storage-capacity.entity';
 import { StorageMovement } from './entities/storage-movement.entity';
 import { StorageOccupancySummary } from './entities/storage-occupancy-summary.entity';
 import { StorageUnit, StorageUnitPage } from './entities/storage-unit.entity';
@@ -213,6 +215,30 @@ export class StorageLocationsService {
         alertCount: overCapacity ? 1 : 0,
       };
     });
+  }
+
+  async checkCapacity(
+    id: string,
+    query: StorageCapacityCheckQueryDto,
+  ): Promise<StorageCapacityCheck> {
+    const unit = await this.findOneOrThrow(id);
+    const occupancy = await this.prisma.specimen_lot.aggregate({
+      where: { storage_unit_id: id, is_active: true },
+      _sum: { quantity: true },
+    });
+    const occupiedQuantity = occupancy._sum.quantity ?? 0;
+    const projectedQuantity = occupiedQuantity + query.additionalQuantity;
+
+    return {
+      storageUnitId: unit.id,
+      storageUnitLabel: unit.label,
+      capacity: unit.capacity,
+      occupiedQuantity,
+      additionalQuantity: query.additionalQuantity,
+      projectedQuantity,
+      exceedsCapacity:
+        unit.capacity !== null && projectedQuantity > unit.capacity,
+    };
   }
 
   async findMovementHistory(id: string): Promise<StorageMovement[]> {

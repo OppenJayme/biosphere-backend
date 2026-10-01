@@ -2,6 +2,10 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageUnit } from '../storage-locations/entities/storage-unit.entity';
+import {
+  resolveStorageLocations,
+  unitOnlyLocation,
+} from '../storage-locations/storage-location-paths';
 import { SpecimenLot } from '../specimen-lots/entities/specimen-lot.entity';
 import { MuseumCollection } from './entities/collection.entity';
 import {
@@ -53,9 +57,16 @@ export class SpecimenDetailsService {
       throw new NotFoundException(`Specimen ${specimenId} not found`);
     }
 
+    const locations = await resolveStorageLocations(
+      this.prisma,
+      record.specimen_lot.map((lot) => lot.storage_unit_id),
+    );
     const activeLots: SpecimenDetailLot[] = record.specimen_lot.map((lot) => ({
       ...this.toLot(lot),
       storageUnit: this.toStorageUnit(lot.storage_unit),
+      storageLocation:
+        locations.get(lot.storage_unit_id) ??
+        unitOnlyLocation(lot.storage_unit),
     }));
 
     return {
