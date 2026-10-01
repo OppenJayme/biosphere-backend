@@ -27,13 +27,36 @@ import {
 } from './dto/create-ar-asset.dto';
 import { UpdateArAssetDto } from './dto/update-ar-asset.dto';
 import { CuratorAccountEntity } from './entities/curator-account.entity';
-import { ArAssetEntity } from './entities/ar-asset.entity';
+import { ArAssetEntity, ArExhibitEntity } from './entities/ar-asset.entity';
 import {
   AR_ASSET_STORAGE_BUCKET,
   MAX_AR_ASSET_SIZE_BYTES,
 } from './developer.constants';
 
 type AuditStatus = 'SUCCESS' | 'FAILED' | 'DENIED';
+
+// An AR-deployable exhibit: it is not archived and its specimen is not
+// archived, still Cataloged and approved for public display, the same rule
+// the curator's exhibit module applies to an exhibit's specimen (BR-20).
+// This is eligibility only, not AR selection: which deployable exhibits get
+// AR is the curator's decision, handed to the developer outside BioSphere
+// (REQ-4.13-02). The curator then turns AR on or off for the exhibit.
+const DEPLOYABLE_EXHIBIT: Prisma.exhibitWhereInput = {
+  archived_at: null,
+  specimen: {
+    status: 'CATALOGED',
+    public_display_allowed: true,
+    archived_at: null,
+  },
+};
+
+// The exhibit fields isDeployable needs.
+const DEPLOYABILITY_SELECT = {
+  archived_at: true,
+  specimen: {
+    select: { status: true, public_display_allowed: true, archived_at: true },
+  },
+} satisfies Prisma.exhibitSelect;
 
 @Injectable()
 export class DeveloperService {
@@ -212,12 +235,52 @@ export class DeveloperService {
   // AR asset deployment — REQ-4.2-04, REQ-4.2-05
   // ===========================================================
 
+  // Exhibits the developer can pick when deploying an AR asset (see
+  // DEPLOYABLE_EXHIBIT). Exhibits that are no longer deployable, e.g.
+  // archived, are still listed while they hold assets, so those assets can
+  // be deactivated, removed, or moved; the service rejects activating or
+  // replacing them in place. Only the exhibit's public identity is returned
+  // (REQ-4.2-07/08).
+  async listArExhibits(): Promise<ArExhibitEntity[]> {
+    const exhibits = await this.prisma.exhibit.findMany({
+      where: { OR: [DEPLOYABLE_EXHIBIT, { ar_asset: { some: {} } }] },
+      select: {
+        id: true,
+        public_slug: true,
+        status: true,
+        archived_at: true,
+        specimen: {
+          select: {
+            common_name: true,
+            scientific_name: true,
+            status: true,
+            public_display_allowed: true,
+            archived_at: true,
+          },
+        },
+        ar_asset: { orderBy: { id: 'asc' } },
+      },
+      orderBy: { created_at: 'desc' },
+    });
+
+    return exhibits.map((item) => ({
+      id: item.id,
+      publicSlug: item.public_slug,
+      status: item.status,
+      archived: item.archived_at !== null,
+      deployable: this.isDeployable(item),
+      commonName: item.specimen.common_name,
+      scientificName: item.specimen.scientific_name,
+      assets: item.ar_asset.map((asset) => this.toArAssetEntity(asset)),
+    }));
+  }
+
   async createArAsset(
     file: Express.Multer.File,
     dto: CreateArAssetDto,
     actingDeveloperId: string,
   ): Promise<ArAssetEntity> {
-    await this.assertExhibitExists(dto.exhibitId);
+    await this.assertExhibitDeployable(dto.exhibitId);
     this.validateArAssetFile(file, dto.modelFormat);
 
     const storagePath = await this.storageService.upload(
@@ -276,7 +339,12 @@ export class DeveloperService {
     const existing = await this.findArAssetOrThrow(id);
 
     if (dto.exhibitId) {
-      await this.assertExhibitExists(dto.exhibitId);
+      await this.assertExhibitDeployable(dto.exhibitId);
+    } else if (file || dto.isEnabled) {
+      await this.assertCurrentExhibitDeployable(
+        existing,
+        file ? 'replaced' : 'activated',
+      );
     }
 
     const updateData: Prisma.ar_assetUncheckedUpdateInput = {};
@@ -367,7 +435,11 @@ export class DeveloperService {
     isEnabled: boolean,
     actingDeveloperId: string,
   ): Promise<ArAssetEntity> {
-    await this.findArAssetOrThrow(id);
+    const existing = await this.findArAssetOrThrow(id);
+
+    if (isEnabled) {
+      await this.assertCurrentExhibitDeployable(existing, 'activated');
+    }
 
     let updated: ar_asset;
 
@@ -450,10 +522,12 @@ export class DeveloperService {
     return asset;
   }
 
-  private async assertExhibitExists(exhibitId: string): Promise<void> {
+  // New assets, and assets moved to another exhibit, may only target a
+  // deployable exhibit (REQ-4.13-03).
+  private async assertExhibitDeployable(exhibitId: string): Promise<void> {
     const exhibit = await this.prisma.exhibit.findUnique({
       where: { id: exhibitId },
-      select: { id: true, archived_at: true },
+      select: DEPLOYABILITY_SELECT,
     });
 
     if (!exhibit) {
@@ -465,6 +539,51 @@ export class DeveloperService {
         'AR assets cannot be deployed to an archived exhibit.',
       );
     }
+
+    if (!this.isDeployable(exhibit)) {
+      throw new BadRequestException(
+        'AR assets can only be deployed to an exhibit whose specimen is ' +
+          'active, Cataloged, and approved for public display.',
+      );
+    }
+  }
+
+  // An asset whose exhibit is no longer deployable is cleanup-only: it can
+  // be deactivated, removed, or moved to a deployable exhibit, but not
+  // activated or replaced where it is.
+  private async assertCurrentExhibitDeployable(
+    asset: ar_asset,
+    action: 'activated' | 'replaced',
+  ): Promise<void> {
+    const exhibit = await this.prisma.exhibit.findUnique({
+      where: { id: asset.exhibit_id },
+      select: DEPLOYABILITY_SELECT,
+    });
+
+    if (!exhibit || !this.isDeployable(exhibit)) {
+      throw new BadRequestException(
+        `This AR asset cannot be ${action} because its exhibit is no longer ` +
+          'deployable. It can only be deactivated, removed, or moved to a ' +
+          'deployable exhibit.',
+      );
+    }
+  }
+
+  // Mirrors DEPLOYABLE_EXHIBIT for an exhibit that is already loaded.
+  private isDeployable(exhibit: {
+    archived_at: Date | null;
+    specimen: {
+      status: string;
+      public_display_allowed: boolean;
+      archived_at: Date | null;
+    };
+  }): boolean {
+    return (
+      exhibit.archived_at === null &&
+      exhibit.specimen.archived_at === null &&
+      exhibit.specimen.status === 'CATALOGED' &&
+      exhibit.specimen.public_display_allowed
+    );
   }
 
   private validateArAssetFile(
