@@ -18,15 +18,18 @@ upload AR assets.
 
 ## Curator endpoints (`CURATOR` only)
 
-- `POST /exhibits` `{ specimenId, publicSlug, ...content }`: only a Cataloged
-  specimen approved for public display, with no other active exhibit
-  (REQ-4.12-02, BR-20). Starts `UNPUBLISHED`.
+- `POST /exhibits` `{ specimenId, publicSlug, ...content, publicSpecimenFields? }`:
+  only a Cataloged specimen approved for public display, with no other active
+  exhibit (REQ-4.12-02, BR-20). Starts `UNPUBLISHED`. `publicSpecimenFields`
+  defaults to every approved field (see
+  [Public specimen fields](#public-specimen-fields-req-412-03)).
 - `GET /exhibits?status=&arEnabled=&search=`: active exhibits. `search` matches
   the slug, common name, scientific name, or accession number.
 - `GET /exhibits/:id`: includes images with short-lived `previewUrl`s.
 - `PATCH /exhibits/:id`: edit `publicDescription`, `interestingFacts`,
-  `distribution`, `diet`, `layoutType`. The public URL never changes here
-  (REQ-4.12-10).
+  `distribution`, `diet`, `layoutType`, and `publicSpecimenFields`. The public
+  URL never changes here (REQ-4.12-10). A published exhibit cannot clear its
+  description, interesting facts, distribution, or diet (400).
 - `PATCH /exhibits/:id/replace-url` `{ publicSlug }`: intentional page
   replacement. QR codes printed for the old URL stop working and show the
   unavailable state. Audited with both slugs. A retired slug stays reserved,
@@ -47,6 +50,39 @@ Every change is written to the audit log in the same transaction
 (REQ-4.12-11), e.g. `CREATE_EXHIBIT`, `PUBLISH_EXHIBIT`, `UNPUBLISH_EXHIBIT`,
 `DISABLE_EXHIBIT`, `ARCHIVE_EXHIBIT`, `REPLACE_EXHIBIT_URL`,
 `ENABLE_EXHIBIT_AR`, `DISABLE_EXHIBIT_AR`, `ADD/UPDATE/REMOVE_EXHIBIT_MEDIA`.
+`CREATE_EXHIBIT` records the starting field selection. `UPDATE_EXHIBIT`
+records `changedFields` and, when the selection changed,
+`publicSpecimenFields: { previous, current }`. Content text is never copied
+into the audit log.
+
+Curator responses include `publicSpecimenFields` (the selection, in display
+order) and `missingForPublish` (the required content still empty, e.g.
+`["diet"]`), so the frontend can show the field toggles and disable Publish.
+
+## Public specimen fields (REQ-4.12-03)
+
+The curator chooses which specimen fields appear on each exhibit's public
+page. They are stored in `exhibit.public_specimen_fields` (`TEXT[]`) and
+checked against a strict allowlist (`src/exhibit/exhibit-public-fields.ts`):
+
+`commonName`, `scientificName`, `collection`, `kingdom`, `phylum`, `class`,
+`order`, `family`, `genus`, `species`, `habitat`, `ecologicalRole`,
+`conservationStatus`
+
+- Any other key, a duplicate, a non-array, or `null` returns 400. Restricted
+  fields (accession number, remarks, storage, condition, provenance, curator
+  or audit data) are not on the list and can never be shown (REQ-4.12-08).
+- The selection is stored in allowlist order, whatever order it was sent in.
+  An empty list shows no specimen fields.
+- The migration default is the full list, so existing exhibits keep the page
+  they had until a curator changes it.
+- The selection covers specimen-derived fields only. The exhibit's own content
+  (`publicDescription`, `interestingFacts`, `distribution`, `diet`,
+  `layoutType`) and its images in `exhibit_media` are not part of it.
+
+**Required content.** `publish` returns 400, naming what is missing, until
+`publicDescription`, `interestingFacts`, `distribution`, and `diet` are all
+filled. A published exhibit cannot clear any of them.
 
 ## Lifecycle
 
@@ -54,7 +90,7 @@ SRS B.3: Unpublished -> Published -> Unpublished or Disabled.
 
 | From | `publish` | `unpublish` | `disable` | `archive` |
 | --- | --- | --- | --- | --- |
-| `UNPUBLISHED` | yes (re-checks specimen eligibility) | no-op | 400 | yes |
+| `UNPUBLISHED` | yes (re-checks specimen eligibility and required content) | no-op | 400 | yes |
 | `PUBLISHED` | no-op | yes | yes | yes |
 | `DISABLED` | 400 | 400 | no-op | yes |
 | archived | 400 | 400 | 400 | no-op |
@@ -68,12 +104,13 @@ label can no longer be generated.
 ## Public page
 
 `GET /exhibits/public/:slug` (no token) returns only approved public content
-(REQ-4.12-08, REQ-4.13-07): common and scientific name, collection name,
-taxonomy (kingdom to species), habitat, ecological role, conservation status,
-the curator's description, facts, distribution, and diet, the layout, images
-as short-lived signed URLs, and the AR block. It never returns storage
-locations, condition notes, remarks, accession numbers, curator attribution, or
-audit data.
+(REQ-4.12-08, REQ-4.13-07): the specimen fields the curator selected
+(REQ-4.12-03), the curator's description, facts, distribution, and diet, the
+layout, images as short-lived signed URLs, and the AR block. A specimen field
+that is not selected is left out of the response, not sent as `null`; selected
+taxonomy ranks are grouped under `taxonomy`, which is left out when no rank is
+selected. It never returns storage locations, condition notes, remarks,
+accession numbers, curator attribution, or audit data.
 
 A missing, unpublished, disabled, or archived page, or one whose specimen is no
 longer Cataloged and public-display approved, returns the same 404 message, so
@@ -141,7 +178,4 @@ AR. REQ-4.13-02 should be updated in the SRS to describe this workflow.
 
 ## Not in scope
 
-- Choosing which individual specimen fields appear on the public page: the
-  curator controls the exhibit's own content, and taxonomy is shown when
-  present (there is no per-field visibility column).
 - PDF labels: the label is SVG, which browsers print directly.
