@@ -1,4 +1,9 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import {
+  PUBLIC_SPECIMEN_FIELDS,
+  REQUIRED_EXHIBIT_CONTENT,
+  type PublicSpecimenField,
+} from '../exhibit-public-fields';
 import { ExhibitMedia, PublicExhibitMedia } from './exhibit-media.entity';
 
 // Mirrors qr_exhibit_status. SRS B.3: Unpublished -> Published ->
@@ -57,6 +62,22 @@ export class Exhibit {
   @ApiPropertyOptional({ nullable: true })
   layoutType!: string | null;
 
+  @ApiProperty({
+    enum: PUBLIC_SPECIMEN_FIELDS,
+    isArray: true,
+    description:
+      'Specimen fields shown on the public page, in display order (REQ-4.12-03)',
+  })
+  publicSpecimenFields!: PublicSpecimenField[];
+
+  @ApiProperty({
+    enum: REQUIRED_EXHIBIT_CONTENT.map(({ key }) => key),
+    isArray: true,
+    description:
+      'Exhibit content still empty; the exhibit can be published only when this is empty',
+  })
+  missingForPublish!: string[];
+
   @ApiProperty({ enum: ExhibitStatus, default: ExhibitStatus.UNPUBLISHED })
   status!: ExhibitStatus;
 
@@ -93,25 +114,25 @@ export class Exhibit {
 
 export class PublicExhibitTaxonomy {
   @ApiPropertyOptional({ nullable: true })
-  kingdom!: string | null;
+  kingdom?: string | null;
 
   @ApiPropertyOptional({ nullable: true })
-  phylum!: string | null;
+  phylum?: string | null;
 
   @ApiPropertyOptional({ nullable: true })
-  class!: string | null;
+  class?: string | null;
 
   @ApiPropertyOptional({ nullable: true })
-  order!: string | null;
+  order?: string | null;
 
   @ApiPropertyOptional({ nullable: true })
-  family!: string | null;
+  family?: string | null;
 
   @ApiPropertyOptional({ nullable: true })
-  genus!: string | null;
+  genus?: string | null;
 
   @ApiPropertyOptional({ nullable: true })
-  species!: string | null;
+  species?: string | null;
 }
 
 export class PublicArModel {
@@ -135,31 +156,33 @@ export class PublicExhibitAr {
 
 // Public QR page content. Only approved public fields: never storage
 // locations, condition notes, remarks, accession data, curator attribution,
-// or audit data (REQ-4.12-08, REQ-4.13-07).
+// or audit data (REQ-4.12-08, REQ-4.13-07). Specimen fields the curator did
+// not select are left out of the response (REQ-4.12-03); taxonomy is left out
+// when no rank is selected.
 export class PublicExhibitResponse {
   @ApiProperty({ description: 'Unique URL segment for the public QR page' })
   publicSlug!: string;
 
   @ApiPropertyOptional({ nullable: true })
-  commonName!: string | null;
+  commonName?: string | null;
 
   @ApiPropertyOptional({ nullable: true })
-  scientificName!: string | null;
+  scientificName?: string | null;
 
   @ApiPropertyOptional({ nullable: true, description: 'Collection name' })
-  collection!: string | null;
+  collection?: string | null;
 
-  @ApiProperty({ type: PublicExhibitTaxonomy })
-  taxonomy!: PublicExhibitTaxonomy;
-
-  @ApiPropertyOptional({ nullable: true })
-  habitat!: string | null;
+  @ApiPropertyOptional({ type: PublicExhibitTaxonomy })
+  taxonomy?: PublicExhibitTaxonomy;
 
   @ApiPropertyOptional({ nullable: true })
-  ecologicalRole!: string | null;
+  habitat?: string | null;
 
   @ApiPropertyOptional({ nullable: true })
-  conservationStatus!: string | null;
+  ecologicalRole?: string | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  conservationStatus?: string | null;
 
   @ApiPropertyOptional({ nullable: true })
   interestingFacts!: string | null;

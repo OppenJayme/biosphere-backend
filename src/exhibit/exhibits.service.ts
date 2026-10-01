@@ -31,6 +31,15 @@ import {
   ExhibitMedia,
   PublicExhibitMedia,
 } from './entities/exhibit-media.entity';
+import {
+  PUBLIC_SPECIMEN_FIELDS,
+  PublicSpecimenField,
+  TAXONOMY_RANK_FIELDS,
+  assertRequiredContent,
+  missingRequiredContent,
+  normalizePublicSpecimenFields,
+  storedPublicSpecimenFields,
+} from './exhibit-public-fields';
 import { ExhibitQrService } from './exhibit-qr.service';
 
 const EXHIBIT_MEDIA_BUCKET = 'exhibit-media' as const;
@@ -154,6 +163,9 @@ export class ExhibitsService {
             distribution: dto.distribution,
             diet: dto.diet,
             layout_type: dto.layoutType,
+            public_specimen_fields: normalizePublicSpecimenFields(
+              dto.publicSpecimenFields ?? PUBLIC_SPECIMEN_FIELDS,
+            ),
             status: 'UNPUBLISHED',
           },
           include: CURATOR_INCLUDE,
@@ -173,7 +185,11 @@ export class ExhibitsService {
         userId: actingCuratorAccountId,
         exhibitId: created.id,
         action: 'CREATE_EXHIBIT',
-        details: { specimenId: dto.specimenId, publicSlug: dto.publicSlug },
+        details: {
+          specimenId: dto.specimenId,
+          publicSlug: dto.publicSlug,
+          publicSpecimenFields: created.public_specimen_fields,
+        },
       });
 
       return this.toEntity(created);
@@ -251,8 +267,38 @@ export class ExhibitsService {
       if (dto.diet !== undefined) data.diet = dto.diet;
       if (dto.layoutType !== undefined) data.layout_type = dto.layoutType;
 
+      const previousFields = storedPublicSpecimenFields(
+        existing.public_specimen_fields,
+      );
+      let nextFields = previousFields;
+      if (dto.publicSpecimenFields !== undefined) {
+        nextFields = normalizePublicSpecimenFields(dto.publicSpecimenFields);
+        data.public_specimen_fields = nextFields;
+      }
+
       if (Object.keys(data).length === 0) {
         throw new BadRequestException('At least one field must be updated.');
+      }
+      // A published page must keep its required content.
+      if (existing.status === 'PUBLISHED') {
+        assertRequiredContent(
+          {
+            public_description:
+              dto.publicDescription !== undefined
+                ? dto.publicDescription
+                : existing.public_description,
+            interesting_facts:
+              dto.interestingFacts !== undefined
+                ? dto.interestingFacts
+                : existing.interesting_facts,
+            distribution:
+              dto.distribution !== undefined
+                ? dto.distribution
+                : existing.distribution,
+            diet: dto.diet !== undefined ? dto.diet : existing.diet,
+          },
+          'A published exhibit must keep its description, interesting facts, distribution, and diet.',
+        );
       }
       data.updated_at = new Date();
 
@@ -262,10 +308,25 @@ export class ExhibitsService {
         include: CURATOR_INCLUDE,
       });
 
+      // Field visibility changes are recorded with both selections
+      // (REQ-4.12-11); content text itself is not copied into the audit log.
+      const visibilityChanged =
+        nextFields.join(',') !== previousFields.join(',');
       await this.recordAudit(transaction, {
         userId: actingCuratorAccountId,
         exhibitId: id,
         action: 'UPDATE_EXHIBIT',
+        details: {
+          changedFields: Object.keys(dto).filter(
+            (key) => dto[key as keyof UpdateExhibitDto] !== undefined,
+          ),
+          ...(visibilityChanged && {
+            publicSpecimenFields: {
+              previous: previousFields,
+              current: nextFields,
+            },
+          }),
+        },
       });
 
       return this.toEntity(updated);
@@ -347,6 +408,10 @@ export class ExhibitsService {
         where: { id: existing.specimen_id },
       });
       this.assertSpecimenEligible(specimenRecord, existing.specimen_id);
+      assertRequiredContent(
+        existing,
+        'Add the description, interesting facts, distribution, and diet before publishing.',
+      );
 
       const publishedAt = new Date();
       const updated = await transaction.exhibit.update({
@@ -895,6 +960,10 @@ export class ExhibitsService {
       distribution: item.distribution,
       diet: item.diet,
       layoutType: item.layout_type,
+      publicSpecimenFields: storedPublicSpecimenFields(
+        item.public_specimen_fields,
+      ),
+      missingForPublish: missingRequiredContent(item),
       status: item.status as ExhibitStatus,
       arEnabled: item.ar_asset.some((asset) => asset.is_enabled),
       arAssetCount,
@@ -931,23 +1000,45 @@ export class ExhibitsService {
       ),
     ]);
 
-    return {
-      publicSlug: item.public_slug,
+    // Only the specimen fields the curator selected are sent (REQ-4.12-03);
+    // a hidden field is left out of the response, not just blanked.
+    const shown = new Set(
+      storedPublicSpecimenFields(item.public_specimen_fields),
+    );
+    const specimenValues: Record<PublicSpecimenField, string | null> = {
       commonName: item.specimen.common_name,
       scientificName: item.specimen.scientific_name,
       collection: item.specimen.collection?.collection_name ?? null,
-      taxonomy: {
-        kingdom: taxonomy?.kingdom ?? null,
-        phylum: taxonomy?.phylum ?? null,
-        class: taxonomy?.class ?? null,
-        order: taxonomy?.order_name ?? null,
-        family: taxonomy?.family ?? null,
-        genus: taxonomy?.genus ?? null,
-        species: taxonomy?.species ?? null,
-      },
+      kingdom: taxonomy?.kingdom ?? null,
+      phylum: taxonomy?.phylum ?? null,
+      class: taxonomy?.class ?? null,
+      order: taxonomy?.order_name ?? null,
+      family: taxonomy?.family ?? null,
+      genus: taxonomy?.genus ?? null,
+      species: taxonomy?.species ?? null,
       habitat: taxonomy?.habitat ?? null,
       ecologicalRole: taxonomy?.ecological_role ?? null,
       conservationStatus: taxonomy?.conservation_status ?? null,
+    };
+    const pick = (fields: readonly PublicSpecimenField[]) =>
+      Object.fromEntries(
+        fields
+          .filter((field) => shown.has(field))
+          .map((field) => [field, specimenValues[field]]),
+      );
+    const taxonomyRanks = pick(TAXONOMY_RANK_FIELDS);
+
+    return {
+      publicSlug: item.public_slug,
+      ...pick(
+        PUBLIC_SPECIMEN_FIELDS.filter(
+          (field) =>
+            !(TAXONOMY_RANK_FIELDS as readonly string[]).includes(field),
+        ),
+      ),
+      ...(Object.keys(taxonomyRanks).length > 0 && {
+        taxonomy: taxonomyRanks,
+      }),
       interestingFacts: item.interesting_facts,
       publicDescription: item.public_description,
       distribution: item.distribution,
