@@ -47,50 +47,68 @@ export class SpecimenTaxonomyService {
     dto: CreateSpecimenTaxonomyDto,
     actingCuratorAccountId: string,
   ): Promise<SpecimenTaxonomy> {
-    return this.prisma.$transaction(async (transaction) => {
-      const specimenRecord = await this.findSpecimenOrThrow(
+    return this.prisma.$transaction((transaction) =>
+      this.createInTransaction(
         transaction,
         specimenId,
-      );
-      this.assertEditable(specimenRecord);
-
-      const existing = await transaction.specimen_taxonomy.findUnique({
-        where: { specimen_id: specimenId },
-      });
-      if (existing) {
-        throw new ConflictException(
-          `Taxonomy already exists for specimen ${specimenId}`,
-        );
-      }
-
-      const values = this.createValues(dto);
-      const changes = this.collectCreateChanges(values);
-      if (changes.length === 0) {
-        throw new BadRequestException(
-          'At least one taxonomy field must contain a value.',
-        );
-      }
-
-      const created = await transaction.specimen_taxonomy.create({
-        data: { specimen_id: specimenId, ...values },
-      });
-
-      await this.touchSpecimen(transaction, specimenId, actingCuratorAccountId);
-      await this.recordRevisions(
-        transaction,
-        specimenId,
+        dto,
         actingCuratorAccountId,
-        changes,
-      );
-      await this.recordAudit(transaction, {
-        userId: actingCuratorAccountId,
-        specimenId,
-        action: 'CREATE_SPECIMEN_TAXONOMY',
-        fields: changes.map((change) => change.fieldChanged),
-      });
+      ),
+    );
+  }
 
-      return this.toEntity(created);
+  /**
+   * Creates the taxonomy inside a caller-owned transaction so it commits or
+   * rolls back together with other writes, such as a bulk-import row.
+   */
+  async createInTransaction(
+    transaction: Prisma.TransactionClient,
+    specimenId: string,
+    dto: CreateSpecimenTaxonomyDto,
+    actingCuratorAccountId: string,
+  ): Promise<SpecimenTaxonomy> {
+    const specimenRecord = await this.findSpecimenOrThrow(
+      transaction,
+      specimenId,
+    );
+    this.assertEditable(specimenRecord);
+
+    const existing = await transaction.specimen_taxonomy.findUnique({
+      where: { specimen_id: specimenId },
     });
+    if (existing) {
+      throw new ConflictException(
+        `Taxonomy already exists for specimen ${specimenId}`,
+      );
+    }
+
+    const values = this.createValues(dto);
+    const changes = this.collectCreateChanges(values);
+    if (changes.length === 0) {
+      throw new BadRequestException(
+        'At least one taxonomy field must contain a value.',
+      );
+    }
+
+    const created = await transaction.specimen_taxonomy.create({
+      data: { specimen_id: specimenId, ...values },
+    });
+
+    await this.touchSpecimen(transaction, specimenId, actingCuratorAccountId);
+    await this.recordRevisions(
+      transaction,
+      specimenId,
+      actingCuratorAccountId,
+      changes,
+    );
+    await this.recordAudit(transaction, {
+      userId: actingCuratorAccountId,
+      specimenId,
+      action: 'CREATE_SPECIMEN_TAXONOMY',
+      fields: changes.map((change) => change.fieldChanged),
+    });
+
+    return this.toEntity(created);
   }
 
   async findOne(specimenId: string): Promise<SpecimenTaxonomy> {

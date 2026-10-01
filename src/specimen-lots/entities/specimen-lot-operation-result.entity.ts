@@ -1,4 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { StorageCapacityWarning } from '../../storage-locations/entities/storage-capacity.entity';
 import {
   LotTransactionType,
   SpecimenLotTransaction,
@@ -29,4 +30,12 @@ export class SpecimenLotOperationResult {
     description: 'True when quantity was added to an existing matching lot',
   })
   mergedIntoExistingTarget!: boolean;
+
+  @ApiProperty({
+    type: StorageCapacityWarning,
+    nullable: true,
+    description:
+      'Present when the receiving storage unit now exceeds its configured capacity; the change is still applied',
+  })
+  capacityWarning!: StorageCapacityWarning | null;
 }

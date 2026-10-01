@@ -18,7 +18,9 @@ receives `404 Not Found`.
 - `collection`: the configured collection record or `null`
 - `taxonomy`: the specimen taxonomy record or `null`
 - `provenance`: the specimen provenance record or `null`
-- `activeLots`: active lots with their current storage-unit records
+- `activeLots`: active lots with their current storage-unit records and a
+  derived `storageLocation` (root-to-unit `path`, `rootUnit` room or gallery,
+  and a `pathLabel` such as `Zoology Room › Cabinet A`)
 - `lotOverview`: active-lot count and total active specimen quantity
 - `media`: private media metadata in display order
 - `tags`: attached tags in stable case-insensitive name order
