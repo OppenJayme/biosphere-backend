@@ -12,3 +12,20 @@ export class ArAssetEntity {
   modelFormat!: ArModelFormat;
   isEnabled!: boolean;
 }
+
+// An exhibit as the developer sees it when choosing where to deploy an AR
+// asset: public identity and assets only, no curator content.
+export class ArExhibitEntity {
+  id!: string;
+  publicSlug!: string;
+  status!: string;
+  // Archived exhibits are listed only while they still hold assets.
+  archived!: boolean;
+  // false for an exhibit that is listed only so its assets can be cleaned
+  // up (archived, or its specimen is no longer approved for public display).
+  // New assets cannot be deployed or moved to it.
+  deployable!: boolean;
+  commonName!: string | null;
+  scientificName!: string | null;
+  assets!: ArAssetEntity[];
+}

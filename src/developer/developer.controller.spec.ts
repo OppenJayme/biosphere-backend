@@ -123,18 +123,23 @@ describe('DeveloperController', () => {
     expect(result).toEqual({ id: 'asset-1' });
   });
 
-  it('activateArAsset calls setArAssetEnabled(id, true, userId)', async () => {
+  it('activateArAsset calls setArAssetEnabled(id, true, userId, authorizationReference)', async () => {
     developerServiceMock.setArAssetEnabled.mockResolvedValue({
       id: 'asset-1',
       isEnabled: true,
     });
 
-    const result = await controller.activateArAsset('asset-1', currentUser);
+    const result = await controller.activateArAsset(
+      'asset-1',
+      { authorizationReference: 'Curator memo 2026-07' },
+      currentUser,
+    );
 
     expect(developerServiceMock.setArAssetEnabled).toHaveBeenCalledWith(
       'asset-1',
       true,
       currentUser.id,
+      'Curator memo 2026-07',
     );
     expect(result.isEnabled).toBe(true);
   });

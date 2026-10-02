@@ -8,6 +8,7 @@ import { Reflector } from '@nestjs/core';
 import { AuthService } from '../auth.service';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
 import type { AuthenticatedRequest } from '../types/auth.types';
+import { requestPath } from './request-path';
 
 @Injectable()
 export class SupabaseAuthGuard implements CanActivate {
@@ -40,7 +41,10 @@ export class SupabaseAuthGuard implements CanActivate {
       throw new UnauthorizedException('Malformed authorization token');
     }
 
-    req.user = await this.authService.authenticateAccessToken(token);
+    req.user = await this.authService.authenticateAccessToken(token, {
+      method: req.method,
+      path: requestPath(req),
+    });
 
     return true;
   }
