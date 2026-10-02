@@ -23,8 +23,9 @@ tables. It does not introduce or alter database structures.
 General Inquiry:
 
 - `POST /inquiries`: public submission.
-- `GET /inquiries?status=&search=`: list, newest first. `search` matches name,
-  email, organization, inquiry type, or message (case-insensitive, max 100).
+- `GET /inquiries?status=&search=&submittedFrom=&submittedTo=`: list, newest
+  first. `search` matches name, email, organization, inquiry type, or message
+  (case-insensitive, max 100). See [Date filters](#date-filters).
 - `GET /inquiries/:id`: includes `visitRequestId` once referred.
 - `PATCH /inquiries/:id` with `{ status, note? }`: `REVIEWED` or `CLOSED`.
 - `POST /inquiries/:id/referral`: refers the inquiry to a new Pending visit
@@ -35,8 +36,9 @@ General Inquiry:
 Visit Request:
 
 - `POST /visit-requests`: public submission.
-- `GET /visit-requests?status=&search=`: list, newest first. `search` matches
-  contact person, email, organization, or purpose.
+- `GET /visit-requests?status=&search=&submittedFrom=&submittedTo=&visitDateFrom=&visitDateTo=`:
+  list, newest first. `search` matches contact person, email, organization, or
+  purpose. See [Date filters](#date-filters).
 - `GET /visit-requests/:id`: includes `approvedSchedule` and `sourceInquiryId`.
 - `PATCH /visit-requests/:id` with `{ status, note? }`:
   `SUBMITTED_FOR_CAMPUS_ENTRY`, `COMPLETED`, `DECLINED`, or `CANCELLED`.
@@ -48,6 +50,11 @@ Visit Request:
   USC itself (REQ-4.9-13).
 - `GET /visit-requests/:id/history`: the request's timeline, oldest first.
 - `POST /visit-requests/:id/notes` with `{ message }`: internal curator note.
+
+Curator alerts:
+
+- `GET /notifications?limit=`: new submissions awaiting review. See
+  [New submission alerts](#new-submission-alerts).
 
 `PATCH` changes workflow status only. Submitted visitor content cannot be
 edited; extra fields are rejected with 400. Setting the current status again is
@@ -118,10 +125,72 @@ and `sent_at` (null when the send failed). Incoming replies to the museum's
 external mailbox are never imported (BR-22). Curators record what matters from
 them as a `NOTE`.
 
+## Date filters
+
+All dates are `YYYY-MM-DD`; both ends are inclusive and either end may be left
+out. An impossible date or a range that ends before it starts returns 400.
+
+- `submittedFrom` / `submittedTo` (both lists): the submission date in museum
+  time (Asia/Manila), so `submittedTo=2026-09-30` includes a request sent at
+  11:30 PM that day.
+- `visitDateFrom` / `visitDateTo` (visit requests): an approved request matches
+  on its approved date. A request with no approved schedule yet matches when
+  any of its preferred dates is in range. For upcoming visits, combine with
+  `status=APPROVED_BY_CURATOR` or `SUBMITTED_FOR_CAMPUS_ENTRY`.
+
+## New submission alerts
+
+When a visitor submits an inquiry or visit request, BioSphere alerts the
+curators in two ways (REQ-4.8-08, REQ-4.9-07, REQ-4.3-09):
+
+- **Email:** each authorized curator recipient receives "New general inquiry
+  received (Ref ...)" or "New visit request received (Ref ...)". SRS 6.6
+  leaves the recipients to deployment: set `CURATOR_ALERT_EMAILS`
+  (comma-separated) to choose them, or leave it empty to alert every `ACTIVE`
+  `CURATOR` account at its Supabase login email. The email has only the
+  reference number, the submission time, and a link to
+  `${FRONTEND_URL}/public-website?tab=inquiries|visits&selected=<id>`. It has
+  no visitor details, because email leaves BioSphere; the curator signs in to
+  read them. Without `FRONTEND_URL` the link is left out.
+- **In-system:** `GET /notifications` (curator-only) returns
+  `{ total, pendingInquiries, pendingVisitRequests, emailFailures, items }`.
+  Each item has `type`, `title`, `recordType` (`inquiry` or `visit_request`,
+  as in the audit log), `recordId`, `referenceCode`, and `createdAt`, newest
+  first. `limit` is 1 to 100 (default 20); `total` counts every alert before
+  the limit. Items carry no visitor details (REQ-4.3-08).
+
+| `type` | `title` | When |
+| --- | --- | --- |
+| `NEW_INQUIRY` | New general inquiry | The inquiry is `PENDING` |
+| `NEW_VISIT_REQUEST` | New visit request | The visit request is `PENDING` |
+| `SUBMISSION_EMAIL_FAILED` | Receipt email to the visitor was not delivered | The record is `PENDING` and its `EMAIL_SUBMISSION_RECEIPT` audit entry is `FAILED` |
+| `SUBMISSION_EMAIL_FAILED` | Curator alert email was not delivered | The record is `PENDING` and its `ALERT_CURATORS` audit entry is `FAILED` |
+
+`SUBMISSION_EMAIL_FAILED` meets SRS 3.4: delivery failures are logged and
+surfaced to an authorized user in-system. Curator-initiated emails already
+show their delivery result in the record's timeline.
+
+There is no notification table, so the feed is built from submissions that
+are still `PENDING` and their failed email audit entries. An alert clears once
+a curator reviews, refers, approves, declines, or cancels the record. It
+cannot be marked read or dismissed on its own (REQ-4.3-07); that needs a
+notification table.
+
 ## Visitor emails (Brevo)
 
-BioSphere emails visitors only when a curator acts. There is no automatic
-email on submission: the public receipt shows the reference number on screen.
+On submission, the visitor is emailed a receipt with the reference number:
+"We received your BioSphere museum inquiry" or "We received your BioSphere
+visit request". A visit request receipt lists each preferred option and says
+the request is not yet approved. The receipt and the curator alerts are sent
+after the submission is saved and do not delay the response. A failed send
+never fails the submission.
+
+The receipt is an agreed team/client decision, not an SRS requirement:
+REQ-4.8-08 and REQ-4.9-07 require only the curator alerts. It replaces the
+earlier no-receipt behavior from #95, so visitors have their reference number
+in writing before a curator responds.
+
+Every other email is sent when a curator acts:
 
 | Curator action | Email | SRS |
 | --- | --- | --- |
@@ -145,6 +214,11 @@ email on submission: the public receipt shows the reference number on screen.
   curator can send a follow-up message.
 - The audit log records `EMAIL_VISITOR` with the entry id, type, and whether
   it was delivered, but not the address or text.
+- Submission emails are not curator actions, so they have no timeline entry.
+  The audit log records `EMAIL_SUBMISSION_RECEIPT` with `{ delivered }` and
+  `ALERT_CURATORS` with `{ recipients, delivered }`, both with a null
+  `user_id`. Either is `FAILED` when an email was not delivered, and
+  `ALERT_CURATORS` is also `FAILED` when there is no recipient.
 
 Configuration (`.env`): `BREVO_API_KEY`, `MAIL_FROM_EMAIL` (a sender verified
 in Brevo), and `MAIL_FROM_NAME`. Without them, emails are skipped with
@@ -199,8 +273,9 @@ visitor personal data or note text. Public submissions have a null `user_id`.
 
 ## Not yet implemented
 
-- Curator in-system and email alerts for new submissions (REQ-4.8-08,
-  REQ-4.9-07). The schema has no notification table yet.
+- Marking a curator alert as read or dismissed (REQ-4.3-07), and alerts for
+  anything other than new submissions (REQ-4.3-05). Both need a notification
+  table.
 - Bounce and delivery-status tracking after Brevo accepts an email (would need
   a Brevo webhook).
 - Visitor-list file upload on the visit form.

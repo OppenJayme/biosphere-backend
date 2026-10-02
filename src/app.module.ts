@@ -22,6 +22,7 @@ import { AuditModule } from './audit/audit.module';
 import { OfflineSyncModule } from './offline-sync/offline-sync.module';
 import { ExhibitsModule } from './exhibit/exhibits.module';
 import { BackupModule } from './backup/backup.module';
+import { NotificationsModule } from './notifications/notifications.module';
 
 @Module({
   imports: [
@@ -36,6 +37,7 @@ import { BackupModule } from './backup/backup.module';
     ThrottlerModule.forRoot([GLOBAL_RATE_LIMIT]),
     InquiriesModule,
     VisitRequestsModule,
+    NotificationsModule,
     DeveloperModule,
     StorageLocationsModule,
     SpecimensModule,

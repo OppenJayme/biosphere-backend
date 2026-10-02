@@ -12,6 +12,10 @@ import {
   recordOutboundEmail,
 } from '../communication-history/communication-history';
 import { CreateInternalNoteDto } from '../communication-history/dto/create-internal-note.dto';
+import {
+  calendarDateRange,
+  submittedAtRange,
+} from '../communication-history/dto/date-filter';
 import { SendVisitorMessageDto } from '../communication-history/dto/send-visitor-message.dto';
 import { Prisma } from '../generated/prisma/client';
 import { MailService } from '../mail/mail.service';
@@ -23,6 +27,8 @@ import {
   referenceCode,
   referenceIdRange,
 } from '../mail/visitor-email';
+import { NotificationRecordType } from '../notifications/entities/curator-notification.entity';
+import { SubmissionNotificationsService } from '../notifications/submission-notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { runSerializableTransaction } from '../prisma/serializable-transaction';
 import { ApproveVisitScheduleDto } from './dto/approve-visit-schedule.dto';
@@ -77,11 +83,15 @@ export class VisitRequestsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly mail: MailService,
+    private readonly submissionNotifications: SubmissionNotificationsService,
   ) {}
 
   // Public submission (REQ-4.9-01 to 06). The request and all of its child
   // records are written in one transaction and audited without any visitor
-  // personal data in the audit details.
+  // personal data in the audit details. Once saved, the visitor gets a
+  // receipt listing their preferred schedules and curators are alerted
+  // (REQ-4.9-07) in the background, so a slow mail server never delays the
+  // response.
   async create(
     dto: CreateVisitRequestDto,
   ): Promise<VisitRequestSubmissionReceipt> {
@@ -89,7 +99,7 @@ export class VisitRequestsService {
     this.assertVisitorsValid(dto);
     this.assertVehicleValid(dto);
 
-    return this.prisma.$transaction(async (transaction) => {
+    const receipt = await this.prisma.$transaction(async (transaction) => {
       const submittedAt = new Date();
       const created = await transaction.visit_request.create({
         data: {
@@ -146,6 +156,19 @@ export class VisitRequestsService {
         submittedAt: created.created_at,
       };
     });
+
+    void this.submissionNotifications.announce({
+      recordType: NotificationRecordType.VISIT_REQUEST,
+      id: receipt.id,
+      submittedAt: receipt.submittedAt,
+      visitorName: dto.name,
+      visitorEmail: dto.email,
+      receiptDetails: dto.preferredSchedules.map((schedule, index) => [
+        `Preferred option ${index + 1}`,
+        `${formatLongDate(schedule.date)}, ${schedule.startTime} - ${schedule.endTime}`,
+      ]),
+    });
+    return receipt;
   }
 
   // Opens a Pending visit request from a curator's inquiry referral. Runs
@@ -200,9 +223,16 @@ export class VisitRequestsService {
     const search = query.search
       ? { contains: query.search, mode: Prisma.QueryMode.insensitive }
       : undefined;
+    const createdAt = submittedAtRange(query.submittedFrom, query.submittedTo);
+    const visitDate = calendarDateRange(
+      query.visitDateFrom,
+      query.visitDateTo,
+      ['visitDateFrom', 'visitDateTo'],
+    );
     const items = await this.prisma.visit_request.findMany({
       where: {
         status: query.status,
+        created_at: createdAt,
         ...(search && {
           OR: [
             { contact_person: search },
@@ -212,6 +242,24 @@ export class VisitRequestsService {
             ...(REFERENCE_CODE_PATTERN.test(query.search ?? '')
               ? [{ id: referenceIdRange(query.search!) }]
               : []),
+          ],
+        }),
+        // An approved request is placed by its approved date; until then,
+        // any of its preferred dates can match. Wrapped in AND so it does
+        // not replace the search OR.
+        ...(visitDate && {
+          AND: [
+            {
+              OR: [
+                { approved_date: visitDate },
+                {
+                  approved_date: null,
+                  preferred_visit_date: {
+                    some: { preferred_date: visitDate },
+                  },
+                },
+              ],
+            },
           ],
         }),
       },

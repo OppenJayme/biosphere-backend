@@ -97,7 +97,7 @@ export function formatLongDate(isoDate: string): string {
   }).format(new Date(`${isoDate}T00:00:00.000Z`));
 }
 
-function escapeHtml(value: string): string {
+export function escapeHtml(value: string): string {
   return value
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')

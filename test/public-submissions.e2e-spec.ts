@@ -47,11 +47,27 @@ describe('Inquiries and visit requests (e2e)', () => {
   const developerAuthId = '33333333-3333-4333-8333-333333333333';
   const inquiryId = '44444444-4444-4444-8444-444444444444';
   const visitId = '55555555-5555-4555-8555-555555555555';
+  const curatorEmail = 'curator@museum.example';
+
+  // Receipts and curator alerts are sent after the submission response, so
+  // let that background work finish before asserting on mail or audit.
+  const flushBackgroundWork = () =>
+    new Promise((resolve) => setImmediate(resolve));
 
   let app: INestApplication<App>;
+  // A local .env may set alert recipients; these tests use the default of
+  // every active curator.
+  const configuredRecipients = process.env.CURATOR_ALERT_EMAILS;
+  beforeAll(() => {
+    process.env.CURATOR_ALERT_EMAILS = '';
+  });
+  afterAll(() => {
+    process.env.CURATOR_ALERT_EMAILS = configuredRecipients;
+  });
   let inquiries: Array<Record<string, unknown>>;
   let visits: Array<Record<string, unknown>>;
   let auditCreate: jest.Mock;
+  let audits: Array<Record<string, unknown>>;
   let inquiryWrites: jest.Mock;
   let visitWrites: jest.Mock;
   let history: Array<Record<string, unknown>>;
@@ -81,7 +97,12 @@ describe('Inquiries and visit requests (e2e)', () => {
   beforeEach(async () => {
     inquiries = [];
     visits = [];
-    auditCreate = jest.fn(() => ({}));
+    audits = [];
+    auditCreate = jest.fn(({ data }: { data: Record<string, unknown> }) => {
+      const created = { created_at: new Date(), ...data };
+      audits.push(created);
+      return created;
+    });
     inquiryWrites = jest.fn();
     visitWrites = jest.fn();
     history = [];
@@ -112,6 +133,9 @@ describe('Inquiries and visit requests (e2e)', () => {
             return null;
           },
         ),
+        findMany: jest.fn(() => [
+          { full_name: 'Curator One', users: { email: curatorEmail } },
+        ]),
       },
       inquiry: {
         create: jest.fn(({ data }: { data: Record<string, unknown> }) => {
@@ -208,7 +232,28 @@ describe('Inquiries and visit requests (e2e)', () => {
             ),
         ),
       },
-      audit_log: { create: auditCreate },
+      audit_log: {
+        create: auditCreate,
+        findMany: jest.fn(
+          ({
+            where,
+          }: {
+            where: {
+              action: { in: string[] };
+              status: string;
+              affected_record_id: { in: string[] };
+            };
+          }) =>
+            audits.filter(
+              (entry) =>
+                where.action.in.includes(entry.action as string) &&
+                entry.status === where.status &&
+                where.affected_record_id.in.includes(
+                  entry.affected_record_id as string,
+                ),
+            ),
+        ),
+      },
       $transaction: jest.fn((callback: (client: unknown) => unknown) =>
         Promise.resolve(callback(prismaMock)),
       ),
@@ -459,6 +504,7 @@ describe('Inquiries and visit requests (e2e)', () => {
         .post(`/${resource}`)
         .send(resource === 'inquiries' ? validInquiry : validVisit)
         .expect(201);
+      await flushBackgroundWork();
       auditCreate.mockClear();
       inquiryWrites.mockClear();
       visitWrites.mockClear();
@@ -664,6 +710,8 @@ describe('Inquiries and visit requests (e2e)', () => {
         .post('/visit-requests')
         .send(validVisit)
         .expect(201);
+      await flushBackgroundWork();
+      mailSend.mockClear();
 
       await request(app.getHttpServer())
         .get(`/visit-requests/${visitId}/campus-entry-summary`)
@@ -741,7 +789,7 @@ describe('Inquiries and visit requests (e2e)', () => {
         'STATUS_CHANGE: Status changed from APPROVED_BY_CURATOR to SUBMITTED_FOR_CAMPUS_ENTRY.',
         'STATUS_CHANGE: Status changed from SUBMITTED_FOR_CAMPUS_ENTRY to COMPLETED.',
       ]);
-      // Only the approval emailed the visitor.
+      // After the submission receipt and alert, only the approval emailed.
       expect(mailSend).toHaveBeenCalledTimes(1);
     });
   });
@@ -810,6 +858,8 @@ describe('Inquiries and visit requests (e2e)', () => {
         .post('/visit-requests')
         .send(validVisit)
         .expect(201);
+      await flushBackgroundWork();
+      mailSend.mockClear();
 
       await request(app.getHttpServer())
         .patch(`/visit-requests/${visitId}`)
@@ -866,6 +916,151 @@ describe('Inquiries and visit requests (e2e)', () => {
         .send(validInquiry)
         .expect(201);
       expect(receipt.body.referenceCode).toBe('44444444');
+    });
+  });
+  describe('new submission alerts', () => {
+    const auth = `Bearer ${curatorToken}`;
+
+    it.each([
+      [
+        'inquiries',
+        validInquiry,
+        'We received your BioSphere museum inquiry (Ref 44444444)',
+        'New general inquiry received (Ref 44444444)',
+      ],
+      [
+        'visit-requests',
+        validVisit,
+        'We received your BioSphere visit request (Ref 55555555)',
+        'New visit request received (Ref 55555555)',
+      ],
+    ])(
+      'POST /%s sends a receipt and alerts curators',
+      async (resource, body, receiptSubject, alertSubject) => {
+        await request(app.getHttpServer())
+          .post(`/${resource}`)
+          .send(body)
+          .expect(201);
+        await flushBackgroundWork();
+
+        expect(mailSend).toHaveBeenCalledWith(
+          expect.objectContaining({ to: body.email, subject: receiptSubject }),
+        );
+        expect(mailSend).toHaveBeenCalledWith(
+          expect.objectContaining({
+            to: curatorEmail,
+            subject: alertSubject,
+            text: expect.not.stringContaining(body.name) as string,
+          }),
+        );
+        expect(auditCreate).toHaveBeenCalledWith({
+          data: expect.objectContaining({
+            action: 'ALERT_CURATORS',
+            details: { recipients: 1, delivered: 1 },
+            status: 'SUCCESS',
+          }),
+        });
+      },
+    );
+
+    it('keep the submission and surface the failed emails in-system', async () => {
+      mailSend.mockResolvedValue({ delivered: false, result: 'FAILED 500' });
+
+      await request(app.getHttpServer())
+        .post('/inquiries')
+        .send(validInquiry)
+        .expect(201);
+      await flushBackgroundWork();
+
+      expect(inquiries).toHaveLength(1);
+      expect(auditCreate).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          action: 'ALERT_CURATORS',
+          status: 'FAILED',
+        }),
+      });
+
+      const feed = await request(app.getHttpServer())
+        .get('/notifications')
+        .set('Authorization', auth)
+        .expect(200);
+      expect(feed.body).toMatchObject({ total: 3, emailFailures: 2 });
+      expect(
+        (feed.body.items as Array<{ type: string; title: string }>)
+          .filter((item) => item.type === 'SUBMISSION_EMAIL_FAILED')
+          .map((item) => item.title)
+          .sort(),
+      ).toEqual([
+        'Curator alert email was not delivered',
+        'Receipt email to the visitor was not delivered',
+      ]);
+    });
+
+    it('GET /notifications lists pending submissions for curators only', async () => {
+      await request(app.getHttpServer())
+        .post('/inquiries')
+        .send(validInquiry)
+        .expect(201);
+      await request(app.getHttpServer())
+        .post('/visit-requests')
+        .send(validVisit)
+        .expect(201);
+
+      await request(app.getHttpServer()).get('/notifications').expect(401);
+      await request(app.getHttpServer())
+        .get('/notifications')
+        .set('Authorization', `Bearer ${developerToken}`)
+        .expect(403);
+
+      const feed = await request(app.getHttpServer())
+        .get('/notifications')
+        .set('Authorization', auth)
+        .expect(200);
+      expect(feed.body).toMatchObject({
+        total: 2,
+        pendingInquiries: 1,
+        pendingVisitRequests: 1,
+      });
+      expect(
+        (feed.body.items as Array<{ recordType: string; recordId: string }>)
+          .map((item) => `${item.recordType}:${item.recordId}`)
+          .sort(),
+      ).toEqual([`inquiry:${inquiryId}`, `visit_request:${visitId}`]);
+      expect(JSON.stringify(feed.body)).not.toContain(validInquiry.email);
+
+      await request(app.getHttpServer())
+        .get('/notifications?limit=0')
+        .set('Authorization', auth)
+        .expect(400);
+    });
+  });
+
+  describe('date filters', () => {
+    const auth = `Bearer ${curatorToken}`;
+
+    it.each([
+      '/inquiries?submittedFrom=2026-09-30&submittedTo=2026-09-01',
+      '/inquiries?submittedFrom=09/01/2026',
+      '/visit-requests?visitDateFrom=2026-02-30',
+      '/visit-requests?visitDateFrom=2026-10-31&visitDateTo=2026-10-01',
+    ])('reject %s with 400', async (path) => {
+      await request(app.getHttpServer())
+        .get(path)
+        .set('Authorization', auth)
+        .expect(400);
+    });
+
+    it('accept valid submitted and visit date ranges', async () => {
+      await request(app.getHttpServer())
+        .get('/inquiries?submittedFrom=2026-09-01&submittedTo=2026-09-30')
+        .set('Authorization', auth)
+        .expect(200);
+      await request(app.getHttpServer())
+        .get(
+          '/visit-requests?status=APPROVED_BY_CURATOR&visitDateFrom=2026-10-01&visitDateTo=2026-10-31',
+        )
+        .set('Authorization', auth)
+        .expect(200);
     });
   });
 });
