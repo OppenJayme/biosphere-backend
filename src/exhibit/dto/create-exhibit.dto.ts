@@ -7,6 +7,8 @@ import {
   Matches,
   MaxLength,
 } from 'class-validator';
+import type { PublicSpecimenField } from '../exhibit-public-fields';
+import { PublicSpecimenFieldsProperty } from './public-specimen-fields.decorator';
 
 export class CreateExhibitDto {
   @ApiProperty({
@@ -60,4 +62,7 @@ export class CreateExhibitDto {
   @IsString()
   @IsNotEmpty()
   layoutType?: string | null;
+
+  @PublicSpecimenFieldsProperty()
+  publicSpecimenFields?: PublicSpecimenField[];
 }
