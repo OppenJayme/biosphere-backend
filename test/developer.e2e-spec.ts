@@ -27,6 +27,7 @@ const describeLiveDeveloperE2e =
 const VALID_GLB_HEADER = Buffer.from([
   0x67, 0x6c, 0x54, 0x46, 0x02, 0x00, 0x00, 0x00, 0x0c, 0x00, 0x00, 0x00,
 ]);
+const AUTHORIZATION_REFERENCE = 'Live e2e: curator AR approval memo';
 
 describeLiveDeveloperE2e('Developer module (live e2e)', () => {
   let app: INestApplication<App>;
@@ -323,6 +324,7 @@ describeLiveDeveloperE2e('Developer module (live e2e)', () => {
         .set('Authorization', `Bearer ${developerToken}`)
         .field('exhibitId', randomUUID())
         .field('modelFormat', 'glb')
+        .field('authorizationReference', AUTHORIZATION_REFERENCE)
         .attach('file', VALID_GLB_HEADER, 'model.glb')
         .expect(404);
     });
@@ -333,6 +335,7 @@ describeLiveDeveloperE2e('Developer module (live e2e)', () => {
         .set('Authorization', `Bearer ${developerToken}`)
         .field('exhibitId', fixtureExhibitId)
         .field('modelFormat', 'glb')
+        .field('authorizationReference', AUTHORIZATION_REFERENCE)
         .attach('file', Buffer.from('not actually a glb'), 'model.gltf')
         .expect(400);
     });
@@ -343,6 +346,7 @@ describeLiveDeveloperE2e('Developer module (live e2e)', () => {
         .set('Authorization', `Bearer ${developerToken}`)
         .field('exhibitId', fixtureExhibitId)
         .field('modelFormat', 'glb')
+        .field('authorizationReference', AUTHORIZATION_REFERENCE)
         .attach('file', VALID_GLB_HEADER, 'model.glb')
         .expect(201);
 
@@ -358,6 +362,7 @@ describeLiveDeveloperE2e('Developer module (live e2e)', () => {
       const res = await request(app.getHttpServer())
         .patch(`/developer/ar-assets/${createdAssetId}/activate`)
         .set('Authorization', `Bearer ${developerToken}`)
+        .send({ authorizationReference: AUTHORIZATION_REFERENCE })
         .expect(200);
 
       expect(res.body.isEnabled).toBe(true);
@@ -377,6 +382,7 @@ describeLiveDeveloperE2e('Developer module (live e2e)', () => {
         .patch(`/developer/ar-assets/${createdAssetId}`)
         .set('Authorization', `Bearer ${developerToken}`)
         .field('isEnabled', 'true')
+        .field('authorizationReference', AUTHORIZATION_REFERENCE)
         .expect(200);
 
       expect(res.body.isEnabled).toBe(true);

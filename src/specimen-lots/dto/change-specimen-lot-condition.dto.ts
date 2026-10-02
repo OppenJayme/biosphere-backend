@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
+import { normalizeConditionClass } from '../condition-class';
 import {
   IsInt,
   IsNotEmpty,
@@ -13,7 +14,7 @@ import { trimString } from '../../common/transforms/trim-string.transform';
 
 export class ChangeSpecimenLotConditionDto {
   @ApiProperty({ description: 'New curator-managed condition classification' })
-  @Transform(trimString)
+  @Transform(normalizeConditionClass)
   @IsString()
   @IsNotEmpty()
   @Matches(/\S/, { message: 'targetConditionClass must contain visible text' })

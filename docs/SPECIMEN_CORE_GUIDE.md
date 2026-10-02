@@ -95,11 +95,38 @@ status filter for internal history and audit use.
 
 `GET /specimens` remains the complete active-record feed used by the current
 offline-cache foundation. `GET /specimens/search` is the bounded online catalog
-endpoint: it supports text search, status, collection, category, gender, and
-public-display filters; allow-listed sorting; and a maximum page size of 100.
+endpoint: it supports text search, the filters below, allow-listed sorting,
+and a maximum page size of 100.
 Archived records are excluded unless `status=ARCHIVED` is requested explicitly.
 Search never exposes public data because the entire controller remains protected
 for active curator accounts.
+
+### Catalog search filters (REQ-4.7-01/02/03)
+
+| Query parameter          | Matches                                                                   |
+| ------------------------ | ------------------------------------------------------------------------- |
+| `search`                 | Contains, ignoring case: accession number, names, category, classification, remarks, collection, any taxonomy rank, collector, tag names; or an exact specimen UUID |
+| `status`                 | Specimen status (defaults to everything except `ARCHIVED`)                |
+| `collectionId`           | Collection UUID                                                           |
+| `specimenCategory`       | Exact category, ignoring case                                             |
+| `classificationStatus`   | Exact classification status, ignoring case                               |
+| `gender`                 | Gender enum                                                               |
+| `publicDisplay`          | `true` / `false`                                                          |
+| `kingdom`, `phylum`, `taxonClass`, `taxonOrder`, `family`, `genus`, `species` | Exact taxonomy value, ignoring case |
+| `tag`                    | Exact tag name, ignoring case                                             |
+| `conditionClass`         | Has an active lot in this condition, ignoring case                        |
+| `storageUnitId`          | Has an active lot in this unit or, unless `includeDescendantUnits=false`, any unit below it |
+| `createdFrom`, `createdTo` | Date added (ISO 8601). A plain `createdTo` date includes that whole UTC day (its bound is the following midnight, exclusive), so a `createdFrom` timestamp later on that same day is a valid range |
+
+When `conditionClass` and `storageUnitId` are combined, both must match the
+same active lot. `sortBy` accepts `updatedAt`, `createdAt`, `accessionNumber`,
+`scientificName`, `commonName`, `status`, `specimenCategory`, and `family`;
+text sorts place empty values last.
+
+Each item is the specimen record plus the columns the curator specimen table
+shows: `family`, `collector`, `totalQuantity` (sum of active lots),
+`conditionClasses`, and `storageUnits` (distinct units holding active lots,
+each with a derived `pathLabel` such as `Zoology Room › Cabinet A`).
 
 Revision-history retrieval is documented separately in
 `docs/SPECIMEN_REVISION_HISTORY_GUIDE.md`. It reads the immutable field-level

@@ -5,6 +5,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { createSupabaseAuthClient } from '../supabase/supabase-auth-client.factory';
 import { SUPABASE_CLIENT } from '../supabase/supabase.constants';
 import { AuthService } from './auth.service';
+import { SecurityAuditService } from './security-audit.service';
 
 jest.mock('../supabase/supabase-auth-client.factory');
 
@@ -35,6 +36,8 @@ const configServiceMock = {
   getOrThrow: jest.fn(),
 };
 
+const securityAuditMock = { record: jest.fn() };
+
 const authUser = {
   id: 'auth-user-1',
   email: 'curator@example.com',
@@ -59,6 +62,7 @@ describe('AuthService', () => {
         { provide: SUPABASE_CLIENT, useValue: supabaseMock },
         { provide: PrismaService, useValue: prismaMock },
         { provide: ConfigService, useValue: configServiceMock },
+        { provide: SecurityAuditService, useValue: securityAuditMock },
       ],
     }).compile();
 
@@ -177,5 +181,159 @@ describe('AuthService', () => {
       service.authenticateAccessToken('expired-token'),
     ).rejects.toBeInstanceOf(UnauthorizedException);
     expect(userAccountFindUnique).not.toHaveBeenCalled();
+  });
+  describe('security audit (REQ-4.1-15)', () => {
+    function signInSucceeds() {
+      authClientMock.auth.signInWithPassword.mockResolvedValue({
+        data: {
+          session: {
+            access_token: 'access-token',
+            refresh_token: 'refresh-token',
+          },
+          user: authUser,
+        },
+        error: null,
+      });
+    }
+
+    function auditedValues(): string {
+      return JSON.stringify(securityAuditMock.record.mock.calls);
+    }
+
+    it('records a successful login against the account', async () => {
+      signInSucceeds();
+      userAccountFindUnique.mockResolvedValue({
+        id: 'account-1',
+        role: 'CURATOR',
+        status: 'ACTIVE',
+      });
+
+      await service.login(' Curator@Example.com ', 'secret-password');
+
+      expect(securityAuditMock.record).toHaveBeenCalledTimes(1);
+      expect(securityAuditMock.record).toHaveBeenCalledWith({
+        action: 'LOGIN',
+        result: 'SUCCESS',
+        accountId: 'account-1',
+        details: { email: 'curator@example.com', role: 'CURATOR' },
+      });
+      expect(auditedValues()).not.toContain('secret-password');
+      expect(auditedValues()).not.toContain('access-token');
+      expect(auditedValues()).not.toContain('refresh-token');
+    });
+
+    it('records a failed login without the password', async () => {
+      authClientMock.auth.signInWithPassword.mockResolvedValue({
+        data: { session: null, user: null },
+        error: {
+          message: 'Invalid login credentials',
+          code: 'invalid_credentials',
+        },
+      });
+
+      await expect(
+        service.login('curator@example.com', 'wrong-password'),
+      ).rejects.toBeInstanceOf(UnauthorizedException);
+
+      expect(securityAuditMock.record).toHaveBeenCalledWith({
+        action: 'LOGIN',
+        result: 'FAILED',
+        details: {
+          email: 'curator@example.com',
+          reason: 'INVALID_CREDENTIALS',
+          providerCode: 'invalid_credentials',
+        },
+      });
+      expect(auditedValues()).not.toContain('wrong-password');
+    });
+
+    it('records a login denied for an inactive account', async () => {
+      signInSucceeds();
+      userAccountFindUnique.mockResolvedValue({
+        id: 'account-1',
+        role: 'CURATOR',
+        status: 'INACTIVE',
+      });
+
+      await expect(
+        service.login('curator@example.com', 'password'),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+
+      expect(securityAuditMock.record).toHaveBeenCalledWith({
+        action: 'LOGIN',
+        result: 'DENIED',
+        accountId: 'account-1',
+        details: { email: 'curator@example.com', reason: 'INACTIVE_ACCOUNT' },
+      });
+    });
+
+    it('records a login denied for a user with no BioSphere account', async () => {
+      signInSucceeds();
+      userAccountFindUnique.mockResolvedValue(null);
+
+      await expect(
+        service.login('curator@example.com', 'password'),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+
+      expect(securityAuditMock.record).toHaveBeenCalledWith({
+        action: 'LOGIN',
+        result: 'DENIED',
+        accountId: null,
+        details: { email: 'curator@example.com', reason: 'NO_ACCOUNT' },
+      });
+    });
+
+    it('records an inactive account using a still-valid token', async () => {
+      supabaseMock.auth.getUser.mockResolvedValue({
+        data: { user: authUser },
+        error: null,
+      });
+      userAccountFindUnique.mockResolvedValue({
+        id: 'account-1',
+        role: 'CURATOR',
+        status: 'INACTIVE',
+      });
+
+      await expect(
+        service.authenticateAccessToken('access-token', {
+          method: 'GET',
+          path: '/specimens/search',
+        }),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+
+      expect(securityAuditMock.record).toHaveBeenCalledWith({
+        action: 'ACCESS_DENIED',
+        result: 'DENIED',
+        accountId: 'account-1',
+        details: {
+          reason: 'INACTIVE_ACCOUNT',
+          method: 'GET',
+          path: '/specimens/search',
+        },
+      });
+    });
+
+    it('does not record expired or invalid tokens, or active-account requests', async () => {
+      supabaseMock.auth.getUser.mockResolvedValueOnce({
+        data: { user: null },
+        error: { message: 'Invalid token' },
+      });
+      await expect(
+        service.authenticateAccessToken('expired-token'),
+      ).rejects.toBeInstanceOf(UnauthorizedException);
+
+      supabaseMock.auth.getUser.mockResolvedValueOnce({
+        data: { user: authUser },
+        error: null,
+      });
+      userAccountFindUnique.mockResolvedValue({
+        id: 'account-1',
+        role: 'CURATOR',
+        status: 'ACTIVE',
+      });
+      await service.authenticateAccessToken('access-token');
+
+      expect(securityAuditMock.record).not.toHaveBeenCalled();
+    });
   });
 });

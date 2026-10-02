@@ -23,6 +23,8 @@ import { CreateStorageUnitDto } from './dto/create-storage-unit.dto';
 import { UpdateStorageUnitDto } from './dto/update-storage-unit.dto';
 import { MoveStorageUnitDto } from './dto/move-storage-unit.dto';
 import { SearchStorageLocationsQueryDto } from './dto/search-storage-locations-query.dto';
+import { StorageCapacityCheckQueryDto } from './dto/storage-capacity-check-query.dto';
+import { StorageCapacityCheck } from './entities/storage-capacity.entity';
 import { StorageMovement } from './entities/storage-movement.entity';
 import { StorageOccupancySummary } from './entities/storage-occupancy-summary.entity';
 import { StorageUnit, StorageUnitPage } from './entities/storage-unit.entity';
@@ -65,6 +67,19 @@ export class StorageLocationsController {
     @Query() query: SearchStorageLocationsQueryDto,
   ): Promise<StorageUnitPage> {
     return this.service.search(query);
+  }
+
+  @Get(':id/capacity-check')
+  @ApiOperation({
+    summary:
+      'Preview whether placing a quantity in a unit would exceed its capacity',
+  })
+  @ApiOkResponse({ type: StorageCapacityCheck })
+  checkCapacity(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Query() query: StorageCapacityCheckQueryDto,
+  ): Promise<StorageCapacityCheck> {
+    return this.service.checkCapacity(id, query);
   }
 
   @Get(':id/path')
