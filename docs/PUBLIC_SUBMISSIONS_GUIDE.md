@@ -185,6 +185,11 @@ the request is not yet approved. The receipt and the curator alerts are sent
 after the submission is saved and do not delay the response. A failed send
 never fails the submission.
 
+The receipt is an agreed team/client decision, not an SRS requirement:
+REQ-4.8-08 and REQ-4.9-07 require only the curator alerts. It replaces the
+earlier no-receipt behavior from #95, so visitors have their reference number
+in writing before a curator responds.
+
 Every other email is sent when a curator acts:
 
 | Curator action | Email | SRS |
