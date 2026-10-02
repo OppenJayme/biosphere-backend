@@ -7,6 +7,36 @@ import { PrismaService } from '../src/prisma/prisma.service';
 import { MailService } from '../src/mail/mail.service';
 import { SUPABASE_CLIENT } from '../src/supabase/supabase.constants';
 
+/** Audit entries written so far, by their Prisma `data` payload. */
+function auditEntries(auditCreate: jest.Mock): Array<Record<string, unknown>> {
+  return (
+    auditCreate.mock.calls as unknown as Array<
+      [{ data: Record<string, unknown> }]
+    >
+  ).map(([args]) => args.data);
+}
+
+/**
+ * A rejected Developer request writes no domain data; its only audit entry
+ * is the centralized ACCESS_DENIED security event (REQ-4.1-15).
+ */
+function expectOnlyAccessDeniedAudits(
+  auditCreate: jest.Mock,
+  expectedCount: number,
+): void {
+  const entries = auditEntries(auditCreate);
+  expect(entries).toHaveLength(expectedCount);
+  for (const entry of entries) {
+    expect(entry).toEqual(
+      expect.objectContaining({
+        action: 'ACCESS_DENIED',
+        module: 'auth',
+        status: 'DENIED',
+      }),
+    );
+  }
+}
+
 // Public General Inquiry and Visit Request submission (SRS §4.8, §4.9) and
 // the curator-only routes that read or change those records (NFR-SEC-10).
 describe('Inquiries and visit requests (e2e)', () => {
@@ -433,10 +463,13 @@ describe('Inquiries and visit requests (e2e)', () => {
       inquiryWrites.mockClear();
       visitWrites.mockClear();
     };
-    const expectNoWrites = () => {
+    const expectNoDomainWrites = () => {
       expect(inquiryWrites).not.toHaveBeenCalled();
       expect(visitWrites).not.toHaveBeenCalled();
       expect(historyWrites).not.toHaveBeenCalled();
+    };
+    const expectNoWrites = () => {
+      expectNoDomainWrites();
       expect(auditCreate).not.toHaveBeenCalled();
     };
 
@@ -448,12 +481,16 @@ describe('Inquiries and visit requests (e2e)', () => {
       expectNoWrites();
     });
 
-    it('reject Developers with 403 and write nothing', async () => {
+    it('reject Developers with 403 and write nothing but the denial audit', async () => {
       await seed();
       for (const route of internalRoutes[resource]) {
         await send(route, developerToken).expect(403);
       }
-      expectNoWrites();
+      expectNoDomainWrites();
+      expectOnlyAccessDeniedAudits(
+        auditCreate,
+        internalRoutes[resource].length,
+      );
     });
 
     // Deletion waits for the approved retention policy, so even a finished
