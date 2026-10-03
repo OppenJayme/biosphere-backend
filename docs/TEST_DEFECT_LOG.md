@@ -55,6 +55,7 @@ system is not a reason to postpone all fixes until the end.
 | DEF-006 | 2026-10-03 | Cataloging / Revision UI   | Media history exposes raw identifiers and storage paths                 | S4 Minor    | P2       | Open   | Cataloging / Frontend   |
 | DEF-007 | 2026-10-03 | Cataloging / Specimen list | Selected-specimen preview never displays its cover image                | S3 Moderate | P2       | Open   | Cataloging / Full stack |
 | DEF-008 | 2026-10-03 | Cataloging / Filters       | Clear all resets results but leaves stale filter values visible         | S3 Moderate | P2       | Open   | Cataloging / Frontend   |
+| DEF-009 | 2026-10-03 | Cataloging / CSV import    | Invalid row values make the entire preview return a generic 502         | S2 Major    | P1       | Open   | Cataloging / Frontend   |
 
 ## 3. Defect details
 
@@ -555,6 +556,76 @@ longer represents the active query.
 - [ ] Reapplying immediately after clearing does not restore stale filters.
 - [ ] Browser Back/Forward keeps controls and results synchronized.
 - [ ] Pagination returns to page 1.
+
+### DEF-009 - Invalid row values make the entire CSV preview fail
+
+**Related test:** CAT-013
+
+**Environment:** Development Cataloging import page
+
+**Found on:** backend `b56d183`; frontend `672fe4e`
+
+**Severity:** S2 Major
+
+**Priority:** P1
+
+**Status:** Open
+
+**Owner:** Cataloging / Frontend
+
+#### Reproduction
+
+1. Prepare a CSV containing valid rows and one row whose gender is
+   `BAD_VALUE`.
+2. Open Cataloging import and select the CSV.
+3. Select `Preview CSV`.
+4. Inspect the browser Network panel.
+
+#### Expected
+
+The preview succeeds, marks the invalid row as unselectable, and displays the
+backend's row-level gender validation message without saving any records.
+
+#### Actual
+
+`POST /api/cataloging/specimens/import/preview` returns `502 Bad Gateway`, and
+the UI reports that CSV preview is temporarily unavailable. No row-level
+preview is shown.
+
+#### Technical observation
+
+- The backend intentionally echoes raw CSV values in preview rows so invalid
+  data can be reviewed alongside `valid` and `errors`.
+- The frontend preview schema requires `data.gender` to match the valid enum
+  and `data.collectionId` to be a valid UUID even for an invalid preview row.
+- Therefore an expected invalid value such as `BAD_VALUE` causes frontend
+  response parsing to reject the entire otherwise valid preview response.
+- The same mismatch can affect other raw invalid values, such as malformed
+  collection UUIDs.
+- Backend import tests passed 39/39. Existing frontend contract tests passed
+  3/3 but do not include an invalid raw preview row.
+- The observed PostgreSQL `client.query()` deprecation warning is unrelated to
+  the frontend response-schema rejection.
+
+#### Required remediation
+
+1. Model preview-row `data` as bounded raw CSV display values rather than as
+   already business-valid create input.
+2. Keep strict business validation in the backend and use each row's `valid`
+   and `errors` fields to control selection and explain rejection.
+3. Do not loosen the normal specimen-create or commit contracts.
+4. Preserve the same-origin upload boundary, authentication, size limits, and
+   strict top-level preview response validation.
+5. Add frontend regression cases for invalid gender, malformed collection UUID,
+   mixed valid/invalid rows, and safe rendering of backend errors.
+
+#### Retest
+
+- [ ] A mixed-validity CSV returns a visible preview rather than 502.
+- [ ] Invalid raw gender and collection values appear safely with errors.
+- [ ] Invalid rows cannot be selected or committed.
+- [ ] Valid rows remain selectable and previewing creates no records.
+- [ ] Valid-only preview and retry-safe commit behavior remain unchanged.
 
 ## 4. New defect template
 

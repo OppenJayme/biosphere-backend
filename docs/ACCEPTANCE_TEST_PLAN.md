@@ -127,7 +127,7 @@ Every `Fail` must reference an entry in the defect log.
 | CAT-010 | Attach, change, repeat, and detach tags                                        | Relationships remain unique and retry-safe                                                                 | **Pass**; usability issue DEF-005                                     |
 | CAT-011 | Upload, edit, cover, replace, and remove supported media; reject invalid media | Private signed access, database/storage consistency, and usable interaction states are preserved           | **Fail - DEF-004, DEF-006, DEF-007**; core operations passed          |
 | CAT-012 | Search, combine filters, sort, and paginate                                    | Results are bounded, stable, case-insensitive where approved, and archived records are excluded by default | **Pass**; Clear-all UI defect DEF-008                                 |
-| CAT-013 | Preview and commit mixed-validity CSV rows; retry commit                       | Preview is non-mutating; only reviewed valid rows import as `UNCATALOGED`; retries do not duplicate rows   | Not run                                                               |
+| CAT-013 | Preview and commit mixed-validity CSV rows; retry commit                       | Preview is non-mutating; only reviewed valid rows import as `UNCATALOGED`; retries do not duplicate rows   | **Fail - DEF-009**; mixed-validity preview blocked                    |
 | CAT-014 | Review possible duplicate warnings, including archived matches                 | Warnings show evidence and never auto-merge records                                                        | Blocked pending active duplicate-detection PR acceptance              |
 | CAT-015 | Select multiple specimens from the protected catalog on local and LAN clients  | Every row is keyboard/touch accessible and opens the matching preview/detail route                         | **Fail - DEF-003**                                                    |
 
@@ -188,6 +188,15 @@ records, the first page showed 25 and the second showed the remainder without
 duplicates or omissions. `Clear all` reset the query and result set but left
 the previous status, collection, gender, and other control values visibly
 selected; DEF-008 tracks this stale form-state defect.
+
+CAT-013 evidence recorded on 2026-10-03: submitting the approved acceptance
+CSV with two valid rows and one deliberately invalid gender returned `502 Bad
+Gateway` from the same-origin preview route and displayed `The CSV preview is
+temporarily unavailable.` No backend exception was logged. Backend import
+tests passed 39/39 and frontend import-contract tests passed 3/3, but the
+frontend contract does not cover invalid raw preview values. DEF-009 tracks
+the response-schema mismatch that prevents the UI from displaying the
+backend's row-level validation result.
 
 ### Storage Location Management
 
