@@ -200,12 +200,18 @@ backend's row-level validation result.
 
 ### Storage Location Management
 
-| ID      | Test                                                  | Expected result                                               | Status  |
-| ------- | ----------------------------------------------------- | ------------------------------------------------------------- | ------- |
-| STO-001 | Create a root and nested storage hierarchy            | The hierarchy reloads with correct parent-child relationships | Not run |
-| STO-002 | Attempt self-parenting and descendant cycles          | Both operations are rejected without changing the hierarchy   | Not run |
-| STO-003 | Edit storage metadata and specimen-holding capability | Valid changes persist and invalid values are rejected clearly | Not run |
-| STO-004 | Exercise approved archive restrictions                | Referenced/unsafe locations cannot be archived incorrectly    | Not run |
+| ID      | Test                                                  | Expected result                                               | Status   |
+| ------- | ----------------------------------------------------- | ------------------------------------------------------------- | -------- |
+| STO-001 | Create a root and nested storage hierarchy            | The hierarchy reloads with correct parent-child relationships | **Pass** |
+| STO-002 | Attempt self-parenting and descendant cycles          | Both operations are rejected without changing the hierarchy   | Not run  |
+| STO-003 | Edit storage metadata and specimen-holding capability | Valid changes persist and invalid values are rejected clearly | Not run  |
+| STO-004 | Exercise approved archive restrictions                | Referenced/unsafe locations cannot be archived incorrectly    | Not run  |
+
+STO-001 evidence recorded on 2026-10-04: a disposable top-level room and its
+nested storage locations were created with the intended parent-child
+relationships. Labels, curator-entered unit and storage types, and
+specimen-holding capability persisted after refresh, and the hierarchy
+displayed correctly.
 
 ### Limited offline and synchronization
 
