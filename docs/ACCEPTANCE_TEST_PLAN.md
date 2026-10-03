@@ -124,7 +124,7 @@ Every `Fail` must reference an entry in the defect log.
 | CAT-007 | Complete Cataloging with one prepared valid active lot                         | Status becomes `CATALOGED`; public display remains off; history/audit are written                          | **Pass** for lifecycle behavior; DEF-002 still blocks module sign-off |
 | CAT-008 | Remove required data while Cataloged, then reopen with a reason                | Removal is blocked until reopening; reopening returns to `UNCATALOGED` and disables public display         | **Pass**                                                              |
 | CAT-009 | Enable and disable public eligibility                                          | Only Cataloged specimens qualify; no exhibit is published automatically                                    | **Pass**                                                              |
-| CAT-010 | Attach, change, repeat, and detach tags                                        | Relationships remain unique and retry-safe                                                                 | Not run                                                               |
+| CAT-010 | Attach, change, repeat, and detach tags                                        | Relationships remain unique and retry-safe                                                                 | **Pass**; usability issue DEF-005                                     |
 | CAT-011 | Upload, edit, cover, replace, and remove supported media; reject invalid media | Private signed access, database/storage consistency, and usable interaction states are preserved           | **Fail - DEF-004**; functional cases remain to be run                 |
 | CAT-012 | Search, combine filters, sort, and paginate                                    | Results are bounded, stable, case-insensitive where approved, and archived records are excluded by default | Not run                                                               |
 | CAT-013 | Preview and commit mixed-validity CSV rows; retry commit                       | Preview is non-mutating; only reviewed valid rows import as `UNCATALOGED`; retries do not duplicate rows   | Not run                                                               |
@@ -159,6 +159,15 @@ record views. Disabling eligibility preserved `CATALOGED`, persisted the
 disabled state, and recorded the inverse change. No exhibit row was created,
 the exhibit total remained unchanged, and no exhibit was published
 automatically.
+
+CAT-010 evidence recorded on 2026-10-03: a new tag attached successfully and
+appeared in revision history. The shared tag was available for reuse on a
+different specimen, while a case-insensitive duplicate attachment to the same
+specimen was rejected without creating another relationship. The changed tag
+persisted after refresh, and detaching it created the expected revision entry
+while retaining the shared vocabulary tag. Core tag behavior passed. DEF-005
+tracks that vocabulary search reports only the number of suggestions instead
+of visibly listing the matching names.
 
 ### Storage Location Management
 

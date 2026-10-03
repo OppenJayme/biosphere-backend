@@ -51,6 +51,7 @@ system is not a reason to postpone all fixes until the end.
 | DEF-002 | 2026-10-03 | Cataloging / Provenance    | Future collection dates are accepted and satisfy presence validation    | S2 Major | P1       | Open   | Cataloging / Full stack |
 | DEF-003 | 2026-10-03 | Cataloging / Specimen list | Client-side specimen selection does not hydrate on a remote LAN browser | S2 Major | P1       | Open   | Cataloging / Frontend   |
 | DEF-004 | 2026-10-03 | Cataloging / Media UI      | Choose-file controls have no visible hover feedback                     | S4 Minor | P2       | Open   | Cataloging / Frontend   |
+| DEF-005 | 2026-10-03 | Cataloging / Tags UI       | Vocabulary search hides the matching tag names                          | S4 Minor | P2       | Open   | Cataloging / Frontend   |
 
 ## 3. Defect details
 
@@ -323,6 +324,62 @@ block file selection, but it provides weak interaction feedback.
 - [ ] Keyboard focus is visible without relying on color alone.
 - [ ] Disabled/pending appearance is clear.
 - [ ] Selecting and submitting a valid file still works.
+
+### DEF-005 - Vocabulary search hides the matching tag names
+
+**Related test:** CAT-010
+
+**Environment:** Development specimen-tags page
+
+**Found on:** frontend `672fe4e`
+
+**Severity:** S4 Minor
+
+**Priority:** P2
+
+**Status:** Open
+
+**Owner:** Cataloging / Frontend
+
+#### Reproduction
+
+1. Attach a tag to one specimen so it becomes part of the shared vocabulary.
+2. Open another specimen's Tags page.
+3. Search the reusable vocabulary for that tag.
+
+#### Expected
+
+The matching reusable tag names are visibly shown and can be selected without
+the curator having to discover a separate browser datalist interaction.
+
+#### Actual
+
+The page reports only that one reusable suggestion is available in the
+tag-name field. It does not visibly list the matching name near the search
+result, making the successful search result unclear.
+
+#### Technical observation
+
+- Matching tags are supplied to the attach field through an HTML `datalist`.
+- The search-result area displays only the number of matches.
+- Tag reuse itself works; this is a discoverability issue rather than a data or
+  duplicate-protection failure.
+
+#### Required remediation
+
+1. Render the matching tag names as visible, keyboard-accessible choices.
+2. Selecting a result should populate or attach through the existing validated
+   tag workflow rather than introduce a second persistence path.
+3. Preserve case-insensitive duplicate prevention and the shared vocabulary.
+4. Provide an explicit no-results message.
+
+#### Retest
+
+- [ ] Matching reusable tag names are visible after searching.
+- [ ] Results are usable with pointer, keyboard, and touch input.
+- [ ] Selecting a result attaches the existing shared tag.
+- [ ] An already attached tag remains excluded from suggestions.
+- [ ] Duplicate normalization and revision history still work.
 
 ## 4. New defect template
 
