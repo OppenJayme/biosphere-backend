@@ -204,7 +204,7 @@ backend's row-level validation result.
 | ------- | ----------------------------------------------------- | ------------------------------------------------------------- | ---------------------------------------------------- |
 | STO-001 | Create a root and nested storage hierarchy            | The hierarchy reloads with correct parent-child relationships | **Pass**                                             |
 | STO-002 | Attempt self-parenting and descendant cycles          | Both operations are rejected without changing the hierarchy   | **Pass**; UI manual + automated backend verification |
-| STO-003 | Edit storage metadata and specimen-holding capability | Valid changes persist and invalid values are rejected clearly | Not run                                              |
+| STO-003 | Edit storage metadata and specimen-holding capability | Valid changes persist and invalid values are rejected clearly | **Pass**                                             |
 | STO-004 | Exercise approved archive restrictions                | Referenced/unsafe locations cannot be archived incorrectly    | Not run                                              |
 
 STO-001 evidence recorded on 2026-10-04: a disposable top-level room and its
@@ -221,6 +221,12 @@ frontend hierarchy/management tests. The backend tests specifically verify
 that self-parenting, no-op moves, and descendant-parenting are rejected before
 movement history is written. Expected warnings came from fixtures that
 deliberately model missing ancestors and legacy cycles.
+
+STO-003 evidence recorded on 2026-10-04: valid label, unit type, storage type,
+size, capacity, and specimen-holding changes saved and persisted. Submitting
+the unchanged form did not create an update. Whitespace-only required values
+were rejected, and the capacity control rejected zero, negative, fractional,
+and nonnumeric values, preserving the last valid state.
 
 ### Limited offline and synchronization
 
