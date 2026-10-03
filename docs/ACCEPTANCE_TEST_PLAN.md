@@ -200,18 +200,27 @@ backend's row-level validation result.
 
 ### Storage Location Management
 
-| ID      | Test                                                  | Expected result                                               | Status   |
-| ------- | ----------------------------------------------------- | ------------------------------------------------------------- | -------- |
-| STO-001 | Create a root and nested storage hierarchy            | The hierarchy reloads with correct parent-child relationships | **Pass** |
-| STO-002 | Attempt self-parenting and descendant cycles          | Both operations are rejected without changing the hierarchy   | Not run  |
-| STO-003 | Edit storage metadata and specimen-holding capability | Valid changes persist and invalid values are rejected clearly | Not run  |
-| STO-004 | Exercise approved archive restrictions                | Referenced/unsafe locations cannot be archived incorrectly    | Not run  |
+| ID      | Test                                                  | Expected result                                               | Status                                               |
+| ------- | ----------------------------------------------------- | ------------------------------------------------------------- | ---------------------------------------------------- |
+| STO-001 | Create a root and nested storage hierarchy            | The hierarchy reloads with correct parent-child relationships | **Pass**                                             |
+| STO-002 | Attempt self-parenting and descendant cycles          | Both operations are rejected without changing the hierarchy   | **Pass**; UI manual + automated backend verification |
+| STO-003 | Edit storage metadata and specimen-holding capability | Valid changes persist and invalid values are rejected clearly | Not run                                              |
+| STO-004 | Exercise approved archive restrictions                | Referenced/unsafe locations cannot be archived incorrectly    | Not run                                              |
 
 STO-001 evidence recorded on 2026-10-04: a disposable top-level room and its
 nested storage locations were created with the intended parent-child
 relationships. Labels, curator-entered unit and storage types, and
 specimen-holding capability persisted after refresh, and the hierarchy
 displayed correctly.
+
+STO-002 evidence recorded on 2026-10-04: the Move Location UI excluded the
+selected unit, its current parent, and its descendants from eligible parent
+choices. At the tester's request, no manual API mutation was sent. Focused
+automated verification passed 27/27 backend service/path tests and 7/7
+frontend hierarchy/management tests. The backend tests specifically verify
+that self-parenting, no-op moves, and descendant-parenting are rejected before
+movement history is written. Expected warnings came from fixtures that
+deliberately model missing ancestors and legacy cycles.
 
 ### Limited offline and synchronization
 
