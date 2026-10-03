@@ -54,6 +54,7 @@ system is not a reason to postpone all fixes until the end.
 | DEF-005 | 2026-10-03 | Cataloging / Tags UI       | Vocabulary search hides the matching tag names                          | S4 Minor    | P2       | Open   | Cataloging / Frontend   |
 | DEF-006 | 2026-10-03 | Cataloging / Revision UI   | Media history exposes raw identifiers and storage paths                 | S4 Minor    | P2       | Open   | Cataloging / Frontend   |
 | DEF-007 | 2026-10-03 | Cataloging / Specimen list | Selected-specimen preview never displays its cover image                | S3 Moderate | P2       | Open   | Cataloging / Full stack |
+| DEF-008 | 2026-10-03 | Cataloging / Filters       | Clear all resets results but leaves stale filter values visible         | S3 Moderate | P2       | Open   | Cataloging / Frontend   |
 
 ## 3. Defect details
 
@@ -497,6 +498,63 @@ valid cover image.
 - [ ] Removing the cover falls back safely without a broken image.
 - [ ] A specimen without media continues to show the placeholder.
 - [ ] No raw storage path, service credential, or long-lived public URL is exposed.
+
+### DEF-008 - Clear all leaves stale filter values visible
+
+**Related test:** CAT-012
+
+**Environment:** Development specimen catalog page
+
+**Found on:** frontend `672fe4e`
+
+**Severity:** S3 Moderate
+
+**Priority:** P2
+
+**Status:** Open
+
+**Owner:** Cataloging / Frontend
+
+#### Reproduction
+
+1. Select values such as Cataloged status, a collection, and a gender.
+2. Apply the filters and confirm the result set changes.
+3. Select `Clear all`.
+
+#### Expected
+
+The URL, result set, and every visible search/filter/sort control return to
+their documented default values.
+
+#### Actual
+
+The URL and result set reset, but controls such as status, collection, and
+gender continue to display their previous selections. The visible form no
+longer represents the active query.
+
+#### Technical observation
+
+- `Clear all` performs a client-side navigation to `/specimens`.
+- Toolbar controls are uncontrolled inputs using `defaultValue`.
+- During soft navigation, the existing DOM controls can retain their current
+  values even though the server-rendered query and results have reset.
+
+#### Required remediation
+
+1. Synchronize every control with the parsed query after navigation, either by
+   controlled state or by intentionally remounting/resetting the form when the
+   query changes.
+2. Keep the backend query as the source of truth.
+3. Preserve pagination reset and the current validated query allowlist.
+4. Add an interaction test that applies multiple filters and clears them.
+
+#### Retest
+
+- [ ] Clear all resets the URL and result set.
+- [ ] Search, filters, and sort controls visibly return to defaults.
+- [ ] Reapplying immediately after clearing does not restore stale filters.
+- [ ] Browser Back/Forward keeps controls and results synchronized.
+- [ ] Pagination returns to page 1.
 
 ## 4. New defect template
 

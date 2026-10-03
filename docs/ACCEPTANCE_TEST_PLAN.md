@@ -126,7 +126,7 @@ Every `Fail` must reference an entry in the defect log.
 | CAT-009 | Enable and disable public eligibility                                          | Only Cataloged specimens qualify; no exhibit is published automatically                                    | **Pass**                                                              |
 | CAT-010 | Attach, change, repeat, and detach tags                                        | Relationships remain unique and retry-safe                                                                 | **Pass**; usability issue DEF-005                                     |
 | CAT-011 | Upload, edit, cover, replace, and remove supported media; reject invalid media | Private signed access, database/storage consistency, and usable interaction states are preserved           | **Fail - DEF-004, DEF-006, DEF-007**; core operations passed          |
-| CAT-012 | Search, combine filters, sort, and paginate                                    | Results are bounded, stable, case-insensitive where approved, and archived records are excluded by default | Not run                                                               |
+| CAT-012 | Search, combine filters, sort, and paginate                                    | Results are bounded, stable, case-insensitive where approved, and archived records are excluded by default | **Pass**; Clear-all UI defect DEF-008                                 |
 | CAT-013 | Preview and commit mixed-validity CSV rows; retry commit                       | Preview is non-mutating; only reviewed valid rows import as `UNCATALOGED`; retries do not duplicate rows   | Not run                                                               |
 | CAT-014 | Review possible duplicate warnings, including archived matches                 | Warnings show evidence and never auto-merge records                                                        | Blocked pending active duplicate-detection PR acceptance              |
 | CAT-015 | Select multiple specimens from the protected catalog on local and LAN clients  | Every row is keyboard/touch accessible and opens the matching preview/detail route                         | **Fail - DEF-003**                                                    |
@@ -180,6 +180,14 @@ committed event is expected because it is not a live subscription. DEF-004
 tracks missing file-control hover feedback, DEF-006 tracks raw identifiers and
 storage paths in revision history, and DEF-007 tracks the catalog preview's
 hard-coded placeholder instead of the selected cover image.
+
+CAT-012 evidence recorded on 2026-10-03: identifier and name searches,
+individual and combined filters, ascending and descending sorting, active and
+archived filtering, and pagination all returned the expected records. With 28
+records, the first page showed 25 and the second showed the remainder without
+duplicates or omissions. `Clear all` reset the query and result set but left
+the previous status, collection, gender, and other control values visibly
+selected; DEF-008 tracks this stale form-state defect.
 
 ### Storage Location Management
 
