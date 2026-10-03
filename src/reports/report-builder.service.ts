@@ -1,6 +1,8 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { resolveStorageLocations } from '../storage-locations/storage-location-paths';
+import { findStorageSubtreeIds } from '../storage-locations/storage-subtree';
 import type { GenerateReportDto } from './dto/generate-report.dto';
 import type {
   ReportBlock,
@@ -34,8 +36,6 @@ export interface ReportContext {
   generatedAt: Date;
   generatedBy: string;
 }
-
-type StorageUnitNode = { parentId: string | null; label: string };
 
 const insensitive = (value: string | undefined) =>
   value === undefined
@@ -296,11 +296,14 @@ export class ReportBuilderService {
     context: ReportContext,
   ): Promise<ReportDocument> {
     const { dto } = context;
-    const units = await this.loadStorageUnits();
 
     let storageUnitIds: string[] | undefined;
     if (dto.storageUnitId) {
-      if (!units.has(dto.storageUnitId)) {
+      const unit = await this.prisma.storage_unit.findUnique({
+        where: { id: dto.storageUnitId },
+        select: { id: true },
+      });
+      if (!unit) {
         throw new BadRequestException(
           'The selected storage location does not exist.',
         );
@@ -308,7 +311,7 @@ export class ReportBuilderService {
       storageUnitIds =
         dto.includeDescendantUnits === false
           ? [dto.storageUnitId]
-          : descendantIds(units, dto.storageUnitId);
+          : await findStorageSubtreeIds(this.prisma, dto.storageUnitId);
     }
 
     const taxonomy: Prisma.specimen_taxonomyWhereInput = {
@@ -375,6 +378,15 @@ export class ReportBuilderService {
       },
     });
 
+    const locations = await resolveStorageLocations(this.prisma, [
+      ...(dto.storageUnitId ? [dto.storageUnitId] : []),
+      ...specimens.flatMap((specimen) =>
+        specimen.specimen_lot.map((lot) => lot.storage_unit_id),
+      ),
+    ]);
+    const storagePath = (unitId: string) =>
+      locations.get(unitId)?.pathLabel ?? 'Unknown location';
+
     const statusCounts = new Map<string, number>();
     const categoryCounts: { key: string; values: number[] }[] = [];
     const conditionTotals: { key: string; values: number[] }[] = [];
@@ -411,9 +423,7 @@ export class ReportBuilderService {
           specimen.specimen_lot.map((lot) => lot.condition_class),
         ).join('; ') || null,
         distinct(
-          specimen.specimen_lot.map((lot) =>
-            storagePath(units, lot.storage_unit_id),
-          ),
+          specimen.specimen_lot.map((lot) => storagePath(lot.storage_unit_id)),
         ).join('; ') || null,
         formatReportDate(specimen.created_at),
       ];
@@ -451,7 +461,7 @@ export class ReportBuilderService {
       Species: dto.species,
       Condition: dto.conditionClass,
       'Storage location': dto.storageUnitId
-        ? `${storagePath(units, dto.storageUnitId)}${dto.includeDescendantUnits === false ? '' : ' (including sub-locations)'}`
+        ? `${storagePath(dto.storageUnitId)}${dto.includeDescendantUnits === false ? '' : ' (including sub-locations)'}`
         : undefined,
       'Public display':
         dto.publicDisplay === undefined
@@ -839,18 +849,6 @@ export class ReportBuilderService {
       );
     }
   }
-
-  private async loadStorageUnits(): Promise<Map<string, StorageUnitNode>> {
-    const units = await this.prisma.storage_unit.findMany({
-      select: { id: true, parent_id: true, label: true },
-    });
-    return new Map(
-      units.map((unit) => [
-        unit.id,
-        { parentId: unit.parent_id, label: unit.label },
-      ]),
-    );
-  }
 }
 
 // ---- helpers -------------------------------------------------------------
@@ -970,46 +968,6 @@ function distinctCaseInsensitive(values: string[]): string[] {
     if (!seen.has(key)) seen.set(key, value.trim());
   }
   return [...seen.values()];
-}
-
-function descendantIds(
-  units: Map<string, StorageUnitNode>,
-  rootId: string,
-): string[] {
-  const children = new Map<string, string[]>();
-  for (const [id, unit] of units) {
-    if (!unit.parentId) continue;
-    children.set(unit.parentId, [...(children.get(unit.parentId) ?? []), id]);
-  }
-  const result = new Set<string>([rootId]);
-  const queue = [rootId];
-  while (queue.length > 0) {
-    for (const child of children.get(queue.shift()!) ?? []) {
-      if (!result.has(child)) {
-        result.add(child);
-        queue.push(child);
-      }
-    }
-  }
-  return [...result];
-}
-
-/** Root-to-unit label path, e.g. "Room 101 / Cabinet A / Drawer 3". */
-function storagePath(
-  units: Map<string, StorageUnitNode>,
-  unitId: string,
-): string {
-  const labels: string[] = [];
-  const visited = new Set<string>();
-  let current: string | null = unitId;
-  while (current && !visited.has(current)) {
-    visited.add(current);
-    const unit = units.get(current);
-    if (!unit) break;
-    labels.unshift(unit.label);
-    current = unit.parentId;
-  }
-  return labels.join(' / ') || 'Unknown location';
 }
 
 function specimenName(specimen: {

@@ -12,7 +12,7 @@ import { ReportPeriodType, resolveReportPeriod } from './report-period';
 import { ReportFormat, ReportType } from './report-types';
 
 const prismaMock = {
-  storage_unit: { findMany: jest.fn() },
+  storage_unit: { findMany: jest.fn(), findUnique: jest.fn() },
   specimen: { count: jest.fn(), findMany: jest.fn(), groupBy: jest.fn() },
   specimen_lot: { groupBy: jest.fn(), aggregate: jest.fn() },
   specimen_revision_history: { count: jest.fn() },
@@ -23,11 +23,36 @@ const prismaMock = {
 };
 
 const UNITS = [
-  { id: 'room', parent_id: null, label: 'Room 101' },
-  { id: 'cabinet', parent_id: 'room', label: 'Cabinet A' },
-  { id: 'drawer', parent_id: 'cabinet', label: 'Drawer 3' },
-  { id: 'other', parent_id: null, label: 'Room 102' },
+  { id: 'room', parent_id: null, label: 'Room 101', unit_type: 'Room' },
+  {
+    id: 'cabinet',
+    parent_id: 'room',
+    label: 'Cabinet A',
+    unit_type: 'Cabinet',
+  },
+  {
+    id: 'drawer',
+    parent_id: 'cabinet',
+    label: 'Drawer 3',
+    unit_type: 'Drawer',
+  },
+  { id: 'other', parent_id: null, label: 'Room 102', unit_type: 'Room' },
 ];
+
+// Answers the `id in` and `parent_id in` lookups the shared storage path
+// and subtree helpers make.
+function findUnits(args: {
+  where: { id?: { in: string[] }; parent_id?: { in: string[] } };
+}) {
+  const { id, parent_id } = args.where;
+  return Promise.resolve(
+    UNITS.filter((unit) =>
+      id
+        ? id.in.includes(unit.id)
+        : parent_id!.in.includes(unit.parent_id as string),
+    ),
+  );
+}
 
 function context(overrides: Partial<GenerateReportDto>): ReportContext {
   const dto = {
@@ -65,7 +90,13 @@ describe('ReportBuilderService', () => {
 
   beforeEach(async () => {
     jest.resetAllMocks();
-    prismaMock.storage_unit.findMany.mockResolvedValue(UNITS);
+    prismaMock.storage_unit.findMany.mockImplementation(findUnits);
+    prismaMock.storage_unit.findUnique.mockImplementation(
+      (args: { where: { id: string } }) =>
+        Promise.resolve(
+          UNITS.find((unit) => unit.id === args.where.id) ?? null,
+        ),
+    );
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ReportBuilderService,
@@ -175,7 +206,7 @@ describe('ReportBuilderService', () => {
         'Yes',
         5,
         'Good',
-        'Room 101 / Cabinet A / Drawer 3; Room 101 / Cabinet A',
+        'Room 101 › Cabinet A › Drawer 3; Room 101 › Cabinet A',
         'Sep 15, 2026',
       ]);
       expect(tableRows(document, 'Active lots by condition')).toEqual([
