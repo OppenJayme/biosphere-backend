@@ -45,13 +45,15 @@ system is not a reason to postpone all fixes until the end.
 
 ## 2. Summary
 
-| ID      | Date       | Module                     | Summary                                                                 | Severity | Priority | Status | Owner                   |
-| ------- | ---------- | -------------------------- | ----------------------------------------------------------------------- | -------- | -------- | ------ | ----------------------- |
-| DEF-001 | 2026-09-29 | Cataloging / Collections   | Duplicate normalized collection names are accepted                      | S2 Major | P1       | Open   | Cataloging / Backend    |
-| DEF-002 | 2026-10-03 | Cataloging / Provenance    | Future collection dates are accepted and satisfy presence validation    | S2 Major | P1       | Open   | Cataloging / Full stack |
-| DEF-003 | 2026-10-03 | Cataloging / Specimen list | Client-side specimen selection does not hydrate on a remote LAN browser | S2 Major | P1       | Open   | Cataloging / Frontend   |
-| DEF-004 | 2026-10-03 | Cataloging / Media UI      | Choose-file controls have no visible hover feedback                     | S4 Minor | P2       | Open   | Cataloging / Frontend   |
-| DEF-005 | 2026-10-03 | Cataloging / Tags UI       | Vocabulary search hides the matching tag names                          | S4 Minor | P2       | Open   | Cataloging / Frontend   |
+| ID      | Date       | Module                     | Summary                                                                 | Severity    | Priority | Status | Owner                   |
+| ------- | ---------- | -------------------------- | ----------------------------------------------------------------------- | ----------- | -------- | ------ | ----------------------- |
+| DEF-001 | 2026-09-29 | Cataloging / Collections   | Duplicate normalized collection names are accepted                      | S2 Major    | P1       | Open   | Cataloging / Backend    |
+| DEF-002 | 2026-10-03 | Cataloging / Provenance    | Future collection dates are accepted and satisfy presence validation    | S2 Major    | P1       | Open   | Cataloging / Full stack |
+| DEF-003 | 2026-10-03 | Cataloging / Specimen list | Client-side specimen selection does not hydrate on a remote LAN browser | S2 Major    | P1       | Open   | Cataloging / Frontend   |
+| DEF-004 | 2026-10-03 | Cataloging / Media UI      | Choose-file controls have no visible hover feedback                     | S4 Minor    | P2       | Open   | Cataloging / Frontend   |
+| DEF-005 | 2026-10-03 | Cataloging / Tags UI       | Vocabulary search hides the matching tag names                          | S4 Minor    | P2       | Open   | Cataloging / Frontend   |
+| DEF-006 | 2026-10-03 | Cataloging / Revision UI   | Media history exposes raw identifiers and storage paths                 | S4 Minor    | P2       | Open   | Cataloging / Frontend   |
+| DEF-007 | 2026-10-03 | Cataloging / Specimen list | Selected-specimen preview never displays its cover image                | S3 Moderate | P2       | Open   | Cataloging / Full stack |
 
 ## 3. Defect details
 
@@ -380,6 +382,121 @@ result, making the successful search result unclear.
 - [ ] Selecting a result attaches the existing shared tag.
 - [ ] An already attached tag remains excluded from suggestions.
 - [ ] Duplicate normalization and revision history still work.
+
+### DEF-006 - Media history exposes raw identifiers and storage paths
+
+**Related test:** CAT-011
+
+**Environment:** Development specimen revision-history page
+
+**Found on:** frontend `672fe4e`
+
+**Severity:** S4 Minor
+
+**Priority:** P2
+
+**Status:** Open
+
+**Owner:** Cataloging / Frontend
+
+#### Reproduction
+
+1. Upload, replace, and remove specimen media.
+2. Open the specimen's revision history.
+3. Inspect the values for `Specimen Media` and `Specimen Media.File` entries.
+
+#### Expected
+
+History describes the action in curator-readable terms, such as an image being
+added, replaced, or removed, with a safe filename or caption where useful.
+
+#### Actual
+
+Media additions and removals display raw UUIDs. File replacement entries
+display internal storage-object paths, which are implementation details and
+make review history difficult to understand.
+
+#### Technical observation
+
+- The revision history formatter special-cases specimen tags but not media.
+- The underlying audit data appears complete; the defect is in presentation.
+- No credential or signed URL was observed in the displayed values.
+
+#### Required remediation
+
+1. Add media-specific revision formatting for add, replace, metadata edit, and
+   removal events.
+2. Prefer a sanitized filename, caption, or clear action label over UUIDs and
+   storage paths.
+3. Preserve the underlying immutable revision values for authorized forensic
+   access without exposing implementation details in the ordinary curator UI.
+
+#### Retest
+
+- [ ] Media additions and removals use understandable action descriptions.
+- [ ] Replacement history identifies the change without showing storage paths.
+- [ ] Caption, display-order, and cover changes remain distinguishable.
+- [ ] Existing tag and core-field history formatting is unchanged.
+
+### DEF-007 - Selected-specimen preview never displays its cover image
+
+**Related test:** CAT-011
+
+**Environment:** Development specimen catalog page
+
+**Found on:** backend `b56d183`; frontend `672fe4e`
+
+**Severity:** S3 Moderate
+
+**Priority:** P2
+
+**Status:** Open
+
+**Owner:** Cataloging / Full stack
+
+#### Reproduction
+
+1. Upload at least one specimen image and mark it as the cover.
+2. Confirm the cover marker persists on the Media page.
+3. Return to the specimen catalog and select that specimen.
+4. Inspect the image area in the Selected Specimen panel.
+
+#### Expected
+
+The selected specimen's current cover image appears through an authorized,
+short-lived URL, with an accessible fallback when no cover exists or the image
+cannot be loaded.
+
+#### Actual
+
+The panel always displays the paw placeholder even when the specimen has a
+valid cover image.
+
+#### Technical observation
+
+- `SpecimenDetailPanel` renders `PawIcon` unconditionally.
+- The catalog summary contract does not currently provide an authorized cover
+  preview URL.
+- Private storage paths must not be placed directly in the catalog response or
+  exposed as public URLs.
+
+#### Required remediation
+
+1. Add a bounded, authorized way to obtain the selected specimen's current
+   cover preview, preferably only when needed rather than signing every image
+   for every catalog row.
+2. Render the short-lived URL in the selected preview with appropriate alt text.
+3. Retain the placeholder for specimens without a cover and for recoverable
+   image-loading failures.
+4. Ensure a cover change or removal invalidates the relevant cached view.
+
+#### Retest
+
+- [ ] A selected specimen with a cover displays the correct image.
+- [ ] Switching the cover updates the preview after navigation or refresh.
+- [ ] Removing the cover falls back safely without a broken image.
+- [ ] A specimen without media continues to show the placeholder.
+- [ ] No raw storage path, service credential, or long-lived public URL is exposed.
 
 ## 4. New defect template
 

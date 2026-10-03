@@ -125,7 +125,7 @@ Every `Fail` must reference an entry in the defect log.
 | CAT-008 | Remove required data while Cataloged, then reopen with a reason                | Removal is blocked until reopening; reopening returns to `UNCATALOGED` and disables public display         | **Pass**                                                              |
 | CAT-009 | Enable and disable public eligibility                                          | Only Cataloged specimens qualify; no exhibit is published automatically                                    | **Pass**                                                              |
 | CAT-010 | Attach, change, repeat, and detach tags                                        | Relationships remain unique and retry-safe                                                                 | **Pass**; usability issue DEF-005                                     |
-| CAT-011 | Upload, edit, cover, replace, and remove supported media; reject invalid media | Private signed access, database/storage consistency, and usable interaction states are preserved           | **Fail - DEF-004**; functional cases remain to be run                 |
+| CAT-011 | Upload, edit, cover, replace, and remove supported media; reject invalid media | Private signed access, database/storage consistency, and usable interaction states are preserved           | **Fail - DEF-004, DEF-006, DEF-007**; core operations passed          |
 | CAT-012 | Search, combine filters, sort, and paginate                                    | Results are bounded, stable, case-insensitive where approved, and archived records are excluded by default | Not run                                                               |
 | CAT-013 | Preview and commit mixed-validity CSV rows; retry commit                       | Preview is non-mutating; only reviewed valid rows import as `UNCATALOGED`; retries do not duplicate rows   | Not run                                                               |
 | CAT-014 | Review possible duplicate warnings, including archived matches                 | Warnings show evidence and never auto-merge records                                                        | Blocked pending active duplicate-detection PR acceptance              |
@@ -168,6 +168,18 @@ persisted after refresh, and detaching it created the expected revision entry
 while retaining the shared vocabulary tag. Core tag behavior passed. DEF-005
 tracks that vocabulary search reports only the number of suggestions instead
 of visibly listing the matching names.
+
+CAT-011 evidence recorded on 2026-10-03: supported images loaded before and
+after refresh; a second upload and file replacement succeeded; and the saved
+metadata persisted. An unsupported file was rejected with the approved
+JPEG/PNG/WebP guidance, and a negative display order was rejected. Removing an
+image persisted and created revision history. Switching the cover removed the
+marker from the previous image, assigned it to the second image, and persisted
+after refresh. Reloading the separate revision-history page to see a newly
+committed event is expected because it is not a live subscription. DEF-004
+tracks missing file-control hover feedback, DEF-006 tracks raw identifiers and
+storage paths in revision history, and DEF-007 tracks the catalog preview's
+hard-coded placeholder instead of the selected cover image.
 
 ### Storage Location Management
 
