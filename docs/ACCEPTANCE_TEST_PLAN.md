@@ -123,7 +123,7 @@ Every `Fail` must reference an entry in the defect log.
 | CAT-006 | View readiness with missing and complete requirements                          | Every approved rule reports the correct pass/fail state and fix location                                   | **Fail - DEF-002**                                                    |
 | CAT-007 | Complete Cataloging with one prepared valid active lot                         | Status becomes `CATALOGED`; public display remains off; history/audit are written                          | **Pass** for lifecycle behavior; DEF-002 still blocks module sign-off |
 | CAT-008 | Remove required data while Cataloged, then reopen with a reason                | Removal is blocked until reopening; reopening returns to `UNCATALOGED` and disables public display         | **Pass**                                                              |
-| CAT-009 | Enable and disable public eligibility                                          | Only Cataloged specimens qualify; no exhibit is published automatically                                    | Not run                                                               |
+| CAT-009 | Enable and disable public eligibility                                          | Only Cataloged specimens qualify; no exhibit is published automatically                                    | **Pass**                                                              |
 | CAT-010 | Attach, change, repeat, and detach tags                                        | Relationships remain unique and retry-safe                                                                 | Not run                                                               |
 | CAT-011 | Upload, edit, cover, replace, and remove supported media; reject invalid media | Private signed access, database/storage consistency, and usable interaction states are preserved           | **Fail - DEF-004**; functional cases remain to be run                 |
 | CAT-012 | Search, combine filters, sort, and paginate                                    | Results are bounded, stable, case-insensitive where approved, and archived records are excluded by default | Not run                                                               |
@@ -150,6 +150,15 @@ reason was preserved, and the reopening action appeared in the audit log. Once
 reopened, removing required data succeeded and readiness correctly prevented
 completion. Restoring the required data made Catalog completion available
 again.
+
+CAT-009 evidence recorded on 2026-10-03: enabling public-display eligibility
+preserved the specimen's `CATALOGED` status, changed the public flag from
+`false` to `true`, and created the expected revision-history entry. The state
+persisted after refresh and was visible as `Eligible` in the lifecycle and core
+record views. Disabling eligibility preserved `CATALOGED`, persisted the
+disabled state, and recorded the inverse change. No exhibit row was created,
+the exhibit total remained unchanged, and no exhibit was published
+automatically.
 
 ### Storage Location Management
 
