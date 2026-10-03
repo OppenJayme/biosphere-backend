@@ -122,7 +122,7 @@ Every `Fail` must reference an entry in the defect log.
 | CAT-005 | Create and edit provenance; reject invalid dates                               | Values and revisions persist; empty values normalize; future collection dates are rejected                 | **Fail - DEF-002**                                                    |
 | CAT-006 | View readiness with missing and complete requirements                          | Every approved rule reports the correct pass/fail state and fix location                                   | **Fail - DEF-002**                                                    |
 | CAT-007 | Complete Cataloging with one prepared valid active lot                         | Status becomes `CATALOGED`; public display remains off; history/audit are written                          | **Pass** for lifecycle behavior; DEF-002 still blocks module sign-off |
-| CAT-008 | Remove required data while Cataloged, then reopen with a reason                | Removal is blocked until reopening; reopening returns to `UNCATALOGED` and disables public display         | Not run                                                               |
+| CAT-008 | Remove required data while Cataloged, then reopen with a reason                | Removal is blocked until reopening; reopening returns to `UNCATALOGED` and disables public display         | **Pass**                                                              |
 | CAT-009 | Enable and disable public eligibility                                          | Only Cataloged specimens qualify; no exhibit is published automatically                                    | Not run                                                               |
 | CAT-010 | Attach, change, repeat, and detach tags                                        | Relationships remain unique and retry-safe                                                                 | Not run                                                               |
 | CAT-011 | Upload, edit, cover, replace, and remove supported media; reject invalid media | Private signed access, database/storage consistency, and usable interaction states are preserved           | **Fail - DEF-004**; functional cases remain to be run                 |
@@ -141,6 +141,15 @@ transition, the audit log contained `COMPLETE_SPECIMEN_CATALOGING`, and
 readiness remained satisfied. This validates the lifecycle transition but does
 not close DEF-002; Cataloging cannot be signed off while a future provenance
 date can satisfy readiness.
+
+CAT-008 evidence recorded on 2026-10-03: removing required Cataloging data was
+blocked while the specimen was `CATALOGED`; a blank reopening reason was
+rejected; and a valid acceptance-testing reason reopened the record as
+`UNCATALOGED`. Public-display eligibility was switched off and unavailable, the
+reason was preserved, and the reopening action appeared in the audit log. Once
+reopened, removing required data succeeded and readiness correctly prevented
+completion. Restoring the required data made Catalog completion available
+again.
 
 ### Storage Location Management
 
