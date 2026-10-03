@@ -4,9 +4,13 @@ import { ConfigService } from '@nestjs/config';
 import * as dotenv from 'dotenv';
 import { PrismaClient } from '../src/generated/prisma/client';
 import { PrismaService } from '../src/prisma/prisma.service';
+import { SpecimenLotsService } from '../src/specimen-lots/specimen-lots.service';
+import { SpecimenAccessionService } from '../src/specimens/specimen-accession.service';
 import { SpecimenCatalogingService } from '../src/specimens/specimen-cataloging.service';
 import { SpecimenDuplicatesService } from '../src/specimens/specimen-duplicates.service';
 import { SpecimenImportService } from '../src/specimens/specimen-import.service';
+import { SpecimenProvenanceService } from '../src/specimens/specimen-provenance.service';
+import { SpecimenTaxonomyService } from '../src/specimens/specimen-taxonomy.service';
 import { SpecimensService } from '../src/specimens/specimens.service';
 
 dotenv.config();
@@ -147,11 +151,20 @@ async function main(): Promise<void> {
     await prisma.onModuleInit();
 
     const catalogingService = new SpecimenCatalogingService(prisma);
-    const specimensService = new SpecimensService(prisma, catalogingService);
+    const accessionService = new SpecimenAccessionService(prisma);
+    const specimensService = new SpecimensService(
+      prisma,
+      catalogingService,
+      accessionService,
+    );
     const importService = new SpecimenImportService(
       prisma,
       specimensService,
       new SpecimenDuplicatesService(prisma),
+      accessionService,
+      new SpecimenTaxonomyService(prisma),
+      new SpecimenProvenanceService(prisma),
+      new SpecimenLotsService(prisma),
     );
 
     fixtureAuthUserId = randomUUID();

@@ -3,10 +3,13 @@ import {
   Controller,
   Delete,
   Get,
+  Header,
   Param,
   ParseUUIDPipe,
   Patch,
   Post,
+  Query,
+  StreamableFile,
   UploadedFile,
   UseInterceptors,
 } from '@nestjs/common';
@@ -15,6 +18,7 @@ import {
   ApiCreatedResponse,
   ApiOkResponse,
   ApiOperation,
+  ApiProduces,
   ApiTags,
 } from '@nestjs/swagger';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
@@ -24,16 +28,23 @@ import type { AuthenticatedUser } from '../auth/types/auth.types';
 import { STORAGE_RULES } from '../supabase/storage.config';
 import { AddExhibitMediaDto } from './dto/add-exhibit-media.dto';
 import { CreateExhibitDto } from './dto/create-exhibit.dto';
+import { ExhibitQrQueryDto } from './dto/exhibit-qr-query.dto';
+import { ListExhibitsQueryDto } from './dto/list-exhibits-query.dto';
+import { ReplaceExhibitUrlDto } from './dto/replace-exhibit-url.dto';
+import { SetExhibitArDto } from './dto/set-exhibit-ar.dto';
+import { UpdateExhibitMediaDto } from './dto/update-exhibit-media.dto';
 import { UpdateExhibitDto } from './dto/update-exhibit.dto';
 import { Exhibit, PublicExhibitResponse } from './entities/exhibit.entity';
 import { ExhibitMedia } from './entities/exhibit-media.entity';
-import { ExhibitsService } from './exhibits.service';
+import { ExhibitQrImage, ExhibitsService } from './exhibits.service';
 
 // Unlike specimens/storage-locations, this controller mixes a public route
 // (the QR page) with curator-only routes, so @Roles is applied per-method
 // rather than at the class level (see AuthController for the same pattern) —
 // a class-level @Roles('CURATOR') would still apply to the @Public() route
-// once SupabaseAuthGuard lets it through, blocking visitors.
+// once SupabaseAuthGuard lets it through, blocking visitors. AR assets
+// themselves are uploaded and activated only through /developer (REQ-4.2-04);
+// curators enable or disable an exhibit's uploaded AR here (REQ-4.13-02).
 @ApiTags('exhibits')
 @Controller('exhibits')
 export class ExhibitsController {
@@ -52,10 +63,12 @@ export class ExhibitsController {
 
   @Roles('CURATOR')
   @Get()
-  @ApiOperation({ summary: 'List active exhibits (curator-only)' })
+  @ApiOperation({
+    summary: 'List or search active exhibits (curator-only)',
+  })
   @ApiOkResponse({ type: [Exhibit] })
-  findAll(): Promise<Exhibit[]> {
-    return this.exhibitsService.findAll();
+  findAll(@Query() query: ListExhibitsQueryDto): Promise<Exhibit[]> {
+    return this.exhibitsService.findAll(query);
   }
 
   // Placed ahead of the curator :id route in source for readability; route
@@ -78,7 +91,9 @@ export class ExhibitsController {
 
   @Roles('CURATOR')
   @Patch(':id')
-  @ApiOperation({ summary: 'Update an active exhibit' })
+  @ApiOperation({
+    summary: 'Edit exhibit content; the public URL stays the same',
+  })
   @ApiOkResponse({ type: Exhibit })
   update(
     @Param('id', ParseUUIDPipe) id: string,
@@ -86,6 +101,21 @@ export class ExhibitsController {
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<Exhibit> {
     return this.exhibitsService.update(id, dto, user.accountId);
+  }
+
+  @Roles('CURATOR')
+  @Patch(':id/replace-url')
+  @ApiOperation({
+    summary:
+      'Intentionally replace the public URL; QR codes printed for the old URL stop working',
+  })
+  @ApiOkResponse({ type: Exhibit })
+  replaceUrl(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: ReplaceExhibitUrlDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<Exhibit> {
+    return this.exhibitsService.replaceUrl(id, dto, user.accountId);
   }
 
   @Roles('CURATOR')
@@ -100,8 +130,19 @@ export class ExhibitsController {
   }
 
   @Roles('CURATOR')
+  @Patch(':id/unpublish')
+  @ApiOperation({ summary: 'Take a published exhibit page offline' })
+  @ApiOkResponse({ type: Exhibit })
+  unpublish(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<Exhibit> {
+    return this.exhibitsService.unpublish(id, user.accountId);
+  }
+
+  @Roles('CURATOR')
   @Patch(':id/disable')
-  @ApiOperation({ summary: 'Disable a published exhibit' })
+  @ApiOperation({ summary: 'Disable an exhibit page' })
   @ApiOkResponse({ type: Exhibit })
   disable(
     @Param('id', ParseUUIDPipe) id: string,
@@ -122,13 +163,57 @@ export class ExhibitsController {
   }
 
   @Roles('CURATOR')
+  @Patch(':id/ar')
+  @ApiOperation({
+    summary:
+      "Enable or disable an exhibit's uploaded AR assets (curator); developers upload them",
+  })
+  @ApiOkResponse({ type: Exhibit })
+  setAr(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: SetExhibitArDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<Exhibit> {
+    return this.exhibitsService.setAr(id, dto, user.accountId);
+  }
+
+  @Roles('CURATOR')
+  @Get(':id/qr')
+  @ApiOperation({
+    summary:
+      'QR code for the public page (PNG or SVG); regenerated identically on every request',
+  })
+  @ApiProduces('image/png', 'image/svg+xml')
+  @Header('Cache-Control', 'no-store')
+  async getQrCode(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Query() query: ExhibitQrQueryDto,
+  ): Promise<StreamableFile> {
+    return toFile(await this.exhibitsService.getQrCode(id, query));
+  }
+
+  @Roles('CURATOR')
+  @Get(':id/label')
+  @ApiOperation({
+    summary:
+      'Printable exhibit label: QR code, specimen name, and human-readable URL (SVG)',
+  })
+  @ApiProduces('image/svg+xml')
+  @Header('Cache-Control', 'no-store')
+  async getLabel(
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<StreamableFile> {
+    return toFile(await this.exhibitsService.getLabel(id));
+  }
+
+  @Roles('CURATOR')
   @Post(':id/media')
   @UseInterceptors(
     FileInterceptor('file', {
       limits: { fileSize: STORAGE_RULES['exhibit-media'].maxBytes },
     }),
   )
-  @ApiOperation({ summary: 'Attach media to an exhibit' })
+  @ApiOperation({ summary: 'Upload an image to an exhibit' })
   @ApiCreatedResponse({ type: ExhibitMedia })
   addMedia(
     @Param('id', ParseUUIDPipe) id: string,
@@ -137,6 +222,19 @@ export class ExhibitsController {
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<ExhibitMedia> {
     return this.exhibitsService.addMedia(id, file, dto, user.accountId);
+  }
+
+  @Roles('CURATOR')
+  @Patch(':id/media/:mediaId')
+  @ApiOperation({ summary: 'Edit an image caption, order, or cover flag' })
+  @ApiOkResponse({ type: ExhibitMedia })
+  updateMedia(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('mediaId', ParseUUIDPipe) mediaId: string,
+    @Body() dto: UpdateExhibitMediaDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<ExhibitMedia> {
+    return this.exhibitsService.updateMedia(id, mediaId, dto, user.accountId);
   }
 
   @Roles('CURATOR')
@@ -149,4 +247,16 @@ export class ExhibitsController {
   ) {
     return this.exhibitsService.removeMedia(id, mediaId, user.accountId);
   }
+}
+
+// Served inline so the browser can show or print it; the filename is used
+// when the curator saves it.
+function toFile(image: ExhibitQrImage): StreamableFile {
+  return new StreamableFile(
+    typeof image.body === 'string' ? Buffer.from(image.body) : image.body,
+    {
+      type: image.contentType,
+      disposition: `inline; filename="${image.fileName}"`,
+    },
+  );
 }

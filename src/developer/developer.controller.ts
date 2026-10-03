@@ -19,6 +19,7 @@ import { OnboardCuratorDto } from './dto/onboard-curator.dto';
 import { UpdateCuratorStatusDto } from './dto/update-curator-status.dto';
 import { CreateArAssetDto } from './dto/create-ar-asset.dto';
 import { UpdateArAssetDto } from './dto/update-ar-asset.dto';
+import { ActivateArAssetDto } from './dto/activate-ar-asset.dto';
 import { MAX_AR_ASSET_SIZE_BYTES } from './developer.constants';
 
 @Roles('DEVELOPER')
@@ -50,6 +51,13 @@ export class DeveloperController {
 
   // ---- AR asset deployment (REQ-4.2-04, REQ-4.2-05) ----
 
+  // Curator-approved exhibits the developer can deploy AR assets to
+  // (REQ-4.13-03), plus any exhibit that still holds assets, for cleanup.
+  @Get('ar-exhibits')
+  listArExhibits() {
+    return this.developerService.listArExhibits();
+  }
+
   @Post('ar-assets')
   @UseInterceptors(
     FileInterceptor('file', { limits: { fileSize: MAX_AR_ASSET_SIZE_BYTES } }),
@@ -78,9 +86,15 @@ export class DeveloperController {
   @Patch('ar-assets/:id/activate')
   activateArAsset(
     @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: ActivateArAssetDto,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.developerService.setArAssetEnabled(id, true, user.id);
+    return this.developerService.setArAssetEnabled(
+      id,
+      true,
+      user.id,
+      dto.authorizationReference,
+    );
   }
 
   @Patch('ar-assets/:id/deactivate')

@@ -18,7 +18,9 @@ receives `404 Not Found`.
 - `collection`: the configured collection record or `null`
 - `taxonomy`: the specimen taxonomy record or `null`
 - `provenance`: the specimen provenance record or `null`
-- `activeLots`: active lots with their current storage-unit records
+- `activeLots`: active lots with their current storage-unit records and a
+  derived `storageLocation` (root-to-unit `path`, `rootUnit` room or gallery,
+  and a `pathLabel` such as `Zoology Room › Cabinet A`)
 - `lotOverview`: active-lot count and total active specimen quantity
 - `media`: private media metadata in display order
 - `tags`: attached tags in stable case-insensitive name order
@@ -38,12 +40,11 @@ This endpoint does not:
 
 - decide whether an `UNCATALOGED` specimen is complete;
 - change specimen status or public-display eligibility;
-- enforce accession-number uniqueness;
 - include revision or lot-transaction history;
 - include offline synchronization receipts;
 - expose the record through a public route.
 
-Catalog-completion and accession-number-uniqueness rules remain deferred
-until the museum/team confirms their requirements. Bulk import, with
+Accession-number uniqueness is enforced on writes; see
+`docs/ACCESSION_NUMBER_GUIDE.md`. Bulk import, with
 warning-only duplicate detection, is implemented separately; see
 `docs/SPECIMEN_IMPORT_GUIDE.md`.

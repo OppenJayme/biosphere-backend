@@ -1,5 +1,18 @@
-import { IsBoolean, IsIn, IsOptional, IsUUID } from 'class-validator';
+import {
+  IsBoolean,
+  IsIn,
+  IsOptional,
+  IsString,
+  IsUUID,
+  MaxLength,
+} from 'class-validator';
 import { Transform } from 'class-transformer';
+import { trimString } from '../../common/transforms/trim-string.transform';
+
+// Documented authorization for an AR deployment (REQ-4.2-05), e.g. the
+// curator's approval memo reference. Stored in the audit log entry of every
+// upload, replacement, move, and activation.
+export const AR_AUTHORIZATION_REFERENCE_MAX_LENGTH = 500;
 
 // Approved single-file AR delivery formats for <model-viewer>. A plain .gltf
 // may reference separate binary and texture files, so it is not accepted by
@@ -24,4 +37,13 @@ export class CreateArAssetDto {
   @IsBoolean()
   @Transform(({ value }) => value === 'true' || value === true)
   isEnabled?: boolean = false;
+
+  // Required, but enforced by DeveloperService rather than here: a missing
+  // or blank reference must reach the service so the rejected attempt is
+  // audited (REQ-4.2-09). Only the type and length are checked here.
+  @IsOptional()
+  @Transform(trimString)
+  @IsString()
+  @MaxLength(AR_AUTHORIZATION_REFERENCE_MAX_LENGTH)
+  authorizationReference?: string;
 }

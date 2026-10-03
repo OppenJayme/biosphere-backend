@@ -61,6 +61,7 @@ describe('Storage inventory (e2e)', () => {
         findUnique: jest.fn(({ where }: { where: { id: string } }) =>
           where.id === storageId ? storageUnit : null,
         ),
+        findMany: jest.fn(() => [storageUnit]),
       },
       specimen_lot: {
         findMany: lotFindMany,

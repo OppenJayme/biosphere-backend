@@ -55,7 +55,7 @@ This document records the conventions agreed upon for the BioSphere database. Th
 ## Constraints
 
 - Add `UNIQUE`, cascading deletes, and other strong constraints only when confirmed business rules support them.
-- Do not enforce a final uniqueness rule for accession numbers until it has been validated with the curator.
+- Accession numbers are unique across all specimen records, including Archived ones, compared trimmed and case-insensitively (curator-approved; REQ-4.4-04, BR-01). No format is enforced yet. See [`docs/ACCESSION_NUMBER_GUIDE.md`](docs/ACCESSION_NUMBER_GUIDE.md).
 
 ## Step 5 - Frozen Statuses, Enums, and Controlled Values
 

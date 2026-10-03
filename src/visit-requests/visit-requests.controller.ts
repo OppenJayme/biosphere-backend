@@ -21,6 +21,7 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import type { AuthenticatedUser } from '../auth/types/auth.types';
 import { CommunicationEntry } from '../communication-history/communication-history.entity';
 import { CreateInternalNoteDto } from '../communication-history/dto/create-internal-note.dto';
+import { SendVisitorMessageDto } from '../communication-history/dto/send-visitor-message.dto';
 import { PUBLIC_FORM_RATE_LIMIT } from '../config/rate-limit.config';
 import { ApproveVisitScheduleDto } from './dto/approve-visit-schedule.dto';
 import { CreateVisitRequestDto } from './dto/create-visit-request.dto';
@@ -139,5 +140,23 @@ export class VisitRequestsController {
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<CommunicationEntry> {
     return this.visitRequestsService.addNote(id, dto, user.accountId);
+  }
+
+  @Roles('CURATOR')
+  @Post(':id/messages')
+  @ApiOperation({
+    summary:
+      'Email the visitor a message, e.g. a request for more information (curator-only)',
+  })
+  @ApiCreatedResponse({
+    type: CommunicationEntry,
+    description: 'The timeline entry; deliveryResult shows whether it was sent',
+  })
+  sendMessage(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: SendVisitorMessageDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<CommunicationEntry> {
+    return this.visitRequestsService.sendMessage(id, dto, user.accountId);
   }
 }

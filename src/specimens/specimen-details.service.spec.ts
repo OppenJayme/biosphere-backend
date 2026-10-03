@@ -13,8 +13,14 @@ const ALPHA_TAG_ID = '77777777-7777-4777-8777-777777777777';
 const ZOOLOGY_TAG_ID = '88888888-8888-4888-8888-888888888888';
 const TEST_DATE = new Date('2026-09-01T00:00:00.000Z');
 
+const ROOM_ID = '99999999-9999-4999-8999-999999999999';
+
 const specimenFindUnique = jest.fn();
-const prismaMock = { specimen: { findUnique: specimenFindUnique } };
+const storageUnitFindMany = jest.fn();
+const prismaMock = {
+  specimen: { findUnique: specimenFindUnique },
+  storage_unit: { findMany: storageUnitFindMany },
+};
 
 function detailRecord(overrides: Record<string, unknown> = {}) {
   return {
@@ -116,6 +122,7 @@ describe('SpecimenDetailsService', () => {
 
   beforeEach(async () => {
     jest.resetAllMocks();
+    storageUnitFindMany.mockResolvedValue([]);
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         SpecimenDetailsService,
@@ -205,5 +212,53 @@ describe('SpecimenDetailsService', () => {
     await expect(service.findOne(SPECIMEN_ID)).rejects.toThrow(
       new NotFoundException(`Specimen ${SPECIMEN_ID} not found`),
     );
+  });
+  it('derives each lot location from the storage hierarchy (REQ-4.6-08)', async () => {
+    specimenFindUnique.mockResolvedValue(detailRecord());
+    storageUnitFindMany
+      .mockResolvedValueOnce([
+        {
+          id: STORAGE_ID,
+          parent_id: ROOM_ID,
+          label: 'Cabinet 1',
+          unit_type: 'CABINET',
+        },
+      ])
+      .mockResolvedValueOnce([
+        {
+          id: ROOM_ID,
+          parent_id: null,
+          label: 'Zoology Room',
+          unit_type: 'ROOM',
+        },
+      ]);
+
+    const result = await service.findOne(SPECIMEN_ID);
+
+    expect(storageUnitFindMany).toHaveBeenNthCalledWith(1, {
+      where: { id: { in: [STORAGE_ID] } },
+      select: { id: true, parent_id: true, label: true, unit_type: true },
+    });
+    expect(storageUnitFindMany).toHaveBeenNthCalledWith(2, {
+      where: { id: { in: [ROOM_ID] } },
+      select: { id: true, parent_id: true, label: true, unit_type: true },
+    });
+    expect(result.activeLots[0].storageLocation).toEqual({
+      path: [
+        { id: ROOM_ID, label: 'Zoology Room', unitType: 'ROOM' },
+        { id: STORAGE_ID, label: 'Cabinet 1', unitType: 'CABINET' },
+      ],
+      rootUnit: { id: ROOM_ID, label: 'Zoology Room', unitType: 'ROOM' },
+      pathLabel: 'Zoology Room › Cabinet 1',
+      isComplete: true,
+    });
+  });
+
+  it('skips hierarchy lookups when a specimen has no active lots', async () => {
+    specimenFindUnique.mockResolvedValue(detailRecord({ specimen_lot: [] }));
+
+    await service.findOne(SPECIMEN_ID);
+
+    expect(storageUnitFindMany).not.toHaveBeenCalled();
   });
 });

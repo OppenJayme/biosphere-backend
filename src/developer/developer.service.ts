@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
+  HttpException,
   Inject,
   Injectable,
   InternalServerErrorException,
@@ -27,13 +28,36 @@ import {
 } from './dto/create-ar-asset.dto';
 import { UpdateArAssetDto } from './dto/update-ar-asset.dto';
 import { CuratorAccountEntity } from './entities/curator-account.entity';
-import { ArAssetEntity } from './entities/ar-asset.entity';
+import { ArAssetEntity, ArExhibitEntity } from './entities/ar-asset.entity';
 import {
   AR_ASSET_STORAGE_BUCKET,
   MAX_AR_ASSET_SIZE_BYTES,
 } from './developer.constants';
 
 type AuditStatus = 'SUCCESS' | 'FAILED' | 'DENIED';
+
+// An AR-deployable exhibit: it is not archived and its specimen is not
+// archived, still Cataloged and approved for public display, the same rule
+// the curator's exhibit module applies to an exhibit's specimen (BR-20).
+// This is eligibility only, not AR selection: which deployable exhibits get
+// AR is the curator's decision, handed to the developer outside BioSphere
+// (REQ-4.13-02). The curator then turns AR on or off for the exhibit.
+const DEPLOYABLE_EXHIBIT: Prisma.exhibitWhereInput = {
+  archived_at: null,
+  specimen: {
+    status: 'CATALOGED',
+    public_display_allowed: true,
+    archived_at: null,
+  },
+};
+
+// The exhibit fields isDeployable needs.
+const DEPLOYABILITY_SELECT = {
+  archived_at: true,
+  specimen: {
+    select: { status: true, public_display_allowed: true, archived_at: true },
+  },
+} satisfies Prisma.exhibitSelect;
 
 @Injectable()
 export class DeveloperService {
@@ -212,19 +236,74 @@ export class DeveloperService {
   // AR asset deployment — REQ-4.2-04, REQ-4.2-05
   // ===========================================================
 
+  // Exhibits the developer can pick when deploying an AR asset (see
+  // DEPLOYABLE_EXHIBIT). Exhibits that are no longer deployable, e.g.
+  // archived, are still listed while they hold assets, so those assets can
+  // be deactivated, removed, or moved; the service rejects activating or
+  // replacing them in place. Only the exhibit's public identity is returned
+  // (REQ-4.2-07/08).
+  async listArExhibits(): Promise<ArExhibitEntity[]> {
+    const exhibits = await this.prisma.exhibit.findMany({
+      where: { OR: [DEPLOYABLE_EXHIBIT, { ar_asset: { some: {} } }] },
+      select: {
+        id: true,
+        public_slug: true,
+        status: true,
+        archived_at: true,
+        specimen: {
+          select: {
+            common_name: true,
+            scientific_name: true,
+            status: true,
+            public_display_allowed: true,
+            archived_at: true,
+          },
+        },
+        ar_asset: { orderBy: { id: 'asc' } },
+      },
+      orderBy: { created_at: 'desc' },
+    });
+
+    return exhibits.map((item) => ({
+      id: item.id,
+      publicSlug: item.public_slug,
+      status: item.status,
+      archived: item.archived_at !== null,
+      deployable: this.isDeployable(item),
+      commonName: item.specimen.common_name,
+      scientificName: item.specimen.scientific_name,
+      assets: item.ar_asset.map((asset) => this.toArAssetEntity(asset)),
+    }));
+  }
+
   async createArAsset(
     file: Express.Multer.File,
     dto: CreateArAssetDto,
     actingDeveloperId: string,
   ): Promise<ArAssetEntity> {
-    await this.assertExhibitExists(dto.exhibitId);
-    this.validateArAssetFile(file, dto.modelFormat);
+    const storagePath = await this.auditRejection(
+      actingDeveloperId,
+      {
+        action: 'CREATE_AR_ASSET',
+        details: {
+          exhibitId: dto.exhibitId,
+          modelFormat: dto.modelFormat,
+          isEnabled: dto.isEnabled ?? false,
+          authorizationReference: this.reference(dto.authorizationReference),
+        },
+      },
+      async () => {
+        this.requireAuthorization(dto.authorizationReference, 'upload');
+        await this.assertExhibitDeployable(dto.exhibitId);
+        this.validateArAssetFile(file, dto.modelFormat);
 
-    const storagePath = await this.storageService.upload(
-      AR_ASSET_STORAGE_BUCKET,
-      dto.exhibitId,
-      file.buffer,
-      file.mimetype,
+        return this.storageService.upload(
+          AR_ASSET_STORAGE_BUCKET,
+          dto.exhibitId,
+          file.buffer,
+          file.mimetype,
+        );
+      },
     );
 
     let created: ar_asset;
@@ -248,7 +327,11 @@ export class DeveloperService {
         action: 'CREATE_AR_ASSET',
         affectedRecordType: 'ar_asset',
         status: 'FAILED',
-        details: { exhibitId: dto.exhibitId, reason: this.errorMessage(error) },
+        details: {
+          exhibitId: dto.exhibitId,
+          authorizationReference: dto.authorizationReference,
+          reason: this.errorMessage(error),
+        },
       });
       throw new InternalServerErrorException(
         'Unable to create the AR asset record.',
@@ -261,7 +344,12 @@ export class DeveloperService {
       affectedRecordId: created.id,
       affectedRecordType: 'ar_asset',
       status: 'SUCCESS',
-      details: { exhibitId: dto.exhibitId, modelFormat: dto.modelFormat },
+      details: {
+        exhibitId: dto.exhibitId,
+        modelFormat: dto.modelFormat,
+        isEnabled: dto.isEnabled ?? false,
+        authorizationReference: dto.authorizationReference,
+      },
     });
 
     return this.toArAssetEntity(created);
@@ -273,44 +361,78 @@ export class DeveloperService {
     dto: UpdateArAssetDto,
     actingDeveloperId: string,
   ): Promise<ArAssetEntity> {
-    const existing = await this.findArAssetOrThrow(id);
+    const { existing, updateData, previousStoragePath } =
+      await this.auditRejection(
+        actingDeveloperId,
+        {
+          action: 'UPDATE_AR_ASSET',
+          affectedRecordId: id,
+          details: {
+            exhibitId: dto.exhibitId,
+            modelFormat: dto.modelFormat,
+            isEnabled: dto.isEnabled,
+            fileProvided: file !== undefined,
+            authorizationReference: this.reference(dto.authorizationReference),
+          },
+        },
+        async () => {
+          const existing = await this.findArAssetOrThrow(id);
 
-    if (dto.exhibitId) {
-      await this.assertExhibitExists(dto.exhibitId);
-    }
+          // Replacing, moving, or activating deploys something new to
+          // visitors, so it must carry documented authorization
+          // (REQ-4.2-05). Checked before anything is uploaded.
+          if (file || dto.exhibitId || dto.isEnabled) {
+            this.requireAuthorization(
+              dto.authorizationReference,
+              'replace, move, or activate',
+            );
+          }
 
-    const updateData: Prisma.ar_assetUncheckedUpdateInput = {};
-    let previousStoragePath: string | null = null;
+          if (dto.exhibitId) {
+            await this.assertExhibitDeployable(dto.exhibitId);
+          } else if (file || dto.isEnabled) {
+            await this.assertCurrentExhibitDeployable(
+              existing,
+              file ? 'replaced' : 'activated',
+            );
+          }
 
-    if (file) {
-      const targetFormat: ArModelFormat =
-        dto.modelFormat ?? (existing.model_format as ArModelFormat);
-      this.validateArAssetFile(file, targetFormat);
+          const updateData: Prisma.ar_assetUncheckedUpdateInput = {};
+          let previousStoragePath: string | null = null;
 
-      const exhibitId = dto.exhibitId ?? existing.exhibit_id;
-      const storagePath = await this.storageService.upload(
-        AR_ASSET_STORAGE_BUCKET,
-        exhibitId,
-        file.buffer,
-        file.mimetype,
+          if (file) {
+            const targetFormat: ArModelFormat =
+              dto.modelFormat ?? (existing.model_format as ArModelFormat);
+            this.validateArAssetFile(file, targetFormat);
+
+            const exhibitId = dto.exhibitId ?? existing.exhibit_id;
+            const storagePath = await this.storageService.upload(
+              AR_ASSET_STORAGE_BUCKET,
+              exhibitId,
+              file.buffer,
+              file.mimetype,
+            );
+
+            previousStoragePath = existing.storage_path;
+            updateData.storage_path = storagePath;
+            updateData.model_format = targetFormat;
+          } else if (dto.modelFormat) {
+            throw new BadRequestException(
+              'modelFormat can only change when a replacement file is uploaded.',
+            );
+          }
+
+          if (dto.exhibitId) {
+            updateData.exhibit_id = dto.exhibitId;
+          }
+
+          if (dto.isEnabled !== undefined) {
+            updateData.is_enabled = dto.isEnabled;
+          }
+
+          return { existing, updateData, previousStoragePath };
+        },
       );
-
-      previousStoragePath = existing.storage_path;
-      updateData.storage_path = storagePath;
-      updateData.model_format = targetFormat;
-    } else if (dto.modelFormat) {
-      throw new BadRequestException(
-        'modelFormat can only change when a replacement file is uploaded.',
-      );
-    }
-
-    if (dto.exhibitId) {
-      updateData.exhibit_id = dto.exhibitId;
-    }
-
-    if (dto.isEnabled !== undefined) {
-      updateData.is_enabled = dto.isEnabled;
-    }
 
     if (Object.keys(updateData).length === 0) {
       return this.toArAssetEntity(existing);
@@ -335,7 +457,10 @@ export class DeveloperService {
         affectedRecordId: id,
         affectedRecordType: 'ar_asset',
         status: 'FAILED',
-        details: { reason: this.errorMessage(error) },
+        details: {
+          authorizationReference: dto.authorizationReference,
+          reason: this.errorMessage(error),
+        },
       });
       throw new InternalServerErrorException('Unable to update the AR asset.');
     }
@@ -356,6 +481,8 @@ export class DeveloperService {
         exhibitId: dto.exhibitId,
         modelFormat: dto.modelFormat,
         isEnabled: dto.isEnabled,
+        fileReplaced: previousStoragePath !== null,
+        authorizationReference: dto.authorizationReference,
       },
     });
 
@@ -366,8 +493,32 @@ export class DeveloperService {
     id: string,
     isEnabled: boolean,
     actingDeveloperId: string,
+    // Required to activate (REQ-4.2-05); ignored when deactivating.
+    authorizationReference?: string,
   ): Promise<ArAssetEntity> {
-    await this.findArAssetOrThrow(id);
+    const authorizationDetails = isEnabled
+      ? { authorizationReference: this.reference(authorizationReference) }
+      : {};
+
+    await this.auditRejection(
+      actingDeveloperId,
+      {
+        action: isEnabled ? 'ACTIVATE_AR_ASSET' : 'DEACTIVATE_AR_ASSET',
+        affectedRecordId: id,
+        details: authorizationDetails,
+      },
+      async () => {
+        if (isEnabled) {
+          this.requireAuthorization(authorizationReference, 'activate');
+        }
+
+        const existing = await this.findArAssetOrThrow(id);
+
+        if (isEnabled) {
+          await this.assertCurrentExhibitDeployable(existing, 'activated');
+        }
+      },
+    );
 
     let updated: ar_asset;
 
@@ -383,7 +534,7 @@ export class DeveloperService {
         affectedRecordId: id,
         affectedRecordType: 'ar_asset',
         status: 'FAILED',
-        details: { reason: this.errorMessage(error) },
+        details: { ...authorizationDetails, reason: this.errorMessage(error) },
       });
       throw new InternalServerErrorException(
         `Unable to ${isEnabled ? 'activate' : 'deactivate'} the AR asset.`,
@@ -396,6 +547,7 @@ export class DeveloperService {
       affectedRecordId: id,
       affectedRecordType: 'ar_asset',
       status: 'SUCCESS',
+      ...(isEnabled ? { details: authorizationDetails } : {}),
     });
 
     return this.toArAssetEntity(updated);
@@ -405,7 +557,11 @@ export class DeveloperService {
     id: string,
     actingDeveloperId: string,
   ): Promise<{ id: string; removed: true }> {
-    const existing = await this.findArAssetOrThrow(id);
+    const existing = await this.auditRejection(
+      actingDeveloperId,
+      { action: 'REMOVE_AR_ASSET', affectedRecordId: id },
+      () => this.findArAssetOrThrow(id),
+    );
 
     try {
       await this.prisma.ar_asset.delete({ where: { id } });
@@ -440,6 +596,63 @@ export class DeveloperService {
   // Helpers
   // ===========================================================
 
+  /**
+   * Runs the checks and uploads that happen before an AR change is written.
+   * If any of them rejects the attempt, a FAILED audit entry is recorded
+   * (REQ-4.2-09) and the original error is rethrown unchanged. Failures of the
+   * database write itself are audited where they happen, so they are not
+   * wrapped here.
+   */
+  private async auditRejection<T>(
+    actingAuthUserId: string,
+    attempt: {
+      action: string;
+      affectedRecordId?: string;
+      details?: Record<string, unknown>;
+    },
+    step: () => Promise<T>,
+  ): Promise<T> {
+    try {
+      return await step();
+    } catch (error) {
+      await this.recordAudit({
+        actingAuthUserId,
+        action: attempt.action,
+        affectedRecordId: attempt.affectedRecordId,
+        affectedRecordType: 'ar_asset',
+        status: 'FAILED',
+        details: { ...attempt.details, reason: this.rejectionReason(error) },
+      });
+      throw error;
+    }
+  }
+
+  // HttpException messages here are this module's own fixed, user-facing
+  // strings. Anything else (e.g. a raw client error) is summarized so internal
+  // details never reach the audit log.
+  private rejectionReason(error: unknown): string {
+    return error instanceof HttpException
+      ? error.message
+      : 'Unexpected error before the change was saved.';
+  }
+
+  // The DTOs leave authorizationReference optional so a missing one reaches
+  // the service and can be audited; this is where it is enforced.
+  private requireAuthorization(
+    authorizationReference: string | undefined,
+    action: string,
+  ): void {
+    if (!authorizationReference?.trim()) {
+      throw new BadRequestException(
+        `An authorizationReference is required to ${action} an AR asset.`,
+      );
+    }
+  }
+
+  private reference(authorizationReference: string | undefined) {
+    return authorizationReference?.trim() || undefined;
+  }
+
   private async findArAssetOrThrow(id: string): Promise<ar_asset> {
     const asset = await this.prisma.ar_asset.findUnique({ where: { id } });
 
@@ -450,10 +663,12 @@ export class DeveloperService {
     return asset;
   }
 
-  private async assertExhibitExists(exhibitId: string): Promise<void> {
+  // New assets, and assets moved to another exhibit, may only target a
+  // deployable exhibit (REQ-4.13-03).
+  private async assertExhibitDeployable(exhibitId: string): Promise<void> {
     const exhibit = await this.prisma.exhibit.findUnique({
       where: { id: exhibitId },
-      select: { id: true, archived_at: true },
+      select: DEPLOYABILITY_SELECT,
     });
 
     if (!exhibit) {
@@ -465,6 +680,51 @@ export class DeveloperService {
         'AR assets cannot be deployed to an archived exhibit.',
       );
     }
+
+    if (!this.isDeployable(exhibit)) {
+      throw new BadRequestException(
+        'AR assets can only be deployed to an exhibit whose specimen is ' +
+          'active, Cataloged, and approved for public display.',
+      );
+    }
+  }
+
+  // An asset whose exhibit is no longer deployable is cleanup-only: it can
+  // be deactivated, removed, or moved to a deployable exhibit, but not
+  // activated or replaced where it is.
+  private async assertCurrentExhibitDeployable(
+    asset: ar_asset,
+    action: 'activated' | 'replaced',
+  ): Promise<void> {
+    const exhibit = await this.prisma.exhibit.findUnique({
+      where: { id: asset.exhibit_id },
+      select: DEPLOYABILITY_SELECT,
+    });
+
+    if (!exhibit || !this.isDeployable(exhibit)) {
+      throw new BadRequestException(
+        `This AR asset cannot be ${action} because its exhibit is no longer ` +
+          'deployable. It can only be deactivated, removed, or moved to a ' +
+          'deployable exhibit.',
+      );
+    }
+  }
+
+  // Mirrors DEPLOYABLE_EXHIBIT for an exhibit that is already loaded.
+  private isDeployable(exhibit: {
+    archived_at: Date | null;
+    specimen: {
+      status: string;
+      public_display_allowed: boolean;
+      archived_at: Date | null;
+    };
+  }): boolean {
+    return (
+      exhibit.archived_at === null &&
+      exhibit.specimen.archived_at === null &&
+      exhibit.specimen.status === 'CATALOGED' &&
+      exhibit.specimen.public_display_allowed
+    );
   }
 
   private validateArAssetFile(

@@ -9,9 +9,21 @@ import {
   describeStatusChange,
   listEntries,
   recordInternalEntry,
+  recordOutboundEmail,
 } from '../communication-history/communication-history';
 import { CreateInternalNoteDto } from '../communication-history/dto/create-internal-note.dto';
+import { submittedAtRange } from '../communication-history/dto/date-filter';
+import { SendVisitorMessageDto } from '../communication-history/dto/send-visitor-message.dto';
 import { Prisma } from '../generated/prisma/client';
+import { MailService } from '../mail/mail.service';
+import {
+  REFERENCE_CODE_PATTERN,
+  buildVisitorEmail,
+  referenceCode,
+  referenceIdRange,
+} from '../mail/visitor-email';
+import { NotificationRecordType } from '../notifications/entities/curator-notification.entity';
+import { SubmissionNotificationsService } from '../notifications/submission-notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { runSerializableTransaction } from '../prisma/serializable-transaction';
 import { VisitRequestsService } from '../visit-requests/visit-requests.service';
@@ -45,12 +57,16 @@ export class InquiriesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly visitRequestsService: VisitRequestsService,
+    private readonly mail: MailService,
+    private readonly submissionNotifications: SubmissionNotificationsService,
   ) {}
 
   // Public submission (REQ-4.8-01/04). Stored with its consent timestamp and
-  // audited without any visitor personal data in the audit details.
+  // audited without any visitor personal data in the audit details. Once
+  // saved, the visitor gets a receipt and curators are alerted (REQ-4.8-08)
+  // in the background, so a slow mail server never delays the response.
   async create(dto: CreateInquiryDto): Promise<InquirySubmissionReceipt> {
-    return this.prisma.$transaction(async (transaction) => {
+    const receipt = await this.prisma.$transaction(async (transaction) => {
       const submittedAt = new Date();
       const created = await transaction.inquiry.create({
         data: {
@@ -76,18 +92,30 @@ export class InquiriesService {
       return {
         id: created.id,
         status: created.status as InquiryStatus,
+        referenceCode: referenceCode(created.id),
         submittedAt: created.created_at,
       };
     });
+
+    void this.submissionNotifications.announce({
+      recordType: NotificationRecordType.INQUIRY,
+      id: receipt.id,
+      submittedAt: receipt.submittedAt,
+      visitorName: dto.name,
+      visitorEmail: dto.email,
+    });
+    return receipt;
   }
 
   async findAll(query: ListInquiriesQueryDto): Promise<Inquiry[]> {
     const search = query.search
       ? { contains: query.search, mode: Prisma.QueryMode.insensitive }
       : undefined;
+    const createdAt = submittedAtRange(query.submittedFrom, query.submittedTo);
     const items = await this.prisma.inquiry.findMany({
       where: {
         status: query.status,
+        created_at: createdAt,
         ...(search && {
           OR: [
             { full_name: search },
@@ -95,6 +123,9 @@ export class InquiriesService {
             { organization_name: search },
             { inquiry_type: search },
             { message: search },
+            ...(REFERENCE_CODE_PATTERN.test(query.search ?? '')
+              ? [{ id: referenceIdRange(query.search!) }]
+              : []),
           ],
         }),
       },
@@ -271,6 +302,52 @@ export class InquiriesService {
     return listEntries(this.prisma, { inquiryId: id });
   }
 
+  // Curator reply emailed to the visitor through BioSphere (REQ-4.8-05/09).
+  // The status does not change. The reply is recorded in the timeline with
+  // its delivery result, and the audit keeps no message text or address.
+  async sendReply(
+    id: string,
+    dto: SendVisitorMessageDto,
+    actingCuratorAccountId: string,
+  ): Promise<CommunicationEntry> {
+    const inquiry = this.toEntity(await this.findOneOrThrow(this.prisma, id));
+    const email = buildVisitorEmail({
+      to: inquiry.email,
+      visitorName: inquiry.name,
+      subject:
+        dto.subject ??
+        `Re: your BioSphere museum inquiry (Ref ${inquiry.referenceCode})`,
+      paragraphs: ['Thank you for contacting the museum.'],
+      curatorMessage: dto.message,
+      reference: inquiry.referenceCode,
+    });
+    const delivery = await this.mail.send(email);
+
+    return this.prisma.$transaction(async (transaction) => {
+      const entry = await recordOutboundEmail(transaction, {
+        target: { inquiryId: id },
+        recordedBy: actingCuratorAccountId,
+        type: CommunicationType.MESSAGE_EMAIL,
+        recipientEmail: email.to,
+        subject: email.subject,
+        message: email.text,
+        deliveryResult: delivery.result,
+        delivered: delivery.delivered,
+      });
+      await this.recordAudit(transaction, {
+        userId: actingCuratorAccountId,
+        inquiryId: id,
+        action: 'EMAIL_VISITOR',
+        details: {
+          entryId: entry.id,
+          communicationType: CommunicationType.MESSAGE_EMAIL,
+          delivered: delivery.delivered,
+        },
+      });
+      return entry;
+    });
+  }
+
   private async findOneOrThrow(
     client: Prisma.TransactionClient,
     id: string,
@@ -310,6 +387,7 @@ export class InquiriesService {
   private toEntity(item: InquiryRecord): Inquiry {
     return {
       id: item.id,
+      referenceCode: referenceCode(item.id),
       name: item.full_name,
       email: item.email_address,
       phone: item.contact_number,

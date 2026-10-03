@@ -12,6 +12,9 @@ import {
 } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { runSerializableTransaction } from '../prisma/serializable-transaction';
+import type { StorageLocationSummary } from '../storage-locations/entities/storage-location-path.entity';
+import { resolveStorageLocations } from '../storage-locations/storage-location-paths';
+import { findStorageSubtreeIds } from '../storage-locations/storage-subtree';
 import { CreateSpecimenDto } from './dto/create-specimen.dto';
 import { ListSpecimenRevisionsQueryDto } from './dto/list-specimen-revisions-query.dto';
 import { ReopenCatalogingDto } from './dto/reopen-cataloging.dto';
@@ -29,12 +32,14 @@ import {
   Specimen,
   SpecimenGender,
   SpecimenPage,
+  SpecimenSearchItem,
   SpecimenStatus,
 } from './entities/specimen.entity';
 import {
   assertCatalogedValueRetained,
   hasCatalogText,
 } from './catalog-completion.policy';
+import { SpecimenAccessionService } from './specimen-accession.service';
 import { SpecimenCatalogingService } from './specimen-cataloging.service';
 
 interface RevisionChange {
@@ -61,11 +66,33 @@ type SpecimenRevisionWithActor = specimen_revision_history & {
   };
 };
 
+const SPECIMEN_SEARCH_INCLUDE = {
+  specimen_taxonomy: { select: { family: true } },
+  specimen_provenance: { select: { collector: true } },
+  specimen_lot: {
+    where: { is_active: true },
+    select: {
+      quantity: true,
+      condition_class: true,
+      storage_unit: { select: { id: true, label: true, unit_type: true } },
+    },
+    orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
+  },
+} satisfies Prisma.specimenInclude;
+
+type SpecimenSearchRecord = Prisma.specimenGetPayload<{
+  include: typeof SPECIMEN_SEARCH_INCLUDE;
+}>;
+
+const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
 @Injectable()
 export class SpecimensService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly catalogingService: SpecimenCatalogingService,
+    private readonly accession: SpecimenAccessionService,
   ) {}
 
   async create(
@@ -141,12 +168,13 @@ export class SpecimensService {
   }
 
   async search(query: SearchSpecimensQueryDto): Promise<SpecimenPage> {
-    const where = this.buildSearchWhere(query);
+    const where = await this.buildSearchWhere(query);
     const skip = (query.page - 1) * query.limit;
     const orderBy = this.buildSearchOrderBy(query);
     const [items, total] = await this.prisma.$transaction([
       this.prisma.specimen.findMany({
         where,
+        include: SPECIMEN_SEARCH_INCLUDE,
         orderBy,
         skip,
         take: query.limit,
@@ -154,8 +182,16 @@ export class SpecimensService {
       this.prisma.specimen.count({ where }),
     ]);
 
+    // One set of hierarchy lookups for every unit on the page.
+    const locations = await resolveStorageLocations(
+      this.prisma,
+      items.flatMap((item) =>
+        item.specimen_lot.map((lot) => lot.storage_unit.id),
+      ),
+    );
+
     return {
-      items: items.map((item) => this.toEntity(item)),
+      items: items.map((item) => this.toSearchItem(item, locations)),
       total,
       page: query.page,
       limit: query.limit,
@@ -261,6 +297,13 @@ export class SpecimensService {
         if (dto.collectionId) {
           await this.assertCollectionExists(transaction, dto.collectionId);
         }
+        if (dto.accessionNumber !== undefined) {
+          await this.accession.assertAvailable(
+            transaction,
+            dto.accessionNumber,
+            id,
+          );
+        }
 
         const data: Prisma.specimenUncheckedUpdateInput = {};
         const changes: RevisionChange[] = [];
@@ -361,14 +404,19 @@ export class SpecimensService {
           );
         }
 
-        const updated = await transaction.specimen.update({
-          where: { id },
-          data: {
-            ...data,
-            updated_by: actingCuratorAccountId,
-            updated_at: new Date(),
-          },
-        });
+        let updated: specimen;
+        try {
+          updated = await transaction.specimen.update({
+            where: { id },
+            data: {
+              ...data,
+              updated_by: actingCuratorAccountId,
+              updated_at: new Date(),
+            },
+          });
+        } catch (error) {
+          throw this.toAccessionConflict(error, dto.accessionNumber);
+        }
 
         await this.recordRevisions(
           transaction,
@@ -661,9 +709,14 @@ export class SpecimensService {
     return item;
   }
 
-  private buildSearchWhere(
+  private async buildSearchWhere(
     query: SearchSpecimensQueryDto,
-  ): Prisma.specimenWhereInput {
+  ): Promise<Prisma.specimenWhereInput> {
+    const insensitive = (value: string | undefined) =>
+      value === undefined
+        ? undefined
+        : { equals: value, mode: Prisma.QueryMode.insensitive };
+    const createdAt = this.buildCreatedAtFilter(query);
     const where: Prisma.specimenWhereInput = {
       status: query.status ?? { not: 'ARCHIVED' },
       collection_id: query.collectionId,
@@ -675,7 +728,45 @@ export class SpecimensService {
         : undefined,
       gender: query.gender,
       public_display_allowed: query.publicDisplay,
+      classification_status: insensitive(query.classificationStatus),
+      created_at: createdAt,
     };
+
+    const taxonomy: Prisma.specimen_taxonomyWhereInput = {
+      kingdom: insensitive(query.kingdom),
+      phylum: insensitive(query.phylum),
+      class: insensitive(query.taxonClass),
+      order_name: insensitive(query.taxonOrder),
+      family: insensitive(query.family),
+      genus: insensitive(query.genus),
+      species: insensitive(query.species),
+    };
+    if (Object.values(taxonomy).some((filter) => filter !== undefined)) {
+      where.specimen_taxonomy = { is: taxonomy };
+    }
+
+    if (query.tag) {
+      where.specimen_tag = {
+        some: { tag: { tag_name: insensitive(query.tag) } },
+      };
+    }
+
+    // Condition and location describe the same physical lot, so both must
+    // match one active lot rather than any two different lots.
+    if (query.conditionClass || query.storageUnitId) {
+      const storageUnitIds = query.storageUnitId
+        ? query.includeDescendantUnits
+          ? await findStorageSubtreeIds(this.prisma, query.storageUnitId)
+          : [query.storageUnitId]
+        : undefined;
+      where.specimen_lot = {
+        some: {
+          is_active: true,
+          condition_class: insensitive(query.conditionClass),
+          storage_unit_id: storageUnitIds ? { in: storageUnitIds } : undefined,
+        },
+      };
+    }
 
     if (query.search) {
       const contains = {
@@ -690,6 +781,23 @@ export class SpecimensService {
         { classification_status: contains },
         { remarks: contains },
         { collection: { is: { collection_name: contains } } },
+        {
+          specimen_taxonomy: {
+            is: {
+              OR: [
+                { kingdom: contains },
+                { phylum: contains },
+                { class: contains },
+                { order_name: contains },
+                { family: contains },
+                { genus: contains },
+                { species: contains },
+              ],
+            },
+          },
+        },
+        { specimen_provenance: { is: { collector: contains } } },
+        { specimen_tag: { some: { tag: { tag_name: contains } } } },
       ];
       if (isUUID(query.search)) where.OR.push({ id: query.search });
     }
@@ -697,11 +805,51 @@ export class SpecimensService {
     return where;
   }
 
+  private buildCreatedAtFilter(
+    query: SearchSpecimensQueryDto,
+  ): Prisma.DateTimeFilter<'specimen'> | undefined {
+    if (!query.createdFrom && !query.createdTo) {
+      return undefined;
+    }
+
+    const from = query.createdFrom ? new Date(query.createdFrom) : undefined;
+    const to = query.createdTo ? new Date(query.createdTo) : undefined;
+    // A plain end date means "through the end of that day", so its effective
+    // bound is the following midnight, exclusive. A timestamp is inclusive.
+    const toIsDateOnly =
+      query.createdTo !== undefined && DATE_ONLY.test(query.createdTo);
+    const endExclusive =
+      to && toIsDateOnly ? new Date(to.getTime() + DAY_MS) : undefined;
+    const endInclusive = to && !toIsDateOnly ? to : undefined;
+    // Validate against the effective end, not the start of a date-only end
+    // day: createdFrom=2026-01-31T08:00Z with createdTo=2026-01-31 is valid.
+    if (
+      from &&
+      ((endExclusive && from >= endExclusive) ||
+        (endInclusive && from > endInclusive))
+    ) {
+      throw new BadRequestException('createdFrom must not be after createdTo.');
+    }
+
+    return { gte: from, lte: endInclusive, lt: endExclusive };
+  }
+
   private buildSearchOrderBy(
     query: SearchSpecimensQueryDto,
   ): Prisma.specimenOrderByWithRelationInput[] {
+    if (query.sortBy === SpecimenSortField.FAMILY) {
+      return [
+        {
+          specimen_taxonomy: {
+            family: { sort: query.sortDirection, nulls: 'last' },
+          },
+        },
+        { id: 'asc' },
+      ];
+    }
+
     const fields: Record<
-      SpecimenSortField,
+      Exclude<SpecimenSortField, SpecimenSortField.FAMILY>,
       keyof Prisma.specimenOrderByWithRelationInput
     > = {
       [SpecimenSortField.UPDATED_AT]: 'updated_at',
@@ -710,12 +858,18 @@ export class SpecimensService {
       [SpecimenSortField.SCIENTIFIC_NAME]: 'scientific_name',
       [SpecimenSortField.COMMON_NAME]: 'common_name',
       [SpecimenSortField.STATUS]: 'status',
+      [SpecimenSortField.SPECIMEN_CATEGORY]: 'specimen_category',
     };
 
     const field = fields[query.sortBy];
     const nullableSortFields = new Set<
       keyof Prisma.specimenOrderByWithRelationInput
-    >(['accession_number', 'scientific_name', 'common_name']);
+    >([
+      'accession_number',
+      'scientific_name',
+      'common_name',
+      'specimen_category',
+    ]);
     const primarySort = nullableSortFields.has(field)
       ? { sort: query.sortDirection, nulls: 'last' as const }
       : query.sortDirection;
@@ -733,23 +887,29 @@ export class SpecimensService {
     if (dto.collectionId) {
       await this.assertCollectionExists(transaction, dto.collectionId);
     }
+    await this.accession.assertAvailable(transaction, dto.accessionNumber);
 
-    const created = await transaction.specimen.create({
-      data: {
-        collection_id: dto.collectionId,
-        created_by: actingCuratorAccountId,
-        updated_by: actingCuratorAccountId,
-        accession_number: dto.accessionNumber,
-        specimen_category: dto.specimenCategory,
-        scientific_name: dto.scientificName,
-        common_name: dto.commonName,
-        gender: dto.gender,
-        classification_status: dto.classificationStatus,
-        status: 'UNCATALOGED',
-        public_display_allowed: false,
-        remarks: dto.remarks,
-      },
-    });
+    let created: specimen;
+    try {
+      created = await transaction.specimen.create({
+        data: {
+          collection_id: dto.collectionId,
+          created_by: actingCuratorAccountId,
+          updated_by: actingCuratorAccountId,
+          accession_number: dto.accessionNumber,
+          specimen_category: dto.specimenCategory,
+          scientific_name: dto.scientificName,
+          common_name: dto.commonName,
+          gender: dto.gender,
+          classification_status: dto.classificationStatus,
+          status: 'UNCATALOGED',
+          public_display_allowed: false,
+          remarks: dto.remarks,
+        },
+      });
+    } catch (error) {
+      throw this.toAccessionConflict(error, dto.accessionNumber);
+    }
 
     await this.recordAudit(transaction, {
       userId: actingCuratorAccountId,
@@ -759,6 +919,17 @@ export class SpecimensService {
     });
 
     return this.toEntity(created);
+  }
+
+  /** Maps the unique-index race loser to the same 409 as the pre-check. */
+  private toAccessionConflict(
+    error: unknown,
+    accessionNumber: string | null | undefined,
+  ): unknown {
+    if (accessionNumber && this.accession.isUniqueViolation(error)) {
+      return this.accession.conflict(accessionNumber);
+    }
+    return error;
   }
 
   private assertExists(
@@ -834,6 +1005,39 @@ export class SpecimensService {
   private historyValue(value: string | boolean | null): string | null {
     if (value === null) return null;
     return typeof value === 'boolean' ? String(value) : value;
+  }
+
+  private toSearchItem(
+    item: SpecimenSearchRecord,
+    locations: ReadonlyMap<string, StorageLocationSummary>,
+  ): SpecimenSearchItem {
+    const storageUnits = new Map(
+      item.specimen_lot.map((lot) => [
+        lot.storage_unit.id,
+        {
+          id: lot.storage_unit.id,
+          label: lot.storage_unit.label,
+          unitType: lot.storage_unit.unit_type,
+          pathLabel:
+            locations.get(lot.storage_unit.id)?.pathLabel ??
+            lot.storage_unit.label,
+        },
+      ]),
+    );
+
+    return {
+      ...this.toEntity(item),
+      family: item.specimen_taxonomy?.family ?? null,
+      collector: item.specimen_provenance?.collector ?? null,
+      totalQuantity: item.specimen_lot.reduce(
+        (total, lot) => total + lot.quantity,
+        0,
+      ),
+      conditionClasses: [
+        ...new Set(item.specimen_lot.map((lot) => lot.condition_class)),
+      ],
+      storageUnits: [...storageUnits.values()],
+    };
   }
 
   private toEntity(item: specimen): Specimen {

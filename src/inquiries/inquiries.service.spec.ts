@@ -1,4 +1,6 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { MailService } from '../mail/mail.service';
+import { SubmissionNotificationsService } from '../notifications/submission-notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { VisitRequestsService } from '../visit-requests/visit-requests.service';
 import { InquiriesService } from './inquiries.service';
@@ -53,6 +55,7 @@ describe('InquiriesService', () => {
   };
   const historyDelegate = { create: jest.fn(), findMany: jest.fn() };
   const auditDelegate = { create: jest.fn() };
+  const mail = { send: jest.fn() };
   const prisma = {
     inquiry: inquiryDelegate,
     communication_history: historyDelegate,
@@ -64,6 +67,7 @@ describe('InquiriesService', () => {
       Promise.resolve(callback(prisma)),
   );
   const visitRequestsService = { createFromReferral: jest.fn() };
+  const submissionNotifications = { announce: jest.fn() };
   let service: InquiriesService;
 
   beforeEach(() => {
@@ -72,10 +76,74 @@ describe('InquiriesService', () => {
       ({ data }: { data: Record<string, unknown> }) =>
         Promise.resolve(historyRow(data)),
     );
+    mail.send.mockResolvedValue({ delivered: true, result: 'SENT <msg-1>' });
     service = new InquiriesService(
       prisma as unknown as PrismaService,
       visitRequestsService as unknown as VisitRequestsService,
+      mail as unknown as MailService,
+      submissionNotifications as unknown as SubmissionNotificationsService,
     );
+  });
+
+  it('emails a curator reply and records it without changing status', async () => {
+    inquiryDelegate.findUnique.mockResolvedValue(inquiryRecord());
+
+    const entry = await service.sendReply(
+      INQUIRY_ID,
+      { message: 'Yes, we are open on Saturdays from 9 to 4.' },
+      CURATOR_ID,
+    );
+
+    expect(mail.send).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: 'juan@example.com',
+        subject: 'Re: your BioSphere museum inquiry (Ref 11111111)',
+        text: expect.stringContaining(
+          'Yes, we are open on Saturdays from 9 to 4.',
+        ),
+      }),
+    );
+    expect(inquiryDelegate.update).not.toHaveBeenCalled();
+    expect(entry).toMatchObject({
+      direction: 'OUTBOUND',
+      type: 'MESSAGE_EMAIL',
+      deliveryResult: 'SENT <msg-1>',
+    });
+    expect(auditDelegate.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        action: 'EMAIL_VISITOR',
+        details: {
+          entryId: ENTRY_ID,
+          communicationType: 'MESSAGE_EMAIL',
+          delivered: true,
+        },
+      }),
+    });
+  });
+
+  it('includes the reference code in receipts and search', async () => {
+    inquiryDelegate.create.mockResolvedValue(inquiryRecord());
+    inquiryDelegate.findMany.mockResolvedValue([]);
+
+    await expect(
+      service.create({
+        name: 'Juan Dela Cruz',
+        email: 'juan@example.com',
+        message: 'Hello',
+        consentAccepted: true,
+      }),
+    ).resolves.toMatchObject({ referenceCode: '11111111' });
+
+    await service.findAll({ search: '11111111' });
+    const { where } = inquiryDelegate.findMany.mock.calls[0][0] as {
+      where: { OR: object[] };
+    };
+    expect(where.OR).toContainEqual({
+      id: {
+        gte: '11111111-0000-0000-0000-000000000000',
+        lte: '11111111-ffff-ffff-ffff-ffffffffffff',
+      },
+    });
   });
 
   it('stores a submission with consent and returns a receipt without personal data', async () => {
@@ -90,6 +158,7 @@ describe('InquiriesService', () => {
 
     expect(receipt).toEqual({
       id: INQUIRY_ID,
+      referenceCode: '11111111',
       status: InquiryStatus.PENDING,
       submittedAt: CREATED_AT,
     });
@@ -110,6 +179,61 @@ describe('InquiriesService', () => {
         details: { inquiryType: 'GENERAL' },
       }),
     });
+    expect(submissionNotifications.announce).toHaveBeenCalledWith({
+      recordType: 'inquiry',
+      id: INQUIRY_ID,
+      submittedAt: CREATED_AT,
+      visitorName: 'Juan Dela Cruz',
+      visitorEmail: 'juan@example.com',
+    });
+  });
+
+  it('does not announce a submission that failed to save', async () => {
+    inquiryDelegate.create.mockRejectedValue(new Error('db down'));
+
+    await expect(
+      service.create({
+        name: 'Juan Dela Cruz',
+        email: 'juan@example.com',
+        message: 'Are you open on Saturdays?',
+        consentAccepted: true,
+      }),
+    ).rejects.toThrow('db down');
+    expect(submissionNotifications.announce).not.toHaveBeenCalled();
+  });
+
+  it('filters by submission date in museum time, both ends inclusive', async () => {
+    inquiryDelegate.findMany.mockResolvedValue([]);
+
+    await service.findAll({
+      submittedFrom: '2026-09-01',
+      submittedTo: '2026-09-30',
+    });
+
+    expect(inquiryDelegate.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          status: undefined,
+          created_at: {
+            gte: new Date('2026-08-31T16:00:00.000Z'),
+            lt: new Date('2026-09-30T16:00:00.000Z'),
+          },
+        },
+      }),
+    );
+  });
+
+  it.each([
+    [
+      'a reversed range',
+      { submittedFrom: '2026-09-30', submittedTo: '2026-09-01' },
+    ],
+    ['an impossible date', { submittedFrom: '2026-02-30' }],
+  ])('rejects %s', async (_label, query) => {
+    await expect(service.findAll(query)).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+    expect(inquiryDelegate.findMany).not.toHaveBeenCalled();
   });
 
   it('maps stored rows to the curator entity', async () => {

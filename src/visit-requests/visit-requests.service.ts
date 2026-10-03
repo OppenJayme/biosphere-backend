@@ -9,9 +9,26 @@ import {
   describeStatusChange,
   listEntries,
   recordInternalEntry,
+  recordOutboundEmail,
 } from '../communication-history/communication-history';
 import { CreateInternalNoteDto } from '../communication-history/dto/create-internal-note.dto';
+import {
+  calendarDateRange,
+  submittedAtRange,
+} from '../communication-history/dto/date-filter';
+import { SendVisitorMessageDto } from '../communication-history/dto/send-visitor-message.dto';
 import { Prisma } from '../generated/prisma/client';
+import { MailService } from '../mail/mail.service';
+import {
+  REFERENCE_CODE_PATTERN,
+  VisitorEmailContent,
+  buildVisitorEmail,
+  formatLongDate,
+  referenceCode,
+  referenceIdRange,
+} from '../mail/visitor-email';
+import { NotificationRecordType } from '../notifications/entities/curator-notification.entity';
+import { SubmissionNotificationsService } from '../notifications/submission-notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { runSerializableTransaction } from '../prisma/serializable-transaction';
 import { ApproveVisitScheduleDto } from './dto/approve-visit-schedule.dto';
@@ -63,11 +80,18 @@ export interface VisitRequestReferral {
 
 @Injectable()
 export class VisitRequestsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly mail: MailService,
+    private readonly submissionNotifications: SubmissionNotificationsService,
+  ) {}
 
   // Public submission (REQ-4.9-01 to 06). The request and all of its child
   // records are written in one transaction and audited without any visitor
-  // personal data in the audit details.
+  // personal data in the audit details. Once saved, the visitor gets a
+  // receipt listing their preferred schedules and curators are alerted
+  // (REQ-4.9-07) in the background, so a slow mail server never delays the
+  // response.
   async create(
     dto: CreateVisitRequestDto,
   ): Promise<VisitRequestSubmissionReceipt> {
@@ -75,7 +99,7 @@ export class VisitRequestsService {
     this.assertVisitorsValid(dto);
     this.assertVehicleValid(dto);
 
-    return this.prisma.$transaction(async (transaction) => {
+    const receipt = await this.prisma.$transaction(async (transaction) => {
       const submittedAt = new Date();
       const created = await transaction.visit_request.create({
         data: {
@@ -128,9 +152,23 @@ export class VisitRequestsService {
       return {
         id: created.id,
         status: created.status as VisitRequestStatus,
+        referenceCode: referenceCode(created.id),
         submittedAt: created.created_at,
       };
     });
+
+    void this.submissionNotifications.announce({
+      recordType: NotificationRecordType.VISIT_REQUEST,
+      id: receipt.id,
+      submittedAt: receipt.submittedAt,
+      visitorName: dto.name,
+      visitorEmail: dto.email,
+      receiptDetails: dto.preferredSchedules.map((schedule, index) => [
+        `Preferred option ${index + 1}`,
+        `${formatLongDate(schedule.date)}, ${schedule.startTime} - ${schedule.endTime}`,
+      ]),
+    });
+    return receipt;
   }
 
   // Opens a Pending visit request from a curator's inquiry referral. Runs
@@ -185,15 +223,43 @@ export class VisitRequestsService {
     const search = query.search
       ? { contains: query.search, mode: Prisma.QueryMode.insensitive }
       : undefined;
+    const createdAt = submittedAtRange(query.submittedFrom, query.submittedTo);
+    const visitDate = calendarDateRange(
+      query.visitDateFrom,
+      query.visitDateTo,
+      ['visitDateFrom', 'visitDateTo'],
+    );
     const items = await this.prisma.visit_request.findMany({
       where: {
         status: query.status,
+        created_at: createdAt,
         ...(search && {
           OR: [
             { contact_person: search },
             { email_address: search },
             { organization_name: search },
             { purpose_of_visit: search },
+            ...(REFERENCE_CODE_PATTERN.test(query.search ?? '')
+              ? [{ id: referenceIdRange(query.search!) }]
+              : []),
+          ],
+        }),
+        // An approved request is placed by its approved date; until then,
+        // any of its preferred dates can match. Wrapped in AND so it does
+        // not replace the search OR.
+        ...(visitDate && {
+          AND: [
+            {
+              OR: [
+                { approved_date: visitDate },
+                {
+                  approved_date: null,
+                  preferred_visit_date: {
+                    some: { preferred_date: visitDate },
+                  },
+                },
+              ],
+            },
           ],
         }),
       },
@@ -208,19 +274,22 @@ export class VisitRequestsService {
   }
 
   // Status-only change by a curator (REQ-4.9-09/14), limited to the SRS
-  // B.3 transitions and recorded in the request's timeline.
+  // B.3 transitions and recorded in the request's timeline. A decline or
+  // cancellation emails the visitor unless notifyVisitor is false
+  // (REQ-4.9-11); the email is sent after the change is saved, so a failed
+  // send never undoes the decision.
   async update(
     id: string,
     dto: UpdateVisitRequestDto,
     actingCuratorAccountId: string,
   ): Promise<VisitRequest> {
-    return runSerializableTransaction(
+    const { request: result, changed } = await runSerializableTransaction(
       this.prisma,
       async (transaction) => {
         const existing = await this.findOneOrThrow(transaction, id);
         const previousStatus = existing.status as VisitRequestStatus;
         if (previousStatus === (dto.status as VisitRequestStatus)) {
-          return this.toEntity(existing);
+          return { request: this.toEntity(existing), changed: false };
         }
         assertVisitRequestTransition(previousStatus, dto.status);
 
@@ -245,20 +314,34 @@ export class VisitRequestsService {
           action: 'UPDATE_VISIT_REQUEST_STATUS',
           details: { previousStatus, status: updated.status },
         });
-        return this.toEntity(updated);
+        return { request: this.toEntity(updated), changed: true };
       },
       CONFLICT_MESSAGE,
     );
+
+    const emailsVisitor =
+      result.status === VisitRequestStatus.DECLINED ||
+      result.status === VisitRequestStatus.CANCELLED;
+    if (changed && emailsVisitor && dto.notifyVisitor !== false) {
+      await this.emailVisitor(
+        result,
+        this.decisionEmail(result, dto.visitorMessage),
+        CommunicationType.STATUS_UPDATE_EMAIL,
+        actingCuratorAccountId,
+      );
+    }
+    return result;
   }
 
-  // Approves one preferred option (REQ-4.9-17). The approved date and time
-  // are copied onto the request; every submitted option stays stored.
+  // Approves one preferred option (RED-4.9.17). The approved date and time
+  // are copied onto the request; every submitted option stays stored. The
+  // visitor is emailed the approved schedule unless notifyVisitor is false.
   async approveSchedule(
     id: string,
     dto: ApproveVisitScheduleDto,
     actingCuratorAccountId: string,
   ): Promise<VisitRequest> {
-    return runSerializableTransaction(
+    const approved = await runSerializableTransaction(
       this.prisma,
       async (transaction) => {
         const existing = await this.findOneOrThrow(transaction, id);
@@ -323,6 +406,42 @@ export class VisitRequestsService {
       },
       CONFLICT_MESSAGE,
     );
+
+    if (dto.notifyVisitor !== false) {
+      await this.emailVisitor(
+        approved,
+        this.decisionEmail(approved, dto.visitorMessage),
+        CommunicationType.STATUS_UPDATE_EMAIL,
+        actingCuratorAccountId,
+      );
+    }
+    return approved;
+  }
+
+  // Curator-written email to the visitor, e.g. a request for more
+  // information (REQ-4.9-10). The status does not change. Returns the
+  // timeline entry, whose deliveryResult shows whether it was sent.
+  async sendMessage(
+    id: string,
+    dto: SendVisitorMessageDto,
+    actingCuratorAccountId: string,
+  ): Promise<CommunicationEntry> {
+    const request = this.toEntity(await this.findOneOrThrow(this.prisma, id));
+    return this.emailVisitor(
+      request,
+      {
+        to: request.email,
+        visitorName: request.name,
+        subject:
+          dto.subject ??
+          `About your BioSphere visit request (Ref ${request.referenceCode})`,
+        paragraphs: ['The museum sent you a message about your visit request.'],
+        curatorMessage: dto.message,
+        reference: request.referenceCode,
+      },
+      CommunicationType.MESSAGE_EMAIL,
+      actingCuratorAccountId,
+    );
   }
 
   // Approved visitor and schedule details in one place for the curator's
@@ -383,6 +502,94 @@ export class VisitRequestsService {
   async listHistory(id: string): Promise<CommunicationEntry[]> {
     await this.findOneOrThrow(this.prisma, id);
     return listEntries(this.prisma, { visitRequestId: id });
+  }
+
+  // Sends the email, then records it (with its delivery result) in the
+  // timeline and audit log. The audit keeps no message text or address.
+  private async emailVisitor(
+    request: VisitRequest,
+    content: VisitorEmailContent,
+    type: CommunicationType,
+    actingCuratorAccountId: string,
+  ): Promise<CommunicationEntry> {
+    const email = buildVisitorEmail(content);
+    const delivery = await this.mail.send(email);
+    return this.prisma.$transaction(async (transaction) => {
+      const entry = await recordOutboundEmail(transaction, {
+        target: { visitRequestId: request.id },
+        recordedBy: actingCuratorAccountId,
+        type,
+        recipientEmail: email.to,
+        subject: email.subject,
+        message: email.text,
+        deliveryResult: delivery.result,
+        delivered: delivery.delivered,
+      });
+      await this.recordAudit(transaction, {
+        userId: actingCuratorAccountId,
+        visitRequestId: request.id,
+        action: 'EMAIL_VISITOR',
+        details: {
+          entryId: entry.id,
+          communicationType: type,
+          delivered: delivery.delivered,
+        },
+      });
+      return entry;
+    });
+  }
+
+  // Visitor-facing wording for an approve, decline, or cancel decision.
+  private decisionEmail(
+    request: VisitRequest,
+    visitorMessage?: string,
+  ): VisitorEmailContent {
+    const reference = request.referenceCode;
+    const base = {
+      to: request.email,
+      visitorName: request.name,
+      curatorMessage: visitorMessage,
+      reference,
+    };
+    const requestLine = `your visit request for ${request.organization}`;
+
+    if (
+      request.status === VisitRequestStatus.APPROVED_BY_CURATOR &&
+      request.approvedSchedule
+    ) {
+      const schedule = request.approvedSchedule;
+      return {
+        ...base,
+        subject: `Your BioSphere museum visit schedule has been approved (Ref ${reference})`,
+        paragraphs: [
+          `Good news: the museum has approved the schedule below for ${requestLine}.`,
+          // APPROVED_BY_CURATOR is not campus-entry approval (REQ-4.9-13).
+          'This approves your museum visit schedule only. USC campus entry is processed separately, and the museum will contact you with any update.',
+        ],
+        details: [
+          ['Date', formatLongDate(schedule.date)],
+          ['Time', `${schedule.startTime} - ${schedule.endTime}`],
+          ['Visitors', String(request.visitorCount)],
+          ['Organization', request.organization],
+        ],
+      };
+    }
+    if (request.status === VisitRequestStatus.CANCELLED) {
+      return {
+        ...base,
+        subject: `Your BioSphere museum visit has been cancelled (Ref ${reference})`,
+        paragraphs: [
+          `We are sorry to let you know that ${requestLine} has been cancelled.`,
+        ],
+      };
+    }
+    return {
+      ...base,
+      subject: `Update on your BioSphere visit request (Ref ${reference})`,
+      paragraphs: [
+        `Thank you for your interest in visiting the museum. Unfortunately, we are unable to accommodate ${requestLine}.`,
+      ],
+    };
   }
 
   private assertSchedulesValid(schedules: PreferredScheduleDto[]): void {
@@ -503,6 +710,7 @@ export class VisitRequestsService {
   private toEntity(item: VisitRequestRecord): VisitRequest {
     return {
       id: item.id,
+      referenceCode: referenceCode(item.id),
       name: item.contact_person,
       email: item.email_address,
       phone: item.contact_number,

@@ -16,7 +16,7 @@ new database structures.
 | `size`           | `size`                    | Optional curator-managed size description |
 | `storageType`    | `storage_type`            | Curator-managed storage classification    |
 | `holdsSpecimens` | `holds_specimens`         | Whether the unit is intended to hold lots |
-| `capacity`       | `capacity`                | Optional positive capacity                |
+| `capacity`       | `capacity`                | Optional positive number of specimens held directly in the unit (provisional; see `SPECIMEN_LOTS_GUIDE.md`) |
 | `archivedAt`     | `archived_at`             | Archive timestamp, or `null` while active |
 | `createdAt`      | `created_at`              | Creation timestamp                        |
 | `updatedAt`      | `updated_at`              | Last application-managed update timestamp |
@@ -89,14 +89,22 @@ the same assignment rule enforced by the specimen-lot service.
 - `GET /storage-locations/search?page=1&limit=25`
 - `GET /storage-locations/:id`
 - `GET /storage-locations/:id/path`
+- `GET /storage-locations/:id/capacity-check?additionalQuantity=0`
 - `GET /storage-locations/:id/children`
 - `GET /storage-locations/:id/movements`
 - `GET /storage-locations/:id/inventory?page=1&limit=50`
+- `GET /storage-locations/:id/lot-movements?page=1&limit=50&transactionType=MOVEMENT`
 - `PATCH /storage-locations/:id`
 - `PATCH /storage-locations/:id/move`
 - `PATCH /storage-locations/:id/archive`
 
 All endpoints require an active BioSphere account with the `CURATOR` role.
+
+`capacity-check` returns the unit's current active lot quantity, the projected
+quantity after adding `additionalQuantity`, and `exceedsCapacity`. It lets the
+curator be warned before assigning or moving specimens (REQ-4.6-11); lot
+operations themselves also return a `capacityWarning` (see the specimen lot
+guide).
 
 ## Search and selection
 
@@ -127,6 +135,30 @@ The path is read using a repeatable-read transaction so one response cannot
 mix hierarchy states from concurrent container moves. The service safely
 rejects a missing selected unit and reports a conflict if legacy or manually
 modified data contains a parent cycle or missing ancestor.
+
+The same derivation is embedded as `storageLocation` in
+`GET /specimens/:id/details` (one per active lot) and
+`GET /storage-locations/:id/inventory` (for the selected unit), so clients do
+not need one `/path` call per lot:
+
+```json
+{
+  "path": [
+    { "id": "…", "label": "Zoology Room", "unitType": "ROOM" },
+    { "id": "…", "label": "Cabinet A", "unitType": "CABINET" }
+  ],
+  "rootUnit": { "id": "…", "label": "Zoology Room", "unitType": "ROOM" },
+  "pathLabel": "Zoology Room › Cabinet A",
+  "isComplete": true
+}
+```
+
+`src/storage-locations/storage-location-paths.ts` loads one hierarchy level per
+query for all requested units together. Unlike `/path`, it does not fail on a
+missing ancestor or a parent cycle; it returns the part of the path it could
+walk, ending at the assigned unit, sets `isComplete` to `false`, and logs a
+warning naming the unit. When `isComplete` is `false`, `rootUnit` is only the
+highest unit that could be resolved, not necessarily a room or gallery.
 
 ## Direct inventory view
 

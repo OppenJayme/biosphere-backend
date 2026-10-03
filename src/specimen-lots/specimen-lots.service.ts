@@ -11,12 +11,21 @@ import {
   type specimen_lot_transaction,
 } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { StorageCapacityWarning } from '../storage-locations/entities/storage-capacity.entity';
+import {
+  evaluateStorageCapacity,
+  type StorageCapacitySnapshot,
+} from '../storage-locations/storage-capacity.policy';
+import { conditionClassEquals, isSameConditionClass } from './condition-class';
 import { AdjustSpecimenLotQuantityDto } from './dto/adjust-specimen-lot-quantity.dto';
 import { ChangeSpecimenLotConditionDto } from './dto/change-specimen-lot-condition.dto';
 import { CreateSpecimenLotDto } from './dto/create-specimen-lot.dto';
+import { ListLotHistoryQueryDto } from './dto/list-lot-history-query.dto';
 import { ListLotTransactionsQueryDto } from './dto/list-lot-transactions-query.dto';
+import { ListSpecimenLotsQueryDto } from './dto/list-specimen-lots-query.dto';
 import { MoveSpecimenLotDto } from './dto/move-specimen-lot.dto';
 import { UpdateSpecimenLotNotesDto } from './dto/update-specimen-lot-notes.dto';
+import { CreatedSpecimenLot } from './entities/created-specimen-lot.entity';
 import { SpecimenLotOperationResult } from './entities/specimen-lot-operation-result.entity';
 import { SpecimenLotQuantityAdjustmentResult } from './entities/specimen-lot-quantity-adjustment-result.entity';
 import {
@@ -27,6 +36,13 @@ import {
 } from './entities/specimen-lot-transaction.entity';
 import { SpecimenLotSummary } from './entities/specimen-lot-summary.entity';
 import { SpecimenLot } from './entities/specimen-lot.entity';
+import { SpecimenLotHistoryPage } from './entities/specimen-lot-history.entity';
+import {
+  LOT_HISTORY_INCLUDE,
+  LOT_HISTORY_ORDER_BY,
+  toLotHistoryEntry,
+  touchingLots,
+} from './lot-history';
 
 const POSTGRES_INTEGER_MAX = 2_147_483_647;
 const SERIALIZABLE_RETRY_LIMIT = 3;
@@ -51,6 +67,8 @@ type LotDimensionChange = {
   revisionOldValue: string;
   revisionNewValue: string;
   newLotStorageNotes: string | null;
+  /** Unit receiving quantity, checked against its optional capacity. */
+  capacityUnit: StorageCapacitySnapshot | null;
 };
 
 @Injectable()
@@ -61,93 +79,133 @@ export class SpecimenLotsService {
     specimenId: string,
     dto: CreateSpecimenLotDto,
     actingCuratorAccountId: string,
-  ): Promise<SpecimenLot> {
-    return this.prisma.$transaction(async (transaction) => {
-      const specimenRecord = await this.findSpecimenOrThrow(
+  ): Promise<CreatedSpecimenLot> {
+    // The database unique index on active lots compares condition_class
+    // exactly, so it cannot stop two concurrent creates that differ only by
+    // case ("Good" / "good"). Under SERIALIZABLE isolation both requests'
+    // case-insensitive lookups conflict with each other's insert, PostgreSQL
+    // aborts one, and its retry finds the winner and returns a Conflict.
+    return this.runSerializableLotMutation((transaction) =>
+      this.createInTransaction(
         transaction,
         specimenId,
-      );
-      this.assertSpecimenEditable(specimenRecord);
-      await this.assertAssignableStorageUnit(transaction, dto.storageUnitId);
+        dto,
+        actingCuratorAccountId,
+      ),
+    );
+  }
 
-      const matchingLot = await transaction.specimen_lot.findFirst({
-        where: {
+  /**
+   * Creates the lot inside a caller-owned transaction so it commits or
+   * rolls back together with other writes, such as a bulk-import row. The
+   * caller's transaction must use SERIALIZABLE isolation; otherwise two
+   * concurrent creates that differ only by condition case can both succeed.
+   */
+  async createInTransaction(
+    transaction: Prisma.TransactionClient,
+    specimenId: string,
+    dto: CreateSpecimenLotDto,
+    actingCuratorAccountId: string,
+  ): Promise<CreatedSpecimenLot> {
+    const specimenRecord = await this.findSpecimenOrThrow(
+      transaction,
+      specimenId,
+    );
+    this.assertSpecimenEditable(specimenRecord);
+    const storageUnit = await this.assertAssignableStorageUnit(
+      transaction,
+      dto.storageUnitId,
+    );
+
+    const matchingLot = await transaction.specimen_lot.findFirst({
+      where: {
+        specimen_id: specimenId,
+        storage_unit_id: dto.storageUnitId,
+        condition_class: conditionClassEquals(dto.conditionClass),
+        is_active: true,
+      },
+      select: { id: true },
+    });
+    if (matchingLot) {
+      throw this.matchingLotConflict(matchingLot.id);
+    }
+
+    const changedAt = new Date();
+    let created: specimen_lot;
+    try {
+      created = await transaction.specimen_lot.create({
+        data: {
           specimen_id: specimenId,
           storage_unit_id: dto.storageUnitId,
           condition_class: dto.conditionClass,
-          is_active: true,
-        },
-        select: { id: true },
-      });
-      if (matchingLot) {
-        throw this.matchingLotConflict(matchingLot.id);
-      }
-
-      const changedAt = new Date();
-      let created: specimen_lot;
-      try {
-        created = await transaction.specimen_lot.create({
-          data: {
-            specimen_id: specimenId,
-            storage_unit_id: dto.storageUnitId,
-            condition_class: dto.conditionClass,
-            quantity: dto.quantity,
-            storage_notes: dto.storageNotes,
-            is_active: true,
-            created_by: actingCuratorAccountId,
-            updated_by: actingCuratorAccountId,
-            created_at: changedAt,
-            updated_at: changedAt,
-          },
-        });
-      } catch (error) {
-        if (this.isUniqueConstraintError(error)) {
-          throw this.matchingLotConflict();
-        }
-        throw error;
-      }
-
-      await transaction.specimen_lot_transaction.create({
-        data: {
-          source_lot_id: null,
-          target_lot_id: created.id,
-          transaction_type: 'QUANTITY_ADJUSTMENT',
-          quantity_affected: dto.quantity,
-          adjustment_type: 'ADDITION',
-          reason: dto.reason,
-          performed_by: actingCuratorAccountId,
-          created_at: changedAt,
-        },
-      });
-
-      await this.touchSpecimen(
-        transaction,
-        specimenId,
-        actingCuratorAccountId,
-        changedAt,
-      );
-      await this.recordAudit(transaction, {
-        userId: actingCuratorAccountId,
-        lotId: created.id,
-        action: 'CREATE_SPECIMEN_LOT',
-        details: {
-          specimenId,
-          storageUnitId: dto.storageUnitId,
-          conditionClass: dto.conditionClass,
           quantity: dto.quantity,
-          adjustmentType: 'ADDITION',
+          storage_notes: dto.storageNotes,
+          is_active: true,
+          created_by: actingCuratorAccountId,
+          updated_by: actingCuratorAccountId,
+          created_at: changedAt,
+          updated_at: changedAt,
         },
       });
+    } catch (error) {
+      if (this.isUniqueConstraintError(error)) {
+        throw this.matchingLotConflict();
+      }
+      throw error;
+    }
 
-      return this.toEntity(created);
+    await transaction.specimen_lot_transaction.create({
+      data: {
+        source_lot_id: null,
+        target_lot_id: created.id,
+        transaction_type: 'QUANTITY_ADJUSTMENT',
+        quantity_affected: dto.quantity,
+        adjustment_type: 'ADDITION',
+        reason: dto.reason,
+        performed_by: actingCuratorAccountId,
+        created_at: changedAt,
+      },
     });
+
+    await this.touchSpecimen(
+      transaction,
+      specimenId,
+      actingCuratorAccountId,
+      changedAt,
+    );
+    const capacityWarning = await this.findCapacityWarning(
+      transaction,
+      storageUnit,
+    );
+    await this.recordAudit(transaction, {
+      userId: actingCuratorAccountId,
+      lotId: created.id,
+      action: 'CREATE_SPECIMEN_LOT',
+      details: {
+        specimenId,
+        storageUnitId: dto.storageUnitId,
+        conditionClass: dto.conditionClass,
+        quantity: dto.quantity,
+        adjustmentType: 'ADDITION',
+        capacityExceeded: capacityWarning !== null,
+      },
+    });
+
+    return { ...this.toEntity(created), capacityWarning };
   }
 
-  async findActive(specimenId: string): Promise<SpecimenLot[]> {
+  async findActive(
+    specimenId: string,
+    query: Partial<ListSpecimenLotsQueryDto> = {},
+  ): Promise<SpecimenLot[]> {
     await this.findSpecimenOrThrow(this.prisma, specimenId);
     const lots = await this.prisma.specimen_lot.findMany({
-      where: { specimen_id: specimenId, is_active: true },
-      orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
+      where: query.includeInactive
+        ? { specimen_id: specimenId }
+        : { specimen_id: specimenId, is_active: true },
+      orderBy: query.includeInactive
+        ? [{ is_active: 'desc' }, { created_at: 'asc' }, { id: 'asc' }]
+        : [{ created_at: 'asc' }, { id: 'asc' }],
     });
 
     return lots.map((lot) => this.toEntity(lot));
@@ -206,6 +264,39 @@ export class SpecimenLotsService {
     };
   }
 
+  /**
+   * Every lot transaction for the specimen, including transactions on lots
+   * that are now inactive, newest first.
+   */
+  async findHistory(
+    specimenId: string,
+    query: ListLotHistoryQueryDto,
+  ): Promise<SpecimenLotHistoryPage> {
+    await this.findSpecimenOrThrow(this.prisma, specimenId);
+
+    const where: Prisma.specimen_lot_transactionWhereInput = {
+      ...touchingLots({ specimen_id: specimenId }),
+      transaction_type: query.transactionType,
+    };
+    const [transactions, total] = await Promise.all([
+      this.prisma.specimen_lot_transaction.findMany({
+        where,
+        include: LOT_HISTORY_INCLUDE,
+        orderBy: LOT_HISTORY_ORDER_BY,
+        skip: (query.page - 1) * query.limit,
+        take: query.limit,
+      }),
+      this.prisma.specimen_lot_transaction.count({ where }),
+    ]);
+
+    return {
+      items: transactions.map((transaction) => toLotHistoryEntry(transaction)),
+      page: query.page,
+      limit: query.limit,
+      total,
+    };
+  }
+
   async move(
     specimenId: string,
     lotId: string,
@@ -227,7 +318,7 @@ export class SpecimenLotsService {
         );
       }
 
-      await this.assertAssignableStorageUnit(
+      const targetStorageUnit = await this.assertAssignableStorageUnit(
         transaction,
         dto.targetStorageUnitId,
       );
@@ -248,6 +339,7 @@ export class SpecimenLotsService {
           // Storage notes describe the old physical placement and should not
           // silently follow a lot into a different storage unit.
           newLotStorageNotes: null,
+          capacityUnit: targetStorageUnit,
         },
         actingCuratorAccountId,
       );
@@ -269,7 +361,9 @@ export class SpecimenLotsService {
       const source = await this.findLotOrThrow(transaction, specimenId, lotId);
       this.assertLotActive(source);
 
-      if (dto.targetConditionClass === source.condition_class) {
+      if (
+        isSameConditionClass(dto.targetConditionClass, source.condition_class)
+      ) {
         throw new BadRequestException(
           'The lot already has that condition classification.',
         );
@@ -298,6 +392,8 @@ export class SpecimenLotsService {
           // The physical location is unchanged, so its storage notes remain
           // meaningful when a new target lot is created.
           newLotStorageNotes: source.storage_notes,
+          // The quantity stays in the same unit, so occupancy is unchanged.
+          capacityUnit: null,
         },
         actingCuratorAccountId,
       );
@@ -334,12 +430,13 @@ export class SpecimenLotsService {
       // Increasing inventory is equivalent to assigning more specimens to
       // this location. Reductions remain allowed so an invalid legacy
       // placement can still be emptied and retired safely.
-      if (dto.quantityDelta > 0) {
-        await this.assertAssignableStorageUnit(
-          transaction,
-          existing.storage_unit_id,
-        );
-      }
+      const receivingStorageUnit =
+        dto.quantityDelta > 0
+          ? await this.assertAssignableStorageUnit(
+              transaction,
+              existing.storage_unit_id,
+            )
+          : null;
 
       const resultingQuantity = existing.quantity + dto.quantityDelta;
       if (resultingQuantity < 0) {
@@ -413,6 +510,9 @@ export class SpecimenLotsService {
           source_section: 'specimen_lot',
         },
       });
+      const capacityWarning = receivingStorageUnit
+        ? await this.findCapacityWarning(transaction, receivingStorageUnit)
+        : null;
       await this.recordAudit(transaction, {
         userId: actingCuratorAccountId,
         lotId,
@@ -426,6 +526,7 @@ export class SpecimenLotsService {
           previousQuantity: existing.quantity,
           resultingQuantity,
           lotDeactivated,
+          capacityExceeded: capacityWarning !== null,
         },
       });
 
@@ -437,6 +538,7 @@ export class SpecimenLotsService {
         lot: this.toEntity(updated),
         transaction: this.toTransactionEntity(transactionRecord),
         lotDeactivated,
+        capacityWarning,
       };
     });
   }
@@ -518,7 +620,7 @@ export class SpecimenLotsService {
       where: {
         specimen_id: specimenId,
         storage_unit_id: change.targetStorageUnitId,
-        condition_class: change.targetConditionClass,
+        condition_class: conditionClassEquals(change.targetConditionClass),
         is_active: true,
         id: { not: source.id },
       },
@@ -639,6 +741,9 @@ export class SpecimenLotsService {
         source_section: 'specimen_lot',
       },
     });
+    const capacityWarning = change.capacityUnit
+      ? await this.findCapacityWarning(transaction, change.capacityUnit)
+      : null;
     await this.recordAudit(transaction, {
       userId: actingCuratorAccountId,
       lotId: source.id,
@@ -657,6 +762,7 @@ export class SpecimenLotsService {
         toConditionClass: change.targetConditionClass,
         sourceDeactivated,
         mergedIntoExistingTarget: Boolean(matchingTarget),
+        capacityExceeded: capacityWarning !== null,
       },
     });
 
@@ -667,6 +773,7 @@ export class SpecimenLotsService {
       transaction: this.toTransactionEntity(transactionRecord),
       sourceDeactivated,
       mergedIntoExistingTarget: Boolean(matchingTarget),
+      capacityWarning,
     };
   }
 
@@ -723,10 +830,16 @@ export class SpecimenLotsService {
   private async assertAssignableStorageUnit(
     transaction: Prisma.TransactionClient,
     storageUnitId: string,
-  ): Promise<void> {
+  ): Promise<StorageCapacitySnapshot> {
     const unit = await transaction.storage_unit.findUnique({
       where: { id: storageUnitId },
-      select: { id: true, holds_specimens: true, archived_at: true },
+      select: {
+        id: true,
+        label: true,
+        capacity: true,
+        holds_specimens: true,
+        archived_at: true,
+      },
     });
     if (!unit) {
       throw new NotFoundException(`Storage unit ${storageUnitId} not found`);
@@ -741,6 +854,28 @@ export class SpecimenLotsService {
         'This storage unit is not configured to hold specimens.',
       );
     }
+
+    return { id: unit.id, label: unit.label, capacity: unit.capacity ?? null };
+  }
+
+  /**
+   * Capacity is advisory (REQ-4.6-11): the assignment is kept and the curator
+   * is warned when the unit's active quantity now exceeds it.
+   */
+  private async findCapacityWarning(
+    transaction: Prisma.TransactionClient,
+    unit: StorageCapacitySnapshot,
+  ): Promise<StorageCapacityWarning | null> {
+    if (unit.capacity === null) {
+      return null;
+    }
+
+    const occupancy = await transaction.specimen_lot.aggregate({
+      where: { storage_unit_id: unit.id, is_active: true },
+      _sum: { quantity: true },
+    });
+
+    return evaluateStorageCapacity(unit, occupancy._sum.quantity ?? 0);
   }
 
   private assertSpecimenEditable(item: specimen): void {

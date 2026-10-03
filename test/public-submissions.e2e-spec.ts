@@ -4,7 +4,38 @@ import request from 'supertest';
 import { App } from 'supertest/types';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
+import { MailService } from '../src/mail/mail.service';
 import { SUPABASE_CLIENT } from '../src/supabase/supabase.constants';
+
+/** Audit entries written so far, by their Prisma `data` payload. */
+function auditEntries(auditCreate: jest.Mock): Array<Record<string, unknown>> {
+  return (
+    auditCreate.mock.calls as unknown as Array<
+      [{ data: Record<string, unknown> }]
+    >
+  ).map(([args]) => args.data);
+}
+
+/**
+ * A rejected Developer request writes no domain data; its only audit entry
+ * is the centralized ACCESS_DENIED security event (REQ-4.1-15).
+ */
+function expectOnlyAccessDeniedAudits(
+  auditCreate: jest.Mock,
+  expectedCount: number,
+): void {
+  const entries = auditEntries(auditCreate);
+  expect(entries).toHaveLength(expectedCount);
+  for (const entry of entries) {
+    expect(entry).toEqual(
+      expect.objectContaining({
+        action: 'ACCESS_DENIED',
+        module: 'auth',
+        status: 'DENIED',
+      }),
+    );
+  }
+}
 
 // Public General Inquiry and Visit Request submission (SRS §4.8, §4.9) and
 // the curator-only routes that read or change those records (NFR-SEC-10).
@@ -16,15 +47,32 @@ describe('Inquiries and visit requests (e2e)', () => {
   const developerAuthId = '33333333-3333-4333-8333-333333333333';
   const inquiryId = '44444444-4444-4444-8444-444444444444';
   const visitId = '55555555-5555-4555-8555-555555555555';
+  const curatorEmail = 'curator@museum.example';
+
+  // Receipts and curator alerts are sent after the submission response, so
+  // let that background work finish before asserting on mail or audit.
+  const flushBackgroundWork = () =>
+    new Promise((resolve) => setImmediate(resolve));
 
   let app: INestApplication<App>;
+  // A local .env may set alert recipients; these tests use the default of
+  // every active curator.
+  const configuredRecipients = process.env.CURATOR_ALERT_EMAILS;
+  beforeAll(() => {
+    process.env.CURATOR_ALERT_EMAILS = '';
+  });
+  afterAll(() => {
+    process.env.CURATOR_ALERT_EMAILS = configuredRecipients;
+  });
   let inquiries: Array<Record<string, unknown>>;
   let visits: Array<Record<string, unknown>>;
   let auditCreate: jest.Mock;
+  let audits: Array<Record<string, unknown>>;
   let inquiryWrites: jest.Mock;
   let visitWrites: jest.Mock;
   let history: Array<Record<string, unknown>>;
   let historyWrites: jest.Mock;
+  let mailSend: jest.Mock;
 
   const validInquiry = {
     name: 'Juan Dela Cruz',
@@ -49,11 +97,19 @@ describe('Inquiries and visit requests (e2e)', () => {
   beforeEach(async () => {
     inquiries = [];
     visits = [];
-    auditCreate = jest.fn(() => ({}));
+    audits = [];
+    auditCreate = jest.fn(({ data }: { data: Record<string, unknown> }) => {
+      const created = { created_at: new Date(), ...data };
+      audits.push(created);
+      return created;
+    });
     inquiryWrites = jest.fn();
     visitWrites = jest.fn();
     history = [];
     historyWrites = jest.fn();
+    mailSend = jest.fn(() =>
+      Promise.resolve({ delivered: true, result: 'SENT <e2e>' }),
+    );
 
     const now = new Date('2026-09-01T00:00:00.000Z');
     const prismaMock = {
@@ -77,6 +133,9 @@ describe('Inquiries and visit requests (e2e)', () => {
             return null;
           },
         ),
+        findMany: jest.fn(() => [
+          { full_name: 'Curator One', users: { email: curatorEmail } },
+        ]),
       },
       inquiry: {
         create: jest.fn(({ data }: { data: Record<string, unknown> }) => {
@@ -173,7 +232,28 @@ describe('Inquiries and visit requests (e2e)', () => {
             ),
         ),
       },
-      audit_log: { create: auditCreate },
+      audit_log: {
+        create: auditCreate,
+        findMany: jest.fn(
+          ({
+            where,
+          }: {
+            where: {
+              action: { in: string[] };
+              status: string;
+              affected_record_id: { in: string[] };
+            };
+          }) =>
+            audits.filter(
+              (entry) =>
+                where.action.in.includes(entry.action as string) &&
+                entry.status === where.status &&
+                where.affected_record_id.in.includes(
+                  entry.affected_record_id as string,
+                ),
+            ),
+        ),
+      },
       $transaction: jest.fn((callback: (client: unknown) => unknown) =>
         Promise.resolve(callback(prismaMock)),
       ),
@@ -197,6 +277,8 @@ describe('Inquiries and visit requests (e2e)', () => {
       .useValue(prismaMock)
       .overrideProvider(SUPABASE_CLIENT)
       .useValue({ auth: { getUser } })
+      .overrideProvider(MailService)
+      .useValue({ send: mailSend })
       .compile();
 
     app = moduleFixture.createNestApplication();
@@ -223,6 +305,7 @@ describe('Inquiries and visit requests (e2e)', () => {
 
       expect(Object.keys(response.body as object).sort()).toEqual([
         'id',
+        'referenceCode',
         'status',
         'submittedAt',
       ]);
@@ -268,6 +351,7 @@ describe('Inquiries and visit requests (e2e)', () => {
 
       expect(Object.keys(response.body as object).sort()).toEqual([
         'id',
+        'referenceCode',
         'status',
         'submittedAt',
       ]);
@@ -369,6 +453,11 @@ describe('Inquiries and visit requests (e2e)', () => {
         path: `/inquiries/${inquiryId}/notes`,
         body: noteBody,
       },
+      {
+        method: 'post',
+        path: `/inquiries/${inquiryId}/replies`,
+        body: { message: 'Reply' },
+      },
     ],
     'visit-requests': [
       { method: 'get', path: '/visit-requests' },
@@ -393,6 +482,11 @@ describe('Inquiries and visit requests (e2e)', () => {
         path: `/visit-requests/${visitId}/notes`,
         body: noteBody,
       },
+      {
+        method: 'post',
+        path: `/visit-requests/${visitId}/messages`,
+        body: { message: 'Message' },
+      },
     ],
   };
   const send = (route: Route, token?: string) => {
@@ -410,14 +504,18 @@ describe('Inquiries and visit requests (e2e)', () => {
         .post(`/${resource}`)
         .send(resource === 'inquiries' ? validInquiry : validVisit)
         .expect(201);
+      await flushBackgroundWork();
       auditCreate.mockClear();
       inquiryWrites.mockClear();
       visitWrites.mockClear();
     };
-    const expectNoWrites = () => {
+    const expectNoDomainWrites = () => {
       expect(inquiryWrites).not.toHaveBeenCalled();
       expect(visitWrites).not.toHaveBeenCalled();
       expect(historyWrites).not.toHaveBeenCalled();
+    };
+    const expectNoWrites = () => {
+      expectNoDomainWrites();
       expect(auditCreate).not.toHaveBeenCalled();
     };
 
@@ -429,21 +527,43 @@ describe('Inquiries and visit requests (e2e)', () => {
       expectNoWrites();
     });
 
-    it('reject Developers with 403 and write nothing', async () => {
+    it('reject Developers with 403 and write nothing but the denial audit', async () => {
       await seed();
       for (const route of internalRoutes[resource]) {
         await send(route, developerToken).expect(403);
       }
-      expectNoWrites();
+      expectNoDomainWrites();
+      expectOnlyAccessDeniedAudits(
+        auditCreate,
+        internalRoutes[resource].length,
+      );
     });
 
-    it('no longer allow deleting records', async () => {
+    // Deletion waits for the approved retention policy, so even a finished
+    // record and its timeline are kept.
+    it('have no DELETE route, even for a finished record', async () => {
       await seed();
+      const auth = `Bearer ${curatorToken}`;
+      const finish =
+        resource === 'inquiries' ? ['REVIEWED', 'CLOSED'] : ['DECLINED'];
+      for (const status of finish) {
+        await request(app.getHttpServer())
+          .patch(`/${resource}/${id}`)
+          .set('Authorization', auth)
+          .send({ status })
+          .expect(200);
+      }
+      const historyCount = history.length;
+
       await request(app.getHttpServer())
         .delete(`/${resource}/${id}`)
-        .set('Authorization', `Bearer ${curatorToken}`)
+        .set('Authorization', auth)
         .expect(404);
-      expectNoWrites();
+      await request(app.getHttpServer())
+        .get(`/${resource}/${id}`)
+        .set('Authorization', auth)
+        .expect(200);
+      expect(history).toHaveLength(historyCount);
     });
 
     it('let a Curator list, search, read, and change status', async () => {
@@ -472,13 +592,16 @@ describe('Inquiries and visit requests (e2e)', () => {
         .get(`/${resource}/${id}/history`)
         .set('Authorization', auth)
         .expect(200);
-      expect(timeline.body).toEqual([
+      expect(timeline.body[0]).toEqual(
         expect.objectContaining({
           type: 'STATUS_CHANGE',
           recordedBy: curatorAccountId,
           message: `Status changed from PENDING to ${patchBody.status}.\n\nHandled by phone.`,
         }),
-      ]);
+      );
+      // Declining a visit request also emails the visitor; reviewing an
+      // inquiry does not.
+      expect(timeline.body).toHaveLength(resource === 'inquiries' ? 1 : 2);
     });
 
     it('record internal notes in the timeline', async () => {
@@ -587,6 +710,8 @@ describe('Inquiries and visit requests (e2e)', () => {
         .post('/visit-requests')
         .send(validVisit)
         .expect(201);
+      await flushBackgroundWork();
+      mailSend.mockClear();
 
       await request(app.getHttpServer())
         .get(`/visit-requests/${visitId}/campus-entry-summary`)
@@ -655,14 +780,287 @@ describe('Inquiries and visit requests (e2e)', () => {
         .set('Authorization', auth)
         .expect(200);
       expect(
-        (timeline.body as Array<{ message: string }>).map(
-          (entry) => entry.message.split('\n')[0],
+        (timeline.body as Array<{ type: string; message: string }>).map(
+          (entry) => `${entry.type}: ${entry.message.split('\n')[0]}`,
         ),
       ).toEqual([
-        'Status changed from PENDING to APPROVED_BY_CURATOR.',
-        'Status changed from APPROVED_BY_CURATOR to SUBMITTED_FOR_CAMPUS_ENTRY.',
-        'Status changed from SUBMITTED_FOR_CAMPUS_ENTRY to COMPLETED.',
+        'STATUS_CHANGE: Status changed from PENDING to APPROVED_BY_CURATOR.',
+        'STATUS_UPDATE_EMAIL: Hello Maria Santos,',
+        'STATUS_CHANGE: Status changed from APPROVED_BY_CURATOR to SUBMITTED_FOR_CAMPUS_ENTRY.',
+        'STATUS_CHANGE: Status changed from SUBMITTED_FOR_CAMPUS_ENTRY to COMPLETED.',
       ]);
+      // After the submission receipt and alert, only the approval emailed.
+      expect(mailSend).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('visitor emails', () => {
+    const auth = `Bearer ${curatorToken}`;
+
+    it('email the approved schedule on approval and record the result', async () => {
+      await request(app.getHttpServer())
+        .post('/visit-requests')
+        .send(validVisit)
+        .expect(201);
+
+      await request(app.getHttpServer())
+        .patch(`/visit-requests/${visitId}/approve-schedule`)
+        .set('Authorization', auth)
+        .send({
+          preferenceOrder: 1,
+          visitorMessage: 'Please arrive 15 minutes early.',
+        })
+        .expect(200);
+
+      expect(mailSend).toHaveBeenCalledWith(
+        expect.objectContaining({
+          to: validVisit.email,
+          subject:
+            'Your BioSphere museum visit schedule has been approved (Ref 55555555)',
+          text: expect.stringContaining('Please arrive 15 minutes early.'),
+        }),
+      );
+      const timeline = await request(app.getHttpServer())
+        .get(`/visit-requests/${visitId}/history`)
+        .set('Authorization', auth)
+        .expect(200);
+      expect(timeline.body[1]).toMatchObject({
+        direction: 'OUTBOUND',
+        type: 'STATUS_UPDATE_EMAIL',
+        recipientEmail: validVisit.email,
+        deliveryResult: 'SENT <e2e>',
+      });
+    });
+
+    it('keep the decision when the email fails', async () => {
+      mailSend.mockResolvedValue({ delivered: false, result: 'FAILED 500' });
+      await request(app.getHttpServer())
+        .post('/visit-requests')
+        .send(validVisit)
+        .expect(201);
+
+      const declined = await request(app.getHttpServer())
+        .patch(`/visit-requests/${visitId}`)
+        .set('Authorization', auth)
+        .send({ status: 'DECLINED' })
+        .expect(200);
+
+      expect(declined.body.status).toBe('DECLINED');
+      expect(history.at(-1)).toMatchObject({
+        direction: 'OUTBOUND',
+        delivery_result: 'FAILED 500',
+        sent_at: null,
+      });
+    });
+
+    it('skip the email when notifyVisitor is false', async () => {
+      await request(app.getHttpServer())
+        .post('/visit-requests')
+        .send(validVisit)
+        .expect(201);
+      await flushBackgroundWork();
+      mailSend.mockClear();
+
+      await request(app.getHttpServer())
+        .patch(`/visit-requests/${visitId}`)
+        .set('Authorization', auth)
+        .send({ status: 'CANCELLED', notifyVisitor: false })
+        .expect(200);
+
+      expect(mailSend).not.toHaveBeenCalled();
+    });
+
+    it('send a curator reply to an inquiry and a message on a visit request', async () => {
+      await request(app.getHttpServer())
+        .post('/inquiries')
+        .send(validInquiry)
+        .expect(201);
+      await request(app.getHttpServer())
+        .post('/visit-requests')
+        .send(validVisit)
+        .expect(201);
+
+      const reply = await request(app.getHttpServer())
+        .post(`/inquiries/${inquiryId}/replies`)
+        .set('Authorization', auth)
+        .send({ message: 'Yes, a class of 20 is welcome.' })
+        .expect(201);
+      expect(reply.body).toMatchObject({
+        direction: 'OUTBOUND',
+        type: 'MESSAGE_EMAIL',
+        recipientEmail: validInquiry.email,
+      });
+
+      await request(app.getHttpServer())
+        .post(`/visit-requests/${visitId}/messages`)
+        .set('Authorization', auth)
+        .send({ subject: 'Visitor list', message: 'Please send the list.' })
+        .expect(201);
+      expect(mailSend).toHaveBeenLastCalledWith(
+        expect.objectContaining({ subject: 'Visitor list' }),
+      );
+
+      // Neither message changes the status.
+      expect(inquiries[0].status).toBe('PENDING');
+      expect(visits[0].status).toBe('PENDING');
+      await request(app.getHttpServer())
+        .post(`/inquiries/${inquiryId}/replies`)
+        .set('Authorization', auth)
+        .send({ message: '   ' })
+        .expect(400);
+    });
+
+    it('return the reference code on public receipts', async () => {
+      const receipt = await request(app.getHttpServer())
+        .post('/inquiries')
+        .send(validInquiry)
+        .expect(201);
+      expect(receipt.body.referenceCode).toBe('44444444');
+    });
+  });
+  describe('new submission alerts', () => {
+    const auth = `Bearer ${curatorToken}`;
+
+    it.each([
+      [
+        'inquiries',
+        validInquiry,
+        'We received your BioSphere museum inquiry (Ref 44444444)',
+        'New general inquiry received (Ref 44444444)',
+      ],
+      [
+        'visit-requests',
+        validVisit,
+        'We received your BioSphere visit request (Ref 55555555)',
+        'New visit request received (Ref 55555555)',
+      ],
+    ])(
+      'POST /%s sends a receipt and alerts curators',
+      async (resource, body, receiptSubject, alertSubject) => {
+        await request(app.getHttpServer())
+          .post(`/${resource}`)
+          .send(body)
+          .expect(201);
+        await flushBackgroundWork();
+
+        expect(mailSend).toHaveBeenCalledWith(
+          expect.objectContaining({ to: body.email, subject: receiptSubject }),
+        );
+        expect(mailSend).toHaveBeenCalledWith(
+          expect.objectContaining({
+            to: curatorEmail,
+            subject: alertSubject,
+            text: expect.not.stringContaining(body.name) as string,
+          }),
+        );
+        expect(auditCreate).toHaveBeenCalledWith({
+          data: expect.objectContaining({
+            action: 'ALERT_CURATORS',
+            details: { recipients: 1, delivered: 1 },
+            status: 'SUCCESS',
+          }),
+        });
+      },
+    );
+
+    it('keep the submission and surface the failed emails in-system', async () => {
+      mailSend.mockResolvedValue({ delivered: false, result: 'FAILED 500' });
+
+      await request(app.getHttpServer())
+        .post('/inquiries')
+        .send(validInquiry)
+        .expect(201);
+      await flushBackgroundWork();
+
+      expect(inquiries).toHaveLength(1);
+      expect(auditCreate).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          action: 'ALERT_CURATORS',
+          status: 'FAILED',
+        }),
+      });
+
+      const feed = await request(app.getHttpServer())
+        .get('/notifications')
+        .set('Authorization', auth)
+        .expect(200);
+      expect(feed.body).toMatchObject({ total: 3, emailFailures: 2 });
+      expect(
+        (feed.body.items as Array<{ type: string; title: string }>)
+          .filter((item) => item.type === 'SUBMISSION_EMAIL_FAILED')
+          .map((item) => item.title)
+          .sort(),
+      ).toEqual([
+        'Curator alert email was not delivered',
+        'Receipt email to the visitor was not delivered',
+      ]);
+    });
+
+    it('GET /notifications lists pending submissions for curators only', async () => {
+      await request(app.getHttpServer())
+        .post('/inquiries')
+        .send(validInquiry)
+        .expect(201);
+      await request(app.getHttpServer())
+        .post('/visit-requests')
+        .send(validVisit)
+        .expect(201);
+
+      await request(app.getHttpServer()).get('/notifications').expect(401);
+      await request(app.getHttpServer())
+        .get('/notifications')
+        .set('Authorization', `Bearer ${developerToken}`)
+        .expect(403);
+
+      const feed = await request(app.getHttpServer())
+        .get('/notifications')
+        .set('Authorization', auth)
+        .expect(200);
+      expect(feed.body).toMatchObject({
+        total: 2,
+        pendingInquiries: 1,
+        pendingVisitRequests: 1,
+      });
+      expect(
+        (feed.body.items as Array<{ recordType: string; recordId: string }>)
+          .map((item) => `${item.recordType}:${item.recordId}`)
+          .sort(),
+      ).toEqual([`inquiry:${inquiryId}`, `visit_request:${visitId}`]);
+      expect(JSON.stringify(feed.body)).not.toContain(validInquiry.email);
+
+      await request(app.getHttpServer())
+        .get('/notifications?limit=0')
+        .set('Authorization', auth)
+        .expect(400);
+    });
+  });
+
+  describe('date filters', () => {
+    const auth = `Bearer ${curatorToken}`;
+
+    it.each([
+      '/inquiries?submittedFrom=2026-09-30&submittedTo=2026-09-01',
+      '/inquiries?submittedFrom=09/01/2026',
+      '/visit-requests?visitDateFrom=2026-02-30',
+      '/visit-requests?visitDateFrom=2026-10-31&visitDateTo=2026-10-01',
+    ])('reject %s with 400', async (path) => {
+      await request(app.getHttpServer())
+        .get(path)
+        .set('Authorization', auth)
+        .expect(400);
+    });
+
+    it('accept valid submitted and visit date ranges', async () => {
+      await request(app.getHttpServer())
+        .get('/inquiries?submittedFrom=2026-09-01&submittedTo=2026-09-30')
+        .set('Authorization', auth)
+        .expect(200);
+      await request(app.getHttpServer())
+        .get(
+          '/visit-requests?status=APPROVED_BY_CURATOR&visitDateFrom=2026-10-01&visitDateTo=2026-10-31',
+        )
+        .set('Authorization', auth)
+        .expect(200);
     });
   });
 });
