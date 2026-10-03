@@ -205,7 +205,7 @@ backend's row-level validation result.
 | STO-001 | Create a root and nested storage hierarchy            | The hierarchy reloads with correct parent-child relationships | **Pass**                                             |
 | STO-002 | Attempt self-parenting and descendant cycles          | Both operations are rejected without changing the hierarchy   | **Pass**; UI manual + automated backend verification |
 | STO-003 | Edit storage metadata and specimen-holding capability | Valid changes persist and invalid values are rejected clearly | **Pass**                                             |
-| STO-004 | Exercise approved archive restrictions                | Referenced/unsafe locations cannot be archived incorrectly    | Not run                                              |
+| STO-004 | Exercise approved archive restrictions                | Referenced/unsafe locations cannot be archived incorrectly    | **Pass**; lifecycle display issue DEF-010            |
 
 STO-001 evidence recorded on 2026-10-04: a disposable top-level room and its
 nested storage locations were created with the intended parent-child
@@ -227,6 +227,16 @@ size, capacity, and specimen-holding changes saved and persisted. Submitting
 the unchanged form did not create an update. Whitespace-only required values
 were rejected, and the capacity control rejected zero, negative, fractional,
 and nonnumeric values, preserving the last valid state.
+
+STO-004 evidence recorded on 2026-10-04: archiving was rejected while the
+location had active children or specimen lots. After those dependencies were
+resolved, the disposable child and its parent cabinet archived successfully,
+the selected record showed its archived state, and mutation controls became
+read-only. The archived cabinet and child nevertheless remained visually
+indistinguishable from active locations in the hierarchy and direct-child
+list. DEF-010 tracks this lifecycle-presentation issue; archived records must
+remain recoverable for history, but they must not appear to be part of the
+live hierarchy.
 
 ### Limited offline and synchronization
 

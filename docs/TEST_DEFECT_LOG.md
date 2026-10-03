@@ -56,6 +56,7 @@ system is not a reason to postpone all fixes until the end.
 | DEF-007 | 2026-10-03 | Cataloging / Specimen list | Selected-specimen preview never displays its cover image                | S3 Moderate | P2       | Open   | Cataloging / Full stack |
 | DEF-008 | 2026-10-03 | Cataloging / Filters       | Clear all resets results but leaves stale filter values visible         | S3 Moderate | P2       | Open   | Cataloging / Frontend   |
 | DEF-009 | 2026-10-03 | Cataloging / CSV import    | Invalid row values make the entire preview return a generic 502         | S2 Major    | P1       | Open   | Cataloging / Frontend   |
+| DEF-010 | 2026-10-04 | Storage / Hierarchy UI     | Archived locations still look active in the live hierarchy              | S3 Moderate | P2       | Open   | Storage / Frontend      |
 
 ## 3. Defect details
 
@@ -626,6 +627,78 @@ preview is shown.
 - [ ] Invalid rows cannot be selected or committed.
 - [ ] Valid rows remain selectable and previewing creates no records.
 - [ ] Valid-only preview and retry-safe commit behavior remain unchanged.
+
+### DEF-010 - Archived locations still look active in the live hierarchy
+
+**Related test:** STO-004
+
+**Environment:** Development Storage Location page
+
+**Found on:** backend `6e3b1c2`; frontend `672fe4e`
+
+**Severity:** S3 Moderate
+
+**Priority:** P2
+
+**Status:** Open
+
+**Owner:** Storage Location Management / Frontend
+
+#### Reproduction
+
+1. Select a disposable storage location that has an active child or specimen
+   lot and confirm that archiving is rejected.
+2. Resolve the dependencies, archive the child, and archive its parent.
+3. Refresh the Storage Location page and inspect the hierarchy, selected
+   record, and direct-child list.
+
+#### Expected
+
+Archived records remain available for history and audit purposes, but the
+default live hierarchy contains active locations only. If archived records
+are deliberately displayed, every tree node, search result, breadcrumb, and
+child card clearly identifies them as archived and read-only. Active child
+counts do not include archived children.
+
+#### Actual
+
+The selected detail correctly shows an `Archived` badge and its management
+controls are read-only. However, the archived cabinet and its archived child
+remain in the tree and direct-child section with the same visual treatment as
+active locations. The parent also reports the archived record as a direct
+child, despite the page describing the hierarchy as live.
+
+#### Technical observation
+
+- The Storage page requests lifecycle `ALL` rather than an active-only view.
+- Hierarchy construction includes every returned unit.
+- Tree nodes, search results, and direct-child cards do not render
+  `archivedAt` state.
+- The management form already excludes archived units from eligible parent
+  choices, so mutation protection is working independently of this defect.
+
+#### Required remediation
+
+1. Prefer an active-only hierarchy by default with an explicit `Show
+archived` control for historical lookup.
+2. When archived records are shown, add consistent archived styling and a
+   text badge in the tree, search results, breadcrumbs, and child cards.
+3. Exclude archived children from active child counts/lists, or display them
+   in a clearly separate archived subsection.
+4. Keep archived records selectable and read-only; do not delete their data
+   or audit history.
+5. Continue excluding archived locations from parent selection and other
+   active mutation targets.
+
+#### Retest
+
+- [ ] The default tree and active child count exclude archived locations.
+- [ ] `Show archived` reveals historical locations with an unmistakable
+      archived state.
+- [ ] Archived records remain readable and linked to audit history.
+- [ ] Archived locations cannot be edited, moved, selected as a parent, or
+      assigned new specimen lots.
+- [ ] Active hierarchy navigation and search remain unchanged.
 
 ## 4. New defect template
 
