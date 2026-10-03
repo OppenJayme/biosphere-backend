@@ -50,6 +50,7 @@ system is not a reason to postpone all fixes until the end.
 | DEF-001 | 2026-09-29 | Cataloging / Collections   | Duplicate normalized collection names are accepted                      | S2 Major | P1       | Open   | Cataloging / Backend    |
 | DEF-002 | 2026-10-03 | Cataloging / Provenance    | Future collection dates are accepted and satisfy presence validation    | S2 Major | P1       | Open   | Cataloging / Full stack |
 | DEF-003 | 2026-10-03 | Cataloging / Specimen list | Client-side specimen selection does not hydrate on a remote LAN browser | S2 Major | P1       | Open   | Cataloging / Frontend   |
+| DEF-004 | 2026-10-03 | Cataloging / Media UI      | Choose-file controls have no visible hover feedback                     | S4 Minor | P2       | Open   | Cataloging / Frontend   |
 
 ## 3. Defect details
 
@@ -266,6 +267,62 @@ module acceptance.
 - [ ] Keyboard Enter/Space and touch selection work.
 - [ ] Mobile users can see which specimen was selected.
 - [ ] No hydration or client-chunk errors appear in the browser console.
+
+### DEF-004 - Choose-file controls have no visible hover feedback
+
+**Related test:** CAT-011
+
+**Environment:** Development specimen-media page
+
+**Found on:** frontend `672fe4e`
+
+**Severity:** S4 Minor
+
+**Priority:** P2
+
+**Status:** Open
+
+**Owner:** Cataloging / Frontend
+
+#### Reproduction
+
+1. Open a specimen's Media page.
+2. Move a mouse pointer over the native Choose File/Choose Media control in the
+   upload form.
+3. Repeat on the replace-file form.
+
+#### Expected
+
+The interactive file-selection button gives clear hover, keyboard-focus, and
+disabled feedback consistent with other BioSphere controls.
+
+#### Actual
+
+The upload control retains the same color while hovered. The behavior does not
+block file selection, but it provides weak interaction feedback.
+
+#### Technical observation
+
+- The upload input defines `file:bg-sage-100` but no `file:hover:*` style.
+- The replacement input uses the generic input style and has no consistent
+  file-button interaction styling.
+- This is a CSS issue and is independent of the client-hydration failure in
+  DEF-003.
+
+#### Required remediation
+
+1. Apply one shared file-input style to upload and replacement controls.
+2. Add visible pointer hover, keyboard focus, and disabled states with adequate
+   contrast.
+3. Preserve the native file picker and accessible label.
+4. Verify behavior in the team's supported desktop browsers.
+
+#### Retest
+
+- [ ] Upload and replacement file controls visibly respond to pointer hover.
+- [ ] Keyboard focus is visible without relying on color alone.
+- [ ] Disabled/pending appearance is clear.
+- [ ] Selecting and submitting a valid file still works.
 
 ## 4. New defect template
 
