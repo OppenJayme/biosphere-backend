@@ -113,27 +113,34 @@ Every `Fail` must reference an entry in the defect log.
 
 ### Cataloging Management
 
-| ID      | Test                                                                           | Expected result                                                                                            | Status                                                       |
-| ------- | ------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
-| CAT-001 | Create and rename a collection; retry the same normalized name                 | Valid unique names save; duplicates are rejected clearly                                                   | **Fail - DEF-001**                                           |
-| CAT-002 | Create complete and incomplete specimen drafts                                 | Both start `UNCATALOGED`; public display is off                                                            | **Pass**                                                     |
-| CAT-003 | Edit specimen core fields and submit an unchanged form                         | Changes persist with revision history; no-change submission is rejected clearly                            | **Pass**                                                     |
-| CAT-004 | Create and edit taxonomy                                                       | One taxonomy record exists; draft values and revisions persist                                             | **Pass**; completion requirement remains under CAT-006       |
-| CAT-005 | Create and edit provenance; reject invalid dates                               | Values and revisions persist; empty values normalize; future collection dates are rejected                 | **Fail - DEF-002**                                           |
-| CAT-006 | View readiness with missing and complete requirements                          | Every approved rule reports the correct pass/fail state and fix location                                   | **Fail - DEF-002**                                           |
-| CAT-007 | Complete Cataloging with one prepared valid active lot                         | Status becomes `CATALOGED`; public display remains off; history/audit are written                          | In progress; transition observed, remaining evidence pending |
-| CAT-008 | Remove required data while Cataloged, then reopen with a reason                | Removal is blocked until reopening; reopening returns to `UNCATALOGED` and disables public display         | Not run                                                      |
-| CAT-009 | Enable and disable public eligibility                                          | Only Cataloged specimens qualify; no exhibit is published automatically                                    | Not run                                                      |
-| CAT-010 | Attach, change, repeat, and detach tags                                        | Relationships remain unique and retry-safe                                                                 | Not run                                                      |
-| CAT-011 | Upload, edit, cover, replace, and remove supported media; reject invalid media | Private signed access, database/storage consistency, and usable interaction states are preserved           | **Fail - DEF-004**; functional cases remain to be run        |
-| CAT-012 | Search, combine filters, sort, and paginate                                    | Results are bounded, stable, case-insensitive where approved, and archived records are excluded by default | Not run                                                      |
-| CAT-013 | Preview and commit mixed-validity CSV rows; retry commit                       | Preview is non-mutating; only reviewed valid rows import as `UNCATALOGED`; retries do not duplicate rows   | Not run                                                      |
-| CAT-014 | Review possible duplicate warnings, including archived matches                 | Warnings show evidence and never auto-merge records                                                        | Blocked pending active duplicate-detection PR acceptance     |
-| CAT-015 | Select multiple specimens from the protected catalog on local and LAN clients  | Every row is keyboard/touch accessible and opens the matching preview/detail route                         | **Fail - DEF-003**                                           |
+| ID      | Test                                                                           | Expected result                                                                                            | Status                                                                |
+| ------- | ------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| CAT-001 | Create and rename a collection; retry the same normalized name                 | Valid unique names save; duplicates are rejected clearly                                                   | **Fail - DEF-001**                                                    |
+| CAT-002 | Create complete and incomplete specimen drafts                                 | Both start `UNCATALOGED`; public display is off                                                            | **Pass**                                                              |
+| CAT-003 | Edit specimen core fields and submit an unchanged form                         | Changes persist with revision history; no-change submission is rejected clearly                            | **Pass**                                                              |
+| CAT-004 | Create and edit taxonomy                                                       | One taxonomy record exists; draft values and revisions persist                                             | **Pass**; completion requirement remains under CAT-006                |
+| CAT-005 | Create and edit provenance; reject invalid dates                               | Values and revisions persist; empty values normalize; future collection dates are rejected                 | **Fail - DEF-002**                                                    |
+| CAT-006 | View readiness with missing and complete requirements                          | Every approved rule reports the correct pass/fail state and fix location                                   | **Fail - DEF-002**                                                    |
+| CAT-007 | Complete Cataloging with one prepared valid active lot                         | Status becomes `CATALOGED`; public display remains off; history/audit are written                          | **Pass** for lifecycle behavior; DEF-002 still blocks module sign-off |
+| CAT-008 | Remove required data while Cataloged, then reopen with a reason                | Removal is blocked until reopening; reopening returns to `UNCATALOGED` and disables public display         | Not run                                                               |
+| CAT-009 | Enable and disable public eligibility                                          | Only Cataloged specimens qualify; no exhibit is published automatically                                    | Not run                                                               |
+| CAT-010 | Attach, change, repeat, and detach tags                                        | Relationships remain unique and retry-safe                                                                 | Not run                                                               |
+| CAT-011 | Upload, edit, cover, replace, and remove supported media; reject invalid media | Private signed access, database/storage consistency, and usable interaction states are preserved           | **Fail - DEF-004**; functional cases remain to be run                 |
+| CAT-012 | Search, combine filters, sort, and paginate                                    | Results are bounded, stable, case-insensitive where approved, and archived records are excluded by default | Not run                                                               |
+| CAT-013 | Preview and commit mixed-validity CSV rows; retry commit                       | Preview is non-mutating; only reviewed valid rows import as `UNCATALOGED`; retries do not duplicate rows   | Not run                                                               |
+| CAT-014 | Review possible duplicate warnings, including archived matches                 | Warnings show evidence and never auto-merge records                                                        | Blocked pending active duplicate-detection PR acceptance              |
+| CAT-015 | Select multiple specimens from the protected catalog on local and LAN clients  | Every row is keyboard/touch accessible and opens the matching preview/detail route                         | **Fail - DEF-003**                                                    |
 
 For CAT-007, Cataloging only verifies the prepared lot. Quantity, placement,
 condition, movement, and transfer behavior belong to John Gerozaga's Inventory
 acceptance tests.
+
+CAT-007 evidence recorded on 2026-10-03: the specimen changed to `CATALOGED`,
+public-display eligibility remained off, revision history recorded the status
+transition, the audit log contained `COMPLETE_SPECIMEN_CATALOGING`, and
+readiness remained satisfied. This validates the lifecycle transition but does
+not close DEF-002; Cataloging cannot be signed off while a future provenance
+date can satisfy readiness.
 
 ### Storage Location Management
 
