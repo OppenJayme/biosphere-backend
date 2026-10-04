@@ -12,6 +12,7 @@ import {
 } from 'class-validator';
 import { trimString } from '../../common/transforms/trim-string.transform';
 import {
+  audit_result,
   general_inquiry_status,
   qr_exhibit_status,
   specimen_status,
@@ -171,6 +172,24 @@ export class GenerateReportDto {
   @IsOptional()
   @IsBoolean()
   arEnabled?: boolean;
+
+  // Audit Log Report
+  @ApiPropertyOptional({
+    description: 'Audit module, e.g. "reports" or "auth", ignoring case',
+  })
+  @OptionalText()
+  auditModule?: string;
+
+  @ApiPropertyOptional({
+    description: 'Audit action, e.g. "LOGIN", ignoring case',
+  })
+  @OptionalText()
+  auditAction?: string;
+
+  @ApiPropertyOptional({ enum: audit_result })
+  @IsOptional()
+  @IsEnum(audit_result)
+  auditResult?: audit_result;
 }
 
 /** Every optional filter field, used to reject filters a report does not support. */
@@ -194,4 +213,7 @@ export const REPORT_FILTER_FIELDS = [
   'visitStatus',
   'exhibitStatus',
   'arEnabled',
+  'auditModule',
+  'auditAction',
+  'auditResult',
 ] as const satisfies readonly (keyof GenerateReportDto)[];

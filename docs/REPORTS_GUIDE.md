@@ -1,7 +1,9 @@
 # BioSphere Reports Guide
 
 This module implements the reports and export portion of SRS Section 4.7
-(REQ-4.7-04 to REQ-4.7-16) for the five approved core report types in §4.7.4.
+(REQ-4.7-04 to REQ-4.7-16) for the five approved core report types in §4.7.4,
+plus the audit-log export the SRS Audit Logs page describes (Figure 20,
+REQ-4.15-04).
 Search and filtering of inventory tables (REQ-4.7-01 to 4.7-03) live in the
 specimen search endpoints, not here. The module adds no tables: it reads
 existing records and records every generation in `public.audit_log`.
@@ -14,7 +16,7 @@ are public or available to Developer accounts.
 
 ## Endpoints
 
-- `GET /reports`: the five report types with their allowed formats, periods,
+- `GET /reports`: the report types with their allowed formats, periods,
   filter fields, and what the period applies to. Build the report picker from
   this instead of hard-coding it.
 - `POST /reports`: generates one report and returns the file as the response
@@ -34,6 +36,7 @@ are public or available to Developer accounts.
 | `INQUIRY_SUMMARY` | PDF, CSV, DOCX | any | `inquiryStatus`, `inquiryType` |
 | `VISIT_REQUEST_SUMMARY` | PDF, CSV, DOCX | any | `visitStatus` |
 | `QR_AR_EXHIBITS` | PDF, CSV, DOCX | any | `exhibitStatus`, `arEnabled` |
+| `AUDIT_LOG` | PDF, CSV, DOCX | any | `auditModule`, `auditAction`, `auditResult` |
 
 The Consolidated report is summary tables only, so it has no CSV export. Its
 DOCX is a separate editable file; editing it never changes BioSphere records
@@ -47,7 +50,13 @@ breakdowns, and exhibit status counts are as of generation time.
 
 For the other reports the period selects records by creation date: date added
 (inventory), received (inquiries), submitted (visit requests), or created
-(exhibits). Archived exhibits are excluded from exhibit reports.
+(exhibits). Archived exhibits are excluded from exhibit reports. The Audit Log
+Report selects entries by the time they were recorded; `auditModule` and
+`auditAction` match exactly, ignoring case, and `auditResult` is `SUCCESS`,
+`FAILED`, or `DENIED`. Each row shows the time (Philippine time), account and
+role, module, action, result, affected record, and the entry's details as
+`key: value` text shortened to 300 characters. Generating a report is itself
+audited, so a new export includes earlier report generations.
 
 ## Request body
 
@@ -92,7 +101,7 @@ start, end), `filters`, `rowCount`, and `fileName`, or `error` on failure
 
 ## Output notes
 
-- Confidential reports (Inventory, Inquiry, and Visit-Request) carry a
+- Confidential reports (Inventory, Inquiry, Visit-Request, and Audit Log) carry a
   confidentiality notice on the first page and in every page footer or header.
 - Tables with more than six columns use landscape A4 pages.
 - CSV files are UTF-8 with a byte-order mark and CRLF line endings. Cells that

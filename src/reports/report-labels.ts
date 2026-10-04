@@ -46,6 +46,32 @@ export const ADJUSTMENT_LABELS = {
   DATA_CORRECTION: 'Data correction',
 } as const;
 
+export const AUDIT_RESULT_LABELS = {
+  SUCCESS: 'Success',
+  FAILED: 'Failed',
+  DENIED: 'Denied',
+} as const;
+
+export const ACCOUNT_ROLE_LABELS = {
+  CURATOR: 'Curator',
+  DEVELOPER: 'Developer',
+} as const;
+
+const DATE_TIME = new Intl.DateTimeFormat('en-US', {
+  month: 'short',
+  day: 'numeric',
+  year: 'numeric',
+  hour: 'numeric',
+  minute: '2-digit',
+  second: '2-digit',
+  timeZone: REPORT_TIMEZONE,
+});
+
+/** Date and time in Philippine time, e.g. "Sep 30, 2026, 4:05:12 PM". */
+export function formatReportDateTime(value: Date): string {
+  return DATE_TIME.format(value);
+}
+
 const DATE = new Intl.DateTimeFormat('en-US', {
   month: 'short',
   day: 'numeric',
