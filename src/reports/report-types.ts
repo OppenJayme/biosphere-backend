@@ -1,12 +1,14 @@
 import { ReportPeriodType } from './report-period';
 
-// The five approved core report types (SRS §4.7.4).
+// The five approved core report types (SRS §4.7.4), plus the audit-log
+// export the Audit Logs page offers (SRS Figure 20, AUDIT_LOG_GUIDE.md).
 export enum ReportType {
   CONSOLIDATED_OPERATIONS = 'CONSOLIDATED_OPERATIONS',
   INVENTORY = 'INVENTORY',
   INQUIRY_SUMMARY = 'INQUIRY_SUMMARY',
   VISIT_REQUEST_SUMMARY = 'VISIT_REQUEST_SUMMARY',
   QR_AR_EXHIBITS = 'QR_AR_EXHIBITS',
+  AUDIT_LOG = 'AUDIT_LOG',
 }
 
 export enum ReportFormat {
@@ -97,5 +99,15 @@ export const REPORT_DEFINITIONS: Record<ReportType, ReportDefinition> = {
     periods: ALL_PERIODS,
     filters: ['exhibitStatus', 'arEnabled'],
     periodAppliesTo: 'Date the exhibit page was created.',
+  },
+  [ReportType.AUDIT_LOG]: {
+    type: ReportType.AUDIT_LOG,
+    title: 'Audit Log Report',
+    description:
+      'Recorded system activity and security events with the acting account, module, action, affected record, and result.',
+    formats: [ReportFormat.PDF, ReportFormat.CSV, ReportFormat.DOCX],
+    periods: ALL_PERIODS,
+    filters: ['auditModule', 'auditAction', 'auditResult'],
+    periodAppliesTo: 'Date and time the event was recorded.',
   },
 };

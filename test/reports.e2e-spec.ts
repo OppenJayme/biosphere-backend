@@ -122,7 +122,7 @@ describe('Reports (e2e)', () => {
       .expect(403);
   });
 
-  it('lists the five report types', async () => {
+  it('lists the five SRS report types and the audit-log export', async () => {
     const response = await request(app.getHttpServer())
       .get('/reports')
       .set('Authorization', `Bearer ${curatorToken}`)
@@ -135,6 +135,7 @@ describe('Reports (e2e)', () => {
       'INQUIRY_SUMMARY',
       'VISIT_REQUEST_SUMMARY',
       'QR_AR_EXHIBITS',
+      'AUDIT_LOG',
     ]);
   });
 

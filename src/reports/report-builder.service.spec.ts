@@ -20,6 +20,7 @@ const prismaMock = {
   inquiry: { count: jest.fn(), findMany: jest.fn(), groupBy: jest.fn() },
   visit_request: { count: jest.fn(), findMany: jest.fn(), groupBy: jest.fn() },
   exhibit: { count: jest.fn(), findMany: jest.fn(), groupBy: jest.fn() },
+  audit_log: { count: jest.fn(), findMany: jest.fn() },
 };
 
 const UNITS = [
@@ -282,6 +283,118 @@ describe('ReportBuilderService', () => {
         ar_asset: { none: { is_enabled: true } },
       }),
     );
+  });
+
+  describe('audit log report', () => {
+    beforeEach(() => {
+      prismaMock.audit_log.count.mockResolvedValue(3);
+      prismaMock.audit_log.findMany.mockResolvedValue([
+        {
+          created_at: new Date('2026-09-30T08:05:12.000Z'),
+          module: 'auth',
+          action: 'LOGIN',
+          status: 'DENIED',
+          affected_record_type: null,
+          affected_record_id: null,
+          details: { reason: 'inactive account' },
+          user_account: { full_name: 'Test Curator', role: 'CURATOR' },
+        },
+        {
+          created_at: new Date('2026-09-30T09:00:00.000Z'),
+          module: 'reports',
+          action: 'GENERATE_REPORT',
+          status: 'SUCCESS',
+          affected_record_type: 'report',
+          affected_record_id: null,
+          details: { reportType: 'INVENTORY', filters: { family: 'x' } },
+          user_account: null,
+        },
+        {
+          created_at: new Date('2026-09-30T10:00:00.000Z'),
+          module: 'Reports',
+          action: 'GENERATE_REPORT',
+          status: 'FAILED',
+          affected_record_type: 'report',
+          affected_record_id: null,
+          details: { error: 'x'.repeat(400) },
+          user_account: null,
+        },
+      ]);
+    });
+
+    it('filters by period, module, action, and result, ignoring case', async () => {
+      await service.build(
+        context({
+          type: ReportType.AUDIT_LOG,
+          period: ReportPeriodType.MONTHLY,
+          month: '2026-09',
+          auditModule: 'auth',
+          auditAction: 'login',
+          auditResult: 'DENIED',
+        }),
+      );
+
+      const { where } = prismaMock.audit_log.findMany.mock.calls[0][0];
+      expect(where).toEqual({
+        created_at: {
+          gte: new Date('2026-08-31T16:00:00.000Z'),
+          lt: new Date('2026-09-30T16:00:00.000Z'),
+        },
+        module: { equals: 'auth', mode: 'insensitive' },
+        action: { equals: 'login', mode: 'insensitive' },
+        status: 'DENIED',
+      });
+    });
+
+    it('builds confidential rows with Philippine time and readable details', async () => {
+      const document = await service.build(
+        context({ type: ReportType.AUDIT_LOG }),
+      );
+
+      expect(document.confidential).toBe(true);
+      expect(document.rowCount).toBe(3);
+      expect(document.csvTable?.rows[0]).toEqual([
+        'Sep 30, 2026, 4:05:12 PM',
+        'Test Curator',
+        'Curator',
+        'auth',
+        'LOGIN',
+        'Denied',
+        null,
+        null,
+        'reason: inactive account',
+      ]);
+      expect(document.csvTable?.rows[1].slice(1, 3)).toEqual([
+        'No account',
+        null,
+      ]);
+      expect(document.csvTable?.rows[1][8]).toBe(
+        'reportType: INVENTORY; filters: {"family":"x"}',
+      );
+      const longDetail = document.csvTable?.rows[2][8] as string;
+      expect(longDetail).toHaveLength(300);
+      expect(longDetail.endsWith('…')).toBe(true);
+      expect(tableRows(document, 'By result')).toEqual([
+        ['Success', 1],
+        ['Failed', 1],
+        ['Denied', 1],
+      ]);
+      expect(tableRows(document, 'By module')).toEqual(
+        expect.arrayContaining([
+          ['auth', 1],
+          [expect.stringMatching(/^reports$/i), 2],
+        ]),
+      );
+    });
+
+    it('refuses to export more than the detail row limit', async () => {
+      prismaMock.audit_log.count.mockResolvedValue(MAX_REPORT_DETAIL_ROWS + 1);
+
+      await expect(
+        service.build(context({ type: ReportType.AUDIT_LOG })),
+      ).rejects.toThrow(BadRequestException);
+      expect(prismaMock.audit_log.findMany).not.toHaveBeenCalled();
+    });
   });
 
   describe('consolidated report', () => {

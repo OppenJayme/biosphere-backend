@@ -11,10 +11,13 @@ import type {
   ReportTable,
 } from './report-document';
 import {
+  ACCOUNT_ROLE_LABELS,
   ADJUSTMENT_LABELS,
+  AUDIT_RESULT_LABELS,
   EXHIBIT_STATUS_LABELS,
   formatDateOnly,
   formatReportDate,
+  formatReportDateTime,
   formatTimeOnly,
   INQUIRY_STATUS_LABELS,
   LOT_TRANSACTION_LABELS,
@@ -58,6 +61,8 @@ export class ReportBuilderService {
         return this.buildVisitRequestSummary(context);
       case ReportType.QR_AR_EXHIBITS:
         return this.buildExhibitReport(context);
+      case ReportType.AUDIT_LOG:
+        return this.buildAuditLog(context);
     }
   }
 
@@ -819,6 +824,99 @@ export class ReportBuilderService {
     };
   }
 
+  // Audit-log export (SRS Figure 20, REQ-4.15-04). Internal only, so the
+  // file carries the confidentiality notice.
+  private async buildAuditLog(context: ReportContext): Promise<ReportDocument> {
+    const { dto } = context;
+    const where: Prisma.audit_logWhereInput = {
+      created_at: periodFilter(context.period),
+      module: insensitive(dto.auditModule),
+      action: insensitive(dto.auditAction),
+      status: dto.auditResult,
+    };
+    this.assertWithinLimit(
+      await this.prisma.audit_log.count({ where }),
+      'audit entries',
+    );
+    const entries = await this.prisma.audit_log.findMany({
+      where,
+      orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
+      select: {
+        created_at: true,
+        module: true,
+        action: true,
+        status: true,
+        affected_record_type: true,
+        affected_record_id: true,
+        details: true,
+        user_account: { select: { full_name: true, role: true } },
+      },
+    });
+
+    const resultCounts = new Map<string, number>();
+    const detail: ReportTable = {
+      columns: [
+        'Recorded (PHT)',
+        'Account',
+        'Role',
+        'Module',
+        'Action',
+        'Result',
+        'Record Type',
+        'Record ID',
+        'Details',
+      ],
+      rows: entries.map((entry): ReportCell[] => {
+        increment(resultCounts, entry.status);
+        return [
+          formatReportDateTime(entry.created_at),
+          entry.user_account?.full_name ?? 'No account',
+          entry.user_account
+            ? ACCOUNT_ROLE_LABELS[entry.user_account.role]
+            : null,
+          entry.module,
+          entry.action,
+          AUDIT_RESULT_LABELS[entry.status],
+          entry.affected_record_type,
+          entry.affected_record_id,
+          summarizeAuditDetails(entry.details),
+        ];
+      }),
+    };
+
+    const blocks: ReportBlock[] = [
+      heading('Report Scope'),
+      this.describeFilters(context, {
+        Module: dto.auditModule,
+        Action: dto.auditAction,
+        Result: dto.auditResult && AUDIT_RESULT_LABELS[dto.auditResult],
+      }),
+      heading('Summary'),
+      keyValues([['Audit entries', entries.length]]),
+      table(
+        'By result',
+        ['Result', 'Entries'],
+        enumRows(AUDIT_RESULT_LABELS, resultCounts),
+      ),
+      table(
+        'By module',
+        ['Module', 'Entries'],
+        mergeCaseInsensitive(
+          entries.map((entry) => ({ key: entry.module, values: [1] })),
+        ),
+      ),
+      heading('Audit Entries'),
+      { kind: 'table', table: detail },
+    ];
+
+    return this.document(context, {
+      blocks,
+      confidential: true,
+      csvTable: detail,
+      rowCount: detail.rows.length,
+    });
+  }
+
   private describeFilters(
     context: ReportContext,
     filters: Record<string, string | undefined>,
@@ -978,4 +1076,26 @@ function specimenName(specimen: {
     return `${specimen.scientific_name} (${specimen.common_name})`;
   }
   return specimen.scientific_name ?? specimen.common_name;
+}
+
+const MAX_AUDIT_DETAIL_LENGTH = 300;
+
+/** Audit details as compact "key: value" text, shortened for a table cell. */
+function summarizeAuditDetails(details: Prisma.JsonValue): string | null {
+  if (details === null || details === undefined) return null;
+  const text =
+    typeof details === 'object' && !Array.isArray(details)
+      ? Object.entries(details)
+          .map(
+            ([key, value]) =>
+              `${key}: ${typeof value === 'string' ? value : JSON.stringify(value)}`,
+          )
+          .join('; ')
+      : typeof details === 'string'
+        ? details
+        : JSON.stringify(details);
+  if (!text) return null;
+  return text.length > MAX_AUDIT_DETAIL_LENGTH
+    ? `${text.slice(0, MAX_AUDIT_DETAIL_LENGTH - 1)}…`
+    : text;
 }

@@ -355,6 +355,7 @@ const FILE_SLUGS: Record<ReportType, string> = {
   [ReportType.INQUIRY_SUMMARY]: 'inquiry-summary',
   [ReportType.VISIT_REQUEST_SUMMARY]: 'visit-request-summary',
   [ReportType.QR_AR_EXHIBITS]: 'qr-ar-exhibit-report',
+  [ReportType.AUDIT_LOG]: 'audit-log-report',
 };
 
 function reportFileName(

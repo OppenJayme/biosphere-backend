@@ -67,8 +67,9 @@ BioSphere account as both actor and affected record when it is known.
 
 ## Deliberately separate work
 
-- Audit export belongs to the Reports/Export slice so its CSV, DOCX, PDF, and
-  printable behavior remains consistent with SRS Section 4.7.
+- Audit export is the `AUDIT_LOG` report type in the Reports module
+  (`POST /reports`), so its CSV, DOCX, and PDF output, row limit, and
+  auditing match the other reports. See `REPORTS_GUIDE.md`.
 - Logout, token refresh, and password changes are not audited yet because
   those endpoints do not exist (see REQ-4.1-05 and REQ-4.1-16). They should
   record through `SecurityAuditService` when they are added.
