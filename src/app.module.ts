@@ -24,6 +24,7 @@ import { ExhibitsModule } from './exhibit/exhibits.module';
 import { BackupModule } from './backup/backup.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { ReportsModule } from './reports/reports.module';
+import { DashboardModule } from './dashboard/dashboard.module';
 
 @Module({
   imports: [
@@ -47,6 +48,7 @@ import { ReportsModule } from './reports/reports.module';
     AuditModule,
     BackupModule,
     ReportsModule,
+    DashboardModule,
     OfflineSyncModule,
   ],
   controllers: [AppController],
