@@ -27,6 +27,18 @@ export class ListFaqEntriesQueryDto {
   @MaxLength(100)
   category?: string;
 
+  @ApiPropertyOptional({
+    maxLength: 200,
+    description:
+      'Case-insensitive text search over question, answer, and category',
+  })
+  @IsOptional()
+  @Transform(trimFaqText)
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(200)
+  search?: string;
+
   @ApiPropertyOptional({ default: 1, minimum: 1, maximum: 1000000 })
   @IsOptional()
   @Type(() => Number)

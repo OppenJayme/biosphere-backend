@@ -1,0 +1,288 @@
+/**
+ * Deterministic rule-based matcher for the public FAQ Assistant (REQ-4.11-04,
+ * REQ-4.11-06, BR-18). It only ranks curator-approved entries handed to it; it
+ * never generates text, so an answer can only ever be stored curator wording.
+ *
+ * Matching rules (proposed by the development team; pending team/client
+ * approval, see docs/FAQ_KNOWLEDGE_GUIDE.md):
+ * 1. Text is lowercased, accent-stripped, and reduced to alphanumeric tokens;
+ *    a light plural stem is applied, and common English stopwords plus
+ *    domain-generic words ("museum", "visitor"...) are dropped, since nearly
+ *    every entry mentions them.
+ * 2. A normalized visitor question equal to an entry's question or one of its
+ *    alternative wordings is an exact match (score 1).
+ * 3. Otherwise each phrase scores by Dice token overlap, the best phrase wins,
+ *    and each curator keyword found in the question adds a fixed bonus.
+ * 4. A non-exact match is answered only when it scores at or above
+ *    ANSWER_THRESHOLD and at least MIN_EVIDENCE_TOKENS of the question's tokens
+ *    (or all of them, for a one-token question) appear in the entry's approved
+ *    vocabulary: question, alternative wording, and keywords.
+ * 5. Among eligible entries the highest score wins; other entries at or above
+ *    RELATED_THRESHOLD are offered as related approved questions.
+ * Otherwise the caller falls back to General Inquiry.
+ */
+
+export const FAQ_MATCHING_RULES = {
+  ANSWER_THRESHOLD: 0.6,
+  MIN_EVIDENCE_TOKENS: 2,
+  RELATED_THRESHOLD: 0.3,
+  KEYWORD_BONUS: 0.15,
+  MAX_KEYWORD_HITS: 3,
+  MAX_RELATED: 3,
+} as const;
+
+const STOPWORDS = new Set([
+  'a',
+  'about',
+  'am',
+  'an',
+  'and',
+  'any',
+  'are',
+  'as',
+  'at',
+  'be',
+  'by',
+  'can',
+  'could',
+  'do',
+  'does',
+  'for',
+  'from',
+  'get',
+  'have',
+  'how',
+  'i',
+  'if',
+  'in',
+  'is',
+  'it',
+  'me',
+  'my',
+  'of',
+  'on',
+  'or',
+  'our',
+  'please',
+  'should',
+  'so',
+  'tell',
+  'that',
+  'the',
+  'there',
+  'their',
+  'this',
+  'to',
+  'us',
+  'was',
+  'we',
+  'what',
+  'when',
+  'where',
+  'which',
+  'who',
+  'why',
+  'will',
+  'with',
+  'would',
+  'you',
+  'your',
+]);
+
+// Words that appear in nearly every museum FAQ and so carry no matching signal.
+const DOMAIN_STOPWORDS = new Set([
+  'biological',
+  'biosphere',
+  'carlo',
+  'museum',
+  'san',
+  'university',
+  'usc',
+  'visitor',
+]);
+
+// Limited to the SRS 4.11.2 transaction verbs plus booking verbs; broader verbs
+// such as "change" or "schedule" also appear in ordinary questions.
+const VISIT_TRANSACTION_TERMS = new Set([
+  'submit',
+  'approve',
+  'cancel',
+  'modify',
+  'book',
+  'reschedule',
+]);
+
+const VISIT_SUBJECT_TERMS = new Set([
+  'visit',
+  'request',
+  'appointment',
+  'booking',
+  'reservation',
+  'tour',
+  'trip',
+]);
+
+export interface FaqMatchCandidate {
+  id: string;
+  question: string;
+  alternativeWording: string[];
+  keywords: string[];
+}
+
+export interface FaqMatchResult<T extends FaqMatchCandidate> {
+  best: { entry: T; score: number } | null;
+  related: Array<{ entry: T; score: number }>;
+}
+
+export function normalizeFaqText(text: string): string {
+  return text
+    .normalize('NFKD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
+function stem(token: string): string {
+  if (token.length > 4 && token.endsWith('ies'))
+    return `${token.slice(0, -3)}y`;
+  if (token.length > 3 && token.endsWith('s') && !token.endsWith('ss')) {
+    return token.slice(0, -1);
+  }
+  return token;
+}
+
+export function tokenizeFaqText(text: string): string[] {
+  const normalized = normalizeFaqText(text);
+  if (!normalized) return [];
+  return [
+    ...new Set(
+      normalized
+        .split(' ')
+        .filter((token) => !STOPWORDS.has(token))
+        .map(stem)
+        .filter((token) => !DOMAIN_STOPWORDS.has(token)),
+    ),
+  ];
+}
+
+function dice(left: string[], right: string[]): number {
+  if (left.length === 0 || right.length === 0) return 0;
+  const rightSet = new Set(right);
+  const shared = left.filter((token) => rightSet.has(token)).length;
+  return (2 * shared) / (left.length + right.length);
+}
+
+function keywordHits(normalizedQuery: string, keywords: string[]): number {
+  const padded = ` ${normalizedQuery} `;
+  const stemmedQuery = ` ${normalizedQuery.split(' ').map(stem).join(' ')} `;
+  let hits = 0;
+  for (const keyword of keywords) {
+    const normalizedKeyword = normalizeFaqText(keyword);
+    if (!normalizedKeyword) continue;
+    const stemmedKeyword = normalizedKeyword.split(' ').map(stem).join(' ');
+    if (
+      padded.includes(` ${normalizedKeyword} `) ||
+      stemmedQuery.includes(` ${stemmedKeyword} `)
+    ) {
+      hits += 1;
+    }
+  }
+  return Math.min(hits, FAQ_MATCHING_RULES.MAX_KEYWORD_HITS);
+}
+
+export function scoreFaqCandidate(
+  query: string,
+  candidate: FaqMatchCandidate,
+): number {
+  const normalizedQuery = normalizeFaqText(query);
+  if (!normalizedQuery) return 0;
+
+  const phrases = [candidate.question, ...candidate.alternativeWording];
+  if (phrases.some((phrase) => normalizeFaqText(phrase) === normalizedQuery)) {
+    return 1;
+  }
+
+  const queryTokens = tokenizeFaqText(query);
+  if (queryTokens.length === 0) return 0;
+
+  const phraseScore = Math.max(
+    ...phrases.map((phrase) => dice(queryTokens, tokenizeFaqText(phrase))),
+  );
+  const bonus =
+    keywordHits(normalizedQuery, candidate.keywords) *
+    FAQ_MATCHING_RULES.KEYWORD_BONUS;
+  // An exact phrase is the only way to reach 1, so fuzzy scores stay below it.
+  return Math.min(0.99, phraseScore + bonus);
+}
+
+/**
+ * True when enough of the visitor's tokens appear in the entry's approved
+ * vocabulary. Stops a single shared word from answering an unrelated question.
+ */
+export function hasMatchEvidence(
+  query: string,
+  candidate: FaqMatchCandidate,
+): boolean {
+  const queryTokens = tokenizeFaqText(query);
+  if (queryTokens.length === 0) return false;
+  const vocabulary = new Set(
+    [
+      candidate.question,
+      ...candidate.alternativeWording,
+      ...candidate.keywords,
+    ].flatMap((phrase) => tokenizeFaqText(phrase)),
+  );
+  const matched = queryTokens.filter((token) => vocabulary.has(token)).length;
+  return (
+    matched >=
+    Math.min(FAQ_MATCHING_RULES.MIN_EVIDENCE_TOKENS, queryTokens.length)
+  );
+}
+
+function isAnswerable(
+  query: string,
+  { entry, score }: { entry: FaqMatchCandidate; score: number },
+): boolean {
+  if (score === 1) return true;
+  return (
+    score >= FAQ_MATCHING_RULES.ANSWER_THRESHOLD &&
+    hasMatchEvidence(query, entry)
+  );
+}
+
+export function matchFaqEntries<T extends FaqMatchCandidate>(
+  query: string,
+  candidates: T[],
+): FaqMatchResult<T> {
+  const ranked = candidates
+    .map((entry) => ({ entry, score: scoreFaqCandidate(query, entry) }))
+    .filter(({ score }) => score >= FAQ_MATCHING_RULES.RELATED_THRESHOLD)
+    .sort(
+      (left, right) =>
+        right.score - left.score ||
+        left.entry.question.localeCompare(right.entry.question) ||
+        left.entry.id.localeCompare(right.entry.id),
+    );
+
+  const best = ranked.find((candidate) => isAnswerable(query, candidate));
+  return {
+    best: best ?? null,
+    related: ranked
+      .filter((candidate) => candidate !== best)
+      .slice(0, FAQ_MATCHING_RULES.MAX_RELATED),
+  };
+}
+
+/**
+ * Detects a request to perform a Visit Request transaction (submit, approve,
+ * cancel, modify...). The assistant never performs it; the caller only uses
+ * this to point the visitor at the Visit Request form (SRS 4.11.2).
+ */
+export function isVisitRequestTransaction(query: string): boolean {
+  const tokens = normalizeFaqText(query).split(' ').map(stem);
+  return (
+    tokens.some((token) => VISIT_TRANSACTION_TERMS.has(token)) &&
+    tokens.some((token) => VISIT_SUBJECT_TERMS.has(token))
+  );
+}

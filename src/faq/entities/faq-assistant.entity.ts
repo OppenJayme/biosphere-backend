@@ -1,0 +1,67 @@
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+
+export const FAQ_ASSISTANT_NOTICE =
+  'Answers are limited to curator-approved museum information. The assistant cannot approve visits or process campus entry.';
+
+export const FAQ_NO_MATCH_MESSAGE =
+  'No approved answer is available for that question. Please send it through the General Inquiry form so a curator can respond.';
+
+export const FAQ_VISIT_REQUEST_MESSAGE =
+  'The assistant cannot submit, approve, change, or cancel Visit Requests. Please use the Visit Request form or contact the curator.';
+
+export enum FaqAssistantOutcome {
+  ANSWERED = 'ANSWERED',
+  NO_MATCH = 'NO_MATCH',
+  VISIT_REQUEST_REDIRECT = 'VISIT_REQUEST_REDIRECT',
+}
+
+export enum FaqAssistantRedirect {
+  GENERAL_INQUIRY = 'GENERAL_INQUIRY',
+  VISIT_REQUEST = 'VISIT_REQUEST',
+}
+
+// Deliberately narrower than FaqEntry: no lifecycle, attribution, or matching
+// metadata reaches the public site (REQ-4.11-07, NFR-SEC-08).
+export class PublicFaqQuestion {
+  @ApiProperty()
+  id!: string;
+
+  @ApiProperty()
+  question!: string;
+
+  @ApiPropertyOptional({ nullable: true })
+  category!: string | null;
+}
+
+export class PublicFaqAnswer extends PublicFaqQuestion {
+  @ApiProperty({ description: 'Stored curator-approved answer text' })
+  answer!: string;
+}
+
+export class FaqAssistantResponse {
+  @ApiProperty({ enum: FaqAssistantOutcome })
+  outcome!: FaqAssistantOutcome;
+
+  @ApiPropertyOptional({ type: PublicFaqAnswer, nullable: true })
+  answer!: PublicFaqAnswer | null;
+
+  @ApiProperty({ type: [PublicFaqQuestion] })
+  related!: PublicFaqQuestion[];
+
+  @ApiPropertyOptional({ nullable: true })
+  message!: string | null;
+
+  @ApiPropertyOptional({ enum: FaqAssistantRedirect, nullable: true })
+  redirect!: FaqAssistantRedirect | null;
+
+  @ApiProperty({ example: FAQ_ASSISTANT_NOTICE })
+  notice!: string;
+}
+
+export class FaqSuggestionList {
+  @ApiProperty({ type: [PublicFaqQuestion] })
+  items!: PublicFaqQuestion[];
+
+  @ApiProperty({ example: FAQ_ASSISTANT_NOTICE })
+  notice!: string;
+}

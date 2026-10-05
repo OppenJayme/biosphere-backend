@@ -48,10 +48,22 @@ export class FaqService {
   }
 
   async findAll(query: ListFaqEntriesQueryDto): Promise<FaqEntryPage> {
+    const insensitive = Prisma.QueryMode.insensitive;
+    const termMatchIds = query.search
+      ? await this.findIdsByTermText(query.search)
+      : [];
     const where: Prisma.faq_entryWhereInput = {
       status: query.status,
       category: query.category
-        ? { equals: query.category, mode: Prisma.QueryMode.insensitive }
+        ? { equals: query.category, mode: insensitive }
+        : undefined,
+      OR: query.search
+        ? [
+            { question: { contains: query.search, mode: insensitive } },
+            { answer: { contains: query.search, mode: insensitive } },
+            { category: { contains: query.search, mode: insensitive } },
+            { id: { in: termMatchIds } },
+          ]
         : undefined,
     };
     const skip = (query.page - 1) * query.limit;
@@ -71,6 +83,23 @@ export class FaqService {
       page: query.page,
       limit: query.limit,
     };
+  }
+
+  /**
+   * Prisma's array filters (`has`) are exact and case-sensitive, so keyword and
+   * alternative-wording search runs as a parameterized ILIKE over the arrays.
+   */
+  private async findIdsByTermText(search: string): Promise<string[]> {
+    // Escape LIKE wildcards so a curator's "%" or "_" is matched literally.
+    const pattern = `%${search.replace(/[\\%_]/g, '\\$&')}%`;
+    const rows = await this.prisma.$queryRaw<{ id: string }[]>(Prisma.sql`
+      SELECT id FROM public.faq_entry
+      WHERE EXISTS (
+        SELECT 1 FROM unnest(keywords || alternative_wording) AS term
+        WHERE term ILIKE ${pattern}
+      )
+    `);
+    return rows.map((row) => row.id);
   }
 
   async findOne(id: string): Promise<FaqEntry> {

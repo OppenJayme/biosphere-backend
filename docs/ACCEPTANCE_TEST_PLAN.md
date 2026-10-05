@@ -254,7 +254,7 @@ live hierarchy.
 | FAQ-001 | Create and edit a knowledge entry         | Valid question, answer, category, and keywords persist                                       | Not run  |
 | FAQ-002 | Search/filter and change lifecycle status | Active, inactive, and archived behavior matches the API and UI                               | Not run  |
 | FAQ-003 | Attempt invalid or duplicate operations   | Clear validation is shown and no unintended record is created                                | Not run  |
-| FAQ-004 | Test public assistant matching            | Deferred until exact/fuzzy matching, ambiguity, threshold, and fallback wording are approved | Deferred |
+| FAQ-004 | Test public assistant matching            | Approved match, alternative wording, inactive ignored, no-match fallback, prohibited general answer (e.g. species identification) refused, and inquiry/visit-request redirection | Not run  |
 
 ### Audit and backup history
 
