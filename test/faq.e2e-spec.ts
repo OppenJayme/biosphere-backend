@@ -83,9 +83,19 @@ describe('FAQ knowledge management (e2e)', () => {
       where?: {
         status?: FaqRecord['status'];
         category?: { equals: string };
+        OR?: Array<{ question?: { contains: string } }>;
       },
     ) => {
       if (where?.status && entry.status !== where.status) return false;
+      const search = where?.OR?.[0]?.question?.contains.toLowerCase();
+      if (
+        search &&
+        ![entry.question, entry.answer, entry.category ?? '']
+          .concat(entry.keywords)
+          .some((value) => value.toLowerCase().includes(search))
+      ) {
+        return false;
+      }
       if (
         where?.category?.equals &&
         entry.category?.toLowerCase() !== where.category.equals.toLowerCase()
@@ -108,8 +118,8 @@ describe('FAQ knowledge management (e2e)', () => {
           take,
         }: {
           where?: Parameters<typeof matchesWhere>[1];
-          skip: number;
-          take: number;
+          skip?: number;
+          take?: number;
         }) =>
           entries
             .filter((entry) => matchesWhere(entry, where))
@@ -118,7 +128,10 @@ describe('FAQ knowledge management (e2e)', () => {
                 right.updated_at.getTime() - left.updated_at.getTime() ||
                 left.id.localeCompare(right.id),
             )
-            .slice(skip, skip + take),
+            .slice(
+              skip ?? 0,
+              take === undefined ? undefined : (skip ?? 0) + take,
+            ),
       ),
       count: jest.fn(
         ({ where }: { where?: Parameters<typeof matchesWhere>[1] }) =>
@@ -402,5 +415,137 @@ describe('FAQ knowledge management (e2e)', () => {
 
     expect(faqUpdate).toHaveBeenCalledTimes(3);
     expect(auditCreate).toHaveBeenCalledTimes(3);
+  });
+
+  it('searches management knowledge by text', async () => {
+    entries.push(
+      initialRecord({
+        id: secondEntryId,
+        question: 'Is there parking?',
+        answer: 'Visitor parking is near the gate.',
+        keywords: ['parking'],
+        category: 'Facilities',
+      }),
+    );
+
+    await request(app.getHttpServer())
+      .get('/faq/entries?search=PARKING')
+      .set('Authorization', `Bearer ${curatorToken}`)
+      .expect(200)
+      .expect((response) => {
+        expect(response.body.total).toBe(1);
+        expect(response.body.items[0].id).toBe(secondEntryId);
+      });
+    await request(app.getHttpServer())
+      .get('/faq/entries?search=')
+      .set('Authorization', `Bearer ${curatorToken}`)
+      .expect(400);
+  });
+
+  describe('public FAQ Assistant', () => {
+    beforeEach(() => {
+      entries = [
+        initialRecord({ status: 'ACTIVE' }),
+        initialRecord({
+          id: secondEntryId,
+          question: 'Is there parking for visitors?',
+          answer: 'Inactive draft answer.',
+          alternative_wording: [],
+          keywords: ['parking'],
+          status: 'INACTIVE',
+        }),
+      ];
+    });
+
+    it('lists only active suggestions without management fields and without a token', async () => {
+      await request(app.getHttpServer())
+        .get('/faq/assistant/suggestions')
+        .expect(200)
+        .expect((response) => {
+          expect(response.body.items).toEqual([
+            {
+              id: entryId,
+              question: 'When is the museum open?',
+              category: 'Visit',
+            },
+          ]);
+          expect(response.body.notice).toMatch(/curator-approved/);
+        });
+      await request(app.getHttpServer())
+        .get('/faq/assistant/suggestions?limit=99')
+        .expect(400);
+    });
+
+    it('answers from active knowledge, including alternative wording', async () => {
+      for (const question of [
+        'When is the museum open?',
+        'what are the opening hours',
+        'What time does the museum open?',
+      ]) {
+        await request(app.getHttpServer())
+          .post('/faq/assistant/ask')
+          .send({ question })
+          .expect(200)
+          .expect((response) => {
+            expect(response.body.outcome).toBe('ANSWERED');
+            expect(response.body.answer).toEqual({
+              id: entryId,
+              question: 'When is the museum open?',
+              answer: 'Please refer to the approved visiting hours.',
+              category: 'Visit',
+            });
+            expect(response.body.redirect).toBeNull();
+          });
+      }
+    });
+
+    it('ignores inactive knowledge and falls back to General Inquiry', async () => {
+      for (const question of [
+        'Is there parking for visitors?',
+        'What species of frog is this?',
+      ]) {
+        await request(app.getHttpServer())
+          .post('/faq/assistant/ask')
+          .send({ question })
+          .expect(200)
+          .expect((response) => {
+            expect(response.body.outcome).toBe('NO_MATCH');
+            expect(response.body.answer).toBeNull();
+            expect(response.body.redirect).toBe('GENERAL_INQUIRY');
+            expect(JSON.stringify(response.body)).not.toContain(
+              'Inactive draft answer.',
+            );
+          });
+      }
+    });
+
+    it('never performs visit-request transactions', async () => {
+      await request(app.getHttpServer())
+        .post('/faq/assistant/ask')
+        .send({ question: 'Please approve my visit request' })
+        .expect(200)
+        .expect((response) => {
+          expect(response.body.outcome).toBe('VISIT_REQUEST_REDIRECT');
+          expect(response.body.redirect).toBe('VISIT_REQUEST');
+        });
+      expect(faqCreate).not.toHaveBeenCalled();
+      expect(faqUpdate).not.toHaveBeenCalled();
+      expect(auditCreate).not.toHaveBeenCalled();
+    });
+
+    it('accepts only a bounded question and no personal information', async () => {
+      await request(app.getHttpServer())
+        .post('/faq/assistant/ask')
+        .send({ question: '   ' })
+        .expect(400);
+      await request(app.getHttpServer())
+        .post('/faq/assistant/ask')
+        .send({ question: 'x'.repeat(501) })
+        .expect(400);
+      await request(app.getHttpServer())
+        .post('/faq/assistant/ask')
+        .send({ question: 'When is the museum open?', email: 'a@b.com' })
+        .expect(400);
+    });
   });
 });

@@ -48,10 +48,19 @@ export class FaqService {
   }
 
   async findAll(query: ListFaqEntriesQueryDto): Promise<FaqEntryPage> {
+    const insensitive = Prisma.QueryMode.insensitive;
     const where: Prisma.faq_entryWhereInput = {
       status: query.status,
       category: query.category
-        ? { equals: query.category, mode: Prisma.QueryMode.insensitive }
+        ? { equals: query.category, mode: insensitive }
+        : undefined,
+      OR: query.search
+        ? [
+            { question: { contains: query.search, mode: insensitive } },
+            { answer: { contains: query.search, mode: insensitive } },
+            { category: { contains: query.search, mode: insensitive } },
+            { keywords: { has: query.search } },
+          ]
         : undefined,
     };
     const skip = (query.page - 1) * query.limit;

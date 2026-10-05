@@ -21,3 +21,11 @@ export const REPORT_GENERATION_RATE_LIMIT = {
   ttl: RATE_LIMIT_WINDOW_MS,
   limit: 20,
 } as const;
+
+// The public FAQ Assistant is read-only, but each question scans the active
+// knowledge set, so visitors get a ceiling above the form limit but well
+// below the general API ceiling.
+export const FAQ_ASSISTANT_RATE_LIMIT = {
+  ttl: RATE_LIMIT_WINDOW_MS,
+  limit: 30,
+} as const;

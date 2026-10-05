@@ -12,6 +12,7 @@ production reverse-proxy controls; it does not replace them.
 | `POST /auth/login`                       |    5 requests | 60 seconds |
 | Intended public inquiry submission       |   10 requests | 60 seconds |
 | Intended public visit-request submission |   10 requests | 60 seconds |
+| Public FAQ Assistant (`/faq/assistant/*`) |   30 requests | 60 seconds |
 | `GET /` health check                     | Not throttled |        N/A |
 
 The stricter method-level limits override the general ceiling. Authentication
@@ -31,4 +32,4 @@ and forwarded IP headers together. Do not blindly trust client-supplied
 
 Keep limits centralized in `src/config/rate-limit.config.ts`. Add stricter
 method-level limits to future public or sensitive routes such as password
-recovery and public FAQ queries when those endpoints are introduced.
+recovery when those endpoints are introduced.
