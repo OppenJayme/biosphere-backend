@@ -1,16 +1,11 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
-export enum UserAccountRole {
-  CURATOR = 'CURATOR',
-  DEVELOPER = 'DEVELOPER',
-}
-
 export enum UserAccountStatus {
   ACTIVE = 'ACTIVE',
   INACTIVE = 'INACTIVE',
 }
 
-/** One curator or developer account as the curator Users page shows it. */
+/** One curator account as the curator Users page shows it. */
 export class UserAccountSummary {
   @ApiProperty({ format: 'uuid', description: 'public.user_account.id' })
   id!: string;
@@ -20,9 +15,6 @@ export class UserAccountSummary {
 
   @ApiPropertyOptional({ nullable: true, type: String })
   email!: string | null;
-
-  @ApiProperty({ enum: UserAccountRole })
-  role!: UserAccountRole;
 
   @ApiProperty({ enum: UserAccountStatus })
   status!: UserAccountStatus;

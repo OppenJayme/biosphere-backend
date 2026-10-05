@@ -2,7 +2,6 @@ import { Injectable } from '@nestjs/common';
 import { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import {
-  UserAccountRole,
   UserAccountStatus,
   type UserAccountSummary,
 } from './entities/user-account-summary.entity';
@@ -10,7 +9,6 @@ import {
 const USER_ACCOUNT_SELECT = {
   id: true,
   full_name: true,
-  role: true,
   status: true,
   created_at: true,
   users: {
@@ -26,9 +24,10 @@ type UserAccountRecord = Prisma.user_accountGetPayload<{
 export class UserAccountsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  /** Every curator and developer account, newest first. */
+  /** Curator accounts only, newest first: developer accounts stay out of curator views. */
   async list(): Promise<UserAccountSummary[]> {
     const rows = await this.prisma.user_account.findMany({
+      where: { role: 'CURATOR' },
       orderBy: { created_at: 'desc' },
       select: USER_ACCOUNT_SELECT,
     });
@@ -41,7 +40,6 @@ export class UserAccountsService {
       id: row.id,
       fullName: row.full_name,
       email: row.users.email,
-      role: UserAccountRole[row.role],
       status: UserAccountStatus[row.status],
       // An invited user confirms their email when they accept the invite.
       inviteAccepted: Boolean(row.users.email_confirmed_at ?? lastSignInAt),

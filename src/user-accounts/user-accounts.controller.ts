@@ -1,4 +1,4 @@
-/** Read-only curator and developer account list for the curator Users page. */
+/** Read-only curator account list for the curator Users page. */
 
 import { Controller, Get, Header } from '@nestjs/common';
 import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
@@ -16,7 +16,7 @@ export class UserAccountsController {
   @Header('Cache-Control', 'no-store')
   @ApiOperation({
     summary:
-      'List curator and developer accounts with email, status, and last sign-in (newest first)',
+      'List curator accounts with email, status, and last sign-in (newest first)',
   })
   @ApiOkResponse({ type: UserAccountSummary, isArray: true })
   list(): Promise<UserAccountSummary[]> {
