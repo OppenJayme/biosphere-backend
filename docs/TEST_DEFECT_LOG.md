@@ -53,7 +53,7 @@ system is not a reason to postpone all fixes until the end.
 | DEF-004 | 2026-10-03 | Cataloging / Media UI      | Choose-file controls have no visible hover feedback                     | S4 Minor    | P2       | Open   | Cataloging / Frontend   |
 | DEF-005 | 2026-10-03 | Cataloging / Tags UI       | Vocabulary search hides the matching tag names                          | S4 Minor    | P2       | Open   | Cataloging / Frontend   |
 | DEF-006 | 2026-10-03 | Cataloging / Revision UI   | Media history exposes raw identifiers and storage paths                 | S4 Minor    | P2       | Open   | Cataloging / Frontend   |
-| DEF-007 | 2026-10-03 | Cataloging / Specimen list | Selected-specimen preview never displays its cover image                | S3 Moderate | P2       | Open   | Cataloging / Full stack |
+| DEF-007 | 2026-10-03 | Cataloging / Specimen list | Selected-specimen preview never displays its cover image                | S3 Moderate | P2       | Ready for retest | Cataloging / Full stack |
 | DEF-008 | 2026-10-03 | Cataloging / Filters       | Clear all resets results but leaves stale filter values visible         | S3 Moderate | P2       | Ready for retest | Cataloging / Frontend   |
 | DEF-009 | 2026-10-03 | Cataloging / CSV import    | Invalid row values make the entire preview return a generic 502         | S2 Major    | P1       | Ready for retest | Cataloging / Frontend   |
 | DEF-010 | 2026-10-04 | Storage / Hierarchy UI     | Archived locations still look active in the live hierarchy              | S3 Moderate | P2       | Open   | Storage / Frontend      |
@@ -485,9 +485,29 @@ make review history difficult to understand.
 
 **Priority:** P2
 
-**Status:** Open
+**Status:** Ready for retest
 
 **Owner:** Cataloging / Full stack
+
+#### Repair evidence - 2026-10-06
+
+Frontend branch `fix/cataloging-cover-preview` lazily reads the selected
+specimen's marked cover using existing curator-protected media/signing APIs.
+A verified session and valid UUID are required before reads; the response
+contains only caption and short-lived HTTPS URL, not storage paths or session
+credentials. Backend media calls share a ten-second deadline. No-cover,
+loading and safe error/retry states are distinct. The component is keyed by
+specimen UUID and update timestamp and ignores late responses after unmount
+or retry. Existing no-store reads and media revalidation remain in use.
+
+Tests cover the action's authorization, selected-cover-only behavior, response
+shape and safe failures plus rendered image/placeholder/error states. Browser
+image loading, rapid selection, cover changes/removal and retry still require
+manual retest. No backend application, Inventory, Storage or Exhibit code was
+changed; this backend entry is documentation only.
+
+Local verification: frontend lint and production build passed; 47 test files /
+276 tests passed. No dependencies or database schema changes were introduced.
 
 #### Reproduction
 
