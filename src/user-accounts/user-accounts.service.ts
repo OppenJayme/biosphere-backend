@@ -26,7 +26,7 @@ type UserAccountRecord = Prisma.user_accountGetPayload<{
 export class UserAccountsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  /** Every curator and developer account, newest first. Read-only (BR-12). */
+  /** Every curator and developer account, newest first. */
   async list(): Promise<UserAccountSummary[]> {
     const rows = await this.prisma.user_account.findMany({
       orderBy: { created_at: 'desc' },
