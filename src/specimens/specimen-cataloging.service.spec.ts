@@ -107,6 +107,17 @@ describe('SpecimenCatalogingService', () => {
     expect(result.canComplete).toBe(false);
   });
 
+  it('rejects existing future collection dates during readiness', async () => {
+    const item = readinessRecord();
+    item.specimen_provenance.collection_date = new Date('2099-01-01T00:00:00Z');
+    specimenDelegate.findUnique.mockResolvedValue(item);
+    const result = await service.getReadiness(SPECIMEN_ID);
+    expect(result.canComplete).toBe(false);
+    expect(
+      result.checks.find((check) => check.key === 'collectionDate')?.passed,
+    ).toBe(false);
+  });
+
   it('throws for an unknown specimen', async () => {
     specimenDelegate.findUnique.mockResolvedValue(null);
 

@@ -1,4 +1,8 @@
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  NotFoundException,
+} from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
@@ -18,6 +22,7 @@ const prismaMock = {
   collection: collectionDelegate,
   audit_log: auditDelegate,
   $transaction: transactionMock,
+  $queryRaw: jest.fn(),
 };
 
 const COLLECTION_ID = '11111111-1111-4111-8111-111111111111';
@@ -39,6 +44,7 @@ describe('CollectionsService', () => {
 
   beforeEach(async () => {
     jest.resetAllMocks();
+    prismaMock.$queryRaw.mockResolvedValue([]);
     transactionMock.mockImplementation((operation: unknown) => {
       if (Array.isArray(operation)) return Promise.all(operation);
       return Promise.resolve(
@@ -190,6 +196,71 @@ describe('CollectionsService', () => {
     ).rejects.toThrow(BadRequestException);
     expect(collectionDelegate.update).not.toHaveBeenCalled();
     expect(auditDelegate.create).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    'Zoological Collection',
+    'zoological collection',
+    '  ZOOLOGICAL COLLECTION  ',
+  ])('rejects a normalized duplicate create: %s', async (collectionName) => {
+    prismaMock.$queryRaw.mockResolvedValue([{ id: COLLECTION_ID }]);
+    await expect(
+      service.create({ collectionName }, ACCOUNT_ID),
+    ).rejects.toThrow(ConflictException);
+    expect(collectionDelegate.create).not.toHaveBeenCalled();
+    expect(auditDelegate.create).not.toHaveBeenCalled();
+    const sql = prismaMock.$queryRaw.mock.calls[0][0] as Prisma.Sql;
+    expect(sql.text).toContain('lower(btrim(collection_name)) = lower(btrim(');
+    expect(sql.values).toContain(collectionName.trim());
+  });
+
+  it('rejects a rename collision and excludes the current UUID from the check', async () => {
+    collectionDelegate.findUnique.mockResolvedValue(collectionRecord());
+    prismaMock.$queryRaw.mockResolvedValue([
+      { id: '33333333-3333-4333-8333-333333333333' },
+    ]);
+    await expect(
+      service.update(
+        COLLECTION_ID,
+        { collectionName: 'Entomology' },
+        ACCOUNT_ID,
+      ),
+    ).rejects.toThrow(ConflictException);
+    const sql = prismaMock.$queryRaw.mock.calls[0][0] as Prisma.Sql;
+    expect(sql.values).toContain(COLLECTION_ID);
+    expect(collectionDelegate.update).not.toHaveBeenCalled();
+    expect(auditDelegate.create).not.toHaveBeenCalled();
+  });
+
+  it('maps a database race conflict to the same clear collection-name error', async () => {
+    collectionDelegate.create.mockRejectedValue(
+      new Prisma.PrismaClientKnownRequestError('collision', {
+        code: 'P2002',
+        clientVersion: '7.10.0',
+      }),
+    );
+    await expect(
+      service.create({ collectionName: 'Entomology' }, ACCOUNT_ID),
+    ).rejects.toMatchObject({ response: { code: 'COLLECTION_NAME_TAKEN' } });
+    expect(auditDelegate.create).not.toHaveBeenCalled();
+  });
+
+  it('rechecks names after a serialization retry', async () => {
+    transactionMock.mockRejectedValueOnce(
+      new Prisma.PrismaClientKnownRequestError('concurrent write', {
+        code: 'P2034',
+        clientVersion: '7.10.0',
+      }),
+    );
+    prismaMock.$queryRaw.mockResolvedValue([{ id: COLLECTION_ID }]);
+    await expect(
+      service.create({ collectionName: 'Entomology' }, ACCOUNT_ID),
+    ).rejects.toThrow(ConflictException);
+    expect(transactionMock).toHaveBeenCalledTimes(2);
+    expect(transactionMock).toHaveBeenLastCalledWith(expect.any(Function), {
+      isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+    });
+    expect(collectionDelegate.create).not.toHaveBeenCalled();
   });
 
   it('rolls back the collection mutation when audit writing fails', async () => {

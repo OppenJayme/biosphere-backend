@@ -1,4 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
+import { IsValidCollectionDate } from '../collection-date.policy';
 import {
   IsDateString,
   IsNotEmpty,
@@ -34,6 +35,7 @@ export class CreateSpecimenProvenanceDto {
     message: 'collectionDate must use YYYY-MM-DD format',
   })
   @IsDateString({ strict: true })
+  @IsValidCollectionDate()
   collectionDate?: string | null;
 
   @ApiPropertyOptional({ nullable: true })

@@ -311,6 +311,43 @@ A module is accepted when:
 
 ## 12. Sign-off
 
+### Defect repair retest checkpoint — 2026-10-05
+
+Repairs for DEF-001, DEF-002, DEF-003 and DEF-009 are ready for manual
+retest. Preserve the original failed acceptance results until the repair is
+verified against the running frontend and backend; automated tests alone do
+not turn those results into a `Pass`.
+
+Retest in this order:
+
+1. CSV preview: valid and invalid rows together must display row errors, not
+   a gateway error. Confirm preview creates no records before testing commit.
+2. Specimen selection: restart the frontend, then test selecting and clearing
+   multiple records over LAN, direct detail links, refresh and browser Back.
+3. Collections: test create and rename collisions with case and surrounding
+   spaces, and confirm no extra collection or audit success entry is saved.
+4. Provenance: reject tomorrow's date on create, update and import; accept
+   today using the museum's Asia/Manila calendar. Check catalog readiness for
+   a legacy future date without silently rewriting it.
+
+The collection-name index migration is prepared but has not been applied to
+Supabase. The read-only collision preflight found no duplicates on 2026-10-05;
+repeat it immediately before deployment. Live database concurrency and LAN
+interaction remain manual verification items. Detailed frontend steps are in
+`biosphere-frontend/docs/cataloging-defect-retest.md`.
+
+Local automated evidence for this repair:
+
+- Frontend: lint and production build passed; 44 files / 259 tests passed.
+- Backend: lint completed with zero errors and seven existing unused-disable
+  warnings; build and Prisma schema validation passed.
+- Backend unit tests: 52 suites / 665 tests passed.
+- Backend e2e: 24 suites / 270 tests passed, with one suite / 17 tests skipped.
+  The skipped/live-database checks are not counted as verified behavior.
+- Dependency installation used the existing lockfile, without version changes.
+  npm reported 11 dependency advisories (three moderate, eight high); dependency
+  remediation is a separate review, not an automatic audit-fix operation.
+
 | Module                      | Owner      | Independent reviewer | Date | Result  |
 | --------------------------- | ---------- | -------------------- | ---- | ------- |
 | Cataloging Management       | Kyer Jayme |                      |      | Pending |

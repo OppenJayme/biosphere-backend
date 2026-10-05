@@ -13,7 +13,7 @@ are present:
 - an accession number;
 - a common name;
 - a taxonomic kingdom (for example, `Animalia`; the value is not hardcoded);
-- a provenance collection date;
+- a valid provenance collection date on or before today in Asia/Manila;
 - a preservation type;
 - a preservation method; and
 - at least one active lot with positive quantity in a non-archived storage unit

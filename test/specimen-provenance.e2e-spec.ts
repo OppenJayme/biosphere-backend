@@ -186,6 +186,17 @@ describe('Specimen provenance (e2e)', () => {
     expect(provenanceDelegate.create).not.toHaveBeenCalled();
   });
 
+  it('rejects a future collection date without writes', async () => {
+    await request(app.getHttpServer())
+      .post(`/specimens/${specimenId}/provenance`)
+      .set('Authorization', `Bearer ${curatorToken}`)
+      .send({ collectionDate: '2099-01-01' })
+      .expect(400);
+    expect(provenanceDelegate.create).not.toHaveBeenCalled();
+    expect(revisionDelegate.createMany).not.toHaveBeenCalled();
+    expect(auditDelegate.create).not.toHaveBeenCalled();
+  });
+
   it('rejects an empty provenance payload', async () => {
     await request(app.getHttpServer())
       .post(`/specimens/${specimenId}/provenance`)
