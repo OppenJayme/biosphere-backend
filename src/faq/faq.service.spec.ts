@@ -23,6 +23,7 @@ const prismaMock = {
   faq_entry: faqDelegate,
   audit_log: auditDelegate,
   $transaction: transactionMock,
+  $queryRaw: jest.fn(),
 };
 
 const ACCOUNT_ID = '11111111-1111-4111-8111-111111111111';
@@ -136,6 +137,30 @@ describe('FaqService', () => {
       take: 10,
     });
     expect(faqDelegate.count).toHaveBeenCalledWith({ where });
+    expect(prismaMock.$queryRaw).not.toHaveBeenCalled();
+  });
+
+  it('searches text fields and case-insensitive keyword/alternative terms', async () => {
+    prismaMock.$queryRaw.mockResolvedValue([{ id: ENTRY_ID }]);
+
+    await service.findAll({ search: 'PARK_%', page: 1, limit: 25 });
+
+    const [sql] = prismaMock.$queryRaw.mock.calls[0] as [Prisma.Sql];
+    expect(sql.sql).toContain('ILIKE');
+    expect(sql.values).toEqual(['%PARK\\_\\%%']);
+    const insensitive = Prisma.QueryMode.insensitive;
+    expect(faqDelegate.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          OR: [
+            { question: { contains: 'PARK_%', mode: insensitive } },
+            { answer: { contains: 'PARK_%', mode: insensitive } },
+            { category: { contains: 'PARK_%', mode: insensitive } },
+            { id: { in: [ENTRY_ID] } },
+          ],
+        }),
+      }),
+    );
   });
 
   it('retrieves archived knowledge and reports a missing entry', async () => {

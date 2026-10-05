@@ -83,16 +83,21 @@ describe('FAQ knowledge management (e2e)', () => {
       where?: {
         status?: FaqRecord['status'];
         category?: { equals: string };
-        OR?: Array<{ question?: { contains: string } }>;
+        OR?: Array<{
+          question?: { contains: string };
+          id?: { in: string[] };
+        }>;
       },
     ) => {
       if (where?.status && entry.status !== where.status) return false;
       const search = where?.OR?.[0]?.question?.contains.toLowerCase();
+      const termMatchIds = where?.OR?.find((clause) => clause.id)?.id?.in;
       if (
         search &&
-        ![entry.question, entry.answer, entry.category ?? '']
-          .concat(entry.keywords)
-          .some((value) => value.toLowerCase().includes(search))
+        ![entry.question, entry.answer, entry.category ?? ''].some((value) =>
+          value.toLowerCase().includes(search),
+        ) &&
+        !termMatchIds?.includes(entry.id)
       ) {
         return false;
       }
@@ -164,6 +169,20 @@ describe('FAQ knowledge management (e2e)', () => {
       },
       faq_entry: faqDelegate,
       audit_log: { create: auditCreate },
+      // Emulates the keyword/alternative-wording ILIKE lookup in FaqService.
+      $queryRaw: jest.fn(({ values }: { values: string[] }) => {
+        const term = values[0]
+          .slice(1, -1)
+          .replace(/\\(.)/g, '$1')
+          .toLowerCase();
+        return entries
+          .filter((entry) =>
+            [...entry.keywords, ...entry.alternative_wording].some((value) =>
+              value.toLowerCase().includes(term),
+            ),
+          )
+          .map((entry) => ({ id: entry.id }));
+      }),
       $transaction: jest.fn(
         (
           input: Array<Promise<unknown>> | ((transaction: unknown) => unknown),
@@ -421,8 +440,8 @@ describe('FAQ knowledge management (e2e)', () => {
     entries.push(
       initialRecord({
         id: secondEntryId,
-        question: 'Is there parking?',
-        answer: 'Visitor parking is near the gate.',
+        question: 'Where can I leave my car?',
+        answer: 'Use the lot near the gate.',
         keywords: ['parking'],
         category: 'Facilities',
       }),
@@ -480,7 +499,7 @@ describe('FAQ knowledge management (e2e)', () => {
       for (const question of [
         'When is the museum open?',
         'what are the opening hours',
-        'What time does the museum open?',
+        'What are the museum opening hours today?',
       ]) {
         await request(app.getHttpServer())
           .post('/faq/assistant/ask')
@@ -503,6 +522,10 @@ describe('FAQ knowledge management (e2e)', () => {
       for (const question of [
         'Is there parking for visitors?',
         'What species of frog is this?',
+        'What species are in the museum?',
+        'Who founded the museum?',
+        'Is the museum hiring?',
+        'museum',
       ]) {
         await request(app.getHttpServer())
           .post('/faq/assistant/ask')
@@ -515,6 +538,22 @@ describe('FAQ knowledge management (e2e)', () => {
             expect(JSON.stringify(response.body)).not.toContain(
               'Inactive draft answer.',
             );
+          });
+      }
+    });
+
+    it('falls back to General Inquiry for ordinary visit questions', async () => {
+      for (const question of [
+        'What is the visit schedule?',
+        'Can I change the tour language?',
+      ]) {
+        await request(app.getHttpServer())
+          .post('/faq/assistant/ask')
+          .send({ question })
+          .expect(200)
+          .expect((response) => {
+            expect(response.body.outcome).toBe('NO_MATCH');
+            expect(response.body.redirect).toBe('GENERAL_INQUIRY');
           });
       }
     });

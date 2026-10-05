@@ -47,7 +47,7 @@ describe('FaqAssistantService', () => {
     faqDelegate.findMany.mockResolvedValue([HOURS]);
 
     const result = await service.ask({
-      question: 'what time does the museum open',
+      question: 'what are the museum opening hours',
     });
 
     expect(faqDelegate.findMany).toHaveBeenCalledWith(

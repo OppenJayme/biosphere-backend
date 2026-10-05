@@ -42,7 +42,10 @@ describe('faq-matcher', () => {
   });
 
   it('answers paraphrases and keyword questions above the threshold', () => {
-    const result = matchFaqEntries('What time does the museum open?', entries);
+    const result = matchFaqEntries(
+      'What are the museum opening hours today?',
+      entries,
+    );
     expect(result.best?.entry.id).toBe('a');
     expect(result.best?.score).toBeGreaterThanOrEqual(
       FAQ_MATCHING_RULES.ANSWER_THRESHOLD,
@@ -65,6 +68,24 @@ describe('faq-matcher', () => {
       best: null,
       related: [],
     });
+  });
+
+  it('does not answer unrelated questions that only share the word "museum"', () => {
+    // Reviewer reproduction: two entries without keywords or alternatives.
+    const bare = [
+      { ...hours, alternativeWording: [], keywords: [] },
+      { ...fees, alternativeWording: [], keywords: [] },
+    ];
+    for (const question of [
+      'Who founded the museum?',
+      'What species are in the museum?',
+      'Is the museum hiring?',
+      'museum',
+      'Is the museum open to hiring new positions?',
+    ]) {
+      expect(matchFaqEntries(question, bare).best).toBe(null);
+      expect(matchFaqEntries(question, entries).best).toBe(null);
+    }
   });
 
   it('only ranks the candidates it is given', () => {
@@ -90,6 +111,15 @@ describe('faq-matcher', () => {
     expect(isVisitRequestTransaction('Book a visit for Friday')).toBe(true);
     expect(isVisitRequestTransaction('When is the museum open?')).toBe(false);
     expect(isVisitRequestTransaction('What should I bring on my visit?')).toBe(
+      false,
+    );
+    expect(isVisitRequestTransaction('What is the visit schedule?')).toBe(
+      false,
+    );
+    expect(isVisitRequestTransaction('Can I change the tour language?')).toBe(
+      false,
+    );
+    expect(isVisitRequestTransaction('How do I register for a tour?')).toBe(
       false,
     );
   });

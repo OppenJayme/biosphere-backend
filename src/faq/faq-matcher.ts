@@ -3,20 +3,28 @@
  * REQ-4.11-06, BR-18). It only ranks curator-approved entries handed to it; it
  * never generates text, so an answer can only ever be stored curator wording.
  *
- * Matching rules (approved for the MVP):
+ * Matching rules (proposed by the development team; pending team/client
+ * approval, see docs/FAQ_KNOWLEDGE_GUIDE.md):
  * 1. Text is lowercased, accent-stripped, and reduced to alphanumeric tokens;
- *    common English stopwords are dropped and a light plural stem is applied.
+ *    a light plural stem is applied, and common English stopwords plus
+ *    domain-generic words ("museum", "visitor"...) are dropped, since nearly
+ *    every entry mentions them.
  * 2. A normalized visitor question equal to an entry's question or one of its
  *    alternative wordings is an exact match (score 1).
  * 3. Otherwise each phrase scores by Dice token overlap, the best phrase wins,
  *    and each curator keyword found in the question adds a fixed bonus.
- * 4. Only the best entry at or above ANSWER_THRESHOLD is answered; other entries
- *    at or above RELATED_THRESHOLD are offered as related approved questions.
- * Below the threshold the caller falls back to General Inquiry.
+ * 4. A non-exact match is answered only when it scores at or above
+ *    ANSWER_THRESHOLD and at least MIN_EVIDENCE_TOKENS of the question's tokens
+ *    (or all of them, for a one-token question) appear in the entry's approved
+ *    vocabulary: question, alternative wording, and keywords.
+ * 5. Among eligible entries the highest score wins; other entries at or above
+ *    RELATED_THRESHOLD are offered as related approved questions.
+ * Otherwise the caller falls back to General Inquiry.
  */
 
 export const FAQ_MATCHING_RULES = {
-  ANSWER_THRESHOLD: 0.5,
+  ANSWER_THRESHOLD: 0.6,
+  MIN_EVIDENCE_TOKENS: 2,
   RELATED_THRESHOLD: 0.3,
   KEYWORD_BONUS: 0.15,
   MAX_KEYWORD_HITS: 3,
@@ -81,20 +89,27 @@ const STOPWORDS = new Set([
   'your',
 ]);
 
+// Words that appear in nearly every museum FAQ and so carry no matching signal.
+const DOMAIN_STOPWORDS = new Set([
+  'biological',
+  'biosphere',
+  'carlo',
+  'museum',
+  'san',
+  'university',
+  'usc',
+  'visitor',
+]);
+
+// Limited to the SRS 4.11.2 transaction verbs plus booking verbs; broader verbs
+// such as "change" or "schedule" also appear in ordinary questions.
 const VISIT_TRANSACTION_TERMS = new Set([
   'submit',
   'approve',
   'cancel',
   'modify',
-  'change',
-  'edit',
-  'update',
-  'reschedule',
   'book',
-  'reserve',
-  'schedule',
-  'confirm',
-  'register',
+  'reschedule',
 ]);
 
 const VISIT_SUBJECT_TERMS = new Set([
@@ -145,7 +160,8 @@ export function tokenizeFaqText(text: string): string[] {
       normalized
         .split(' ')
         .filter((token) => !STOPWORDS.has(token))
-        .map(stem),
+        .map(stem)
+        .filter((token) => !DOMAIN_STOPWORDS.has(token)),
     ),
   ];
 }
@@ -200,6 +216,41 @@ export function scoreFaqCandidate(
   return Math.min(0.99, phraseScore + bonus);
 }
 
+/**
+ * True when enough of the visitor's tokens appear in the entry's approved
+ * vocabulary. Stops a single shared word from answering an unrelated question.
+ */
+export function hasMatchEvidence(
+  query: string,
+  candidate: FaqMatchCandidate,
+): boolean {
+  const queryTokens = tokenizeFaqText(query);
+  if (queryTokens.length === 0) return false;
+  const vocabulary = new Set(
+    [
+      candidate.question,
+      ...candidate.alternativeWording,
+      ...candidate.keywords,
+    ].flatMap((phrase) => tokenizeFaqText(phrase)),
+  );
+  const matched = queryTokens.filter((token) => vocabulary.has(token)).length;
+  return (
+    matched >=
+    Math.min(FAQ_MATCHING_RULES.MIN_EVIDENCE_TOKENS, queryTokens.length)
+  );
+}
+
+function isAnswerable(
+  query: string,
+  { entry, score }: { entry: FaqMatchCandidate; score: number },
+): boolean {
+  if (score === 1) return true;
+  return (
+    score >= FAQ_MATCHING_RULES.ANSWER_THRESHOLD &&
+    hasMatchEvidence(query, entry)
+  );
+}
+
 export function matchFaqEntries<T extends FaqMatchCandidate>(
   query: string,
   candidates: T[],
@@ -214,16 +265,12 @@ export function matchFaqEntries<T extends FaqMatchCandidate>(
         left.entry.id.localeCompare(right.entry.id),
     );
 
-  const top = ranked[0];
-  if (!top || top.score < FAQ_MATCHING_RULES.ANSWER_THRESHOLD) {
-    return {
-      best: null,
-      related: ranked.slice(0, FAQ_MATCHING_RULES.MAX_RELATED),
-    };
-  }
+  const best = ranked.find((candidate) => isAnswerable(query, candidate));
   return {
-    best: top,
-    related: ranked.slice(1, 1 + FAQ_MATCHING_RULES.MAX_RELATED),
+    best: best ?? null,
+    related: ranked
+      .filter((candidate) => candidate !== best)
+      .slice(0, FAQ_MATCHING_RULES.MAX_RELATED),
   };
 }
 
