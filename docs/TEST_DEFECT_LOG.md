@@ -54,7 +54,7 @@ system is not a reason to postpone all fixes until the end.
 | DEF-005 | 2026-10-03 | Cataloging / Tags UI       | Vocabulary search hides the matching tag names                          | S4 Minor    | P2       | Open   | Cataloging / Frontend   |
 | DEF-006 | 2026-10-03 | Cataloging / Revision UI   | Media history exposes raw identifiers and storage paths                 | S4 Minor    | P2       | Open   | Cataloging / Frontend   |
 | DEF-007 | 2026-10-03 | Cataloging / Specimen list | Selected-specimen preview never displays its cover image                | S3 Moderate | P2       | Open   | Cataloging / Full stack |
-| DEF-008 | 2026-10-03 | Cataloging / Filters       | Clear all resets results but leaves stale filter values visible         | S3 Moderate | P2       | Open   | Cataloging / Frontend   |
+| DEF-008 | 2026-10-03 | Cataloging / Filters       | Clear all resets results but leaves stale filter values visible         | S3 Moderate | P2       | Ready for retest | Cataloging / Frontend   |
 | DEF-009 | 2026-10-03 | Cataloging / CSV import    | Invalid row values make the entire preview return a generic 502         | S2 Major    | P1       | Ready for retest | Cataloging / Frontend   |
 | DEF-010 | 2026-10-04 | Storage / Hierarchy UI     | Archived locations still look active in the live hierarchy              | S3 Moderate | P2       | Open   | Storage / Frontend      |
 
@@ -545,9 +545,27 @@ valid cover image.
 
 **Priority:** P2
 
-**Status:** Open
+**Status:** Ready for retest
 
 **Owner:** Cataloging / Frontend
+
+#### Repair evidence - 2026-10-05
+
+Frontend branch `fix/cataloging-filter-reset` keys the uncontrolled filter form
+to the complete parsed query. When Clear all or restored navigation changes
+the applied query, React replaces the form and initializes its inputs/selects
+from that query. Rerenders with the same query retain unfinished input; no
+extra state, dependencies, API changes or inventory/storage mutations were
+introduced.
+
+Three automated component-contract tests cover changed form identity, default
+values for every control, advanced-section defaults, all changed query fields,
+and stable identity on unrelated rerenders. They do not simulate real browser
+interaction. The original failure below remains evidence; manually retest Clear
+all, immediate reapply and Back/Forward before marking this defect Verified.
+
+Local verification: frontend lint and production build passed; 45 test files /
+262 tests passed. Backend changes for this repair are documentation only.
 
 #### Reproduction
 
