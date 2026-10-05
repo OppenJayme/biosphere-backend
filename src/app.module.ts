@@ -25,6 +25,7 @@ import { BackupModule } from './backup/backup.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { ReportsModule } from './reports/reports.module';
 import { DashboardModule } from './dashboard/dashboard.module';
+import { UserAccountsModule } from './user-accounts/user-accounts.module';
 
 @Module({
   imports: [
@@ -49,6 +50,7 @@ import { DashboardModule } from './dashboard/dashboard.module';
     BackupModule,
     ReportsModule,
     DashboardModule,
+    UserAccountsModule,
     OfflineSyncModule,
   ],
   controllers: [AppController],
