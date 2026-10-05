@@ -94,6 +94,33 @@ describe('SpecimenProvenanceService', () => {
     service = module.get<SpecimenProvenanceService>(SpecimenProvenanceService);
   });
 
+  it('rejects a future date before any provenance, revision or audit write', async () => {
+    provenanceDelegate.findUnique.mockResolvedValue(null);
+    await expect(
+      service.create(SPECIMEN_ID, { collectionDate: '2099-01-01' }, ACCOUNT_ID),
+    ).rejects.toThrow(/on or before today/);
+    expect(provenanceDelegate.create).not.toHaveBeenCalled();
+    expect(specimenDelegate.update).not.toHaveBeenCalled();
+    expect(revisionDelegate.createMany).not.toHaveBeenCalled();
+    expect(auditDelegate.create).not.toHaveBeenCalled();
+  });
+
+  it('rejects a future date submitted unchanged from legacy data', async () => {
+    provenanceDelegate.findUnique.mockResolvedValue(
+      provenanceRecord({ collection_date: new Date('2099-01-01T00:00:00Z') }),
+    );
+    await expect(
+      service.update(
+        SPECIMEN_ID,
+        { collectionDate: '2099-01-01', collector: 'Changed' },
+        ACCOUNT_ID,
+      ),
+    ).rejects.toThrow(/on or before today/);
+    expect(provenanceDelegate.update).not.toHaveBeenCalled();
+    expect(revisionDelegate.createMany).not.toHaveBeenCalled();
+    expect(auditDelegate.create).not.toHaveBeenCalled();
+  });
+
   it('creates provenance atomically with normalized date, attribution, revisions, and audit', async () => {
     provenanceDelegate.findUnique.mockResolvedValue(null);
     provenanceDelegate.create.mockResolvedValue(provenanceRecord());

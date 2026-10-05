@@ -1,5 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
 import type { specimen_status } from '../generated/prisma/client';
+import { isValidCollectionDate } from './collection-date.policy';
 
 /**
  * Catalog-completion rules that are safe to evaluate without performing a
@@ -11,7 +12,10 @@ export const CATALOG_REQUIREMENTS = [
   { key: 'accessionNumber', label: 'Accession number is assigned' },
   { key: 'commonName', label: 'Common name is recorded' },
   { key: 'kingdom', label: 'Taxonomic kingdom is recorded' },
-  { key: 'collectionDate', label: 'Collection date is recorded' },
+  {
+    key: 'collectionDate',
+    label: 'A valid collection date on or before today is recorded',
+  },
   { key: 'preservationType', label: 'Preservation type is recorded' },
   { key: 'preservationMethod', label: 'Preservation method is recorded' },
   {
@@ -47,7 +51,7 @@ export function evaluateCatalogRequirements(
     accessionNumber: hasCatalogText(snapshot.accessionNumber),
     commonName: hasCatalogText(snapshot.commonName),
     kingdom: hasCatalogText(snapshot.kingdom),
-    collectionDate: snapshot.collectionDate !== null,
+    collectionDate: isValidCollectionDate(snapshot.collectionDate),
     preservationType: hasCatalogText(snapshot.preservationType),
     preservationMethod: hasCatalogText(snapshot.preservationMethod),
     activeLot: snapshot.hasActiveLot,

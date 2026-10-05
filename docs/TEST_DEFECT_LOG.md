@@ -47,15 +47,15 @@ system is not a reason to postpone all fixes until the end.
 
 | ID      | Date       | Module                     | Summary                                                                 | Severity    | Priority | Status | Owner                   |
 | ------- | ---------- | -------------------------- | ----------------------------------------------------------------------- | ----------- | -------- | ------ | ----------------------- |
-| DEF-001 | 2026-09-29 | Cataloging / Collections   | Duplicate normalized collection names are accepted                      | S2 Major    | P1       | Open   | Cataloging / Backend    |
-| DEF-002 | 2026-10-03 | Cataloging / Provenance    | Future collection dates are accepted and satisfy presence validation    | S2 Major    | P1       | Open   | Cataloging / Full stack |
-| DEF-003 | 2026-10-03 | Cataloging / Specimen list | Client-side specimen selection does not hydrate on a remote LAN browser | S2 Major    | P1       | Open   | Cataloging / Frontend   |
+| DEF-001 | 2026-09-29 | Cataloging / Collections   | Duplicate normalized collection names are accepted                      | S2 Major    | P1       | Ready for retest | Cataloging / Backend    |
+| DEF-002 | 2026-10-03 | Cataloging / Provenance    | Future collection dates are accepted and satisfy presence validation    | S2 Major    | P1       | Ready for retest | Cataloging / Full stack |
+| DEF-003 | 2026-10-03 | Cataloging / Specimen list | Client-side specimen selection does not hydrate on a remote LAN browser | S2 Major    | P1       | Ready for retest | Cataloging / Frontend   |
 | DEF-004 | 2026-10-03 | Cataloging / Media UI      | Choose-file controls have no visible hover feedback                     | S4 Minor    | P2       | Open   | Cataloging / Frontend   |
 | DEF-005 | 2026-10-03 | Cataloging / Tags UI       | Vocabulary search hides the matching tag names                          | S4 Minor    | P2       | Open   | Cataloging / Frontend   |
 | DEF-006 | 2026-10-03 | Cataloging / Revision UI   | Media history exposes raw identifiers and storage paths                 | S4 Minor    | P2       | Open   | Cataloging / Frontend   |
 | DEF-007 | 2026-10-03 | Cataloging / Specimen list | Selected-specimen preview never displays its cover image                | S3 Moderate | P2       | Open   | Cataloging / Full stack |
 | DEF-008 | 2026-10-03 | Cataloging / Filters       | Clear all resets results but leaves stale filter values visible         | S3 Moderate | P2       | Open   | Cataloging / Frontend   |
-| DEF-009 | 2026-10-03 | Cataloging / CSV import    | Invalid row values make the entire preview return a generic 502         | S2 Major    | P1       | Open   | Cataloging / Frontend   |
+| DEF-009 | 2026-10-03 | Cataloging / CSV import    | Invalid row values make the entire preview return a generic 502         | S2 Major    | P1       | Ready for retest | Cataloging / Frontend   |
 | DEF-010 | 2026-10-04 | Storage / Hierarchy UI     | Archived locations still look active in the live hierarchy              | S3 Moderate | P2       | Open   | Storage / Frontend      |
 
 ## 3. Defect details
@@ -65,6 +65,18 @@ system is not a reason to postpone all fixes until the end.
 **Related test:** CAT-001  
 **Environment:** Development  
 **Found on:** current `develop` during frontend acceptance testing
+
+**Status:** Ready for retest
+
+#### Repair evidence - 2026-10-05
+
+On `fix/cataloging-acceptance-defects`, create/rename now use a normalized SQL
+precheck inside serializable transactions, map unique-index races to a clear
+409, and retain atomic auditing. A new migration creates `uq_collection_name`
+after aborting if existing names collide. No records are automatically changed
+or deleted. The configured database's read-only preflight found no collisions.
+Database-index deployment and live concurrent-request verification remain
+required before this defect can be marked Verified.
 
 #### Preconditions
 
@@ -137,9 +149,18 @@ Do not delete either existing row manually until references have been checked.
 
 **Priority:** P1
 
-**Status:** Open
+**Status:** Ready for retest
 
 **Owner:** Cataloging / Full stack
+
+#### Repair evidence - 2026-10-05
+
+The shared backend date policy rejects invalid and future dates in DTOs,
+internal service writes and CSV preview. Readiness applies the same policy to
+existing dates. Frontend form validation and the input maximum use Asia/Manila
+calendar dates. Regression coverage includes the UTC/Manila midnight boundary,
+unchanged legacy future dates, no mutation on rejection, and mixed CSV rows.
+Original manual failures below are preserved; browser retesting is still required.
 
 #### Preconditions
 
@@ -205,9 +226,20 @@ the test record to a valid historical date before continuing dependent tests.
 
 **Priority:** P1
 
-**Status:** Open
+**Status:** Ready for retest
 
 **Owner:** Cataloging / Frontend
+
+#### Repair evidence - 2026-10-05
+
+Each row now has real detail and URL-backed preview links; clearing selection
+also uses a real link. Hydrated previews update native history without fetching
+the loaded page again. Back/Forward follows URL selection and narrow screens
+scroll to the preview. Next development assets allow this host's exact private
+LAN IPv4 addresses, with no wildcard origins. Static-render regression tests
+verify that navigation survives without click handlers. The original remote
+browser console error remains uncaptured: restart the dev server and retest
+both devices before claiming the hydration problem is resolved.
 
 #### Preconditions
 
@@ -570,9 +602,18 @@ longer represents the active query.
 
 **Priority:** P1
 
-**Status:** Open
+**Status:** Ready for retest
 
 **Owner:** Cataloging / Frontend
+
+#### Repair evidence - 2026-10-05
+
+Preview collection IDs and gender now accept bounded raw text, preserving
+invalid CSV values alongside backend row errors. Strict normal specimen and
+commit response schemas remain unchanged. Regression tests cover mixed valid
+and invalid rows, malformed response shapes and the 500-row boundary. Browser
+preview/commit retesting remains required; no acceptance result is changed to
+Pass merely because automated contract tests pass.
 
 #### Reproduction
 

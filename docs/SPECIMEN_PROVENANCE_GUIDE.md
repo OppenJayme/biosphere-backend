@@ -16,15 +16,20 @@ the provenance primary key and its foreign key to `public.specimen`.
 | `specimenId`         | `specimen_id`             | Existing specimen UUID                              |
 | `collector`          | `collector`               | Nullable; maximum 255 characters                    |
 | `donor`              | `donor`                   | Nullable; maximum 255 characters                    |
-| `collectionDate`     | `collection_date`         | Nullable valid calendar date in `YYYY-MM-DD` format |
+| `collectionDate`     | `collection_date`         | Nullable valid `YYYY-MM-DD` date, not later than today in Asia/Manila |
 | `collectionLocation` | `collection_location`     | Nullable; maximum 255 characters                    |
 | `preservationType`   | `preservation_type`       | Nullable; maximum 255 characters                    |
 | `preservationMethod` | `preservation_method`     | Nullable; maximum 255 characters                    |
 | `updatedAt`          | `updated_at`              | System-managed mutation timestamp                   |
 
-All museum-entered provenance values remain nullable because required-field
-rules have not yet been approved by the curator. Preservation values remain
-curator-extensible text and are not frozen as PostgreSQL enums.
+Museum-entered provenance values remain nullable for incomplete Uncataloged
+drafts. Completion requirements are recorded in `CATALOG_COMPLETION_GUIDE.md`.
+Preservation values remain curator-extensible text rather than PostgreSQL enums.
+
+The date policy is shared by DTO validation, service persistence, CSV preview
+and Catalog readiness. An existing future date does not satisfy completion;
+the curator must correct it. Invalid dates are rejected without adding a
+provenance revision or audit event. No historical dates are rewritten automatically.
 
 The SRS also mentions acquisition-related notes and remarks. The established
 schema stores general curator remarks on `public.specimen`; this slice does not

@@ -1,10 +1,12 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma, type collection } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { runSerializableTransaction } from '../prisma/serializable-transaction';
 import { CreateCollectionDto } from './dto/create-collection.dto';
 import { ListCollectionsQueryDto } from './dto/list-collections-query.dto';
 import { UpdateCollectionDto } from './dto/update-collection.dto';
@@ -14,15 +16,17 @@ import { CollectionPage, MuseumCollection } from './entities/collection.entity';
 export class CollectionsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  create(
+  async create(
     dto: CreateCollectionDto,
     actingCuratorAccountId: string,
   ): Promise<MuseumCollection> {
-    return this.prisma.$transaction(async (transaction) => {
+    const name = this.validName(dto.collectionName);
+    return this.writeCollection(async (transaction) => {
+      await this.assertNameAvailable(transaction, name);
       const changedAt = new Date();
       const created = await transaction.collection.create({
         data: {
-          collection_name: dto.collectionName,
+          collection_name: name,
           created_at: changedAt,
           updated_at: changedAt,
         },
@@ -72,21 +76,24 @@ export class CollectionsService {
     return this.toEntity(await this.findOneOrThrow(this.prisma, id));
   }
 
-  update(
+  async update(
     id: string,
     dto: UpdateCollectionDto,
     actingCuratorAccountId: string,
   ): Promise<MuseumCollection> {
-    return this.prisma.$transaction(async (transaction) => {
+    const name = this.validName(dto.collectionName);
+    return this.writeCollection(async (transaction) => {
       const existing = await this.findOneOrThrow(transaction, id);
-      if (existing.collection_name === dto.collectionName) {
+      if (existing.collection_name === name) {
         throw new BadRequestException('The collection name must change.');
       }
+
+      await this.assertNameAvailable(transaction, name, id);
 
       const updated = await transaction.collection.update({
         where: { id },
         data: {
-          collection_name: dto.collectionName,
+          collection_name: name,
           updated_at: new Date(),
         },
       });
@@ -100,6 +107,65 @@ export class CollectionsService {
         },
       });
       return this.toEntity(updated);
+    });
+  }
+
+  private validName(value: string): string {
+    const name = value.trim();
+    if (!name || name.length > 255) {
+      throw new BadRequestException(
+        'Collection name must contain 1 to 255 characters.',
+      );
+    }
+    return name;
+  }
+
+  /** Match the expression index, including legacy names with surrounding spaces. */
+  private async assertNameAvailable(
+    transaction: Prisma.TransactionClient,
+    name: string,
+    excludeId?: string,
+  ): Promise<void> {
+    const exclude = excludeId
+      ? Prisma.sql`AND id <> ${excludeId}::uuid`
+      : Prisma.empty;
+    const matches = await transaction.$queryRaw<{ id: string }[]>(Prisma.sql`
+      SELECT id FROM public.collection
+      WHERE lower(btrim(collection_name)) = lower(btrim(${name}))
+      ${exclude}
+      LIMIT 1
+    `);
+    if (matches.length) throw this.nameConflict();
+  }
+
+  /** Serializable checks prevent concurrent app writes before index deployment. */
+  private async writeCollection(
+    operation: (
+      transaction: Prisma.TransactionClient,
+    ) => Promise<MuseumCollection>,
+  ): Promise<MuseumCollection> {
+    try {
+      return await runSerializableTransaction(
+        this.prisma,
+        operation,
+        'The collection changed during saving. Reload and try again.',
+      );
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        throw this.nameConflict();
+      }
+      throw error;
+    }
+  }
+
+  private nameConflict(): ConflictException {
+    return new ConflictException({
+      code: 'COLLECTION_NAME_TAKEN',
+      message:
+        'A collection with this name already exists. Choose a different name.',
     });
   }
 

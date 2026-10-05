@@ -109,6 +109,21 @@ describe('SpecimenImportService', () => {
     service = module.get<SpecimenImportService>(SpecimenImportService);
   });
 
+  it('marks future provenance dates invalid in mixed-row preview without creating records', async () => {
+    const result = await service.previewImport(
+      csvFile(
+        'commonName,collectionDate\nValid specimen,2020-01-01\nFuture specimen,2099-01-01',
+      ),
+      CURATOR_ID,
+    );
+    expect(result.validRows).toBe(1);
+    expect(result.invalidRows).toBe(1);
+    expect(result.rows[1].errors.join(' ')).toContain('on or before today');
+    expect(
+      specimensServiceMock.createUncatalogedRecordFor,
+    ).not.toHaveBeenCalled();
+  });
+
   describe('previewImport', () => {
     it('rejects a missing file', async () => {
       await expect(
@@ -848,7 +863,7 @@ describe('SpecimenImportService', () => {
           missingRequirements: [
             'Collection is assigned',
             'Accession number is assigned',
-            'Collection date is recorded',
+            'A valid collection date on or before today is recorded',
             'Preservation type is recorded',
             'Preservation method is recorded',
             'An active lot has positive quantity in a specimen-holding storage location',

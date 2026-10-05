@@ -549,6 +549,8 @@ model backup_history {
 }
 
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+/// Normalized name uniqueness is enforced by uq_collection_name in migrations.
+/// Prisma cannot represent this expression index. Never drop it in generated SQL.
 model collection {
   id              String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   collection_name String

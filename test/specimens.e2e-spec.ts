@@ -733,7 +733,7 @@ describe('Specimens (e2e)', () => {
           'This specimen cannot be Cataloged until every required item is complete.',
         missingRequirements: expect.arrayContaining([
           'Accession number is assigned',
-          'Collection date is recorded',
+          'A valid collection date on or before today is recorded',
           'An active lot has positive quantity in a specimen-holding storage location',
         ]),
       }),

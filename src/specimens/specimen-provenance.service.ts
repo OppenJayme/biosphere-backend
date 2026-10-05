@@ -11,6 +11,7 @@ import {
 } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { runSerializableTransaction } from '../prisma/serializable-transaction';
+import { assertCollectionDate } from './collection-date.policy';
 import {
   assertCatalogedValueRetained,
   hasCatalogText,
@@ -135,6 +136,7 @@ export class SpecimenProvenanceService {
     dto: UpdateSpecimenProvenanceDto,
     actingCuratorAccountId: string,
   ): Promise<SpecimenProvenance> {
+    assertCollectionDate(dto.collectionDate);
     return runSerializableTransaction(
       this.prisma,
       async (transaction) => {
@@ -365,6 +367,7 @@ export class SpecimenProvenanceService {
   }
 
   private toDatabaseDate(value: string | null | undefined): Date | null {
+    assertCollectionDate(value);
     return value ? new Date(`${value}T00:00:00.000Z`) : null;
   }
 

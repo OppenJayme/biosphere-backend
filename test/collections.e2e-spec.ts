@@ -25,6 +25,7 @@ describe('Collections (e2e)', () => {
     update: jest.Mock;
   };
   let auditDelegate: { create: jest.Mock };
+  let queryRawMock: jest.Mock;
 
   beforeEach(async () => {
     collectionRecord = {
@@ -47,6 +48,7 @@ describe('Collections (e2e)', () => {
       }),
     };
     auditDelegate = { create: jest.fn(() => ({})) };
+    queryRawMock = jest.fn(() => []);
 
     const prismaMock = {
       user_account: {
@@ -72,6 +74,7 @@ describe('Collections (e2e)', () => {
       },
       collection: collectionDelegate,
       audit_log: auditDelegate,
+      $queryRaw: queryRawMock,
       $transaction: jest.fn((operation: unknown) => {
         if (Array.isArray(operation)) return Promise.all(operation);
         return Promise.resolve(
@@ -126,6 +129,18 @@ describe('Collections (e2e)', () => {
 
   it('rejects unauthenticated collection access', () =>
     request(app.getHttpServer()).get('/collections').expect(401));
+
+  it('returns 409 for a duplicate without writing the collection or audit', async () => {
+    queryRawMock.mockReturnValue([{ id: collectionId }]);
+    const response = await request(app.getHttpServer())
+      .post('/collections')
+      .set('Authorization', `Bearer ${curatorToken}`)
+      .send({ collectionName: '  ZOOLOGICAL COLLECTION  ' })
+      .expect(409);
+    expect(response.body.code).toBe('COLLECTION_NAME_TAKEN');
+    expect(collectionDelegate.create).not.toHaveBeenCalled();
+    expect(auditDelegate.create).not.toHaveBeenCalled();
+  });
 
   it('rejects Developer accounts because collections are curator-managed', () =>
     request(app.getHttpServer())
