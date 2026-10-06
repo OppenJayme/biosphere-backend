@@ -52,7 +52,7 @@ system is not a reason to postpone all fixes until the end.
 | DEF-003 | 2026-10-03 | Cataloging / Specimen list | Client-side specimen selection does not hydrate on a remote LAN browser | S2 Major    | P1       | Ready for retest | Cataloging / Frontend   |
 | DEF-004 | 2026-10-03 | Cataloging / Media UI      | Choose-file controls have no visible hover feedback                     | S4 Minor    | P2       | Ready for retest | Cataloging / Frontend   |
 | DEF-005 | 2026-10-03 | Cataloging / Tags UI       | Vocabulary search hides the matching tag names                          | S4 Minor    | P2       | Ready for retest | Cataloging / Frontend   |
-| DEF-006 | 2026-10-03 | Cataloging / Revision UI   | Media history exposes raw identifiers and storage paths                 | S4 Minor    | P2       | Open   | Cataloging / Frontend   |
+| DEF-006 | 2026-10-03 | Cataloging / Revision UI   | Media history exposes raw identifiers and storage paths                 | S4 Minor    | P2       | Ready for retest | Cataloging / Frontend   |
 | DEF-007 | 2026-10-03 | Cataloging / Specimen list | Selected-specimen preview never displays its cover image                | S3 Moderate | P2       | Ready for retest | Cataloging / Full stack |
 | DEF-008 | 2026-10-03 | Cataloging / Filters       | Clear all resets results but leaves stale filter values visible         | S3 Moderate | P2       | Ready for retest | Cataloging / Frontend   |
 | DEF-009 | 2026-10-03 | Cataloging / CSV import    | Invalid row values make the entire preview return a generic 502         | S2 Major    | P1       | Ready for retest | Cataloging / Frontend   |
@@ -463,9 +463,20 @@ result, making the successful search result unclear.
 
 **Priority:** P2
 
-**Status:** Open
+**Status:** Ready for retest
 
 **Owner:** Cataloging / Frontend
+
+#### Repair evidence - 2026-10-06
+
+Frontend branch `fix/cataloging-readable-media-history` adds read-only media
+event/value formatting for additions, removals, file replacements, cover,
+caption and display-order changes. UUIDs/paths are replaced with neutral
+descriptions; historical filenames are not invented or fetched from current
+media records. Caption text and numeric ordering remain visible. Backend/API
+revision values remain immutable and unchanged for authorized investigation.
+Automated helper/rendering tests cover this presentation and preservation of
+ordinary-field/tag formatting. Live CAT-011 history retesting remains required.
 
 #### Reproduction
 
