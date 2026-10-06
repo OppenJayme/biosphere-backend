@@ -51,7 +51,7 @@ system is not a reason to postpone all fixes until the end.
 | DEF-002 | 2026-10-03 | Cataloging / Provenance    | Future collection dates are accepted and satisfy presence validation    | S2 Major    | P1       | Ready for retest | Cataloging / Full stack |
 | DEF-003 | 2026-10-03 | Cataloging / Specimen list | Client-side specimen selection does not hydrate on a remote LAN browser | S2 Major    | P1       | Ready for retest | Cataloging / Frontend   |
 | DEF-004 | 2026-10-03 | Cataloging / Media UI      | Choose-file controls have no visible hover feedback                     | S4 Minor    | P2       | Ready for retest | Cataloging / Frontend   |
-| DEF-005 | 2026-10-03 | Cataloging / Tags UI       | Vocabulary search hides the matching tag names                          | S4 Minor    | P2       | Open   | Cataloging / Frontend   |
+| DEF-005 | 2026-10-03 | Cataloging / Tags UI       | Vocabulary search hides the matching tag names                          | S4 Minor    | P2       | Ready for retest | Cataloging / Frontend   |
 | DEF-006 | 2026-10-03 | Cataloging / Revision UI   | Media history exposes raw identifiers and storage paths                 | S4 Minor    | P2       | Open   | Cataloging / Frontend   |
 | DEF-007 | 2026-10-03 | Cataloging / Specimen list | Selected-specimen preview never displays its cover image                | S3 Moderate | P2       | Ready for retest | Cataloging / Full stack |
 | DEF-008 | 2026-10-03 | Cataloging / Filters       | Clear all resets results but leaves stale filter values visible         | S3 Moderate | P2       | Ready for retest | Cataloging / Frontend   |
@@ -396,9 +396,20 @@ block file selection, but it provides weak interaction feedback.
 
 **Priority:** P2
 
-**Status:** Open
+**Status:** Ready for retest
 
 **Owner:** Cataloging / Frontend
+
+#### Repair evidence - 2026-10-06
+
+Frontend branch `fix/cataloging-visible-tag-suggestions` renders the existing
+search results as visible keyboard-accessible buttons. Selecting a name fills
+and focuses the existing Tag name input; only Attach tag performs the existing
+validated mutation. Choices/input are disabled while attachment is pending,
+archived records remain read-only, and clearing search resets its visible field.
+No backend API, shared vocabulary, inventory or storage behavior changes.
+Automated rendering/selection-contract checks were added; browser interaction,
+persistence, duplicate prevention and revision history remain manual retests.
 
 #### Reproduction
 
