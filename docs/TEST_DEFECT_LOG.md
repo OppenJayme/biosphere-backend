@@ -50,7 +50,7 @@ system is not a reason to postpone all fixes until the end.
 | DEF-001 | 2026-09-29 | Cataloging / Collections   | Duplicate normalized collection names are accepted                      | S2 Major    | P1       | Ready for retest | Cataloging / Backend    |
 | DEF-002 | 2026-10-03 | Cataloging / Provenance    | Future collection dates are accepted and satisfy presence validation    | S2 Major    | P1       | Ready for retest | Cataloging / Full stack |
 | DEF-003 | 2026-10-03 | Cataloging / Specimen list | Client-side specimen selection does not hydrate on a remote LAN browser | S2 Major    | P1       | Ready for retest | Cataloging / Frontend   |
-| DEF-004 | 2026-10-03 | Cataloging / Media UI      | Choose-file controls have no visible hover feedback                     | S4 Minor    | P2       | Open   | Cataloging / Frontend   |
+| DEF-004 | 2026-10-03 | Cataloging / Media UI      | Choose-file controls have no visible hover feedback                     | S4 Minor    | P2       | Ready for retest | Cataloging / Frontend   |
 | DEF-005 | 2026-10-03 | Cataloging / Tags UI       | Vocabulary search hides the matching tag names                          | S4 Minor    | P2       | Open   | Cataloging / Frontend   |
 | DEF-006 | 2026-10-03 | Cataloging / Revision UI   | Media history exposes raw identifiers and storage paths                 | S4 Minor    | P2       | Open   | Cataloging / Frontend   |
 | DEF-007 | 2026-10-03 | Cataloging / Specimen list | Selected-specimen preview never displays its cover image                | S3 Moderate | P2       | Ready for retest | Cataloging / Full stack |
@@ -318,9 +318,31 @@ module acceptance.
 
 **Priority:** P2
 
-**Status:** Open
+**Status:** Ready for retest
 
 **Owner:** Cataloging / Frontend
+
+#### Repair evidence - 2026-10-06
+
+Frontend branch `fix/cataloging-media-file-feedback` gives both native file
+pickers one shared style with enabled-only hover feedback, a visible keyboard
+focus outline and distinct disabled input/button styling. Accessible wrapping
+labels, native file selection, required/accept constraints and pending disabling
+are preserved. Archived media still exposes no mutation pickers.
+
+The repair uses the existing `forest-100` hover token. `sage-200` is not defined
+in the current brand theme and would not generate a working hover utility.
+
+Component rendering tests verify the shared classes, native input constraints
+and archived read-only behavior. Visual hover/focus/disabled behavior and actual
+file submissions must still be retested in supported desktop browsers before
+marking this defect Verified. This backend update is documentation only; no
+API, database, authorization or other module behavior changed.
+
+Local verification: frontend lint and production build passed; 48 test files /
+279 tests passed. Generated production CSS contains the enabled hover,
+keyboard-focus and disabled file-button utilities. This does not replace a
+visual/native-picker retest in supported browsers.
 
 #### Reproduction
 
