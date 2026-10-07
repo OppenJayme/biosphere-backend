@@ -21,7 +21,7 @@ export class UserAccountSummary {
 
   @ApiProperty({
     description:
-      'False while the onboarding invitation has not been accepted yet',
+      'False until the invited curator has set a password; opening the invite link alone does not count',
   })
   inviteAccepted!: boolean;
 

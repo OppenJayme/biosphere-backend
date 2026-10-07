@@ -1,13 +1,9 @@
-import {
-  CanActivate,
-  ExecutionContext,
-  Injectable,
-  UnauthorizedException,
-} from '@nestjs/common';
+import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { AuthService } from '../auth.service';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
 import type { AuthenticatedRequest } from '../types/auth.types';
+import { bearerToken } from './bearer-token';
 import { requestPath } from './request-path';
 
 @Injectable()
@@ -29,17 +25,7 @@ export class SupabaseAuthGuard implements CanActivate {
 
     const req = context.switchToHttp().getRequest<AuthenticatedRequest>();
 
-    const authHeader = req.headers.authorization;
-
-    if (!authHeader) {
-      throw new UnauthorizedException('Missing authorization token');
-    }
-
-    const [scheme, token, extra] = authHeader.trim().split(/\s+/);
-
-    if (scheme?.toLowerCase() !== 'bearer' || !token || extra) {
-      throw new UnauthorizedException('Malformed authorization token');
-    }
+    const token = bearerToken(req.headers.authorization);
 
     req.user = await this.authService.authenticateAccessToken(token, {
       method: req.method,

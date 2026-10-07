@@ -2,7 +2,8 @@ import { Injectable, Logger } from '@nestjs/common';
 import type { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
-export type SecurityAuditAction = 'LOGIN' | 'ACCESS_DENIED';
+export type SecurityAuditAction =
+  'LOGIN' | 'ACCESS_DENIED' | 'ONBOARDING_COMPLETED';
 export type SecurityAuditResult = 'SUCCESS' | 'FAILED' | 'DENIED';
 
 export interface SecurityAuditEvent {

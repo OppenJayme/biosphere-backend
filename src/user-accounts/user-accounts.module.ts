@@ -1,4 +1,4 @@
-/** Wires the protected, read-only user account list. */
+/** Wires the protected curator account list and curator invitations. */
 
 import { Module } from '@nestjs/common';
 import { PrismaModule } from '../prisma/prisma.module';

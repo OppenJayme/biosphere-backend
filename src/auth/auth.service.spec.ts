@@ -1,4 +1,9 @@
-import { ForbiddenException, UnauthorizedException } from '@nestjs/common';
+import {
+  ConflictException,
+  ForbiddenException,
+  ServiceUnavailableException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
 import { PrismaService } from '../prisma/prisma.service';
@@ -15,6 +20,7 @@ const supabaseMock = {
   auth: {
     signInWithPassword: jest.fn(),
     getUser: jest.fn(),
+    admin: { updateUserById: jest.fn() },
   },
 };
 
@@ -26,10 +32,12 @@ const authClientMock = {
 };
 
 const userAccountFindUnique = jest.fn();
+const usersCount = jest.fn();
 const prismaMock = {
   user_account: {
     findUnique: userAccountFindUnique,
   },
+  users: { count: usersCount },
 };
 
 const configServiceMock = {
@@ -334,6 +342,205 @@ describe('AuthService', () => {
       await service.authenticateAccessToken('access-token');
 
       expect(securityAuditMock.record).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('curator onboarding (REQ-4.1-07, REQ-4.1-11)', () => {
+    const pendingUser = {
+      ...authUser,
+      app_metadata: { role: 'CURATOR', onboarding_pending: true },
+    };
+    const onboardedUser = {
+      ...authUser,
+      app_metadata: { role: 'CURATOR', onboarding_pending: false },
+    };
+    const activeCurator = {
+      id: 'account-1',
+      role: 'CURATOR',
+      status: 'ACTIVE',
+    };
+
+    function sessionFor(user: object) {
+      supabaseMock.auth.getUser.mockResolvedValue({
+        data: { user },
+        error: null,
+      });
+    }
+
+    function auditedValues(): string {
+      return JSON.stringify(securityAuditMock.record.mock.calls);
+    }
+
+    beforeEach(() => {
+      userAccountFindUnique.mockResolvedValue(activeCurator);
+      supabaseMock.auth.admin.updateUserById.mockResolvedValue({
+        data: {},
+        error: null,
+      });
+    });
+
+    it('denies protected access to an invite session whose password is not set', async () => {
+      sessionFor(pendingUser);
+
+      await expect(
+        service.authenticateAccessToken('invite-session-token', {
+          method: 'GET',
+          path: '/specimens',
+        }),
+      ).rejects.toMatchObject({ reason: 'ONBOARDING_INCOMPLETE' });
+
+      expect(securityAuditMock.record).toHaveBeenCalledWith({
+        action: 'ACCESS_DENIED',
+        result: 'DENIED',
+        accountId: 'account-1',
+        details: {
+          reason: 'ONBOARDING_INCOMPLETE',
+          method: 'GET',
+          path: '/specimens',
+        },
+      });
+    });
+
+    it('refuses to complete onboarding before a password exists', async () => {
+      sessionFor(pendingUser);
+      usersCount.mockResolvedValue(0);
+
+      await expect(
+        service.completeOnboarding('invite-session-token'),
+      ).rejects.toBeInstanceOf(ConflictException);
+
+      expect(usersCount).toHaveBeenCalledWith({
+        where: {
+          id: 'auth-user-1',
+          AND: [
+            { encrypted_password: { not: null } },
+            { encrypted_password: { not: '' } },
+          ],
+        },
+      });
+      expect(supabaseMock.auth.admin.updateUserById).not.toHaveBeenCalled();
+      expect(securityAuditMock.record).toHaveBeenCalledWith({
+        action: 'ONBOARDING_COMPLETED',
+        result: 'FAILED',
+        accountId: 'account-1',
+        details: { reason: 'PASSWORD_NOT_SET' },
+      });
+    });
+
+    it('completes onboarding once the password is set and audits it without secrets', async () => {
+      sessionFor(pendingUser);
+      usersCount.mockResolvedValue(1);
+
+      await expect(
+        service.completeOnboarding('invite-session-token'),
+      ).resolves.toEqual({ onboardingComplete: true });
+
+      expect(supabaseMock.auth.admin.updateUserById).toHaveBeenCalledWith(
+        'auth-user-1',
+        { app_metadata: { onboarding_pending: false } },
+      );
+      expect(securityAuditMock.record).toHaveBeenCalledWith({
+        action: 'ONBOARDING_COMPLETED',
+        result: 'SUCCESS',
+        accountId: 'account-1',
+        details: { method: 'PASSWORD_SETUP' },
+      });
+      expect(auditedValues()).not.toContain('invite-session-token');
+      expect(auditedValues()).not.toMatch(/password"|token"|secret/i);
+    });
+
+    it('allows protected access after onboarding is complete', async () => {
+      sessionFor(onboardedUser);
+
+      await expect(
+        service.authenticateAccessToken('session-token'),
+      ).resolves.toMatchObject({ accountId: 'account-1', role: 'CURATOR' });
+      expect(securityAuditMock.record).not.toHaveBeenCalled();
+    });
+
+    it('changes nothing when onboarding was already completed', async () => {
+      sessionFor(onboardedUser);
+
+      await expect(
+        service.completeOnboarding('session-token'),
+      ).resolves.toEqual({ onboardingComplete: true });
+      expect(usersCount).not.toHaveBeenCalled();
+      expect(supabaseMock.auth.admin.updateUserById).not.toHaveBeenCalled();
+      expect(securityAuditMock.record).not.toHaveBeenCalled();
+    });
+
+    it('does not let a deactivated invite finish onboarding', async () => {
+      sessionFor(pendingUser);
+      userAccountFindUnique.mockResolvedValue({
+        ...activeCurator,
+        status: 'INACTIVE',
+      });
+
+      await expect(
+        service.completeOnboarding('invite-session-token'),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(supabaseMock.auth.admin.updateUserById).not.toHaveBeenCalled();
+    });
+
+    it('rejects an invalid session without touching the account', async () => {
+      supabaseMock.auth.getUser.mockResolvedValue({
+        data: { user: null },
+        error: { message: 'Invalid token' },
+      });
+
+      await expect(
+        service.completeOnboarding('bad-token'),
+      ).rejects.toBeInstanceOf(UnauthorizedException);
+      expect(userAccountFindUnique).not.toHaveBeenCalled();
+    });
+
+    it('reports a provider failure instead of claiming completion', async () => {
+      sessionFor(pendingUser);
+      usersCount.mockResolvedValue(1);
+      supabaseMock.auth.admin.updateUserById.mockResolvedValue({
+        data: {},
+        error: { message: 'down' },
+      });
+
+      await expect(
+        service.completeOnboarding('invite-session-token'),
+      ).rejects.toBeInstanceOf(ServiceUnavailableException);
+      expect(securityAuditMock.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'ONBOARDING_COMPLETED',
+          result: 'FAILED',
+        }),
+      );
+    });
+
+    it('completes onboarding on the first password sign-in, since that proves a password exists', async () => {
+      authClientMock.auth.signInWithPassword.mockResolvedValue({
+        data: {
+          session: {
+            access_token: 'access-token',
+            refresh_token: 'refresh-token',
+          },
+          user: pendingUser,
+        },
+        error: null,
+      });
+
+      await expect(
+        service.login('curator@example.com', 'secret-password'),
+      ).resolves.toMatchObject({ user: { accountId: 'account-1' } });
+
+      expect(supabaseMock.auth.admin.updateUserById).toHaveBeenCalledWith(
+        'auth-user-1',
+        { app_metadata: { onboarding_pending: false } },
+      );
+      expect(securityAuditMock.record).toHaveBeenCalledWith({
+        action: 'ONBOARDING_COMPLETED',
+        result: 'SUCCESS',
+        accountId: 'account-1',
+        details: { method: 'PASSWORD_SIGN_IN' },
+      });
+      expect(auditedValues()).not.toContain('secret-password');
+      expect(auditedValues()).not.toContain('access-token');
     });
   });
 });
