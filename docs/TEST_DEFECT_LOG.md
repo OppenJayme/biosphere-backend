@@ -57,6 +57,8 @@ system is not a reason to postpone all fixes until the end.
 | DEF-008 | 2026-10-03 | Cataloging / Filters       | Clear all resets results but leaves stale filter values visible         | S3 Moderate | P2       | Ready for retest | Cataloging / Frontend   |
 | DEF-009 | 2026-10-03 | Cataloging / CSV import    | Invalid row values make the entire preview return a generic 502         | S2 Major    | P1       | Ready for retest | Cataloging / Frontend   |
 | DEF-010 | 2026-10-04 | Storage / Hierarchy UI     | Archived locations still look active in the live hierarchy              | S3 Moderate | P2       | Open   | Storage / Frontend      |
+| DEF-011 | 2026-10-07 | Cataloging / Filters UI    | Clear all feels slow and has no appropriate pending feedback            | S4 Minor    | P2       | Open   | Cataloging / Frontend   |
+| DEF-012 | 2026-10-07 | Cataloging / Media UI      | Save metadata and Set as cover lack visible hover feedback              | S4 Minor    | P2       | Open   | Cataloging / Frontend   |
 
 ## 3. Defect details
 
@@ -344,6 +346,17 @@ Local verification: frontend lint and production build passed; 48 test files /
 keyboard-focus and disabled file-button utilities. This does not replace a
 visual/native-picker retest in supported browsers.
 
+#### Manual retest observations - 2026-10-07
+
+Tester reports the native file-picker checks look good, but separately reports
+missing hover feedback on Save metadata and Set as cover (tracked as DEF-012).
+The initially reported file disappearing after refresh was clarified: a file
+was selected locally without Upload image or Replace file being submitted.
+Clearing an unsubmitted native file selection on refresh is expected behavior,
+not an upload-persistence defect. Actual successful-upload/replacement persistence
+was not confirmed in this exchange. Exact tested commits were not captured;
+DEF-004 remains Ready for retest pending explicit remaining checks.
+
 #### Reproduction
 
 1. Open a specimen's Media page.
@@ -410,6 +423,17 @@ archived records remain read-only, and clearing search resets its visible field.
 No backend API, shared vocabulary, inventory or storage behavior changes.
 Automated rendering/selection-contract checks were added; browser interaction,
 persistence, duplicate prevention and revision history remain manual retests.
+
+#### Manual retest evidence - 2026-10-07
+
+Tester confirmed all eight guided checks passed: create `Acceptance Retest Tag`
+on specimen A, find it through specimen B's reusable search, display the matching
+button, select it to populate Tag name without saving, explicitly attach it,
+confirm persistence after refresh, omit the attached tag from B's suggestions,
+and clear the visible search field. Running commit IDs were not captured.
+Keyboard/touch, pending/read-only states, case-insensitive duplicate prevention,
+detach/reuse and revision-history checks remain outstanding for final sign-off.
+Status stays Ready for retest; this records partial acceptance, not full verification.
 
 #### Reproduction
 
@@ -541,6 +565,25 @@ changed; this backend entry is documentation only.
 
 Local verification: frontend lint and production build passed; 47 test files /
 276 tests passed. No dependencies or database schema changes were introduced.
+
+#### Manual retest observations - 2026-10-07
+
+Tester confirmed the selected cover appears in the right-hand preview and a
+separate specimen without a cover shows No cover image selected; the remaining
+guided cover checks were reported working. Exact running commits were not captured.
+Rapid-selection races, request failure/retry and expired image links still need
+explicit testing before final verification. Status remains Ready for retest.
+
+The tester estimates image loading at roughly one second. This is an unmeasured
+performance observation, not a confirmed latency defect or accepted response-time
+target. Capture image size and signing/download timings and compare development
+with production before choosing an optimization.
+
+**Deferred enhancement:** Show small cover thumbnails in the left-hand Record
+column instead of its current icon, with a no-cover fallback. This is separate
+from DEF-007; no row-thumbnail implementation is claimed. Evaluate bounded,
+efficient thumbnail delivery without full-image/signing requests per row before
+implementation. Keep this work within Cataloging presentation.
 
 #### Reproduction
 
@@ -811,6 +854,83 @@ archived` control for historical lookup.
 - [ ] Archived locations cannot be edited, moved, selected as a parent, or
       assigned new specimen lots.
 - [ ] Active hierarchy navigation and search remain unchanged.
+
+### DEF-011 - Clear all feels slow and has no appropriate pending feedback
+
+**Related test:** DEF-008 filter-reset retest
+**Environment:** Local frontend development server
+**Found on:** User-reported browser test; running frontend/backend commits not captured
+**Severity:** S4 Minor (provisional; revise if measured delays block use)
+**Priority:** P2
+**Status:** Open
+**Owner:** Cataloging / Frontend
+
+#### Reproduction
+
+1. Apply Cataloging filters.
+2. Click Clear all.
+3. Observe the transition until the unfiltered results appear.
+
+#### Expected
+
+Show immediate, accessible pending feedback during any noticeable navigation
+delay, then consistent cleared controls/results. Determine actual latency before
+choosing performance changes; no response-time target is assumed.
+
+#### Actual / evidence - 2026-10-07
+
+The tester reports that filters clear successfully, but the operation feels slow.
+Only the bottom-left development "Rendering" indicator provides feedback.
+No timings, network trace or production comparison have been captured.
+This is separate from DEF-008's original stale-control defect: its basic reset
+was reported successful, but Apply-again and Back/Forward results were not
+explicitly confirmed, so DEF-008 remains Ready for retest.
+
+#### Required investigation / remediation
+
+1. Measure frontend navigation and backend request duration; compare development
+   with a production build before attributing the delay to rendering or queries.
+2. Provide appropriate pending feedback without showing results as updated early.
+3. Optimize only demonstrated bottlenecks; preserve filters, authorization and
+   consistency. No code changes made while recording this report.
+
+#### Retest
+
+- [ ] Noticeable navigation displays immediate accessible pending feedback.
+- [ ] Cleared controls and records agree once navigation finishes.
+- [ ] Apply again and Back/Forward do not revive stale filter values.
+- [ ] Development/production timings and tested commits are recorded.
+
+### DEF-012 - Save metadata and Set as cover lack visible hover feedback
+
+**Related test:** CAT-011 / media-controls acceptance retest
+**Environment:** Local frontend browser testing
+**Found on:** User report; exact running commit not captured
+**Severity:** S4 Minor
+**Priority:** P2
+**Status:** Open
+**Owner:** Cataloging / Frontend
+
+#### Reproduction
+
+1. Open an active specimen's Media page with an existing image.
+2. Hover Save metadata and Set as cover while the controls are enabled.
+
+#### Expected
+
+Enabled buttons provide visible hover feedback and accessible keyboard focus;
+disabled or pending controls remain clearly distinguishable.
+
+#### Actual / evidence - 2026-10-07
+
+Tester reports neither button highlights/darkens on hover. No save or cover
+mutation failure was reported. This is separate from native file-picker DEF-004.
+
+#### Retest
+
+- [ ] Both enabled buttons visibly respond to hover and keyboard focus.
+- [ ] Pending/disabled states remain clear and do not imply the action is enabled.
+- [ ] Metadata and cover mutations still save and persist after refresh.
 
 ## 4. New defect template
 
