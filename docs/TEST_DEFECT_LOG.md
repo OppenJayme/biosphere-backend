@@ -57,7 +57,7 @@ system is not a reason to postpone all fixes until the end.
 | DEF-008 | 2026-10-03 | Cataloging / Filters       | Clear all resets results but leaves stale filter values visible         | S3 Moderate | P2       | Ready for retest | Cataloging / Frontend   |
 | DEF-009 | 2026-10-03 | Cataloging / CSV import    | Invalid row values make the entire preview return a generic 502         | S2 Major    | P1       | Ready for retest | Cataloging / Frontend   |
 | DEF-010 | 2026-10-04 | Storage / Hierarchy UI     | Archived locations still look active in the live hierarchy              | S3 Moderate | P2       | Open   | Storage / Frontend      |
-| DEF-011 | 2026-10-07 | Cataloging / Filters UI    | Clear all feels slow and has no appropriate pending feedback            | S4 Minor    | P2       | Open   | Cataloging / Frontend   |
+| DEF-011 | 2026-10-07 | Cataloging / Filters UI    | Clear all feels slow and has no appropriate pending feedback            | S4 Minor    | P2       | In progress | Cataloging / Frontend   |
 | DEF-012 | 2026-10-07 | Cataloging / Media UI      | Save metadata and Set as cover lack visible hover feedback              | S4 Minor    | P2       | Ready for retest | Cataloging / Frontend   |
 | DEF-013 | 2026-10-07 | Cataloging / Import UI     | CSV Choose file control lacks visible hover feedback                    | S4 Minor    | P2       | Ready for retest | Cataloging / Frontend   |
 | DEF-014 | 2026-10-07 | Cataloging / Tags UI       | Already-attached tag notice resembles successful new attachment         | S4 Minor    | P2       | Ready for retest | Cataloging / Frontend   |
@@ -889,8 +889,24 @@ archived` control for historical lookup.
 **Found on:** User-reported browser test; running frontend/backend commits not captured
 **Severity:** S4 Minor (provisional; revise if measured delays block use)
 **Priority:** P2
-**Status:** Open
+**Status:** In progress
 **Owner:** Cataloging / Frontend
+
+#### Partial repair evidence - 2026-10-07
+
+Frontend branch `fix/cataloging-clear-filter-feedback` wraps only Clear all in
+a navigation transition with busy text and an accessible non-modal loading
+status. Repeated same-link navigation is guarded while pending. The fixed native
+href, modified/new-tab clicks, history and query-keyed form reset are preserved.
+No premature optimistic reset, authentication bypass, new queries or cache is
+introduced. Existing data-load failures continue to use catalog fallback/retry.
+
+Five focused transition-contract checks plus existing filter-reset regressions
+cover the implementation. The catalog's session check and three parallel data
+reads were inspected, but authenticated latency measurements were not captured.
+Production/development timing, failure/navigation and visual pending retests are
+documented in the frontend checklist. Feedback is implemented; speed is not
+claimed improved. Keep In progress until investigation and retest complete.
 
 #### Reproduction
 
