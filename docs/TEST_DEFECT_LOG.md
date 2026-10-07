@@ -58,7 +58,9 @@ system is not a reason to postpone all fixes until the end.
 | DEF-009 | 2026-10-03 | Cataloging / CSV import    | Invalid row values make the entire preview return a generic 502         | S2 Major    | P1       | Ready for retest | Cataloging / Frontend   |
 | DEF-010 | 2026-10-04 | Storage / Hierarchy UI     | Archived locations still look active in the live hierarchy              | S3 Moderate | P2       | Open   | Storage / Frontend      |
 | DEF-011 | 2026-10-07 | Cataloging / Filters UI    | Clear all feels slow and has no appropriate pending feedback            | S4 Minor    | P2       | Open   | Cataloging / Frontend   |
-| DEF-012 | 2026-10-07 | Cataloging / Media UI      | Save metadata and Set as cover lack visible hover feedback              | S4 Minor    | P2       | Open   | Cataloging / Frontend   |
+| DEF-012 | 2026-10-07 | Cataloging / Media UI      | Save metadata and Set as cover lack visible hover feedback              | S4 Minor    | P2       | Ready for retest | Cataloging / Frontend   |
+| DEF-013 | 2026-10-07 | Cataloging / Import UI     | CSV Choose file control lacks visible hover feedback                    | S4 Minor    | P2       | Ready for retest | Cataloging / Frontend   |
+| DEF-014 | 2026-10-07 | Cataloging / Tags UI       | Already-attached tag notice resembles successful new attachment         | S4 Minor    | P2       | Open   | Cataloging / Frontend   |
 
 ## 3. Defect details
 
@@ -435,6 +437,15 @@ Keyboard/touch, pending/read-only states, case-insensitive duplicate prevention,
 detach/reuse and revision-history checks remain outstanding for final sign-off.
 Status stays Ready for retest; this records partial acceptance, not full verification.
 
+#### Additional tag retest evidence - 2026-10-07
+
+Tester explicitly confirmed keyboard selection fills Tag name, case-insensitive
+reattachment creates no duplicate relationship, detachment persists after refresh,
+and revision history works. The remaining guided tag checks were reported working.
+Duplicate feedback is confusing because the existing-tag notice looks like a green
+attachment confirmation; tracked separately as DEF-014, not a data-integrity failure.
+Exact running commits and explicit pending/read-only checks remain uncaptured.
+
 #### Reproduction
 
 1. Attach a tag to one specimen so it becomes part of the shared vocabulary.
@@ -729,6 +740,22 @@ and invalid rows, malformed response shapes and the 500-row boundary. Browser
 preview/commit retesting remains required; no acceptance result is changed to
 Pass merely because automated contract tests pass.
 
+#### Manual preview evidence - 2026-10-07
+
+Tester supplied a screenshot showing three reviewed rows: two valid/Ready,
+one invalid with a specific gender-enum validation message, and zero warnings.
+The invalid row's checkbox appears disabled; valid rows are selected. Preview
+renders rather than failing with the previously reported generic 502.
+Exact running commits were not captured. Selected-row commit, persisted values,
+preview-only non-mutation, repeat-commit safety and other invalid-input cases
+remain to be explicitly tested. DEF-009 stays Ready for retest.
+The separate CSV native-file hover report is tracked as DEF-013.
+
+**Follow-up:** Tester reported the selected-row save checklist passed: only the
+selected valid row was imported, its values persisted with UNCATALOGED status,
+and unselected/invalid rows were not imported. Repeat-commit and other invalid
+input edge cases remain unverified; tested commits were not captured.
+
 #### Reproduction
 
 1. Prepare a CSV containing valid rows and one row whose gender is
@@ -886,6 +913,11 @@ This is separate from DEF-008's original stale-control defect: its basic reset
 was reported successful, but Apply-again and Back/Forward results were not
 explicitly confirmed, so DEF-008 remains Ready for retest.
 
+**Follow-up:** Tester subsequently confirmed Apply-after-clear and Back/Forward
+restore the controls/results for the current page correctly. Clear all appears
+only after filters are applied; this was understood and accepted as current
+Apply-based behavior. The latency/pending-feedback issue remains Open.
+
 #### Required investigation / remediation
 
 1. Measure frontend navigation and backend request duration; compare development
@@ -908,8 +940,16 @@ explicitly confirmed, so DEF-008 remains Ready for retest.
 **Found on:** User report; exact running commit not captured
 **Severity:** S4 Minor
 **Priority:** P2
-**Status:** Open
+**Status:** Ready for retest
 **Owner:** Cataloging / Frontend
+
+#### Repair evidence - 2026-10-07
+
+Frontend branch `fix/cataloging-control-hover-feedback` replaces the undefined
+forest-50 hover token on both buttons with the defined forest-100 token. Shared
+button classes include enabled-only hover, visible keyboard outline and disabled
+cursor/opacity. Submit actions, pending guards and authorization are unchanged.
+Rendering checks cover both buttons; visual browser retesting remains required.
 
 #### Reproduction
 
@@ -931,6 +971,77 @@ mutation failure was reported. This is separate from native file-picker DEF-004.
 - [ ] Both enabled buttons visibly respond to hover and keyboard focus.
 - [ ] Pending/disabled states remain clear and do not imply the action is enabled.
 - [ ] Metadata and cover mutations still save and persist after refresh.
+
+### DEF-013 - CSV Choose file control lacks visible hover feedback
+
+**Related test:** CAT-013 / import file selection
+**Environment:** Local Cataloging import page
+**Found on:** User report; exact running commit not captured
+**Severity:** S4 Minor
+**Priority:** P2
+**Status:** Ready for retest
+**Owner:** Cataloging / Frontend
+
+#### Repair evidence - 2026-10-07
+
+The same frontend branch shares Cataloging-only native-file interaction styles
+between import and media pickers. CSV hover now uses forest-100, with keyboard
+outline and distinct disabled/file-button states. Existing CSV accept/required
+attributes, preview/import pending guards and validated import flow are preserved.
+Rendering checks verify these contracts; browser appearance remains to be retested.
+
+#### Reproduction
+
+1. Open Cataloging Import.
+2. Hover the enabled CSV Choose file control.
+
+#### Expected / actual
+
+The native file-selection button should give visible hover feedback. Tester
+reports that it does not darken; choosing a file and previewing rows work.
+This is the import picker, not the media picker covered by DEF-004.
+
+#### Retest
+
+- [ ] Enabled CSV file control responds visibly to hover and keyboard focus.
+- [ ] Pending/disabled states remain distinct.
+- [ ] File selection, preview validation and saving behavior remain unchanged.
+
+### DEF-014 - Already-attached tag notice resembles successful new attachment
+
+**Related test:** CAT-010 / duplicate tag relationship
+**Environment:** Local specimen Tags page
+**Found on:** User report; exact running commit not captured
+**Severity:** S4 Minor
+**Priority:** P2
+**Status:** Open
+**Owner:** Cataloging / Frontend
+
+#### Reproduction
+
+1. Attach a tag to a specimen.
+2. Submit the same name with different capitalization.
+3. Observe the feedback after the duplicate-safe operation.
+
+#### Expected / actual
+
+No duplicate relationship should be created (confirmed working). The notice
+should clearly distinguish an existing relationship from a newly saved one.
+Tester reports the notice is green and resembles an attachment confirmation.
+
+#### Recommended remediation
+
+Use explicit wording such as Already attached - no changes saved, with an
+accessible informational/warning treatment near the attachment workflow.
+Do not rely only on color or mark a valid existing tag as erroneous. Preserve
+backend duplicate prevention, shared vocabulary and no-op history behavior.
+
+#### Retest
+
+- [ ] Duplicate attachment has distinct, understandable no-change feedback.
+- [ ] New attachment retains success feedback.
+- [ ] No duplicate relationship or misleading new revision is created.
+- [ ] Keyboard/screen-reader users can perceive the notice.
 
 ## 4. New defect template
 
