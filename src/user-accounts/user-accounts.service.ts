@@ -11,6 +11,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { SUPABASE_CLIENT } from '../supabase/supabase.constants';
+import { ONBOARDING_PENDING_KEY } from '../auth/onboarding';
 import type { AuthenticatedUser } from '../auth/types/auth.types';
 import type { InviteCuratorDto } from './dto/invite-curator.dto';
 import {
@@ -116,11 +117,11 @@ export class UserAccountsService {
     }
     const authUserId = data.user.id;
 
-    // The role guard reads the role from app_metadata, which only the
-    // service key can write.
+    // Only the service key can write app_metadata. The pending flag keeps
+    // the invite session out of protected APIs until a password is set.
     const { error: metadataError } =
       await this.supabase.auth.admin.updateUserById(authUserId, {
-        app_metadata: { role: 'CURATOR' },
+        app_metadata: { role: 'CURATOR', [ONBOARDING_PENDING_KEY]: true },
       });
     if (metadataError) {
       await this.rollBackInvite(authUserId, email);

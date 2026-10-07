@@ -153,7 +153,7 @@ describe('UserAccountsService.inviteCurator', () => {
       redirectTo: 'https://biosphere.test/login/accept-invite',
     });
     expect(admin.updateUserById).toHaveBeenCalledWith('auth-new', {
-      app_metadata: { role: 'CURATOR' },
+      app_metadata: { role: 'CURATOR', onboarding_pending: true },
     });
     expect(create).toHaveBeenCalledWith(
       expect.objectContaining({
