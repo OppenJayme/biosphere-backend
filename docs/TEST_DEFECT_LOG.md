@@ -60,7 +60,7 @@ system is not a reason to postpone all fixes until the end.
 | DEF-011 | 2026-10-07 | Cataloging / Filters UI    | Clear all feels slow and has no appropriate pending feedback            | S4 Minor    | P2       | Open   | Cataloging / Frontend   |
 | DEF-012 | 2026-10-07 | Cataloging / Media UI      | Save metadata and Set as cover lack visible hover feedback              | S4 Minor    | P2       | Ready for retest | Cataloging / Frontend   |
 | DEF-013 | 2026-10-07 | Cataloging / Import UI     | CSV Choose file control lacks visible hover feedback                    | S4 Minor    | P2       | Ready for retest | Cataloging / Frontend   |
-| DEF-014 | 2026-10-07 | Cataloging / Tags UI       | Already-attached tag notice resembles successful new attachment         | S4 Minor    | P2       | Open   | Cataloging / Frontend   |
+| DEF-014 | 2026-10-07 | Cataloging / Tags UI       | Already-attached tag notice resembles successful new attachment         | S4 Minor    | P2       | Ready for retest | Cataloging / Frontend   |
 
 ## 3. Defect details
 
@@ -1014,8 +1014,19 @@ This is the import picker, not the media picker covered by DEF-004.
 **Found on:** User report; exact running commit not captured
 **Severity:** S4 Minor
 **Priority:** P2
-**Status:** Open
+**Status:** Ready for retest
 **Owner:** Cataloging / Frontend
+
+#### Repair evidence - 2026-10-07
+
+Frontend branch `fix/cataloging-duplicate-tag-notice` distinguishes the existing
+relationship outcome with an amber status notice and explicit Already attached —
+no changes saved heading. New attachment/change/detachment notices stay green.
+Text, not color alone, communicates the difference; the notice has role=status
+and aria-atomic=true. Unknown query outcomes are ignored. No backend mutation,
+duplicate prevention, shared vocabulary or revision behavior changes.
+Nine focused page regressions cover notices, query handling and session gating.
+Browser duplicate/revision and assistive-technology retests remain required.
 
 #### Reproduction
 
