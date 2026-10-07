@@ -20,11 +20,12 @@ import {
 
 const USER_ACCOUNT_SELECT = {
   id: true,
+  auth_user_id: true,
   full_name: true,
   status: true,
   created_at: true,
   users: {
-    select: { email: true, email_confirmed_at: true, last_sign_in_at: true },
+    select: { email: true, last_sign_in_at: true },
   },
 } satisfies Prisma.user_accountSelect;
 
@@ -56,7 +57,12 @@ export class UserAccountsService {
       orderBy: { created_at: 'desc' },
       select: USER_ACCOUNT_SELECT,
     });
-    return rows.map((row) => this.toSummary(row));
+    const withPassword = await this.authUsersWithPassword(
+      rows.map((row) => row.auth_user_id),
+    );
+    return rows.map((row) =>
+      this.toSummary(row, withPassword.has(row.auth_user_id)),
+    );
   }
 
   /**
@@ -152,7 +158,29 @@ export class UserAccountsService {
       row.id,
     );
 
-    return this.toSummary(row);
+    // Nobody has used the link yet, so no password exists.
+    return this.toSummary(row, false);
+  }
+
+  /**
+   * Auth users that have set a password. An invite only counts as accepted
+   * once the new curator sets one: opening the link alone already confirms
+   * the email and records a sign-in. The database does the check, so no
+   * password hash is ever read.
+   */
+  private async authUsersWithPassword(ids: string[]): Promise<Set<string>> {
+    if (ids.length === 0) return new Set();
+    const users = await this.prisma.users.findMany({
+      where: {
+        id: { in: ids },
+        AND: [
+          { encrypted_password: { not: null } },
+          { encrypted_password: { not: '' } },
+        ],
+      },
+      select: { id: true },
+    });
+    return new Set(users.map((user) => user.id));
   }
 
   /** Removes a half-created invite so its link stops working and a retry can succeed. */
@@ -207,16 +235,17 @@ export class UserAccountsService {
     return error instanceof Error ? error.message : 'Unknown error';
   }
 
-  private toSummary(row: UserAccountRecord): UserAccountSummary {
-    const lastSignInAt = row.users.last_sign_in_at;
+  private toSummary(
+    row: UserAccountRecord,
+    passwordSet: boolean,
+  ): UserAccountSummary {
     return {
       id: row.id,
       fullName: row.full_name,
       email: row.users.email,
       status: UserAccountStatus[row.status],
-      // An invited user confirms their email when they accept the invite.
-      inviteAccepted: Boolean(row.users.email_confirmed_at ?? lastSignInAt),
-      lastSignInAt,
+      inviteAccepted: passwordSet,
+      lastSignInAt: row.users.last_sign_in_at,
       createdAt: row.created_at,
     };
   }

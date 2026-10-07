@@ -12,26 +12,29 @@ import type { AuthenticatedUser } from '../auth/types/auth.types';
 function accountRow(overrides: Record<string, unknown> = {}) {
   return {
     id: 'acc-1',
+    auth_user_id: 'auth-1',
     full_name: 'Maria Santos',
     status: 'ACTIVE',
     created_at: new Date('2026-09-01T00:00:00.000Z'),
     users: {
       email: 'maria@usc.edu.ph',
-      email_confirmed_at: new Date('2026-09-01T01:00:00.000Z'),
       last_sign_in_at: new Date('2026-10-01T02:00:00.000Z'),
     },
     ...overrides,
   };
 }
 
-function build(rows: unknown[] = []) {
+function build(rows: unknown[] = [], authIdsWithPassword: string[] = []) {
   const findMany = jest.fn().mockResolvedValue(rows);
+  const usersFindMany = jest
+    .fn()
+    .mockResolvedValue(authIdsWithPassword.map((id) => ({ id })));
   const create = jest.fn();
   const findFirst = jest.fn().mockResolvedValue(null);
   const auditCreate = jest.fn().mockResolvedValue({});
   const prisma = {
     user_account: { findMany, create },
-    users: { findFirst },
+    users: { findFirst, findMany: usersFindMany },
     audit_log: { create: auditCreate },
   } as unknown as PrismaService;
   const admin = {
@@ -50,6 +53,7 @@ function build(rows: unknown[] = []) {
     findMany,
     create,
     findFirst,
+    usersFindMany,
     auditCreate,
     admin,
   };
@@ -67,10 +71,10 @@ const dto = { email: 'new@usc.edu.ph', fullName: 'Juan dela Cruz' };
 function invitedRow() {
   return accountRow({
     id: 'acc-new',
+    auth_user_id: 'auth-new',
     full_name: 'Juan dela Cruz',
     users: {
       email: 'new@usc.edu.ph',
-      email_confirmed_at: null,
       last_sign_in_at: null,
     },
   });
@@ -94,7 +98,7 @@ describe('UserAccountsService', () => {
   });
 
   it('maps an account with its auth email and last sign-in', async () => {
-    const { service } = build([accountRow()]);
+    const { service } = build([accountRow()], ['auth-1']);
     await expect(service.list()).resolves.toEqual([
       {
         id: 'acc-1',
@@ -108,21 +112,32 @@ describe('UserAccountsService', () => {
     ]);
   });
 
-  it('marks an invite not yet accepted when the email is unconfirmed and never signed in', async () => {
-    const { service } = build([
-      accountRow({
-        status: 'INACTIVE',
-        users: {
-          email: 'new@usc.edu.ph',
-          email_confirmed_at: null,
-          last_sign_in_at: null,
-        },
-      }),
-    ]);
+  it('keeps an invite pending when the link was opened but no password was set', async () => {
+    const { service } = build([accountRow()], []);
     const [account] = await service.list();
     expect(account.inviteAccepted).toBe(false);
-    expect(account.lastSignInAt).toBeNull();
-    expect(account.status).toBe('INACTIVE');
+    expect(account.lastSignInAt).toEqual(new Date('2026-10-01T02:00:00.000Z'));
+  });
+
+  it('asks the database which accounts have a password without reading the hash', async () => {
+    const { service, usersFindMany } = build([accountRow()], ['auth-1']);
+    await service.list();
+    expect(usersFindMany).toHaveBeenCalledWith({
+      where: {
+        id: { in: ['auth-1'] },
+        AND: [
+          { encrypted_password: { not: null } },
+          { encrypted_password: { not: '' } },
+        ],
+      },
+      select: { id: true },
+    });
+  });
+
+  it('skips the password lookup when there are no curators', async () => {
+    const { service, usersFindMany } = build([]);
+    await expect(service.list()).resolves.toEqual([]);
+    expect(usersFindMany).not.toHaveBeenCalled();
   });
 });
 

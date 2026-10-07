@@ -28,12 +28,12 @@ describe('User accounts (e2e)', () => {
   beforeEach(async () => {
     create = jest.fn(() => ({
       id: '88888888-8888-4888-8888-888888888888',
+      auth_user_id: invitedAuthId,
       full_name: 'Juan dela Cruz',
       status: 'ACTIVE',
       created_at: new Date('2026-10-07T00:00:00.000Z'),
       users: {
         email: 'juan@usc.edu.ph',
-        email_confirmed_at: null,
         last_sign_in_at: null,
       },
     }));
@@ -41,12 +41,12 @@ describe('User accounts (e2e)', () => {
     findMany = jest.fn(() => [
       {
         id: '22222222-2222-4222-8222-222222222222',
+        auth_user_id: curatorAuthId,
         full_name: 'Maria Santos',
         status: 'ACTIVE',
         created_at: new Date('2026-09-01T00:00:00.000Z'),
         users: {
           email: 'maria@usc.edu.ph',
-          email_confirmed_at: new Date('2026-09-01T01:00:00.000Z'),
           last_sign_in_at: new Date('2026-10-01T02:00:00.000Z'),
         },
       },
@@ -82,7 +82,10 @@ describe('User accounts (e2e)', () => {
         findMany,
         create,
       },
-      users: { findFirst: jest.fn(() => null) },
+      users: {
+        findFirst: jest.fn(() => null),
+        findMany: jest.fn(() => [{ id: curatorAuthId }]),
+      },
       audit_log: { create: auditCreate },
     };
     inviteUserByEmail = jest.fn(() => ({
