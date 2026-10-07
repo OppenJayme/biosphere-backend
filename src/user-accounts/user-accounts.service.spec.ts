@@ -1,5 +1,13 @@
+import {
+  ConflictException,
+  InternalServerErrorException,
+  ServiceUnavailableException,
+} from '@nestjs/common';
+import type { ConfigService } from '@nestjs/config';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { UserAccountsService } from './user-accounts.service';
 import type { PrismaService } from '../prisma/prisma.service';
+import type { AuthenticatedUser } from '../auth/types/auth.types';
 
 function accountRow(overrides: Record<string, unknown> = {}) {
   return {
@@ -16,10 +24,61 @@ function accountRow(overrides: Record<string, unknown> = {}) {
   };
 }
 
-function build(rows: unknown[]) {
+function build(rows: unknown[] = []) {
   const findMany = jest.fn().mockResolvedValue(rows);
-  const prisma = { user_account: { findMany } } as unknown as PrismaService;
-  return { service: new UserAccountsService(prisma), findMany };
+  const create = jest.fn();
+  const findFirst = jest.fn().mockResolvedValue(null);
+  const auditCreate = jest.fn().mockResolvedValue({});
+  const prisma = {
+    user_account: { findMany, create },
+    users: { findFirst },
+    audit_log: { create: auditCreate },
+  } as unknown as PrismaService;
+  const admin = {
+    inviteUserByEmail: jest
+      .fn()
+      .mockResolvedValue({ data: { user: { id: 'auth-new' } }, error: null }),
+    updateUserById: jest.fn().mockResolvedValue({ data: {}, error: null }),
+    deleteUser: jest.fn().mockResolvedValue({ data: {}, error: null }),
+  };
+  const supabase = { auth: { admin } } as unknown as SupabaseClient;
+  const config = {
+    getOrThrow: jest.fn().mockReturnValue('https://biosphere.test/'),
+  } as unknown as ConfigService;
+  return {
+    service: new UserAccountsService(prisma, supabase, config),
+    findMany,
+    create,
+    findFirst,
+    auditCreate,
+    admin,
+  };
+}
+
+const actor: AuthenticatedUser = {
+  id: 'auth-actor',
+  accountId: 'acc-actor',
+  email: 'curator@usc.edu.ph',
+  role: 'CURATOR',
+};
+
+const dto = { email: 'new@usc.edu.ph', fullName: 'Juan dela Cruz' };
+
+function invitedRow() {
+  return accountRow({
+    id: 'acc-new',
+    full_name: 'Juan dela Cruz',
+    users: {
+      email: 'new@usc.edu.ph',
+      email_confirmed_at: null,
+      last_sign_in_at: null,
+    },
+  });
+}
+
+function lastAudit(auditCreate: jest.Mock): Record<string, unknown> {
+  const calls = auditCreate.mock.calls as [{ data: Record<string, unknown> }][];
+  return calls[calls.length - 1][0].data;
 }
 
 describe('UserAccountsService', () => {
@@ -64,5 +123,149 @@ describe('UserAccountsService', () => {
     expect(account.inviteAccepted).toBe(false);
     expect(account.lastSignInAt).toBeNull();
     expect(account.status).toBe('INACTIVE');
+  });
+});
+
+describe('UserAccountsService.inviteCurator', () => {
+  it('invites a separate curator account that shows as a pending invite', async () => {
+    const { service, admin, create, auditCreate } = build();
+    create.mockResolvedValue(invitedRow());
+
+    const result = await service.inviteCurator(dto, actor);
+
+    expect(admin.inviteUserByEmail).toHaveBeenCalledWith('new@usc.edu.ph', {
+      data: { role: 'CURATOR' },
+      redirectTo: 'https://biosphere.test/login/accept-invite',
+    });
+    expect(admin.updateUserById).toHaveBeenCalledWith('auth-new', {
+      app_metadata: { role: 'CURATOR' },
+    });
+    expect(create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: {
+          auth_user_id: 'auth-new',
+          full_name: 'Juan dela Cruz',
+          role: 'CURATOR',
+          status: 'ACTIVE',
+        },
+      }),
+    );
+    expect(result).toMatchObject({
+      id: 'acc-new',
+      email: 'new@usc.edu.ph',
+      status: 'ACTIVE',
+      inviteAccepted: false,
+    });
+    expect(lastAudit(auditCreate)).toEqual({
+      user_id: 'acc-actor',
+      affected_record_id: 'acc-new',
+      affected_record_type: 'user_account',
+      action: 'INVITE_CURATOR',
+      module: 'user-accounts',
+      status: 'SUCCESS',
+      details: { email: 'new@usc.edu.ph', fullName: 'Juan dela Cruz' },
+    });
+  });
+
+  it('never sends or stores a password or invitation secret', async () => {
+    const { service, admin, create, auditCreate } = build();
+    create.mockResolvedValue(invitedRow());
+
+    await service.inviteCurator(dto, actor);
+
+    const sent = JSON.stringify([
+      admin.inviteUserByEmail.mock.calls,
+      admin.updateUserById.mock.calls,
+      auditCreate.mock.calls,
+    ]).toLowerCase();
+    expect(sent).not.toMatch(/password|token|secret|otp/);
+  });
+
+  it('rejects an email that already belongs to an account without emailing anyone', async () => {
+    const { service, admin, findFirst, create, auditCreate } = build();
+    findFirst.mockResolvedValue({ id: 'auth-existing' });
+
+    await expect(service.inviteCurator(dto, actor)).rejects.toBeInstanceOf(
+      ConflictException,
+    );
+    expect(findFirst).toHaveBeenCalledWith({
+      where: { email: { equals: 'new@usc.edu.ph', mode: 'insensitive' } },
+      select: { id: true },
+    });
+    expect(admin.inviteUserByEmail).not.toHaveBeenCalled();
+    expect(create).not.toHaveBeenCalled();
+    expect(lastAudit(auditCreate)).toMatchObject({
+      action: 'INVITE_CURATOR',
+      status: 'FAILED',
+    });
+  });
+
+  it('maps an email Supabase already knows to a conflict', async () => {
+    const { service, admin, create } = build();
+    admin.inviteUserByEmail.mockResolvedValue({
+      data: { user: null },
+      error: {
+        message: 'already registered',
+        status: 422,
+        code: 'email_exists',
+      },
+    });
+
+    await expect(service.inviteCurator(dto, actor)).rejects.toBeInstanceOf(
+      ConflictException,
+    );
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it('reports an email delivery failure as unavailable and audits it', async () => {
+    const { service, admin, create, auditCreate } = build();
+    admin.inviteUserByEmail.mockResolvedValue({
+      data: { user: null },
+      error: { message: 'SMTP down', status: 500 },
+    });
+
+    await expect(service.inviteCurator(dto, actor)).rejects.toBeInstanceOf(
+      ServiceUnavailableException,
+    );
+    expect(create).not.toHaveBeenCalled();
+    expect(lastAudit(auditCreate)).toMatchObject({
+      status: 'FAILED',
+      details: { email: 'new@usc.edu.ph', reason: 'SMTP down' },
+    });
+  });
+
+  it('removes the auth user when the curator role cannot be assigned', async () => {
+    const { service, admin, create } = build();
+    admin.updateUserById.mockResolvedValue({
+      data: {},
+      error: { message: 'boom' },
+    });
+
+    await expect(service.inviteCurator(dto, actor)).rejects.toBeInstanceOf(
+      InternalServerErrorException,
+    );
+    expect(admin.deleteUser).toHaveBeenCalledWith('auth-new');
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it('removes the auth user when the account record cannot be created', async () => {
+    const { service, admin, create, auditCreate } = build();
+    create.mockRejectedValue(new Error('insert failed'));
+
+    await expect(service.inviteCurator(dto, actor)).rejects.toBeInstanceOf(
+      InternalServerErrorException,
+    );
+    expect(admin.deleteUser).toHaveBeenCalledWith('auth-new');
+    expect(lastAudit(auditCreate)).toMatchObject({ status: 'FAILED' });
+  });
+
+  it('still returns the new account when the audit write fails', async () => {
+    const { service, create, auditCreate } = build();
+    create.mockResolvedValue(invitedRow());
+    auditCreate.mockRejectedValue(new Error('audit down'));
+
+    await expect(service.inviteCurator(dto, actor)).resolves.toMatchObject({
+      id: 'acc-new',
+    });
   });
 });
