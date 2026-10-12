@@ -908,6 +908,17 @@ Production/development timing, failure/navigation and visual pending retests are
 documented in the frontend checklist. Feedback is implemented; speed is not
 claimed improved. Keep In progress until investigation and retest complete.
 
+#### Tester follow-up - 2026-10-09
+
+The tester reports the latest UI fixes are working and accepts continuing
+other acceptance tests while the filter delay remains. Previously reported
+durations were approximately 700-800 ms for Clear all and 1490-1600 ms for
+Apply. After the requested production-build comparison, the tester reports
+the delay is still similar; exact request timings, running commits and a
+network trace were not supplied. These are user-reported observations, not
+instrumented backend measurements. Pending-feedback behavior passed the
+reported retest; the performance concern is not resolved or signed off.
+
 #### Reproduction
 
 1. Apply Cataloging filters.
