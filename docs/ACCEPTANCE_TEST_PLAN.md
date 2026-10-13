@@ -265,7 +265,88 @@ live hierarchy.
 | BAK-001 | Search and filter backup-history records                             | History loads with correct status/type/creator/date filters                                                            | Not run  |
 | BAK-002 | Execute and restore a real backup                                    | Deferred until deployment ownership, storage, retention, verification, and disposable restore environment are approved | Deferred |
 
-## 9. Cross-cutting negative tests
+## 9. John Gerozaga acceptance register
+
+Record results with the same statuses and evidence rules as Section 8. Curator
+Dashboard, General Inquiry Management, and Public Museum Website are shared
+modules; Charles Boquecosa (and Voltaire Ratilla for the website) should run
+the independent pass. Catalog search mechanics belong to Cataloging (CAT-012);
+the SRCH cases below cover only the inventory-oriented filters, columns, and
+sorts added under SRS 4.7 (REQ-4.7-02/03).
+
+### Specimen Inventory Management
+
+Inventory owns lots, quantities, condition, placement, movements, quantity
+adjustments, and transaction history (SRS 4.5; `SPECIMEN_LOTS_GUIDE.md`). Use a
+disposable `TEST -` specimen and storage units that hold specimens.
+
+| ID      | Test                                                                                            | Expected result                                                                                                                                         | Status  |
+| ------- | ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
+| INV-001 | Create a lot in a specimen-holding unit; retry with the same unit and condition in another case | Quantity, condition, and placement persist after reload; the case-variant duplicate (`Good`/`good`) is rejected rather than silently added to           | Not run |
+| INV-002 | Create or move a lot so a unit's active quantity exceeds its capacity                           | The operation succeeds with a visible capacity warning (advisory, REQ-4.6-11); a unit without capacity never warns                                      | Not run |
+| INV-003 | Move part of a lot, then the rest, to another holding unit                                      | Specimen total is unchanged; a partial move splits, a full move deactivates the source; a matching target is increased; one `MOVEMENT` each             | Not run |
+| INV-004 | Change the condition of part of a lot, including to a case variant of an existing lot           | Total is unchanged; the case variant merges into the existing lot; a no-op condition is rejected as unchanged                                           | Not run |
+| INV-005 | Apply each quantity-adjustment type with a reason                                               | Sign rules hold (`ADDITION` positive, losses negative, `DATA_CORRECTION` either); reducing to zero deactivates the lot; history is recorded             | Not run |
+| INV-006 | Submit an adjustment from a stale screen; overdraw; zero delta; blank reason                    | A stale `expectedQuantity` returns a reload-required conflict; the others are rejected; nothing changes                                                 | Not run |
+| INV-007 | Operate on an archived specimen, an inactive lot, an archived unit, and a non-holding unit      | Each is rejected with a clear message and no partial change (reductions from a reconfigured unit remain allowed)                                        | Not run |
+| INV-008 | Review the specimen lot history and the per-location lot-movement feed                          | Every operation above appears once with type, quantity, source, target, curator, reason, and Philippine-time timestamp                                  | Not run |
+| INV-009 | Trace inventory operations to revision history and the audit log                                | Each accepted operation has matching revision and audit entries attributed to the acting curator                                                       | Not run |
+| INV-010 | Check derived storage paths on lots, specimen details, and the catalog table                    | Paths read `Room › Cabinet › Drawer`, update after a move, and archived units are labelled                                                              | Not run |
+
+### Curator Dashboard
+
+| ID       | Test                                                                                         | Expected result                                                                                                                         | Status   |
+| -------- | -------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- | -------- |
+| DASH-001 | Compare the status cards with the catalog                                                    | Total, Uncataloged, Cataloged, and Archived match `/specimens` filtered by status; "added this month" uses Philippine time (REQ-4.3-01) | Not run  |
+| DASH-002 | Compare Pending Requests with the Public Website lists                                       | Pending inquiries and visit requests match their `PENDING` lists (REQ-4.3-02)                                                           | Not run  |
+| DASH-003 | Open every stat card and quick action                                                        | Each opens the matching filtered list or module, including review requests, reports, and offline drafts (REQ-4.3-04, §4.3.2)            | Not run  |
+| DASH-004 | Check the category donut, 12-month trend, queue, recent records, and QR readiness            | Values match the underlying records; recent rows show the largest active lot's path and condition                                       | Not run  |
+| DASH-005 | Create an offline draft, go offline, reconnect, and force a sync failure                     | The Offline Drafts panel shows Online/Offline and Pending Sync, Synchronizing, Synchronized, and Sync Failed counts (REQ-4.3-03)        | Not run  |
+| DASH-006 | Submit a public inquiry and a visit request                                                  | The notification bell lists both and opens the related record; the authorized curator receives the alert email (REQ-4.3-05/06/09)     | Not run  |
+| DASH-007 | Mark a notification read or dismissed                                                        | Deferred: notification state needs a notification table (REQ-4.3-07); on hold by owner decision                                         | Deferred |
+| DASH-008 | Load the dashboard as a developer, signed out, and with one backend endpoint failing         | Developer and signed-out access are refused; a failing section shows its own error while the others still render                        | Not run  |
+
+### Reports and Data Export
+
+| ID       | Test                                                                                                                                              | Expected result                                                                                                                                         | Status  |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
+| RPT-001  | Generate the Consolidated report for a month, a year, and a custom range, with remarks                                                            | DOCX and PDF open; every total matches the records for the period; remarks appear; editing the DOCX changes nothing in BioSphere (REQ-4.7-05/06/11/16) | Not run |
+| RPT-002  | Generate the Inventory report complete and filtered (status, category, taxonomy, condition, location with and without sub-locations, public display, date added) | Rows match the catalog for the same filters; CSV, PDF, and DOCX open; the confidentiality notice is on every page (REQ-4.7-07/12/13)     | Not run |
+| RPT-003  | Generate the General Inquiry Summary by period and status                                                                                         | Counts and rows match the inquiry list; private details appear only in this internal report (REQ-4.7-08/13)                                            | Not run |
+| RPT-004  | Generate the Visit-Request Summary by period and status                                                                                           | Request and visitor totals match the visit-request list (REQ-4.7-09)                                                                                    | Not run |
+| RPT-005  | Generate the QR and AR Exhibit report, all and by AR availability                                                                                 | Published, unpublished, disabled, and AR-enabled counts match the exhibits page; archived exhibits are excluded (REQ-4.7-10)                            | Not run |
+| RPT-006  | Generate the Audit Log report by module, action, and result                                                                                       | Rows match the Audit Logs page for the same filters; times are in Philippine time; the file is confidential (REQ-4.15-04)                              | Not run |
+| RPT-007  | Request an unsupported format, an unsupported filter, a reversed or over-10-year range, and a report over 10,000 rows                              | Each is refused with an understandable message; no file is produced; the failed attempt appears in history (REQ-4.7-15)                                | Not run |
+| RPT-008  | Review Report History and the summary cards; filter and page through history                                                                      | Every attempt lists curator, time, format, parameters, row count, and result; the cards count successful generations (REQ-4.7-14)                      | Not run |
+| RPT-009  | Call the report endpoints as a developer and signed out; exceed 20 generations per minute                                                         | Developer and signed-out access are refused; the rate limit shows a clear wait-and-retry message                                                       | Not run |
+| SRCH-001 | Filter the catalog by classification status, taxonomy rank, tag, condition, and date added                                                        | Results match exactly, ignoring case; a reversed date range shows an error instead of results (REQ-4.7-02)                                             | Not run |
+| SRCH-002 | Filter by a storage location with and without its sub-locations                                                                                   | "Include units inside it" returns specimens in child units; "only directly in it" excludes them                                                        | Not run |
+| SRCH-003 | Sort by category and family; check the Family, Active Qty, Condition, and Storage Location columns                                               | Sorting is stable with blanks last; the columns match each specimen's active lots (REQ-4.7-03)                                                         | Not run |
+
+### General Inquiry Management
+
+| ID      | Test                                                                                   | Expected result                                                                                                                                          | Status  |
+| ------- | -------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
+| INQ-001 | Submit a public inquiry without an account                                             | It is stored with a unique ID, timestamp, `PENDING` status, and consent record; the visitor sees a confirmation (REQ-4.8-01/04)                          | Not run |
+| INQ-002 | Submit blank, oversized, and invalid-email inquiries; exceed the public form rate limit | Each is rejected with field-level messages and nothing is stored (REQ-4.8-02/03)                                                                       | Not run |
+| INQ-003 | Search and filter inquiries by status, text, and date                                  | Results match; the selected inquiry shows full details and history (REQ-4.8-05)                                                                          | Not run |
+| INQ-004 | Move an inquiry through Reviewed and Closed                                            | Only approved transitions are allowed; each change is recorded with curator and time (REQ-4.8-06/11)                                                     | Not run |
+| INQ-005 | Send a curator reply and add an internal note                                          | The reply is emailed and recorded with message, sending time, curator, and delivery result; the note stays internal (REQ-4.8-09/11)                     | Not run |
+| INQ-006 | Refer an inquiry to a visit request                                                    | The inquiry becomes Turned to Visit Request; the visit request is created but never approved automatically (REQ-4.8-07)                                  | Not run |
+| INQ-007 | Request inquiry data signed out or as a developer                                      | Access is refused; no inquiry data appears on public pages (REQ-4.8-10)                                                                                  | Not run |
+
+### Public Museum Website
+
+| ID      | Test                                                                                   | Expected result                                                                                                                                       | Status  |
+| ------- | -------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
+| WEB-001 | Navigate Home, Gallery, Visit, and About; use Plan Your Visit                          | All four areas load; Plan Your Visit opens Visit; there is no Events page (REQ-4.10-01/02/03)                                                         | Not run |
+| WEB-002 | Use the Visit area                                                                     | Visitor guidance, the inquiry form, and the formal visit-request form are reachable (REQ-4.10-05)                                                     | Not run |
+| WEB-003 | Review Gallery and About content against museum-approved material                      | Blocked: stock placeholder images and a placeholder About contact remain; needs approved photos and staff/contact details (REQ-4.10-04/06)            | Blocked |
+| WEB-004 | Inspect public pages and their network responses                                       | No storage locations, internal remarks, audit data, account data, or private visitor information appear (REQ-4.10-08)                                 | Not run |
+| WEB-005 | Check desktop, tablet, and mobile widths with keyboard-only navigation                 | No horizontal scrolling; every control is reachable with visible focus; images have alt text (REQ-4.10-09)                                            | Not run |
+| WEB-006 | Confirm the static pages have no editing route in the curator or developer interfaces  | Content changes require a source update and redeploy (REQ-4.10-07/10)                                                                                 | Not run |
+
+## 10. Cross-cutting negative tests
 
 Apply these cases to each important workflow:
 
@@ -283,7 +364,7 @@ Apply these cases to each important workflow:
 Expected failures must be safe: no partial mutation, no duplicate record, no
 secret or stack-trace disclosure, and an actionable user-facing response.
 
-## 10. Evidence required
+## 11. Evidence required
 
 For each test session record:
 
@@ -298,7 +379,7 @@ For each test session record:
 Do not mark a case `Pass` only because the page rendered. Verify the saved
 database-backed result by reloading or retrieving it again.
 
-## 11. Completion criteria
+## 12. Completion criteria
 
 A module is accepted when:
 
@@ -309,7 +390,7 @@ A module is accepted when:
 - deferred behavior is documented and not presented as working; and
 - the module owner and at least one teammate record sign-off.
 
-## 12. Sign-off
+## 13. Sign-off
 
 ### Defect repair retest checkpoint — 2026-10-05
 
@@ -355,3 +436,8 @@ Local automated evidence for this repair:
 | Offline Drafts and Sync     | Kyer Jayme |                      |      | Pending |
 | FAQ Knowledge Management    | Kyer Jayme |                      |      | Pending |
 | Audit and Backup History    | Kyer Jayme |                      |      | Pending |
+| Specimen Inventory Management | John Gerozaga |                    |      | Pending |
+| Curator Dashboard           | John Gerozaga, Charles Boquecosa |   |      | Pending |
+| Reports and Data Export     | John Gerozaga |                    |      | Pending |
+| General Inquiry Management  | John Gerozaga, Charles Boquecosa |   |      | Pending |
+| Public Museum Website       | John Gerozaga, Charles Boquecosa, Voltaire Ratilla | |   | Pending |
