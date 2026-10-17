@@ -117,3 +117,46 @@ real backend. Full browser interruption after server commit but before response,
 live concurrent database contention, session-expiry recovery, and the complete
 HTTP error/pending UI matrix remain unverified. These passing suites are focused
 regression evidence, not full offline-module or production-security sign-off.
+
+## Live lost-response pilot - 2026-10-18
+
+**Result:** Passed for the tested development workflow (OFF-003 partial live
+verification). The user confirmed the development setup and signed into a
+separate, nonpersistent Edge test session. No credentials were captured or
+committed. Working-tree references were frontend `e43e7fc` and backend `064eb9d`;
+the exact commits of the already-running application builds were not independently
+verified. Both worktrees were clean when the test began.
+
+The browser drove the existing offline workspace, not a mocked UI:
+
+1. Save a new text draft while offline and observe Pending Sync.
+2. Reconnect. Intercept only this test draft's POST to
+   `/api/offline/specimen-drafts`; forward it to the real local application once
+   with transport retries disabled.
+3. Validate the successful response identifies a newly accepted specimen, then
+   abort delivery of that response to the browser with a connection-reset error.
+4. Confirm one local draft remains in retryable SYNC_FAILED state with the same
+   client draft ID, despite the server having already accepted it.
+5. Click that draft's Retry. Assert identical request content/client draft ID,
+   `alreadySynchronized: true`, and the original server specimen ID.
+6. Verify Synchronized locally, then read back through the protected same-origin
+   specimen endpoint and find exactly one matching Uncataloged record with public
+   display disabled.
+
+Evidence: two matching POST attempts, no assertion failures, and one accepted
+record named `TEST Offline Recovery 20261018 81f28bbb`:
+
+- Specimen ID: `babb54f9-b08d-49f4-8786-a81d91dda0e1`
+- Stable client draft ID: `b2042078-b346-40a3-8414-88c3b075d8d3`
+
+The response interception was removed, connectivity restored, and only the pilot
+browser session closed. The disposable development specimen remains for review;
+no automatic deletion or archiving was performed. Temporary harness artifacts
+remain ignored in the frontend tooling directory, not a committed CI test.
+Application source, auth configuration, existing records and running servers were
+not changed by this pilot.
+
+This covers a real accepted-write/lost-response/retry chain, not process death,
+browser closure during the write, live concurrent contention, session-expiry
+recovery, or the full HTTP error matrix. It does not close all OFF-003 cases or
+constitute full module/security acceptance.
