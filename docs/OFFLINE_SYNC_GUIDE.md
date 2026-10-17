@@ -75,3 +75,45 @@ frontend sync call. The migration adds only the receipt table, its uniqueness
 constraints, foreign keys, index, and RLS enablement. Production database-role
 permissions and RLS policies must remain consistent with the backend's
 server-only Prisma access model.
+
+## Acceptance and recovery evidence - 2026-10-17
+
+### Manual reports
+
+The tester confirmed cached viewing in an already-loaded offline workspace,
+the record-free fallback after offline reload, and automatic online recovery.
+Text drafts saved locally as pending, synchronized into one Uncataloged record,
+retained local edits on synchronization, and survived reload/reconnection.
+Repeating Sync now did not create another record. Removing a synchronized local
+entry preserved its server record; discarding an unsynchronized draft did not
+create a server record. The draft form exposed text-core fields only. Using
+two accounts in the same browser profile, the tester reported no cross-account
+local visibility and confirmed account A's draft became one synchronized
+record after returning to A.
+
+These are tester reports rather than an independently replayed browser session;
+the exact running commits were not captured. In particular, clicking Sync now
+after a draft is already synchronized is not proof of resubmitting a lost-response
+request with the same draft ID.
+
+### Automated verification
+
+Executed on backend `825ac84` and frontend `3e3b4f8` without changing application
+code, stopping running servers, or writing to the live database:
+
+- `npm test -- --runInBand offline-sync.service.spec.ts`: 8/8 passed.
+- `npm run test:e2e -- --runInBand offline-sync.e2e-spec.ts`: 4/4 passed.
+- Frontend offline-sync and offline-filters Vitest suites: 10/10 passed.
+
+Backend tests use mocked Prisma/Supabase dependencies. They cover original-record
+reuse on same-content retries, changed-content conflicts, bounded contention
+retries, invalid-input rejection, curator access checks, and attribution.
+Frontend tests use fake IndexedDB and mocked fetch. They cover retained network
+failures, concurrent local attempts, conflict editing restrictions, owner-scoped
+cache handling, and recovery of a SYNCHRONIZING draft into a retryable failure.
+
+The interrupted-state test does not itself retry the recovered draft through a
+real backend. Full browser interruption after server commit but before response,
+live concurrent database contention, session-expiry recovery, and the complete
+HTTP error/pending UI matrix remain unverified. These passing suites are focused
+regression evidence, not full offline-module or production-security sign-off.
