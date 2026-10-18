@@ -253,7 +253,7 @@ live hierarchy.
 | ------- | ----------------------------------------- | -------------------------------------------------------------------------------------------- | -------- |
 | FAQ-001 | Create and edit a knowledge entry         | Valid question, answer, category, and keywords persist                                       | Pass     |
 | FAQ-002 | Search/filter and change lifecycle status | Active, inactive, and archived behavior matches the API and UI                               | In progress; filter checks pass, lifecycle pending |
-| FAQ-003 | Attempt invalid or duplicate operations   | Clear validation is shown and no unintended record is created                                | Not run  |
+| FAQ-003 | Attempt invalid or duplicate operations   | Clear validation is shown and no unintended record is created                                | In progress; UI validation passes, duplicate policy pending |
 | FAQ-004 | Test public assistant matching            | Approved match, alternative wording, inactive ignored, no-match fallback, prohibited general answer (e.g. species identification) refused, and inquiry/visit-request redirection | Not run  |
 
 #### FAQ-001 supervised browser evidence - 2026-10-19
@@ -328,6 +328,45 @@ Activation would make a test answer eligible for public matching and needs a
 confirmed isolated test environment before that follow-up. FAQ-003 and FAQ-004
 remain not run. This is evidence only, not an application fix or complete FAQ
 acceptance; full lint/unit/build suites were not rerun for this docs-only update.
+
+#### FAQ-003 supervised negative-path evidence - 2026-10-19
+
+Playwright drove the actual FAQ create/edit forms in isolated Edge session
+`biosphere-faq-003` after manual curator login. Reused inactive fixture
+`231d8430-41d9-4d84-ab2b-1f8ddb6b8a4a`. All 12 checks passed:
+
+- Saving the unchanged edit showed **Change at least one valid knowledge field
+  before saving.** Fresh navigation confirmed the saved fixture was unchanged.
+- Empty question and empty answer were each blocked by native required-field
+  validation, with focus on the missing field, for both create and edit forms
+  (four checks).
+- Whitespace-only question and answer were each rejected with the corresponding
+  **Enter the visitor question.** or **Enter the approved answer.** message for
+  both create and edit forms (four checks). Reloaded after each edit attempt.
+- Typing 101 category characters retained only 100, matching the input's
+  `maxlength`. This checks browser typing protection, not bypass resistance or
+  successful persistence of a boundary-length category.
+- Searching the unique invalid-create marker
+  `TEST INVALID FAQ 20261019 54f6a891` returned zero entries.
+- Final reload preserved all displayed fixture fields, record ID, timestamp,
+  and inactive status against the pre-test baseline. Its question still matched
+  exactly one record. No successful data or lifecycle changes were performed.
+
+The isolated browser was closed; the script remains Git-ignored at frontend
+`tools/browser/artifacts/faq-003-validation.txt`. Checkout references at
+execution: frontend `e43e7fc`, backend `3d9fcfa`; served build revisions were not
+independently verified. No API mocking or credential exports were used.
+
+FAQ-003 remains **In progress**. Direct backend validation, overlength payload
+bypasses, repeated keyword/alternative normalization, and duplicate-question
+creation were not tested. Source inspection found no explicit duplicate-question
+lookup in `FaqService.create` or question uniqueness in the Prisma FAQ model;
+this is not runtime proof or an approved requirement to impose uniqueness.
+Before deliberately creating duplicates, confirm whether normalized duplicate
+questions should be rejected, warned about, or allowed, and how archived
+entries/categories affect that rule. Do not mark an unconfirmed policy gap as
+a reproduced defect. Full lint/unit/build suites were not rerun for this
+documentation-only evidence update.
 
 ### Audit and backup history
 
