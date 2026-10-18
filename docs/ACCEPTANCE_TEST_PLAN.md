@@ -252,7 +252,7 @@ live hierarchy.
 | ID      | Test                                      | Expected result                                                                              | Status   |
 | ------- | ----------------------------------------- | -------------------------------------------------------------------------------------------- | -------- |
 | FAQ-001 | Create and edit a knowledge entry         | Valid question, answer, category, and keywords persist                                       | Pass     |
-| FAQ-002 | Search/filter and change lifecycle status | Active, inactive, and archived behavior matches the API and UI                               | Not run  |
+| FAQ-002 | Search/filter and change lifecycle status | Active, inactive, and archived behavior matches the API and UI                               | In progress; filter checks pass, lifecycle pending |
 | FAQ-003 | Attempt invalid or duplicate operations   | Clear validation is shown and no unintended record is created                                | Not run  |
 | FAQ-004 | Test public assistant matching            | Approved match, alternative wording, inactive ignored, no-match fallback, prohibited general answer (e.g. species identification) refused, and inquiry/visit-request redirection | Not run  |
 
@@ -293,6 +293,41 @@ approval gate in `FAQ_KNOWLEDGE_GUIDE.md` still applies. The frontend checkout
 was `e43e7fc`; the backend checkout before documenting was `76f6799`. Actual
 served build revisions were not independently verified. No app code changed,
 and no full lint, unit, or production-build suite was rerun for this evidence.
+
+#### FAQ-002 read-only filter evidence - 2026-10-19
+
+Supervised Playwright checks ran through the actual local FAQ Knowledge UI in
+isolated Edge session `biosphere-faq-002`, after manual curator login. Reused
+FAQ-001's retained inactive fixture (`231d8430-41d9-4d84-ab2b-1f8ddb6b8a4a`);
+no records were created, edited, activated, deactivated, archived, or deleted.
+All eight checks passed:
+
+1. Lowercase search for the fixture question's unique prefix found exactly
+   that one record, with its expected category and inactive status.
+2. Search plus `INACTIVE` plus exact category `Acceptance testing` returned
+   that same single record.
+3. Reload preserved those results and all three filter controls.
+4. Changing the combined status to `ACTIVE` excluded the inactive fixture.
+5. Changing it to `ARCHIVED` also excluded the inactive fixture.
+6. Category `Acceptance` did not match `Acceptance testing`, confirming an
+   exact-category rather than substring filter for this case.
+7. A unique no-match query showed zero entries and the empty-state message,
+   without stale selected-record details.
+8. Clear reset all three controls and restored the unfiltered first-page rows
+   captured before the test (compared in memory, not published in artifacts).
+
+Only the isolated test browser was closed. The diagnostic script is local and
+Git-ignored at frontend `tools/browser/artifacts/faq-002-filters.txt`. Checkout
+references at execution: frontend `e43e7fc`, backend `49f62d4`; actual served
+build revisions were not independently verified. No API mocking was used.
+
+FAQ-002 remains **In progress**: these checks do not validate actual lifecycle
+transitions or positive retrieval of active/archived fixtures, pagination,
+browser history, authorization failures, pending/error UI, or public matching.
+Activation would make a test answer eligible for public matching and needs a
+confirmed isolated test environment before that follow-up. FAQ-003 and FAQ-004
+remain not run. This is evidence only, not an application fix or complete FAQ
+acceptance; full lint/unit/build suites were not rerun for this docs-only update.
 
 ### Audit and backup history
 
