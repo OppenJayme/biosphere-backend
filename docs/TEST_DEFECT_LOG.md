@@ -685,6 +685,29 @@ all, immediate reapply and Back/Forward before marking this defect Verified.
 Local verification: frontend lint and production build passed; 45 test files /
 262 tests passed. Backend changes for this repair are documentation only.
 
+#### Live browser comparison - 2026-10-18
+
+A read-only Playwright retest reproduced the previously reported successful
+manual behavior. An independent unfiltered API readback contained 57 active
+records; Cataloged + Male expected and displayed 8 matching records. Every
+displayed row's ID/status/gender agreed with that expectation. Clear all reset
+the URL and checked search/filter/sort controls to defaults and restored the
+original first-page record IDs and 57-record total. Back restored the filtered
+controls/rows; Forward restored the cleared state; Apply worked again afterward.
+All five automated checks passed. No specimen was created or edited, and only
+the separate test browser was closed afterward.
+
+Working-tree references were frontend `e43e7fc` and backend `60f89dc`; exact
+commits of the already-running builds were not independently verified. The
+temporary harness is ignored tooling output, not a maintained CI test. This
+comparison supports the tester's earlier result; it does not cover changed
+collection/advanced controls, keyboard/new-tab/no-JavaScript navigation or
+failure/pending feedback. Keep those separate from this verified scenario.
+
+Single-run observations were Apply 1120 ms and Clear 1526 ms, including browser
+automation/settling checks. These are not a performance benchmark or proof of
+improvement; DEF-011 remains unresolved. No latency target is signed off here.
+
 #### Reproduction
 
 1. Select values such as Cataloged status, a collection, and a gender.
