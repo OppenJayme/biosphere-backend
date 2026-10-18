@@ -251,10 +251,48 @@ live hierarchy.
 
 | ID      | Test                                      | Expected result                                                                              | Status   |
 | ------- | ----------------------------------------- | -------------------------------------------------------------------------------------------- | -------- |
-| FAQ-001 | Create and edit a knowledge entry         | Valid question, answer, category, and keywords persist                                       | Not run  |
+| FAQ-001 | Create and edit a knowledge entry         | Valid question, answer, category, and keywords persist                                       | Pass     |
 | FAQ-002 | Search/filter and change lifecycle status | Active, inactive, and archived behavior matches the API and UI                               | Not run  |
 | FAQ-003 | Attempt invalid or duplicate operations   | Clear validation is shown and no unintended record is created                                | Not run  |
 | FAQ-004 | Test public assistant matching            | Approved match, alternative wording, inactive ignored, no-match fallback, prohibited general answer (e.g. species identification) refused, and inquiry/visit-request redirection | Not run  |
+
+#### FAQ-001 supervised browser evidence - 2026-10-19
+
+Ran the real local frontend with the isolated, headed Edge session
+`biosphere-faq-001` after the user signed in manually with a development curator
+account. Playwright drove the visible forms; no API mocking or direct database
+writes were used.
+
+- Fixture question: `TEST FAQ 20261019 A e1a74c2d - What is this test entry for?`
+- Record ID: `231d8430-41d9-4d84-ab2b-1f8ddb6b8a4a`.
+- The unique fixture search returned no matches before creation. Creating it
+  showed the success notice and `INACTIVE` status.
+- After fresh navigation and reload, the question, original answer, category,
+  alternative wording, and both keywords matched the submitted literals. The
+  filtered list contained exactly one matching record.
+- Changed only the answer to `This entry verifies that FAQ edits persist.`
+  through **Save knowledge**. The update notice appeared, and fresh navigation
+  plus reload preserved the new answer, record ID, and all other fields.
+  Exactly one matching record remained, still `INACTIVE`.
+- The first edit attempt stopped before submitting because an exact-label
+  locator did not resolve the prefilled textarea. Corrected the diagnostic
+  locator and resumed on the same record; no second entry was created. The
+  continuation passed all five edit/persistence/identity checks.
+
+The fixture is retained inactive for follow-up testing; it was not activated,
+archived, or deleted. The isolated browser was closed. Scripts and diagnostic
+artifacts remain local and Git-ignored under the frontend's
+`tools/browser/artifacts/`; credentials and browser authentication state are
+not included in this evidence.
+
+This passes only FAQ-001's valid create/edit persistence case. It does not
+establish lifecycle/filter acceptance, invalid/duplicate handling, public
+matching, authorization failure behavior, audit attribution, concurrency, or
+production readiness. FAQ-002 through FAQ-004 remain not run; the matching-rule
+approval gate in `FAQ_KNOWLEDGE_GUIDE.md` still applies. The frontend checkout
+was `e43e7fc`; the backend checkout before documenting was `76f6799`. Actual
+served build revisions were not independently verified. No app code changed,
+and no full lint, unit, or production-build suite was rerun for this evidence.
 
 ### Audit and backup history
 
