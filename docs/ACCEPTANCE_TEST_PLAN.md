@@ -406,10 +406,56 @@ documentation-only update.
 
 | ID      | Test                                                                 | Expected result                                                                                                        | Status   |
 | ------- | -------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- | -------- |
-| AUD-001 | Filter audit logs by actor, module, action, result, record, and date | Results are protected, stable, bounded, and accurate                                                                   | Not run  |
+| AUD-001 | Filter audit logs by actor, module, action, result, record, and date | Results are protected, stable, bounded, and accurate                                                                   | In progress; browser filter checks pass, access/boundary checks pending |
 | AUD-002 | Trace Cataloging actions to revision and audit entries               | Actor, affected record, action, outcome, and timestamp match                                                           | Not run  |
 | BAK-001 | Search and filter backup-history records                             | History loads with correct status/type/creator/date filters                                                            | Not run  |
 | BAK-002 | Execute and restore a real backup                                    | Deferred until deployment ownership, storage, retention, verification, and disposable restore environment are approved | Deferred |
+
+#### AUD-001 supervised read-only browser evidence - 2026-10-19
+
+Used isolated Edge session `biosphere-audit-001` after manual curator login.
+Playwright drove the real Audit Logs filter form and pagination, without API
+mocking or audit mutations. The known FAQ acceptance fixture
+`231d8430-41d9-4d84-ab2b-1f8ddb6b8a4a` supplied independently known create/edit
+actions and a 2026-10-19 museum-local date. All 12 checks passed:
+
+1. UUID search returned the fixture's expected `CREATE_FAQ_ENTRY` and
+   `UPDATE_FAQ_ENTRY` actions, with `faq` module, `faq_entry` record type, and
+   `SUCCESS` results.
+2. Combined record search, module, update action, result, record type, and
+   same-day date range returned matching fixture rows only.
+3. Reload preserved those rows and all submitted filter controls.
+4. Switching to the create action returned the matching create event.
+5. Actor-name text search returned rows whose displayed names matched the
+   search; actor identity was kept in memory, not published in this evidence.
+6. A mismatched module excluded the known fixture.
+7. A failed-result filter excluded its successful events.
+8. The preceding local day excluded the fixture events.
+9. A unique no-match query showed an empty list without stale detail content.
+10. A reversed date range showed the explicit start/end validation message,
+    without audit rows.
+11. Clear reset all filters and restored bounded default-page results.
+12. Next returned a nonempty second page of at most 25 rows without first-page
+    row overlap; Previous restored the original first page.
+
+The initial actor-search attempt incorrectly included the avatar initials in
+the test's search string. Corrected the diagnostic locator to read only the
+name span and reran the complete read-only test successfully. This was a
+harness issue, not a reproduced application defect.
+
+Closed only the named test browser. The local diagnostic script remains
+Git-ignored at frontend `tools/browser/artifacts/aud-001-filters.txt`. Checkout
+references were frontend `e43e7fc` and backend `65f72c7`; actual served build
+revisions were not independently verified. Unrelated audit rows and actor
+names were compared in memory rather than included in shared results.
+
+AUD-001 remains **In progress**: access denial/session expiry, actor-ID API
+filtering, all page-size choices, exact midnight/date bounds, concurrent
+pagination, and request-failure UI were not tested. Date exclusion of an
+earlier day is not full boundary coverage. Failed-result exclusion is not
+positive coverage of failed/denied fixtures. This does not sign off AUD-002's
+Cataloging revision/audit traceability or backup/restore. No app code changed;
+full lint/unit/build suites were not rerun for this documentation-only update.
 
 ## 9. John Gerozaga acceptance register
 
