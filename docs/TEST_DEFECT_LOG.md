@@ -47,7 +47,7 @@ system is not a reason to postpone all fixes until the end.
 
 | ID      | Date       | Module                     | Summary                                                                 | Severity    | Priority | Status | Owner                   |
 | ------- | ---------- | -------------------------- | ----------------------------------------------------------------------- | ----------- | -------- | ------ | ----------------------- |
-| DEF-016 | 2026-10-19 | Backup / HTTP test fixture | Missing audit delegate logs an error despite green denial test | S3 Moderate | P2 | Open | Backup tests / coordinate with Auth |
+| DEF-016 | 2026-10-19 | Backup / HTTP test fixture | Missing audit delegate logs an error despite green denial test | S3 Moderate | P2 | Ready for retest | Backup tests / coordinate with Auth |
 | DEF-001 | 2026-09-29 | Cataloging / Collections   | Duplicate normalized collection names are accepted                      | S2 Major    | P1       | Ready for retest | Cataloging / Backend    |
 | DEF-002 | 2026-10-03 | Cataloging / Provenance    | Future collection dates are accepted and satisfy presence validation    | S2 Major    | P1       | Ready for retest | Cataloging / Full stack |
 | DEF-003 | 2026-10-03 | Cataloging / Specimen list | Client-side specimen selection does not hydrate on a remote LAN browser | S2 Major    | P1       | Ready for retest | Cataloging / Frontend   |
@@ -72,7 +72,7 @@ system is not a reason to postpone all fixes until the end.
 **Found on:** backend `001fd4b`, 2026-10-19
 **Severity:** S3 Moderate (test-harness/coverage defect)
 **Priority:** P2
-**Status:** Open
+**Status:** Ready for retest
 **Owner:** Backup test fixture; coordinate with Auth for the event contract
 
 Run `npm run test:e2e -- --runInBand --runTestsByPath test/backup.e2e-spec.ts`.
@@ -89,10 +89,19 @@ No failed live audit persistence or damaged backup is demonstrated.
 
 Retest after a focused fixture repair:
 
-- [ ] A regression fails when the denial event is absent.
-- [ ] The developer remains denied and the expected event is observable.
-- [ ] Backup suites pass without missing-audit-mock errors.
-- [ ] No real backup operations, artifact access, or live writes are introduced.
+- [x] A regression fails when the denial event is absent.
+- [x] The developer remains denied and the expected event is observable.
+- [x] Backup suites pass without missing-audit-mock errors.
+- [x] No real backup operations, artifact access, or live writes are introduced.
+
+Repair evidence (2026-10-20): on `fix/backup-denial-test-fixture`, a new HTTP
+regression first failed with an empty curator audit list and the missing-create
+error. The fixture now stores actual audit writes in a per-test in-memory list;
+the curator HTTP read verifies the developer actor, denied result, action,
+required role, and `/backups/history` request details. Backup HTTP tests pass
+5/5 and Backup unit tests pass 6/6, without the missing-mock error. Production
+auth and backup source are unchanged. Independent review/retest is pending;
+this does not establish live audit persistence or complete BAK-001 acceptance.
 
 ### DEF-001 - Duplicate normalized collection names are accepted
 

@@ -474,6 +474,28 @@ code changed; full lint/build and unrelated suites were not rerun for this
 documentation update. Correct the Backup fixture and add a failure-sensitive
 denial-audit assertion next, without changing auth production code.
 
+#### Backup denial-audit fixture repair - 2026-10-20
+
+On `fix/backup-denial-test-fixture`, the new HTTP regression first failed:
+developer access returned 403, but the curator's audit history contained no
+denial event. Adding the missing Prisma mock write delegate made the same
+regression pass. Writes populate a fresh per-test list, rather than seeding
+the expected denial; real guards and audit services remain in the request path.
+
+- `npm run test:e2e -- --runInBand --runTestsByPath test/backup.e2e-spec.ts`:
+  5/5 passed, with no missing-audit-mock errors.
+- `npm test -- --runInBand --runTestsByPath src/backup/backup.service.spec.ts`:
+  6/6 passed.
+- `npm run lint:ci`: passed with 0 errors and 7 unused-disable warnings in
+  unchanged files. `git diff --check` also passed.
+
+The regression verifies the developer actor, `ACCESS_DENIED`, `DENIED`, and
+request/role details through the authorized curator `/audit-logs` response.
+DEF-016 is Ready for retest. No production code, real backups/restores,
+artifact access, live writes, or browser authentication changes are included.
+BAK-001 remains In progress; populated live-history filtering and persistence
+are not proven by these mocks. BAK-002 remains Deferred.
+
 #### AUD-001 supervised read-only browser evidence - 2026-10-19
 
 Used isolated Edge session `biosphere-audit-001` after manual curator login.
