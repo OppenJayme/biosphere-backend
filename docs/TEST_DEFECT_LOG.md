@@ -61,6 +61,7 @@ system is not a reason to postpone all fixes until the end.
 | DEF-012 | 2026-10-07 | Cataloging / Media UI      | Save metadata and Set as cover lack visible hover feedback              | S4 Minor    | P2       | Ready for retest | Cataloging / Frontend   |
 | DEF-013 | 2026-10-07 | Cataloging / Import UI     | CSV Choose file control lacks visible hover feedback                    | S4 Minor    | P2       | Ready for retest | Cataloging / Frontend   |
 | DEF-014 | 2026-10-07 | Cataloging / Tags UI       | Already-attached tag notice resembles successful new attachment         | S4 Minor    | P2       | Ready for retest | Cataloging / Frontend   |
+| DEF-015 | 2026-10-19 | Audit / HTTP test fixture | Missing security-audit create mock logs an error despite green denial test | S3 Moderate | P2 | Open | Audit tests / coordinate with Auth |
 
 ## 3. Defect details
 
@@ -1114,6 +1115,46 @@ backend duplicate prevention, shared vocabulary and no-op history behavior.
 - [ ] New attachment retains success feedback.
 - [ ] No duplicate relationship or misleading new revision is created.
 - [ ] Keyboard/screen-reader users can perceive the notice.
+
+### DEF-015 - Audit HTTP fixture omits the security-audit create method
+
+**Related test:** AUD-001; `test/audit.e2e-spec.ts`
+**Environment:** Isolated mocked Nest HTTP integration test, not live data
+**Found on:** backend `021fe0e`, 2026-10-19
+**Severity:** S3 Moderate (test-harness/coverage defect, not proven production impact)
+**Priority:** P2
+**Status:** Open
+**Owner:** Audit test fixture; coordinate with Voltaire for auth-event contract
+
+#### Reproduction
+
+1. Run `npm run test:e2e -- --runInBand --runTestsByPath test/audit.e2e-spec.ts`.
+2. The developer-token request is denied by the real RolesGuard.
+3. SecurityAuditService attempts to write ACCESS_DENIED through the Prisma mock.
+
+#### Expected
+
+The mock supports the security-audit write, and the test asserts the denial
+event's actor/action/result without calling a live database or logging an
+unexpected failure. The request remains denied.
+
+#### Actual and evidence
+
+All 5 tests passed, but output included `Could not record ACCESS_DENIED (DENIED)`
+and `this.prisma.audit_log.create is not a function`. The fixture defines audit
+read/count delegates only. SecurityAuditService catches audit-write errors, so
+403 passing does not prove the denial was recorded. No live failure is claimed.
+
+#### Suspected scope and retest
+
+Limit the follow-up to the Audit test fixture and contract assertions. Do not
+weaken authorization, silence unexpected errors, or change auth production code
+without coordination. Rerun the original command and confirm:
+
+- [ ] 401/403 expectations remain enforced.
+- [ ] The denied request attempts the expected audit event with the test actor.
+- [ ] No missing-mock audit error is logged; all focused tests still pass.
+- [ ] No live providers or real data writes are introduced.
 
 ## 4. New defect template
 
