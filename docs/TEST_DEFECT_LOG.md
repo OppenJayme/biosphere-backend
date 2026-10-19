@@ -47,6 +47,7 @@ system is not a reason to postpone all fixes until the end.
 
 | ID      | Date       | Module                     | Summary                                                                 | Severity    | Priority | Status | Owner                   |
 | ------- | ---------- | -------------------------- | ----------------------------------------------------------------------- | ----------- | -------- | ------ | ----------------------- |
+| DEF-016 | 2026-10-19 | Backup / HTTP test fixture | Missing audit delegate logs an error despite green denial test | S3 Moderate | P2 | Open | Backup tests / coordinate with Auth |
 | DEF-001 | 2026-09-29 | Cataloging / Collections   | Duplicate normalized collection names are accepted                      | S2 Major    | P1       | Ready for retest | Cataloging / Backend    |
 | DEF-002 | 2026-10-03 | Cataloging / Provenance    | Future collection dates are accepted and satisfy presence validation    | S2 Major    | P1       | Ready for retest | Cataloging / Full stack |
 | DEF-003 | 2026-10-03 | Cataloging / Specimen list | Client-side specimen selection does not hydrate on a remote LAN browser | S2 Major    | P1       | Ready for retest | Cataloging / Frontend   |
@@ -63,6 +64,35 @@ system is not a reason to postpone all fixes until the end.
 | DEF-014 | 2026-10-07 | Cataloging / Tags UI       | Already-attached tag notice resembles successful new attachment         | S4 Minor    | P2       | Ready for retest | Cataloging / Frontend   |
 
 ## 3. Defect details
+
+### DEF-016 - Backup HTTP fixture omits the security-audit delegate
+
+**Related test:** BAK-001; `test/backup.e2e-spec.ts`
+**Environment:** Mocked Nest HTTP integration suite, not live data
+**Found on:** backend `001fd4b`, 2026-10-19
+**Severity:** S3 Moderate (test-harness/coverage defect)
+**Priority:** P2
+**Status:** Open
+**Owner:** Backup test fixture; coordinate with Auth for the event contract
+
+Run `npm run test:e2e -- --runInBand --runTestsByPath test/backup.e2e-spec.ts`.
+The developer request returns 403, but SecurityAuditService logs
+`Could not record ACCESS_DENIED (DENIED)` and
+`Cannot read properties of undefined (reading 'create')`. All 4 tests pass.
+The injected Prisma mock has `backup_history` but no `audit_log` delegate;
+this is a sibling of the Audit fixture gap DEF-015, not a recurrence in its fix.
+
+Expected: the mock supports the denial write and an assertion verifies the
+expected event and actor. Preserve the 403 and mocked providers; do not suppress
+the error, bypass guards, or alter auth production code as a workaround.
+No failed live audit persistence or damaged backup is demonstrated.
+
+Retest after a focused fixture repair:
+
+- [ ] A regression fails when the denial event is absent.
+- [ ] The developer remains denied and the expected event is observable.
+- [ ] Backup suites pass without missing-audit-mock errors.
+- [ ] No real backup operations, artifact access, or live writes are introduced.
 
 ### DEF-001 - Duplicate normalized collection names are accepted
 

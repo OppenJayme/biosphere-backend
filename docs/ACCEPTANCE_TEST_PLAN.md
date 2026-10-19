@@ -408,8 +408,71 @@ documentation-only update.
 | ------- | -------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- | -------- |
 | AUD-001 | Filter audit logs by actor, module, action, result, record, and date | Results are protected, stable, bounded, and accurate                                                                   | In progress; browser filter checks pass, access/boundary checks pending |
 | AUD-002 | Trace Cataloging actions to revision and audit entries               | Actor, affected record, action, outcome, and timestamp match                                                           | Not run  |
-| BAK-001 | Search and filter backup-history records                             | History loads with correct status/type/creator/date filters                                                            | Not run  |
+| BAK-001 | Search and filter backup-history records                             | History loads with correct status/type/creator/date filters                                                            | In progress; empty-history UI checks pass, positive-data cases unavailable |
 | BAK-002 | Execute and restore a real backup                                    | Deferred until deployment ownership, storage, retention, verification, and disposable restore environment are approved | Deferred |
+
+#### BAK-001 read-only empty-history browser evidence - 2026-10-19
+
+Supervised Playwright ran the real Backup History page in isolated Edge session
+`biosphere-backup-001` after manual curator login. Baseline history contained
+zero rows. All six exercised checks passed:
+
+1. The page loaded its explicit empty-history state rather than an error or
+   substituted sample records.
+2. A unique no-match search retained zero rows and no stale pagination.
+3. Combined search/status/type/date/page-size values survived a reload and
+   remained visible in their controls, with an empty result.
+4. All four page-size controls (10/25/50/100) could be submitted and retained;
+   zero visible rows stayed within each bound. This is not positive-data
+   pagination or filter accuracy proof.
+5. An inverted date range showed the explicit start/end validation message
+   without displaying history rows.
+6. Clear reset all filter controls, restored the default 25-row setting, and
+   returned to the same empty baseline.
+
+Positive status/type/creator/date matching and Next/Previous pagination were
+not exercised because no baseline records or second page existed. The combined
+empty query proves control/URL round-tripping, not that each predicate correctly
+includes/excludes stored history. Keep BAK-001 **In progress**, not Pass.
+
+No backup was created, downloaded, restored, deleted, or seeded. No credentials
+were exported or API responses mocked. The test browser was closed; the local
+script remains Git-ignored at frontend
+`tools/browser/artifacts/bak-001-history.txt`. Checkout references at execution:
+frontend `e43e7fc`, backend `ccf8bfa`; served build revisions were not independently
+verified. No application code changed; full lint/unit/build were not rerun for
+this documentation-only evidence. Next safe coverage is isolated backend tests
+with in-memory history fixtures, not creating a real backup solely for test data.
+BAK-002 real backup/restore remains Deferred under its existing approval gate.
+
+#### Backup backend isolated-suite evidence - 2026-10-19
+
+At backend checkout `001fd4b`, existing focused checks completed:
+
+| Command | Result |
+| --- | --- |
+| `npm test -- --runInBand --runTestsByPath src/backup/backup.service.spec.ts` | 6/6 passed |
+| `npm run test:e2e -- --runInBand --runTestsByPath test/backup.e2e-spec.ts` | 4/4 passed, with the fixture warning below |
+
+Both suites replace Prisma; the HTTP suite also replaces Supabase before app
+initialization. History records are mocked. These tests do not execute backups,
+download artifacts, restore data, or write live records. They check metadata
+projection without private storage paths, creator/type/status/date query
+arguments, UUID/text search construction, nullable creators, unknown records,
+401/403 responses, rejected query values, and absence of routine mutation routes.
+Mocks return predefined records, so these checks do not substitute for accurate
+filtering/pagination over a real populated history or a live database.
+
+The HTTP run logged `Cannot read properties of undefined (reading 'create')`
+while recording `ACCESS_DENIED`: its Prisma mock has no `audit_log` delegate.
+SecurityAuditService catches the error, so 403 passing does not prove the denial
+was audited. DEF-016 records this Backup test-harness gap separately from the
+Audit fixture repaired in PR #147. No production defect is claimed or fixed.
+
+BAK-001 remains In progress, BAK-002 remains Deferred. No application or test
+code changed; full lint/build and unrelated suites were not rerun for this
+documentation update. Correct the Backup fixture and add a failure-sensitive
+denial-audit assertion next, without changing auth production code.
 
 #### AUD-001 supervised read-only browser evidence - 2026-10-19
 
