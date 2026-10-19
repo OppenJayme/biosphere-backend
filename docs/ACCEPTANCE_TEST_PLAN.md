@@ -486,6 +486,23 @@ audit persistence, session expiry, inactive-account denial, or database date
 boundaries. No application/test code changed here, and no full lint/build or
 remaining test suites were run for this documentation-only update.
 
+#### DEF-015 test-fixture repair verification - 2026-10-19
+
+Followed a red/green cycle at the existing HTTP boundary: the new denial-event
+regression failed before the fixture correction, then passed within the full
+Audit HTTP suite (6/6). Audit service tests also passed 6/6. The developer GET
+still returned 403, and an authorized curator GET exposed the expected denial
+event with the developer actor and request metadata. The Prisma create mock
+now stores events in the same per-test collection used by read/count delegates.
+No production/auth code changed, no logger was silenced, and the missing-create
+error did not appear in the focused green rerun. See DEF-015 for evidence and
+independent-retest status. These mocked checks do not prove live persistence
+or complete AUD-001 acceptance.
+
+Full `npm run lint:ci` passed after correcting test formatting (zero errors,
+seven unused-disable warnings). `git diff --check` passed. A production build
+and unrelated test suites were not rerun for this test-fixture-only repair.
+
 ## 9. John Gerozaga acceptance register
 
 Record results with the same statuses and evidence rules as Section 8. Curator
