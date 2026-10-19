@@ -368,6 +368,40 @@ entries/categories affect that rule. Do not mark an unconfirmed policy gap as
 a reproduced defect. Full lint/unit/build suites were not rerun for this
 documentation-only evidence update.
 
+#### FAQ backend isolated-suite evidence - 2026-10-19
+
+Ran the existing focused suites at backend checkout `39901fb`, without adding
+tests or changing application code:
+
+| Command | Result |
+| --- | --- |
+| `npm test -- --runInBand --runTestsByPath src/faq/faq.service.spec.ts` | 13/13 passed |
+| `npm run test:e2e -- --runInBand --runTestsByPath test/faq.e2e-spec.ts` | 13/13 passed |
+
+The service suite injects a Prisma mock. The HTTP suite builds the Nest app
+with its real ValidationPipe and guards, replacing Prisma and the Supabase
+client with in-memory mocks before initialization. No live database mutations,
+Supabase authentication calls, public FAQ activation, or browser login were
+performed by these checks.
+
+Coverage includes rejected management requests without authentication or with
+a developer role; forbidden status injection; whitespace question, malformed
+list/null fields, invalid UUID/status/pagination/query input; normalization and
+case-insensitive repeated-term removal; unchanged updates; explicit lifecycle
+actions and archived immutability; audit call arguments; and the implemented
+public assistant response/fallback contracts. The service suite also checks
+idempotent lifecycle behavior and simulated transaction conflicts.
+
+These results supplement FAQ-002/003, not complete their acceptance. They do
+not prove live transaction rollback/concurrency, database constraints, actual
+audit persistence, browser lifecycle controls, or curator approval of public
+matching rules. The existing HTTP tests do not cover the overlength-category
+payload bypass noted above, and duplicate-question policy/testing remains
+pending. FAQ-004 remains not run for acceptance; passing tests of implemented
+matching behavior do not approve that behavior. Both focused suites passed;
+full lint/build and the rest of the test suites were not rerun for this
+documentation-only update.
+
 ### Audit and backup history
 
 | ID      | Test                                                                 | Expected result                                                                                                        | Status   |
