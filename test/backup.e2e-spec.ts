@@ -14,6 +14,7 @@ describe('Backup history (e2e)', () => {
   const curatorAuthId = '11111111-1111-4111-8111-111111111111';
   const curatorAccountId = '22222222-2222-4222-8222-222222222222';
   const developerAuthId = '33333333-3333-4333-8333-333333333333';
+  const developerAccountId = '66666666-6666-4666-8666-666666666666';
   const historyId = '44444444-4444-4444-8444-444444444444';
   const testDate = new Date('2026-01-02T03:04:05.000Z');
 
@@ -38,6 +39,8 @@ describe('Backup history (e2e)', () => {
   });
 
   beforeEach(async () => {
+    // Keep audit writes and reads in the same per-test database fixture.
+    const storedAudits: Record<string, unknown>[] = [];
     historyFindMany = jest.fn(() => [historyRecord()]);
     historyFindUnique = jest.fn(({ where }: { where: { id: string } }) =>
       where.id === historyId ? historyRecord() : null,
@@ -56,7 +59,7 @@ describe('Backup history (e2e)', () => {
             }
             if (where.auth_user_id === developerAuthId) {
               return {
-                id: '66666666-6666-4666-8666-666666666666',
+                id: developerAccountId,
                 role: 'DEVELOPER',
                 status: 'ACTIVE',
               };
@@ -69,6 +72,27 @@ describe('Backup history (e2e)', () => {
         findMany: historyFindMany,
         findUnique: historyFindUnique,
         count: jest.fn(() => 1),
+      },
+      audit_log: {
+        create: jest.fn(({ data }: { data: Record<string, unknown> }) => {
+          const record = {
+            ...data,
+            id: crypto.randomUUID(),
+            created_at: testDate,
+            user_account:
+              data.user_id === developerAccountId
+                ? {
+                    id: developerAccountId,
+                    full_name: 'Backup Developer',
+                    role: 'DEVELOPER',
+                  }
+                : null,
+          };
+          storedAudits.push(record);
+          return record;
+        }),
+        findMany: jest.fn(() => [...storedAudits]),
+        count: jest.fn(() => storedAudits.length),
       },
       $transaction: jest.fn((operations: Promise<unknown>[]) =>
         Promise.all(operations),
@@ -121,6 +145,47 @@ describe('Backup history (e2e)', () => {
       .get('/backups/history')
       .set('Authorization', `Bearer ${developerToken}`)
       .expect(403);
+  });
+
+  it('makes denied developer backup access visible in curator audit history', async () => {
+    await request(app.getHttpServer())
+      .get('/backups/history')
+      .set('Authorization', `Bearer ${developerToken}`)
+      .expect(403);
+
+    const response = await request(app.getHttpServer())
+      .get('/audit-logs')
+      .set('Authorization', `Bearer ${curatorToken}`)
+      .expect(200);
+
+    expect(response.body).toEqual({
+      items: [
+        {
+          id: expect.any(String),
+          actor: {
+            id: developerAccountId,
+            fullName: 'Backup Developer',
+            role: 'DEVELOPER',
+          },
+          affectedRecordId: developerAccountId,
+          affectedRecordType: 'user_account',
+          action: 'ACCESS_DENIED',
+          module: 'auth',
+          result: 'DENIED',
+          details: {
+            reason: 'ROLE_NOT_PERMITTED',
+            role: 'DEVELOPER',
+            requiredRoles: ['CURATOR'],
+            method: 'GET',
+            path: '/backups/history',
+          },
+          createdAt: testDate.toISOString(),
+        },
+      ],
+      total: 1,
+      page: 1,
+      limit: 50,
+    });
   });
 
   it('strictly validates filters, timestamps, pages, and identifiers', async () => {
