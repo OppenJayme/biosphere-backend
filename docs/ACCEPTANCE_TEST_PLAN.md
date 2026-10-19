@@ -445,6 +445,35 @@ this documentation-only evidence. Next safe coverage is isolated backend tests
 with in-memory history fixtures, not creating a real backup solely for test data.
 BAK-002 real backup/restore remains Deferred under its existing approval gate.
 
+#### Backup backend isolated-suite evidence - 2026-10-19
+
+At backend checkout `001fd4b`, existing focused checks completed:
+
+| Command | Result |
+| --- | --- |
+| `npm test -- --runInBand --runTestsByPath src/backup/backup.service.spec.ts` | 6/6 passed |
+| `npm run test:e2e -- --runInBand --runTestsByPath test/backup.e2e-spec.ts` | 4/4 passed, with the fixture warning below |
+
+Both suites replace Prisma; the HTTP suite also replaces Supabase before app
+initialization. History records are mocked. These tests do not execute backups,
+download artifacts, restore data, or write live records. They check metadata
+projection without private storage paths, creator/type/status/date query
+arguments, UUID/text search construction, nullable creators, unknown records,
+401/403 responses, rejected query values, and absence of routine mutation routes.
+Mocks return predefined records, so these checks do not substitute for accurate
+filtering/pagination over a real populated history or a live database.
+
+The HTTP run logged `Cannot read properties of undefined (reading 'create')`
+while recording `ACCESS_DENIED`: its Prisma mock has no `audit_log` delegate.
+SecurityAuditService catches the error, so 403 passing does not prove the denial
+was audited. DEF-016 records this Backup test-harness gap separately from the
+Audit fixture repaired in PR #147. No production defect is claimed or fixed.
+
+BAK-001 remains In progress, BAK-002 remains Deferred. No application or test
+code changed; full lint/build and unrelated suites were not rerun for this
+documentation update. Correct the Backup fixture and add a failure-sensitive
+denial-audit assertion next, without changing auth production code.
+
 #### AUD-001 supervised read-only browser evidence - 2026-10-19
 
 Used isolated Edge session `biosphere-audit-001` after manual curator login.
