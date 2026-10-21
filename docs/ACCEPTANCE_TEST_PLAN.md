@@ -694,6 +694,57 @@ eligibility traceability. This evidence does not replace broader taxonomy
 validation or independent acceptance. Documentation-only change;
 `git diff --check` passed, and full lint/unit/build suites were not rerun.
 
+#### AUD-002 tag-change traceability browser evidence - 2026-10-21
+
+Used signed-in isolated Edge session `biosphere-aud002` and test specimen
+`5b8e55d4-af0f-4263-9b0e-349b4b314f20`. PR #153's preceding attach/detach
+evidence was still open when this independent case began; it was not merged
+automatically. The observed live baseline had eleven revisions and no attached
+tags. Guarded the fixture's test name before any mutation.
+
+Reattached existing vocabulary `TEST - AUD-002 Trace Tag 20261021` as setup,
+then changed it to `TEST - AUD-002 Changed Tag 20261021`. All 49 executed
+assertions passed, including repeated availability checks, not 49 separate
+acceptance cases:
+
+- Setup reused vocabulary (`createdVocabulary: false`), added one revision,
+  and added one attach audit on a new relationship. Identified that relationship
+  by comparing before/after audit records, not by confusing it with the earlier
+  detached relationship. Discovery was bounded to the newest 100 attach audits.
+- Change retained exactly one attachment with only the new name. Exactly one
+  `Specimen Tags` revision captured the original name -> changed name.
+- Exactly one `CHANGE_SPECIMEN_TAG` audit identified the same relationship,
+  module `specimens`, and result `SUCCESS`. Its exact metadata keys were
+  `specimenId`, `tagId`, `previousTagId`, `previousTagName`, `tagName`, and
+  `createdVocabulary`; verified the fixture UUID, original tag ID/name, distinct
+  valid replacement tag UUID/name, and `createdVocabulary: true`.
+- Both setup/change audits matched their revision's displayed actor, tag
+  source, and displayed timestamp minute; selected details showed `CURATOR`.
+  Revision timestamps fell within measured operation windows with five-second
+  tolerance. Reload retained observed revisions, audit count, and the changed tag.
+- Exact-name and lowercase-name change submissions each showed the explicit
+  already-current-name message. Subsequent reads showed no additional or
+  altered revision or relationship audit. The old shared vocabulary remained
+  a reusable suggestion, rather than being globally renamed.
+
+Counts were revisions 11 -> 12 -> 13 across baseline/setup/change. The new
+relationship had exactly two audits (setup attach plus change). The changed
+test tag remains attached for review; both shared test names are retained.
+No request mocks, direct database writes, inventory/lots/storage/publication
+operations, production source changes, or credential/auth-state export were
+used. No application defect or failed assertion occurred in the completed run.
+The fixture-specific diagnostic remains ignored locally at frontend
+`tools/browser/artifacts/aud-002-tag-change.txt`, not a maintained CI test.
+Browser remains open/signed in with the unsaved attach input cleared.
+
+Checkout references: frontend `e43e7fc`, backend `39b9aac`; actual served build
+revisions were not independently verified. Actor equality was by displayed
+name, not account UUID; exact database audit timestamps, cross-specimen effects,
+merging into an already-attached target tag, concurrency, rollback, and security
+were not established. AUD-002 remains **In progress** for media and lifecycle/
+public eligibility. Documentation only; `git diff --check` passed;
+full lint/unit/build suites were not rerun.
+
 #### AUD-002 provenance traceability browser evidence - 2026-10-21
 
 Continued in signed-in isolated Edge session `biosphere-aud002` with the same
