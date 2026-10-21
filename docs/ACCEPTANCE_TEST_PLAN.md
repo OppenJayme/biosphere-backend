@@ -407,7 +407,7 @@ documentation-only update.
 | ID      | Test                                                                 | Expected result                                                                                                        | Status   |
 | ------- | -------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- | -------- |
 | AUD-001 | Filter audit logs by actor, module, action, result, record, and date | Results are protected, stable, bounded, and accurate                                                                   | In progress; browser filter checks pass, access/boundary checks pending |
-| AUD-002 | Trace Cataloging actions to revision and audit entries               | Actor, affected record, action, outcome, and timestamp match                                                           | Not run  |
+| AUD-002 | Trace Cataloging actions to revision and audit entries               | Actor, affected record, action, outcome, and timestamp match                                                           | In progress; core-edit/no-change browser checks pass, other actions pending |
 | BAK-001 | Search and filter backup-history records                             | History loads with correct status/type/creator/date filters                                                            | In progress; empty-history UI checks pass, positive-data cases unavailable |
 | BAK-002 | Execute and restore a real backup                                    | Deferred until deployment ownership, storage, retention, verification, and disposable restore environment are approved | Deferred |
 
@@ -587,6 +587,64 @@ or complete AUD-001 acceptance.
 Full `npm run lint:ci` passed after correcting test formatting (zero errors,
 seven unused-disable warnings). `git diff --check` passed. A production build
 and unrelated test suites were not rerun for this test-fixture-only repair.
+
+#### AUD-002 core-edit traceability browser evidence - 2026-10-21
+
+Used isolated headed Edge session `biosphere-aud002` after manual curator
+login. The existing Playwright CLI diagnostic exercised the real frontend
+forms and server-backed history views without request mocking or direct
+database writes. PR #147 was confirmed merged before this check.
+
+Created a disposable uncataloged specimen named `TEST - AUD-002 Trace 20261021`
+with ID `5b8e55d4-af0f-4263-9b0e-349b4b314f20`. Left collection and accession
+unassigned; no lots, inventory operations, storage changes, or publishing were
+performed. Initial remarks were `AUD-002 initial remarks 20261021`; the only
+edit changed them to `AUD-002 verified remarks 20261021`.
+
+All 13 diagnostic assertions/check groups passed:
+
+1. Before editing, fixture UUID search returned exactly one `CREATE_SPECIMEN`
+   audit entry with the expected affected record and `SUCCESS` outcome.
+2. Saving the remarks edit returned to specimen details and showed the new value.
+3. Revision count increased from 0 to exactly 1.
+4. The Remarks revision contained the exact independently specified old/new values.
+5. Audit and revision displayed the same nonempty actor name.
+6. The update audit identified the fixture UUID and `specimen` record type.
+7. Exactly one `UPDATE_SPECIMEN` entry had module `specimens` and result `SUCCESS`.
+8. Its structured metadata was exactly `{ "fields": ["remarks"] }`.
+9. The revision timestamp fell within the measured edit window with a five-second
+   clock tolerance; the audit and revision displayed the same formatted minute.
+10. The selected audit detail identified the actor's role as `CURATOR`.
+11. Reload preserved the audit count and complete observed revision; the edit
+    form also reloaded the saved remarks.
+12. Submitting the unchanged edit form showed `No changes were saved` and
+    remained on the edit route.
+13. Reading both histories again showed no extra or altered entries: one
+    revision and two audits (creation plus the one successful edit).
+
+A final read-only specimen-detail check confirmed it remained `UNCATALOGED`.
+The fixture is intentionally retained for review; it was not archived or deleted,
+which would introduce additional lifecycle events. No credentials/auth state or
+unrelated museum rows were exported. Actor names were compared in memory rather
+than recorded here. The local diagnostic is Git-ignored at frontend
+`tools/browser/artifacts/aud-002-trace.txt`; it is fixture-specific, not a
+maintained repeatable CI suite. Its pre-edit value guard prevents blindly
+repeating the mutation against an already-changed fixture.
+
+The first sidebar navigation attempt used a link locator where this page had
+no matching link. It timed out without mutation; navigating to the known
+specimen form resolved the diagnostic issue. No application defect was
+reproduced by this test, so no new defect entry was added.
+
+Checkout references were frontend `e43e7fc` and backend `2da6b72`; actual
+served build revisions were not independently verified. AUD-002 remains
+**In progress**: this is one core-field case, not blanket acceptance for
+taxonomy, provenance, tags/media, completion/reopening, archive/restore, or
+public-eligibility auditing. Actor equality was checked by displayed name,
+not independently by account UUID; audit timestamps were compared at displayed
+minute precision, not exact database timestamps. Transaction rollback,
+concurrent writes, adversarial access, and production security are not proven.
+Only this documentation changed; full lint/unit/build suites were not rerun.
 
 ## 9. John Gerozaga acceptance register
 
