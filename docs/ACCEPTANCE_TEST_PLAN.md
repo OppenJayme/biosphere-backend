@@ -810,7 +810,7 @@ documentation-only update.
 
 | ID      | Test                                                                 | Expected result                                                                                                        | Status   |
 | ------- | -------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- | -------- |
-| AUD-001 | Filter audit logs by actor, module, action, result, record, and date | Results are protected, stable, bounded, and accurate                                                                   | In progress; browser filters and isolated denial-audit regressions pass; remaining live access/failure/boundary cases pending |
+| AUD-001 | Filter audit logs by actor, module, action, result, record, and date | Results are protected, stable, bounded, and accurate                                                                   | In progress; browser filters/museum-day boundary and isolated denial-audit checks pass; remaining access/failure/boundary cases pending |
 | AUD-002 | Trace Cataloging actions to revision and audit entries               | Actor, affected record, action, outcome, and timestamp match                                                           | In progress; core/taxonomy/provenance/tags/media/archive and scoped restoration evidence recorded; completion/reopening/public eligibility and OBS-001 pending |
 | BAK-001 | Search and filter backup-history records                             | History loads with correct status/type/creator/date filters                                                            | In progress; empty-history UI checks pass, positive-data cases unavailable |
 | BAK-002 | Execute and restore a real backup                                    | Deferred until deployment ownership, storage, retention, verification, and disposable restore environment are approved | Deferred |
@@ -1019,6 +1019,38 @@ earlier day is not full boundary coverage. Failed-result exclusion is not
 positive coverage of failed/denied fixtures. This does not sign off AUD-002's
 Cataloging revision/audit traceability or backup/restore. No app code changed;
 full lint/unit/build suites were not rerun for this documentation-only update.
+
+#### AUD-001 read-only museum-date browser check - 2026-10-22
+
+Confirmed PR #168 merged with successful CI; backend checkout base `eb661a4`,
+frontend `0ffa81f`. Exact running build hashes were not independently inspected.
+Used existing signed-in Edge session `biosphere-aud002` and retained disposable
+specimen `3e7a3ca2-bf8f-45c9-98d3-94b8bcf31419`; no new events were generated.
+
+Protected specimen read provided the fixture's creation timestamp, whose UTC
+date is `2026-10-21` and independently formatted Asia/Manila date is
+`2026-10-22`. Through the actual Audit Logs page, filtered by that specimen
+UUID, module `specimens` and action `IMPORT_SPECIMEN`:
+
+- From/To both `2026-10-22` returned exactly its one import event. Controls
+  matched the applied range, and reload retained the same result.
+- From/To both `2026-10-21` showed the empty state with no stale import row.
+- From `2026-10-23`, To `2026-10-22` showed the start/end validation message,
+  with no stale import row. Returning to the valid museum-day range restored
+  exactly one matching event.
+
+Browser request listener observed zero POST/PUT/PATCH/DELETE requests. No
+records, backups, Inventory data, auth state or server processes were changed;
+no API response was mocked. Browser stays open and signed in on the valid audit
+range. Local diagnostic remains ignored at frontend
+`tools/browser/artifacts/aud001-museum-date-boundary.txt`.
+
+This passes the tested live date-membership/reload/recovery case, not exact
+midnight/subsecond edges, raw audit timestamp verification, live authorization,
+outage handling, concurrency or independent full AUD-001 acceptance. AUD-001
+remains In progress; no new defect was reproduced. Documentation-only checks:
+`git diff --check`; full local application suites/build not rerun. Session ends
+here as requested; remaining access/failure cases are future scoped work.
 
 #### Audit backend isolated-suite evidence - 2026-10-19
 
