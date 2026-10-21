@@ -258,7 +258,7 @@ live hierarchy.
 | ID      | Test                                      | Expected result                                                                              | Status   |
 | ------- | ----------------------------------------- | -------------------------------------------------------------------------------------------- | -------- |
 | FAQ-001 | Create and edit a knowledge entry         | Valid question, answer, category, and keywords persist                                       | Pass     |
-| FAQ-002 | Search/filter and change lifecycle status | Active, inactive, and archived behavior matches the API and UI                               | In progress; filter checks pass, lifecycle pending |
+| FAQ-002 | Search/filter and change lifecycle status | Active, inactive, and archived behavior matches the API and UI                               | In progress; filter/archive UI and archive audit checks pass; activation/deactivation pending |
 | FAQ-003 | Attempt invalid or duplicate operations   | Clear validation is shown and no unintended record is created                                | In progress; UI validation passes, duplicate policy pending |
 | FAQ-004 | Test public assistant matching            | Approved match, alternative wording, inactive ignored, no-match fallback, prohibited general answer (e.g. species identification) refused, and inquiry/visit-request redirection | Not run  |
 
@@ -334,6 +334,65 @@ Activation would make a test answer eligible for public matching and needs a
 confirmed isolated test environment before that follow-up. FAQ-003 and FAQ-004
 remain not run. This is evidence only, not an application fix or complete FAQ
 acceptance; full lint/unit/build suites were not rerun for this docs-only update.
+
+#### FAQ-002 inactive-to-archived browser evidence - 2026-10-21
+
+Used the existing signed-in, headed Edge session `biosphere-aud002` and the
+real local curator UI on port 3000. Playwright followed the visible forms and
+audit link; no API mocking, direct database writes, auth-state export, public
+activation, hard deletion, or changes to another owner's module occurred.
+
+Created one disposable fixture rather than permanently archiving the retained
+FAQ-001 entry needed for other tests:
+
+- Question: `TEST FAQ Archive 20261021 B 7c56d941 - Why is this entry archived?`
+- ID: `b6893943-43e0-4192-a862-afcf68311f48`.
+- Answer: `Disposable inactive-only FAQ archive acceptance fixture. Do not activate.`
+- Category: `Acceptance testing`; alternative wording and keywords left empty.
+
+Executed checks:
+
+1. The unique question search was empty before creation. Create showed the
+   inactive-success notice; fresh navigation returned exactly one inactive
+   fixture with its saved answer and ID.
+2. Opened Archive confirmation and chose Cancel. Reload retained `INACTIVE`;
+   audit history contained one `CREATE_FAQ_ENTRY` and no archive event.
+3. Confirmed **Yes, archive**. The success notice appeared; fresh navigation
+   and reload showed `ARCHIVED`, preserving the question, answer, category
+   and original ID.
+4. Archived knowledge displayed the permanent read-only explanation and no
+   edit form, Save, Activate, Deactivate, or Archive button for that entry.
+   The unrelated Create-inactive form remains available as intended.
+5. Search plus `ACTIVE` or `INACTIVE` excluded this archived fixture with a
+   proper empty state. Search plus `ARCHIVED` returned exactly one match.
+6. **View audit history** returned one create and one successful
+   `ARCHIVE_FAQ_ENTRY`. The archive actor matched the creating/acting curator,
+   and structured details contained `previousStatus: INACTIVE` and
+   `newStatus: ARCHIVED`. Reload preserved the same event counts.
+
+An initial diagnostic locator matched both the answer paragraph and edit
+textarea, so that script stopped after creating the inactive fixture but
+before any archive attempt. Scoped the locator to Knowledge details and
+resumed on the same UUID; no second create occurred. This was a test-selector
+error, not an application defect. No application assertion failed in the
+corrected lifecycle run; no new defect was reproduced.
+
+The disposable fixture is retained archived for evidence; routine operations
+cannot restore it. The earlier FAQ-001 fixture was not changed. The browser
+remains open and signed in on the archived fixture. Diagnostic scripts stay
+Git-ignored under frontend `tools/browser/artifacts/faq-archive-*.txt`.
+
+Checkout bases: backend `d1afbb3`, frontend `f596a3f`. Actual served production
+build hashes were not independently verified and servers were not restarted.
+No application code changed; `git diff --check` is the documentation check.
+Full lint/unit/build suites were not rerun for this evidence-only change.
+
+FAQ-002 remains **In progress**: activation, deactivation, active-to-archived
+behavior, direct archived-write rejection, real concurrent/idempotent HTTP
+requests, session expiry, and failure/pending UI are not established by this
+run. Refreshing audit history is not an actual mutation retry. No test answer
+became public, and no chatbot request was sent; FAQ-004 approval/testing and
+independent module sign-off remain separate.
 
 #### FAQ-003 supervised negative-path evidence - 2026-10-19
 
