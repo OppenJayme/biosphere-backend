@@ -973,6 +973,30 @@ is not module sign-off. Status is **Ready for retest**, pending merge, rebuild
 of the normal frontend, and team acceptance. See frontend
 `docs/storage-archive-display.md` for the visibility contract and rollout.
 
+#### Post-merge normal-frontend recheck - 2026-10-21
+
+Confirmed frontend PR #75 and backend PR #162 merged. Clean local develop
+checkouts fast-forwarded to frontend `0ffa81f` and backend `29fe779`. The
+existing signed-in browser on normal port 3000 now exposes the new archive
+toggle; no server restart, build overwrite or authentication export was needed.
+Actual served build hashes were not independently inspected.
+
+Reran the read-only acceptance script against port 3000 using the same archived
+cabinet/drawer fixtures. Default tree/search excluded archives; historical
+toggle and reload, tree/search/breadcrumb/child badges, zero active versus one
+archived child, child selection, old direct links, keyboard hide and active
+fallback all passed. Archived mutation controls were absent, archived parent
+options were excluded, and the audit link still returned one archive event.
+The script reported zero page errors and performed no data mutations. Browser
+remains open and signed in. Diagnostic script remains Git-ignored at frontend
+`tools/browser/artifacts/storage-visibility-acceptance.txt`.
+
+The presentation repair passes this post-merge browser check. DEF-010 stays
+**Ready for retest** pending the unchecked combined protection criterion below
+and team sign-off; no live backend write rejection, Inventory lot-assignment
+test or concurrency claim is added. This follow-up changes documentation only;
+`git diff --check` passed, and full local application suites were not rerun.
+
 #### Reproduction
 
 1. Select a disposable storage location that has an active child or specimen
