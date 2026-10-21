@@ -411,6 +411,75 @@ documentation-only update.
 | BAK-001 | Search and filter backup-history records                             | History loads with correct status/type/creator/date filters                                                            | In progress; empty-history UI checks pass, positive-data cases unavailable |
 | BAK-002 | Execute and restore a real backup                                    | Deferred until deployment ownership, storage, retention, verification, and disposable restore environment are approved | Deferred |
 
+#### AUD-002 archive checkpoint and blocked restoration - 2026-10-21
+
+This concludes the current supervised Cataloging traceability browser batch,
+not full module/project acceptance. PRs #153-#156 were still pending at this
+checkpoint; evidence there must be reviewed/merged separately with CI results.
+
+Before mutation, source inspection found no specimen restore controller/service
+workflow, while `SpecimenLifecyclePanel.tsx` explicitly warns that no restore
+workflow exists. `docs/CATALOG_COMPLETION_GUIDE.md`, Deferred decisions,
+explicitly excludes restoration from `ARCHIVED`. **Restore testing is Blocked
+by an unimplemented/deferred capability, not Pass and not a new regression.**
+Do not interpret previous manual references to restoring required field data
+as evidence that archived specimen restoration exists. No restore endpoint was
+invented or attempted, and no restore implementation was added during testing.
+
+To preserve the main reusable specimen, created a separate throwaway record
+`TEST - AUD-002 Archive Only 20261021`, UUID
+`9f2cd6f5-92d0-4afc-bd11-dfe7b3c1fde0`, with no active lots. Its remarks
+explicitly identify it as disposable with restoration not implemented.
+Using signed-in isolated Edge session `biosphere-aud002`, all 37 executed
+archive assertions passed (includes repeated view checks, not 37 test cases):
+
+- Verified fixture name, `UNCATALOGED`, public eligibility off, no active lots,
+  no initial revisions, and exactly one creation audit. No inventory was changed.
+- Cancelled archival and confirmed status, revisions, and audit contents unchanged.
+- Confirmed archive: `ARCHIVED`, public eligibility still off, core values readable,
+  edit link absent, and no repeat-archive or restore control offered.
+- Exactly one `Status` revision recorded `UNCATALOGED` -> `ARCHIVED`, source
+  `Specimen Core`, within the measured operation window with five-second tolerance.
+- Exactly one `ARCHIVE_SPECIMEN` audit identified the fixture UUID/type `specimen`,
+  module `specimens`, result `SUCCESS`, and only `previousStatus: UNCATALOGED`
+  metadata. Displayed actor matched the revision, selected detail showed curator
+  role, and the displayed timestamp minute matched the revision.
+- Reload retained the archived status, off eligibility, one revision, and two
+  audits (create/archive). Direct core-edit navigation showed read-only behavior.
+- Default catalog search excluded the archived fixture; explicit `status=ARCHIVED`
+  search returned exactly its row. Read-only browsing added no history/audits.
+- Main reusable specimen `5b8e55d4-af0f-4263-9b0e-349b4b314f20` remained
+  `UNCATALOGED` and active. Browser was left open/signed in on that main record.
+
+The throwaway record remains archived with its history preserved; it was not
+deleted or restored. No failed assertion or new application defect was reproduced
+in this archive run. The restore gap is recorded here as a capability blocker,
+not incorrectly entered as a newly introduced bug. Diagnostic remains ignored
+locally at frontend `tools/browser/artifacts/aud-002-archive.txt`, not a CI test.
+No request mocks, direct database writes, lot/storage/publication operations,
+production source changes, or credential/auth-state exports were used.
+
+Checkout references: frontend `e43e7fc`, backend `39b9aac`; actual served build
+revisions not independently verified. Actor UUID equality, exact audit database
+timestamps, direct unauthorized-write rejection, active-lot archive rejection,
+repeat-request idempotency, concurrency, and production security are not proven
+by this archive-only case. Documentation only; `git diff --check` passed;
+full lint/unit/build suites were not rerun.
+
+Remaining after this batch:
+
+- Review/merge evidence PRs and independent retest; do not infer CI from local results.
+- Completion/reopening/public-eligibility traceability on an approved specimen
+  with a lot prepared by the Inventory owner; Cataloging must not manufacture a
+  lot or modify quantity/placement just to unblock its own acceptance tests.
+- Separately scope/implement approved restore rules before restoration can be tested.
+- Follow up unresolved history-navigation timing OBS-001 (recorded in PR #156),
+  plus the remaining access/failure/concurrency/private-media checks. Functional
+  successes do not close that timing observation or establish full security.
+
+AUD-002 remains **In progress**. Stop this batch here; choose the next scoped
+testing/implementation task explicitly after reviewing these gaps.
+
 #### BAK-001 read-only empty-history browser evidence - 2026-10-19
 
 Supervised Playwright ran the real Backup History page in isolated Edge session
