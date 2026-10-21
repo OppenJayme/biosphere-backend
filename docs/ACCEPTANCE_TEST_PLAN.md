@@ -407,7 +407,7 @@ documentation-only update.
 | ID      | Test                                                                 | Expected result                                                                                                        | Status   |
 | ------- | -------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- | -------- |
 | AUD-001 | Filter audit logs by actor, module, action, result, record, and date | Results are protected, stable, bounded, and accurate                                                                   | In progress; browser filter checks pass, access/boundary checks pending |
-| AUD-002 | Trace Cataloging actions to revision and audit entries               | Actor, affected record, action, outcome, and timestamp match                                                           | In progress; core, taxonomy, and provenance browser checks pass, other actions pending |
+| AUD-002 | Trace Cataloging actions to revision and audit entries               | Actor, affected record, action, outcome, and timestamp match                                                           | In progress; core, taxonomy, provenance, tag attach/retry/detach checks pass; other actions pending |
 | BAK-001 | Search and filter backup-history records                             | History loads with correct status/type/creator/date filters                                                            | In progress; empty-history UI checks pass, positive-data cases unavailable |
 | BAK-002 | Execute and restore a real backup                                    | Deferred until deployment ownership, storage, retention, verification, and disposable restore environment are approved | Deferred |
 
@@ -756,6 +756,69 @@ future-date validation, and full provenance acceptance were not established
 by this run. AUD-002 remains **In progress** for tags/media and lifecycle/public
 eligibility traceability. Documentation only; `git diff --check` passed;
 full lint/unit/build suites were not rerun.
+
+#### AUD-002 tag relationship traceability browser evidence - 2026-10-21
+
+Used the signed-in isolated Edge session `biosphere-aud002` and existing test
+specimen `5b8e55d4-af0f-4263-9b0e-349b4b314f20`. PR #152 was confirmed merged.
+The initial UI check observed nine revisions, no attached tags, and no exact
+vocabulary suggestion for `TEST - AUD-002 Trace Tag 20261021`.
+
+Attached that name through the UI, then verified:
+
+- Exactly one attachment and one new `Specimen Tags` revision, with previous
+  value `None (tag added)` and the exact test name as the new value.
+- One `ATTACH_SPECIMEN_TAG` audit with module `specimens` and result `SUCCESS`.
+  Its affected record was a valid `specimen_tag` relationship UUID, not the
+  specimen UUID. Structured details identified the exact specimen, a valid tag
+  UUID, the exact name, and `createdVocabulary: true` with no extra keys.
+- A lowercase-name retry showed the explicit already-attached notice, retained
+  one attachment, and created/altered no observed revision or relationship audit.
+- Reload retained the attachment. Cancelling the detach dialog retained it;
+  confirming detach then removed it and added exactly one inverse revision,
+  ending in `None (tag removed)`.
+- The `DETACH_SPECIMEN_TAG` audit used the original relationship UUID and exact
+  specimen/tag/name metadata. Each audit matched its corresponding revision's
+  displayed actor, taxonomy-independent tag source, displayed timestamp minute,
+  and curator role in the selected detail panel.
+- Reload retained both relationship audit entries and the observed revision
+  contents. The detached tag remained absent; searching its exact vocabulary
+  name returned a reusable suggestion. Selecting the suggestion filled the
+  attach field without creating another relationship.
+
+The completed guarded recovery diagnostic passed 39 executed assertions,
+including repeated availability checks, not 39 acceptance cases. Revisions
+were 9 -> 10 -> 11; the test relationship had one attach audit, then exactly
+two audits after detach. Discovery inspected the bounded newest 100 attach
+audits and matched fixture details in memory; subsequent audit reads were
+scoped by relationship UUID, not by specimen UUID (which is nested in details).
+
+The initial diagnostic stopped after attachment because it expected ordinary
+field empty-value wording instead of the existing tag-specific wording. Recovery
+validated the saved attachment without attaching again. Two further harness
+issues were corrected: selecting by action alone matched multiple audit rows,
+so the locator was narrowed to the exact relationship; a post-reload count ran
+before the tag form finished rendering, so an explicit readiness wait was added.
+No application defect was reproduced. Recovery runs repeated only the safe
+case-variant no-op until the final successful detach. The attach revision time
+was checked against museum-day bounds during recovery, not its original precise
+operation window; detach used its measured window, both with five-second tolerance.
+
+Only labelled test vocabulary/relationship data was changed through the UI.
+The shared vocabulary remains intentionally retained for review. No direct
+database writes, request mocks, inventory/lots/storage/publishing operations,
+production source changes, or auth-state exports were used. Actor names and
+unrelated audit content are not included in this committed evidence. Diagnostics
+remain ignored locally at frontend `tools/browser/artifacts/aud-002-tags.txt`
+and `aud-002-tags-resume.txt`; these fixture-specific scripts are not CI tests.
+The browser remains open and signed in on the tag page as requested.
+
+Checkout references: frontend `e43e7fc`, backend `39b9aac`; actual served build
+revisions were not independently verified. Actor UUID equality, exact audit
+timestamps, cross-specimen reuse, concurrent requests, rollback, and adversarial
+access were not established. AUD-002 remains **In progress** for tag change,
+media, and lifecycle/public eligibility traceability. Documentation only;
+`git diff --check` passed; full lint/unit/build suites were not rerun.
 
 ## 9. John Gerozaga acceptance register
 
