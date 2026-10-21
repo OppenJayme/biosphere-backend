@@ -646,6 +646,73 @@ minute precision, not exact database timestamps. Transaction rollback,
 concurrent writes, adversarial access, and production security are not proven.
 Only this documentation changed; full lint/unit/build suites were not rerun.
 
+#### AUD-002 media upload/metadata/cover browser evidence - 2026-10-21
+
+Used signed-in isolated Edge session `biosphere-aud002` and disposable specimen
+`5b8e55d4-af0f-4263-9b0e-349b4b314f20`. PRs #153/#154 remained open at the
+start; no automatic merge was performed. Verified fixture name, no initial
+media, and the previous tag-change baseline of thirteen revisions.
+
+Generated two 32 x 32 PNG fixtures in browser memory (red/blue blocks, not museum
+photographs) and submitted them through the real upload form. Captions were
+`TEST AUD-002 media A` and `TEST AUD-002 media B`; display orders were 0 and 1.
+Cover upload checkboxes were unchecked. Verified the first image became cover
+automatically, while the second did not displace it.
+
+The completed recovery run passed 74 executed assertions, including repeated
+view-availability/image-decoding checks, not 74 acceptance cases:
+
+- Each upload produced exactly one `Image added` revision and one
+  `CREATE_SPECIMEN_MEDIA` audit. History used `No image record` -> `Image recorded`
+  instead of exposing raw storage paths. Creation metadata had exactly the
+  specimen UUID, display order, expected cover flag, and MIME type `image/png`.
+- Changed the second image's caption to `TEST AUD-002 media B edited` and order
+  from 1 to 2. Exactly two revisions showed those old/new values; one
+  `UPDATE_SPECIMEN_MEDIA` audit listed only `caption` and `display_order`.
+- Set the second image as cover. It gained the cover marker and lost its
+  redundant set-cover control; the first image lost its marker. Exactly one
+  `Cover image changed` revision used safe previous/selected labels, and one
+  `SET_SPECIMEN_MEDIA_COVER` audit identified the original cover's media UUID.
+- For all four actions (two creates, metadata, cover), verified media UUID as
+  affected `specimen_media` record, exact specimen UUID in details, module
+  `specimens`, result `SUCCESS`, matching displayed actor, media revision source,
+  curator role, and audit/revision displayed minute. The second upload/edit/cover
+  revisions were bounded to measured operation windows with five-second tolerance.
+- Before and after reload, both image previews decoded at the expected 32 x 32
+  dimensions and used signed-object URL paths with a token query parameter.
+  URLs/tokens were not exported. Reload retained two media records, caption/order,
+  and exactly the selected cover. Submitting unchanged metadata displayed
+  `No changes were saved` and altered/added no observed revision or media audit.
+
+Counts across baseline/first upload/second upload/metadata/cover were revisions
+13 -> 14 -> 15 -> 17 -> 18. First media retained exactly one creation audit;
+second media retained exactly three audits (create, metadata update, cover).
+
+The initial run stopped after the first upload because the diagnostic compared
+JSON serialization order, even though JSON object key order is not meaningful.
+Read-only inspection confirmed every expected metadata key/value. Recovery
+compared exact values/key count independent of order, guarded the already-saved
+image, and did not upload it again. Its original pre-upload baseline was
+observed by the first run; first-image revision time was checked against
+museum-day bounds during recovery, not the precise initial upload window.
+This was a harness issue, not an application defect; no new application defect
+was reproduced. Scripts remain ignored locally at frontend
+`tools/browser/artifacts/aud-002-media.txt` and `aud-002-media-resume.txt`, not CI.
+
+Two labelled test images remain in private specimen storage for follow-up tests.
+No request mocking, direct database writes, inventory/lots/storage hierarchy,
+publishing, production source changes, or auth-state exports were used. Browser
+remains open and signed in on media management as requested. Actor names and
+private URLs are not included in committed evidence.
+
+Checkout references: frontend `e43e7fc`, backend `39b9aac`; actual served build
+revisions were not independently verified. Actor UUID equality, exact audit
+timestamps, pixel-content integrity, URL expiry/revocation, unauthorized image
+access, invalid/oversized uploads, concurrency, and storage rollback were not
+established. AUD-002 remains **In progress** for media replacement/removal and
+lifecycle/public eligibility. This is not full CAT-011 or security sign-off.
+Documentation only; `git diff --check` passed; full lint/unit/build not rerun.
+
 #### AUD-002 taxonomy traceability browser evidence - 2026-10-21
 
 Continued in isolated Edge session `biosphere-aud002` after manual login,
