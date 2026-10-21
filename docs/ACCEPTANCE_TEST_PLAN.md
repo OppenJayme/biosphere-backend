@@ -111,25 +111,100 @@ Run tests in this order because later workflows depend on earlier records:
 Record each result as `Not run`, `In progress`, `Pass`, `Fail`, `Blocked`, or `Deferred`.
 Every `Fail` must reference an entry in the defect log.
 
+### Status reconciliation - 2026-10-22
+
+The tables below are current coverage summaries, not immutable records of the
+first run. Dated evidence paragraphs retain the original failures, repairs and
+test limits. A passing subcase does not pass the entire row, and an old failure
+is not evidence that the repaired workflow is still broken today.
+
+This documentation-only review uses recorded guides/browser runs plus earlier
+tester confirmations in the project conversation. Those conversation reports
+did not consistently capture execution dates, commits, exact case coverage or
+independent review; they are identified as reports, not newly replayed tests.
+No missing evidence is manufactured and no defect is promoted to Verified.
+
+Evidence reconciled:
+
+- Collections: tester reported the exact/case/space/rename collision checklist
+  successful. DEF-001's database-index deployment, concurrent collisions and
+  data/audit guarantees still require evidence; the original failure is retained.
+- Provenance: tester reported future-date input blocked, valid saving and
+  revision history working. This does not establish direct API/import bypass
+  rejection or readiness behavior for a legacy future date (DEF-002).
+- Catalog media/tags/filters: tester reported successful persistence/removal,
+  cover preview, reusable suggestions, duplicate no-op feedback and filter reset/
+  browser history. Later supervised AUD-002 evidence independently covers the
+  recorded tag/media operations. Full failure, privacy, accessibility and
+  remote-LAN cases are not inferred from those reports. DEF-011 timing remains
+  a refinement item, not proof that filtering is functionally broken.
+- CSV: tester reported mixed preview with two valid/one invalid row and later
+  continuation successful. The short confirmations do not independently prove
+  preview non-mutation, every invalid-field variant or retry-safe commit;
+  those remain explicit gaps under CAT-013/DEF-009.
+- Duplicates: [CAT-014 evidence](./SPECIMEN_DUPLICATES_GUIDE.md#cat-014-verification-evidence---2026-10-12)
+  replaces the stale PR-blocked status, but preserves archived-policy and
+  browser failure/retry gaps. Dashboard enhancements remain with their owners.
+- Offline: [manual and automated evidence](./OFFLINE_SYNC_GUIDE.md#acceptance-and-recovery-evidence---2026-10-17)
+  and the [live lost-response pilot](./OFFLINE_SYNC_GUIDE.md#live-lost-response-pilot---2026-10-18)
+  replace the stale Not run statuses. Each guide's limitations still apply.
+  OFF-001's wording is aligned with the documented limited-offline contract:
+  an open workspace cache is not a replay of protected HTML after navigation.
+  This is a checklist clarification, not new offline functionality or scope.
+- Storage: the dated post-merge browser recheck and HTTP regressions below
+  establish separate UI and isolated-backend evidence. Inventory lot-assignment
+  and live concurrency are not counted as tested by Cataloging/Storage checks.
+- Restoration: [CAT-016 verification](./CATALOG_RESTORATION_VERIFICATION.md)
+  supersedes the historical unimplemented-restore checkpoint below. It does not
+  prove the live Cataloged restoration branch or close all audit lifecycle work.
+
+#### Remaining completion queue (owner scope only)
+
+1. Close the identified Cataloging gaps, not every previously passed happy path:
+   date/API/import/readiness cases, reviewed CSV commit/retry evidence, remote
+   LAN interaction and relevant media/error/privacy checks. Verify collection
+   migration/concurrency evidence before treating DEF-001 as closed; any live
+   migration or destructive test needs its own approved procedure/environment.
+2. Complete Storage protection sign-off with John for the Inventory-owned
+   lot-assignment criterion. Do not add lot management to Cataloging or change
+   John's module to manufacture a passing fixture.
+3. Finish offline interruption/session-expiry and remaining recovery cases from
+   the guide. Do not repeat the already-recorded lost-response pilot as though
+   it were untested; any destructive interruption uses a disposable draft.
+4. Record FAQ matching/fallback and duplicate-policy decisions, then test the
+   remaining lifecycle/public assistant cases in a confirmed isolated setup.
+   Do not activate arbitrary test answers in a publicly used knowledge base.
+5. Finish audit completion/reopening/public-eligibility traceability using an
+   Inventory-owner-prepared specimen. Cover the remaining audit access/failure
+   cases, backup-history positive-data cases and observation OBS-001. Real
+   backup/restore remains Deferred until a safe procedure/environment is approved.
+6. Run one final scoped integration/regression pass; resolve blocking defects,
+   document explicitly accepted deferrals and obtain owner/teammate sign-off.
+
+Do not expand this queue with optional enhancements or new features without
+an approved requirement. Passing unit/HTTP/CI checks support acceptance; they
+do not replace live evidence or independent sign-off. DEF-017 is a documented
+John/Voltaire test-fixture handoff, not permission to absorb Inventory work.
+
 ### Cataloging Management
 
 | ID      | Test                                                                           | Expected result                                                                                            | Status                                                                |
 | ------- | ------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
-| CAT-001 | Create and rename a collection; retry the same normalized name                 | Valid unique names save; duplicates are rejected clearly                                                   | **Fail - DEF-001**                                                    |
+| CAT-001 | Create and rename a collection; retry the same normalized name                 | Valid unique names save; duplicates are rejected clearly                                                   | In progress; collision UI retest reported passed; database/concurrency evidence pending (original Fail - DEF-001) |
 | CAT-002 | Create complete and incomplete specimen drafts                                 | Both start `UNCATALOGED`; public display is off                                                            | **Pass**                                                              |
 | CAT-003 | Edit specimen core fields and submit an unchanged form                         | Changes persist with revision history; no-change submission is rejected clearly                            | **Pass**                                                              |
 | CAT-004 | Create and edit taxonomy                                                       | One taxonomy record exists; draft values and revisions persist                                             | **Pass**; completion requirement remains under CAT-006                |
-| CAT-005 | Create and edit provenance; reject invalid dates                               | Values and revisions persist; empty values normalize; future collection dates are rejected                 | **Fail - DEF-002**                                                    |
-| CAT-006 | View readiness with missing and complete requirements                          | Every approved rule reports the correct pass/fail state and fix location                                   | **Fail - DEF-002**                                                    |
-| CAT-007 | Complete Cataloging with one prepared valid active lot                         | Status becomes `CATALOGED`; public display remains off; history/audit are written                          | **Pass** for lifecycle behavior; DEF-002 still blocks module sign-off |
+| CAT-005 | Create and edit provenance; reject invalid dates                               | Values and revisions persist; empty values normalize; future collection dates are rejected                 | In progress; UI date/save/history retest reported passed; API/import matrix pending (original Fail - DEF-002) |
+| CAT-006 | View readiness with missing and complete requirements                          | Every approved rule reports the correct pass/fail state and fix location                                   | In progress; readiness happy paths reported passed; legacy future-date case pending (original Fail - DEF-002) |
+| CAT-007 | Complete Cataloging with one prepared valid active lot                         | Status becomes `CATALOGED`; public display remains off; history/audit are written                          | **Pass** for lifecycle behavior; outstanding DEF-002 verification still gates module sign-off |
 | CAT-008 | Remove required data while Cataloged, then reopen with a reason                | Removal is blocked until reopening; reopening returns to `UNCATALOGED` and disables public display         | **Pass**                                                              |
 | CAT-009 | Enable and disable public eligibility                                          | Only Cataloged specimens qualify; no exhibit is published automatically                                    | **Pass**                                                              |
 | CAT-010 | Attach, change, repeat, and detach tags                                        | Relationships remain unique and retry-safe                                                                 | **Pass**; usability issue DEF-005                                     |
-| CAT-011 | Upload, edit, cover, replace, and remove supported media; reject invalid media | Private signed access, database/storage consistency, and usable interaction states are preserved           | **Fail - DEF-004, DEF-006, DEF-007**; core operations passed          |
+| CAT-011 | Upload, edit, cover, replace, and remove supported media; reject invalid media | Private signed access, database/storage consistency, and usable interaction states are preserved           | In progress; core/media traceability and reported preview retests pass; privacy/error/accessibility gaps remain (original Fail - DEF-004/006/007) |
 | CAT-012 | Search, combine filters, sort, and paginate                                    | Results are bounded, stable, case-insensitive where approved, and archived records are excluded by default | **Pass**; Clear-all UI defect DEF-008                                 |
-| CAT-013 | Preview and commit mixed-validity CSV rows; retry commit                       | Preview is non-mutating; only reviewed valid rows import as `UNCATALOGED`; retries do not duplicate rows   | **Fail - DEF-009**; mixed-validity preview blocked                    |
-| CAT-014 | Review possible duplicate warnings, including archived matches                 | Warnings show evidence and never auto-merge records                                                        | Blocked pending active duplicate-detection PR acceptance              |
-| CAT-015 | Select multiple specimens from the protected catalog on local and LAN clients  | Every row is keyboard/touch accessible and opens the matching preview/detail route                         | **Fail - DEF-003**                                                    |
+| CAT-013 | Preview and commit mixed-validity CSV rows; retry commit                       | Preview is non-mutating; only reviewed valid rows import as `UNCATALOGED`; retries do not duplicate rows   | In progress; mixed preview reported passed; detailed commit/retry/non-mutation evidence pending (original Fail - DEF-009) |
+| CAT-014 | Review possible duplicate warnings, including archived matches                 | Warnings show evidence and never auto-merge records                                                        | In progress; manual/isolated regression evidence in duplicate guide; archived policy and browser failure/retry pending |
+| CAT-015 | Select multiple specimens from the protected catalog on local and LAN clients  | Every row is keyboard/touch accessible and opens the matching preview/detail route                         | In progress; repair ready; complete remote-LAN/keyboard/touch checklist unverified (original Fail - DEF-003) |
 | CAT-016 | Restore an archived specimen after current-requirement revalidation | Same record returns as Cataloged only when complete, otherwise Uncataloged; public display off; history preserved; inventory unchanged | **Partial pass** — live incomplete restore, cancel/error/reload and audit passed; complete branch covered by isolated HTTP tests; live concurrency unverified |
 
 CAT-016 evidence and limits are recorded in
@@ -211,7 +286,7 @@ backend's row-level validation result.
 | STO-001 | Create a root and nested storage hierarchy            | The hierarchy reloads with correct parent-child relationships | **Pass**                                             |
 | STO-002 | Attempt self-parenting and descendant cycles          | Both operations are rejected without changing the hierarchy   | **Pass**; UI manual + automated backend verification |
 | STO-003 | Edit storage metadata and specimen-holding capability | Valid changes persist and invalid values are rejected clearly | **Pass**                                             |
-| STO-004 | Exercise approved archive restrictions                | Referenced/unsafe locations cannot be archived incorrectly    | **Pass**; DEF-010 frontend repair ready for post-merge retest |
+| STO-004 | Exercise approved archive restrictions                | Referenced/unsafe locations cannot be archived incorrectly    | **Pass** for original restrictions; DEF-010 post-merge display and isolated HTTP checks passed; combined Inventory criterion/sign-off pending |
 
 STO-001 evidence recorded on 2026-10-04: a disposable top-level room and its
 nested storage locations were created with the intended parent-child
@@ -340,10 +415,10 @@ acceptance are not marked complete by this narrower evidence.
 
 | ID      | Test                                                            | Expected result                                                                                 | Status  |
 | ------- | --------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- | ------- |
-| OFF-001 | Cache the allowed specimen list, disconnect, and reload         | Previously cached bounded data remains readable                                                 | Not run |
-| OFF-002 | Create an offline text draft and synchronize after reconnecting | One attributed `UNCATALOGED` record is created                                                  | Not run |
-| OFF-003 | Retry the same synchronization and simulate temporary failure   | Retry is safe; no duplicate specimen is created; recoverable errors remain visible              | Not run |
-| OFF-004 | Inspect offline feature boundaries                              | Media, inventory movement, archive, and privileged operations are not falsely available offline | Not run |
+| OFF-001 | Cache the allowed specimen list, disconnect, and check workspace/reload | Open workspace retains bounded cached viewing; fresh offline navigation/reload shows record-free fallback | In progress; manual workspace/fallback/recovery evidence recorded; independent retest pending |
+| OFF-002 | Create an offline text draft and synchronize after reconnecting | One attributed `UNCATALOGED` record is created                                                  | In progress; manual save/persistence/sync evidence recorded; independent sign-off pending |
+| OFF-003 | Retry the same synchronization and simulate temporary failure   | Retry is safe; no duplicate specimen is created; recoverable errors remain visible              | In progress; live lost-response/retry pilot passed; process interruption/session expiry/concurrency gaps remain |
+| OFF-004 | Inspect offline feature boundaries                              | Media, inventory movement, archive, and privileged operations are not falsely available offline | In progress; text-core boundary/account isolation reported and regression-covered; full negative matrix pending |
 
 ### FAQ knowledge management
 
@@ -563,12 +638,17 @@ documentation-only update.
 
 | ID      | Test                                                                 | Expected result                                                                                                        | Status   |
 | ------- | -------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- | -------- |
-| AUD-001 | Filter audit logs by actor, module, action, result, record, and date | Results are protected, stable, bounded, and accurate                                                                   | In progress; browser filter checks pass, access/boundary checks pending |
-| AUD-002 | Trace Cataloging actions to revision and audit entries               | Actor, affected record, action, outcome, and timestamp match                                                           | In progress; core, taxonomy, provenance, tag attach/retry/detach checks pass; other actions pending |
+| AUD-001 | Filter audit logs by actor, module, action, result, record, and date | Results are protected, stable, bounded, and accurate                                                                   | In progress; browser filters and isolated denial-audit regressions pass; remaining live access/failure/boundary cases pending |
+| AUD-002 | Trace Cataloging actions to revision and audit entries               | Actor, affected record, action, outcome, and timestamp match                                                           | In progress; core/taxonomy/provenance/tags/media/archive and scoped restoration evidence recorded; completion/reopening/public eligibility and OBS-001 pending |
 | BAK-001 | Search and filter backup-history records                             | History loads with correct status/type/creator/date filters                                                            | In progress; empty-history UI checks pass, positive-data cases unavailable |
 | BAK-002 | Execute and restore a real backup                                    | Deferred until deployment ownership, storage, retention, verification, and disposable restore environment are approved | Deferred |
 
 #### AUD-002 archive checkpoint and blocked restoration - 2026-10-21
+
+Historical checkpoint: restoration was subsequently implemented and checked;
+see CAT-016 and `CATALOG_RESTORATION_VERIFICATION.md` for the later result and
+remaining limits. The blocked statement below describes that earlier run,
+not the current existence of the restore workflow.
 
 This concludes the current supervised Cataloging traceability browser batch,
 not full module/project acceptance. PRs #153-#156 were still pending at this
@@ -1359,6 +1439,10 @@ A module is accepted when:
 ## 13. Sign-off
 
 ### Defect repair retest checkpoint — 2026-10-05
+
+Historical checkpoint only. Use the 2026-10-22 reconciliation and current rows
+in Section 8 for remaining work; do not infer current deployment state from
+this older migration note or repeat already-confirmed subcases without cause.
 
 Repairs for DEF-001, DEF-002, DEF-003 and DEF-009 are ready for manual
 retest. Preserve the original failed acceptance results until the repair is
