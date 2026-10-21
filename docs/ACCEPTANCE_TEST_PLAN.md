@@ -407,7 +407,7 @@ documentation-only update.
 | ID      | Test                                                                 | Expected result                                                                                                        | Status   |
 | ------- | -------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- | -------- |
 | AUD-001 | Filter audit logs by actor, module, action, result, record, and date | Results are protected, stable, bounded, and accurate                                                                   | In progress; browser filter checks pass, access/boundary checks pending |
-| AUD-002 | Trace Cataloging actions to revision and audit entries               | Actor, affected record, action, outcome, and timestamp match                                                           | In progress; core and taxonomy browser checks pass, other actions pending |
+| AUD-002 | Trace Cataloging actions to revision and audit entries               | Actor, affected record, action, outcome, and timestamp match                                                           | In progress; core, taxonomy, and provenance browser checks pass, other actions pending |
 | BAK-001 | Search and filter backup-history records                             | History loads with correct status/type/creator/date filters                                                            | In progress; empty-history UI checks pass, positive-data cases unavailable |
 | BAK-002 | Execute and restore a real backup                                    | Deferred until deployment ownership, storage, retention, verification, and disposable restore environment are approved | Deferred |
 
@@ -693,6 +693,69 @@ AUD-002 remains **In progress** for provenance, tags/media, and lifecycle/public
 eligibility traceability. This evidence does not replace broader taxonomy
 validation or independent acceptance. Documentation-only change;
 `git diff --check` passed, and full lint/unit/build suites were not rerun.
+
+#### AUD-002 provenance traceability browser evidence - 2026-10-21
+
+Continued in signed-in isolated Edge session `biosphere-aud002` with the same
+disposable fixture `5b8e55d4-af0f-4263-9b0e-349b4b314f20`. PR #151 was confirmed
+merged. Verified fixture name, create mode, and all six provenance fields empty;
+observed baseline was four revisions and four fixture-scoped audit entries.
+
+Created provenance with collection date `2026-10-20`, collection location
+`TEST AUD-002 location A`, preservation type `TEST AUD-002 preservation type`,
+and preservation method `TEST AUD-002 preservation method`. Collector/donor
+were left empty. These are acceptance fixtures, not museum factual claims.
+Creation added exactly four revisions from `Not recorded` to the specified
+values under `Specimen Provenance`, and exactly one
+`CREATE_SPECIMEN_PROVENANCE` audit whose field list contained only
+`collection_date`, `collection_location`, `preservation_type`, and
+`preservation_method`.
+
+The initial diagnostic stopped after creation: copying its source through
+PowerShell without explicit UTF-8 decoding corrupted the middle-dot separator
+used in source-label comparisons. The guarded recovery diagnostic first
+validated the already-saved creation instead of creating again. It stopped
+on the same encoding problem in the affected-record separator comparison;
+correcting both comparisons with Unicode escapes resolved the harness issue.
+These stops caused no repeated creation or extra mutation and are not
+application defects. Recovery baseline counts were independently recorded by
+the original run, not freshly measured before a second creation.
+
+The completed recovery run passed 33 executed assertions (not 33 separate
+acceptance cases), including creation verification and the following checks:
+
+- Changed only collection location to `TEST AUD-002 location B`. Exactly one
+  revision captured location A -> B and the provenance source; exactly one
+  `UPDATE_SPECIMEN_PROVENANCE` audit contained only `collection_location`.
+- For creation and update, the exact affected record was `specimen` plus the
+  fixture UUID, module was `specimens`, result was `SUCCESS`, displayed actor
+  names matched the corresponding revisions, and audit detail showed `CURATOR`.
+- Creation revision timestamps were bounded to the current museum-local day
+  through the recovery read (with five-second tolerance), not the original
+  precise creation-operation window. The update revision was bounded to its
+  measured operation window with five-second tolerance. Each audit matched its
+  corresponding revision at displayed-minute precision.
+- Reload preserved observed revision contents and audit count. The edit form
+  retained the past collection date and changed location. Unchanged submission
+  displayed `No changes were saved`, stayed on the form, and added/altered no
+  revision or audit entry. Counts were revisions 4 -> 8 -> 9 and audits
+  4 -> 5 -> 6 across baseline, creation, and update.
+
+No request mocking, direct database writes, inventory/lots/storage management,
+publishing, credential export, or production source edits were involved. No new
+application defect was reproduced. Both fixture-specific diagnostics remain
+ignored locally at frontend `tools/browser/artifacts/aud-002-provenance.txt`
+and `aud-002-provenance-resume.txt`; they are not a repeatable CI suite. Browser
+was left open and signed in on the provenance form as requested, without
+exporting authentication state.
+
+Checkout references: frontend `e43e7fc`, backend `94247eb`; actual served build
+revisions were not independently verified. Actor UUID equality, exact audit
+database timestamps, concurrent updates, rollback, authorization attacks,
+future-date validation, and full provenance acceptance were not established
+by this run. AUD-002 remains **In progress** for tags/media and lifecycle/public
+eligibility traceability. Documentation only; `git diff --check` passed;
+full lint/unit/build suites were not rerun.
 
 ## 9. John Gerozaga acceptance register
 
