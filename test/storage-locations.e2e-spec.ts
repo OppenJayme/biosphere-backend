@@ -1,3 +1,4 @@
+/** Storage HTTP contracts with real guards/services; auth and persistence stay isolated. */
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import request from 'supertest';
@@ -189,6 +190,68 @@ describe('Storage locations (e2e)', () => {
       .expect(403);
   });
 
+  // Valid payloads ensure denial comes from authentication/roles, not DTO failure.
+  describe.each([
+    {
+      operation: 'create',
+      method: 'post' as const,
+      path: '/storage-locations',
+      payload: {
+        label: 'Cabinet A',
+        unitType: 'CABINET',
+        storageType: 'DRY_STORAGE',
+      },
+    },
+    {
+      operation: 'edit',
+      method: 'patch' as const,
+      path: `/storage-locations/${unitId}`,
+      payload: { label: 'Changed cabinet' },
+    },
+    {
+      operation: 'move',
+      method: 'patch' as const,
+      path: `/storage-locations/${unitId}/move`,
+      payload: { newParentId },
+    },
+    {
+      operation: 'archive',
+      method: 'patch' as const,
+      path: `/storage-locations/${unitId}/archive`,
+      payload: {},
+    },
+  ])('$operation permission boundary', ({ method, path, payload }) => {
+    it.each([
+      { caller: 'signed out', token: undefined, status: 401 },
+      { caller: 'invalid token', token: 'invalid-storage-token', status: 401 },
+      { caller: 'developer', token: developerToken, status: 403 },
+    ])('rejects $caller without storage writes', async ({ token, status }) => {
+      const pending = request(app.getHttpServer())[method](path).send(payload);
+      if (token) pending.set('Authorization', `Bearer ${token}`);
+      await pending.expect(status);
+
+      expect(storageUnitDelegate.create).not.toHaveBeenCalled();
+      expect(storageUnitDelegate.update).not.toHaveBeenCalled();
+      expect(movementDelegate.create).not.toHaveBeenCalled();
+      // Security-denial audits are allowed; a rejected call must not claim storage success.
+      expect(auditCreate).not.toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          module: 'storage_locations',
+          status: 'SUCCESS',
+        }) as object,
+      });
+      if (status === 403) {
+        expect(auditCreate).toHaveBeenCalledWith({
+          data: expect.objectContaining({
+            action: 'ACCESS_DENIED',
+            module: 'auth',
+            status: 'DENIED',
+          }) as object,
+        });
+      }
+    });
+  });
+
   it('protects storage search from unauthenticated users and developers', async () => {
     await request(app.getHttpServer())
       .get('/storage-locations/search')
@@ -347,6 +410,96 @@ describe('Storage locations (e2e)', () => {
       .set('Authorization', `Bearer ${curatorToken}`)
       .send({ holdsSpecimens: null })
       .expect(400);
+  });
+
+  it('keeps archived units readable but rejects editing them', async () => {
+    storageUnitDelegate.findUnique.mockResolvedValue(
+      storageUnitRecord({ archived_at: testDate }),
+    );
+
+    const response = await request(app.getHttpServer())
+      .patch(`/storage-locations/${unitId}`)
+      .set('Authorization', `Bearer ${curatorToken}`)
+      .send({ label: 'Changed cabinet' })
+      .expect(400);
+
+    expect(response.body.message).toBe(
+      'Archived storage units cannot be changed.',
+    );
+    const read = await request(app.getHttpServer())
+      .get(`/storage-locations/${unitId}`)
+      .set('Authorization', `Bearer ${curatorToken}`)
+      .expect(200);
+    expect(read.body).toMatchObject({
+      id: unitId,
+      label: 'Cabinet A',
+      archivedAt: '2026-01-01T00:00:00.000Z',
+    });
+    expect(storageUnitDelegate.update).not.toHaveBeenCalled();
+    expect(auditCreate).not.toHaveBeenCalled();
+  });
+
+  it('rejects moving an archived unit without writing movement history', async () => {
+    storageUnitDelegate.findUnique.mockResolvedValue(
+      storageUnitRecord({ archived_at: testDate }),
+    );
+
+    const response = await request(app.getHttpServer())
+      .patch(`/storage-locations/${unitId}/move`)
+      .set('Authorization', `Bearer ${curatorToken}`)
+      .send({ newParentId })
+      .expect(400);
+
+    expect(response.body.message).toBe(
+      'Archived storage units cannot be changed.',
+    );
+    expect(storageUnitDelegate.update).not.toHaveBeenCalled();
+    expect(movementDelegate.create).not.toHaveBeenCalled();
+    expect(auditCreate).not.toHaveBeenCalled();
+  });
+
+  it('rejects creating a child under an archived parent', async () => {
+    storageUnitDelegate.findUnique.mockResolvedValue(
+      storageUnitRecord({ id: newParentId, archived_at: testDate }),
+    );
+
+    const response = await request(app.getHttpServer())
+      .post('/storage-locations')
+      .set('Authorization', `Bearer ${curatorToken}`)
+      .send({
+        parentId: newParentId,
+        label: 'New drawer',
+        unitType: 'DRAWER',
+        storageType: 'DRY_STORAGE',
+      })
+      .expect(400);
+
+    expect(response.body.message).toBe(
+      'An archived storage unit cannot be used as a parent.',
+    );
+    expect(storageUnitDelegate.create).not.toHaveBeenCalled();
+    expect(auditCreate).not.toHaveBeenCalled();
+  });
+
+  it('rejects moving an active unit under an archived parent', async () => {
+    storageUnitDelegate.findUnique
+      .mockResolvedValueOnce(storageUnitRecord())
+      .mockResolvedValueOnce(
+        storageUnitRecord({ id: newParentId, archived_at: testDate }),
+      );
+
+    const response = await request(app.getHttpServer())
+      .patch(`/storage-locations/${unitId}/move`)
+      .set('Authorization', `Bearer ${curatorToken}`)
+      .send({ newParentId })
+      .expect(400);
+
+    expect(response.body.message).toBe(
+      'An archived storage unit cannot be used as a parent.',
+    );
+    expect(storageUnitDelegate.update).not.toHaveBeenCalled();
+    expect(movementDelegate.create).not.toHaveBeenCalled();
+    expect(auditCreate).not.toHaveBeenCalled();
   });
 
   it('records a move using the authenticated BioSphere account id', async () => {

@@ -304,6 +304,38 @@ DEF-010 remains Ready for retest pending that criterion and team acceptance.
 See its defect entry for fixture IDs and the local diagnostic script.
 Documentation-only verification: `git diff --check`; no new local full-suite run.
 
+#### Storage HTTP protection regressions - 2026-10-21
+
+On backend base `27db649`, extended `test/storage-locations.e2e-spec.ts` at
+the user-approved HTTP boundary. Real Nest controllers, validation, auth/role
+guards and storage service run with mocked Prisma and Supabase adapters;
+no requests reach the running backend or a live database.
+
+- Four archived-state cases pass: archived detail remains readable; archived
+  edits/moves fail; create-child and move-child reject archived parents.
+  Rejected calls produce no storage writes or success audit events.
+- Twelve permission cases cover create/edit/move/archive for signed-out,
+  invalid-token and developer callers: 401/401/403 respectively. Developer
+  denial audits remain supported and asserted; no storage writes occur.
+- Each archived case and then the permission matrix passed against existing
+  production behavior; no red application regression was observed and no
+  runtime changes were needed. This is added characterization coverage, not
+  a claimed red-to-green application repair.
+- Focused storage HTTP suite: 29 passed (13 previous + 16 new). Full backend:
+  53 unit suites / 690 tests passed; 26 HTTP suites / 313 tests passed,
+  with one suite / 17 tests skipped. TypeScript no-emit and diff checks passed.
+- Lint completed with zero errors / seven unused-disable warnings in unchanged
+  files. Full-suite expected failure-path logs were not suppressed. A separate
+  missing-audit mock error was reproduced and logged as DEF-017; other such
+  full-run messages were not all attributed to individual suites.
+
+No application/schema/dependency/frontend or Inventory code changed. Build is
+left to PR CI to avoid overwriting the running backend's build output. These
+mock-backed checks do not prove live database writes, rollback/concurrency,
+real Supabase token validation or Inventory lot-assignment restrictions.
+DEF-010 remains Ready for retest; its combined protection criterion and team
+acceptance are not marked complete by this narrower evidence.
+
 ### Limited offline and synchronization
 
 | ID      | Test                                                            | Expected result                                                                                 | Status  |

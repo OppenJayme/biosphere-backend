@@ -48,6 +48,7 @@ system is not a reason to postpone all fixes until the end.
 | ID      | Date       | Module                     | Summary                                                                 | Severity    | Priority | Status | Owner                   |
 | ------- | ---------- | -------------------------- | ----------------------------------------------------------------------- | ----------- | -------- | ------ | ----------------------- |
 | DEF-016 | 2026-10-19 | Backup / HTTP test fixture | Missing audit delegate logs an error despite green denial test | S3 Moderate | P2 | Ready for retest | Backup tests / coordinate with Auth |
+| DEF-017 | 2026-10-21 | Inventory / HTTP test fixture | Storage-inventory denial passes despite missing security-audit delegate | S3 Moderate | P2 | Open | John / coordinate with Voltaire |
 | DEF-001 | 2026-09-29 | Cataloging / Collections   | Duplicate normalized collection names are accepted                      | S2 Major    | P1       | Ready for retest | Cataloging / Backend    |
 | DEF-002 | 2026-10-03 | Cataloging / Provenance    | Future collection dates are accepted and satisfy presence validation    | S2 Major    | P1       | Ready for retest | Cataloging / Full stack |
 | DEF-003 | 2026-10-03 | Cataloging / Specimen list | Client-side specimen selection does not hydrate on a remote LAN browser | S2 Major    | P1       | Ready for retest | Cataloging / Frontend   |
@@ -997,6 +998,29 @@ and team sign-off; no live backend write rejection, Inventory lot-assignment
 test or concurrency claim is added. This follow-up changes documentation only;
 `git diff --check` passed, and full local application suites were not rerun.
 
+#### Isolated HTTP protection evidence - 2026-10-21
+
+Added 16 HTTP characterization regressions on backend base `27db649`:
+archived edit/move and create/move-to-archived-parent rejection, plus
+create/edit/move/archive permission checks for signed-out, invalid-token and
+developer callers. All pass through real controllers/validation/guards/service
+with database/auth adapters mocked. Archived details remain readable; denied
+calls write neither storage changes nor success audit events. Developer
+security-denial audit writes are supported and asserted.
+
+Storage HTTP suite passed 29/29. Full backend unit tests passed 690/690;
+HTTP tests passed 313 with 17 skipped. TypeScript no-emit passed; lint had
+zero errors and seven unused-disable warnings in unchanged files. Separate
+full-suite audit-mock noise is recorded in DEF-017, not hidden as a clean run.
+No runtime/schema/dependency/Inventory changes or live requests were made.
+These are existing-behavior checks, not a red-to-green application repair.
+PR CI owns build verification to preserve the running backend build output.
+
+This adds isolated backend evidence only. Live database/concurrency and John's
+lot-assignment restriction remain untested by this step; the combined protection
+checkbox stays unchecked and DEF-010 remains Ready for retest pending that
+criterion and team sign-off.
+
 #### Reproduction
 
 1. Select a disposable storage location that has an active child or specimen
@@ -1305,6 +1329,41 @@ and counts. The full Audit HTTP suite then passed 6/6 without the missing-mock
 error; service tests passed 6/6. Production guards and SecurityAuditService
 were not changed, no logging was silenced, and no live database was used.
 Independent reviewer retest remains pending; this is not live persistence proof.
+
+### DEF-017 - Storage-inventory denial fixture omits security-audit persistence
+
+**Related test:** `test/storage-inventory.e2e-spec.ts`, developer denial case
+**Environment:** Isolated mocked Nest HTTP test; not live Inventory data
+**Found on:** backend base `27db649`, 2026-10-21
+**Severity:** S3 Moderate (test-harness/coverage defect; no proven production failure)
+**Priority:** P2
+**Status:** Open
+**Owner:** John / Inventory test fixture; coordinate with Voltaire for auth audit
+
+#### Reproduction and evidence
+
+Run `npm run test:e2e -- --runInBand storage-inventory.e2e-spec.ts -t developer`.
+The single selected test passes its 403 expectation (four other tests skipped),
+but SecurityAuditService logs `Could not record ACCESS_DENIED (DENIED)` and
+`Cannot read properties of undefined (reading 'create')`. The fixture replaces
+PrismaService without an `audit_log` delegate. The real RolesGuard attempts
+the denial audit; SecurityAuditService catches the mock failure, preserving
+the 403. A green denial test therefore does not prove audit recording.
+
+The full HTTP suite also emitted missing-audit mock errors; not every message
+was attributed to a suite. This entry claims only the focused reproduction.
+It is the same class of fixture gap as DEF-015/016, but in a different fixture.
+No Inventory application or test code was modified during discovery.
+
+#### Recommended owner follow-up and retest
+
+Provide the missing database-boundary audit delegate and assert the expected
+developer denial event, actor, result and request metadata. Preserve the real
+guards and existing 401/403 behavior; do not silence the error or bypass auth.
+
+- [ ] Focused developer denial still returns 403 and observes the denial audit.
+- [ ] Full storage-inventory HTTP suite passes without missing-mock audit errors.
+- [ ] No live providers, data writes or authorization weakening introduced.
 
 ## 4. New defect template
 
