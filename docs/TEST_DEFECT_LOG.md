@@ -51,7 +51,7 @@ system is not a reason to postpone all fixes until the end.
 | DEF-017 | 2026-10-21 | Inventory / HTTP test fixture | Storage-inventory denial passes despite missing security-audit delegate | S3 Moderate | P2 | Open | John / coordinate with Voltaire |
 | DEF-018 | 2026-10-22 | Cataloging / Import API docs | Commit Swagger success status differs from actual POST response | S4 Minor | P3 | Open | Kyer / Cataloging |
 | DEF-001 | 2026-09-29 | Cataloging / Collections   | Duplicate normalized collection names are accepted                      | S2 Major    | P1       | Ready for retest | Cataloging / Backend    |
-| DEF-002 | 2026-10-03 | Cataloging / Provenance    | Future collection dates are accepted and satisfy presence validation    | S2 Major    | P1       | Ready for retest | Cataloging / Full stack |
+| DEF-002 | 2026-10-03 | Cataloging / Provenance    | Future collection dates are accepted and satisfy presence validation    | S2 Major    | P1       | Verified | Cataloging / Full stack |
 | DEF-003 | 2026-10-03 | Cataloging / Specimen list | Client-side specimen selection does not hydrate on a remote LAN browser | S2 Major    | P1       | Ready for retest | Cataloging / Frontend   |
 | DEF-004 | 2026-10-03 | Cataloging / Media UI      | Choose-file controls have no visible hover feedback                     | S4 Minor    | P2       | Ready for retest | Cataloging / Frontend   |
 | DEF-005 | 2026-10-03 | Cataloging / Tags UI       | Vocabulary search hides the matching tag names                          | S4 Minor    | P2       | Ready for retest | Cataloging / Frontend   |
@@ -195,7 +195,7 @@ Do not delete either existing row manually until references have been checked.
 
 **Priority:** P1
 
-**Status:** Ready for retest
+**Status:** Verified
 
 **Owner:** Cataloging / Full stack
 
@@ -207,6 +207,28 @@ existing dates. Frontend form validation and the input maximum use Asia/Manila
 calendar dates. Regression coverage includes the UTC/Manila midnight boundary,
 unchanged legacy future dates, no mutation on rejection, and mixed CSV rows.
 Original manual failures below are preserved; browser retesting is still required.
+
+#### Live date regression verification - 2026-10-22
+
+Using retained disposable CSV specimen `3e7a3ca2-bf8f-45c9-98d3-94b8bcf31419`,
+created provenance with `2026-10-22`, then updated its date to `2020-01-01`.
+Fresh editor navigation/reload preserved both accepted values. Tomorrow was
+blocked natively with no POST; after removing only the test page's DOM maximum,
+the Server Action independently rejected it. Unchanged submission also failed.
+Reload preserved the historical value and restored the date maximum.
+
+Revision UI showed exactly the two accepted date transitions, and audit UI
+showed one provenance create and one update SUCCESS (plus the existing import).
+Rejected attempts added no date revisions or successful mutation audits. The
+date requirement was met, but other incomplete requirements kept Cataloging
+disabled; status/public flag remained UNCATALOGED/false.
+
+Together with the live CSV future-date error and isolated backend HTTP tests
+in PR #166 (including legacy future-date readiness/completion rejection), this
+verifies the original date regression. Direct live backend bypass, injected
+legacy-invalid data, concurrency/rollback and independent module sign-off were
+not tested or claimed. See CAT-005 live evidence in ACCEPTANCE_TEST_PLAN.md for
+checkout references, the recovered post-merge note and diagnostic scripts.
 
 #### Preconditions
 
@@ -253,12 +275,12 @@ the test record to a valid historical date before continuing dependent tests.
 
 #### Retest
 
-- [ ] A historical date saves.
-- [ ] Today's date saves.
-- [ ] Tomorrow's date is rejected in the UI and by a direct API request.
-- [ ] An imported future date is rejected during preview/commit.
-- [ ] An existing future date fails Catalog readiness.
-- [ ] Rejected values create no provenance revision or audit mutation.
+- [x] A historical date saves (live UI/readback/reload).
+- [x] Today's date saves (live UI/readback/reload).
+- [x] Tomorrow is rejected by native/Server Action validation (live) and direct API (isolated HTTP).
+- [x] Imported future dates are rejected in preview (live) and direct commit selection (isolated HTTP).
+- [x] Existing future dates fail readiness/completion (isolated HTTP; no invalid live data seeded).
+- [x] Rejected values add no provenance date revision or successful mutation audit (live + isolated HTTP).
 
 ### DEF-003 - Client-side specimen selection does not hydrate on a remote LAN browser
 

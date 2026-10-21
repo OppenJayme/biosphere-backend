@@ -195,9 +195,9 @@ John/Voltaire test-fixture handoff, not permission to absorb Inventory work.
 | CAT-002 | Create complete and incomplete specimen drafts                                 | Both start `UNCATALOGED`; public display is off                                                            | **Pass**                                                              |
 | CAT-003 | Edit specimen core fields and submit an unchanged form                         | Changes persist with revision history; no-change submission is rejected clearly                            | **Pass**                                                              |
 | CAT-004 | Create and edit taxonomy                                                       | One taxonomy record exists; draft values and revisions persist                                             | **Pass**; completion requirement remains under CAT-006                |
-| CAT-005 | Create and edit provenance; reject invalid dates                               | Values and revisions persist; empty values normalize; future collection dates are rejected                 | In progress; reported UI pass and isolated HTTP date/import checks pass; live/browser sign-off pending (original Fail - DEF-002) |
-| CAT-006 | View readiness with missing and complete requirements                          | Every approved rule reports the correct pass/fail state and fix location                                   | In progress; legacy future-date readiness/completion rejection passes isolated HTTP; live sign-off pending (original Fail - DEF-002) |
-| CAT-007 | Complete Cataloging with one prepared valid active lot                         | Status becomes `CATALOGED`; public display remains off; history/audit are written                          | **Pass** for lifecycle behavior; outstanding DEF-002 verification still gates module sign-off |
+| CAT-005 | Create and edit provenance; reject invalid dates                               | Values and revisions persist; empty values normalize; future collection dates are rejected                 | **Pass** for live date create/update/readback/rejection/history plus earlier recorded provenance checks; DEF-002 Verified; independent module sign-off pending |
+| CAT-006 | View readiness with missing and complete requirements                          | Every approved rule reports the correct pass/fail state and fix location                                   | In progress; valid-date readiness passes live, legacy future-date rejection passes isolated HTTP; full independent acceptance pending |
+| CAT-007 | Complete Cataloging with one prepared valid active lot                         | Status becomes `CATALOGED`; public display remains off; history/audit are written                          | **Pass** for recorded lifecycle behavior; DEF-002 date regression Verified; independent module sign-off pending |
 | CAT-008 | Remove required data while Cataloged, then reopen with a reason                | Removal is blocked until reopening; reopening returns to `UNCATALOGED` and disables public display         | **Pass**                                                              |
 | CAT-009 | Enable and disable public eligibility                                          | Only Cataloged specimens qualify; no exhibit is published automatically                                    | **Pass**                                                              |
 | CAT-010 | Attach, change, repeat, and detach tags                                        | Relationships remain unique and retry-safe                                                                 | **Pass**; usability issue DEF-005                                     |
@@ -402,6 +402,54 @@ not save persistence, the native calendar popup, validation-bypass resistance
 or live readiness. DEF-002 and full CAT-005/006 acceptance remain pending.
 No application suites/build rerun for this documentation-only addition;
 `git diff --check` passed. Stop this session here at the user's request.
+
+#### CAT-005 live date-save and rejection evidence - 2026-10-22
+
+Merge audit: PR #167 merged CSV evidence commit `d056c71` into `28f16bb`, with
+successful CI. The final read-only date note `3f7e5ff` had been pushed after
+that merge and was not in develop. It is carried into this follow-up as
+`1daf4c8`; the original commit was preserved, not lost or force-pushed.
+
+Used the existing signed-in Playwright session `biosphere-aud002` and disposable
+CSV specimen `3e7a3ca2-bf8f-45c9-98d3-94b8bcf31419`. Frontend checkout `0ffa81f`,
+backend base `28f16bb`; served build hashes were not independently inspected.
+Existing servers/authentication were preserved. Executed through real UI:
+
+1. Repeated the read-only date-input check successfully before saving.
+2. Created provenance containing only museum-today `2026-10-22`. The create
+   notice appeared; editor navigation and reload retained the exact date.
+3. Updated only the date to `2020-01-01`. The update notice appeared, and
+   fresh editor navigation/reload retained it.
+4. Unchanged submission showed the explicit no-changes message. Tomorrow
+   (`2026-10-23`) failed native validation without a POST. Removed only this
+   test page's DOM maximum and submitted again: the Server Action displayed
+   the museum-time future-date error. Reload restored the maximum and saved
+   historical date. This is not a direct live backend-bypass test.
+5. Filtered revision UI returned exactly two collection-date events:
+   Not recorded -> 2026-10-22, then 2026-10-22 -> 2020-01-01; reload retained
+   two. Rejected attempts added no date revisions.
+6. Filtered audit UI returned only three SUCCESS events for this specimen:
+   original IMPORT_SPECIMEN, CREATE_SPECIMEN_PROVENANCE and
+   UPDATE_SPECIMEN_PROVENANCE, one each. No additional successful mutation
+   audit appeared for rejected attempts. Exact actor UUID/timestamp not checked.
+7. Details marked the date requirement met. Catalog completion stayed disabled
+   for the other missing requirements; a protected read still showed
+   UNCATALOGED/public display off. No Cataloging completion or lot creation.
+
+Main save script reported zero page errors. Two successful provenance writes
+are retained on the existing test specimen; no new specimen, Inventory data,
+schema/code changes, direct DB writes, auth exports or server restarts.
+Fixture scripts remain ignored at frontend `tools/browser/artifacts/`:
+`cat005-live-date-save.txt`, `cat005-live-date-rejections.txt`, and
+`cat005-live-history-readiness.txt`. Browser stays open and signed in on details.
+
+CAT-005's recorded workflow passes and DEF-002's original date regression is
+Verified using live UI/Server Action evidence, the actual CSV invalid-date
+preview, and PR #166's isolated backend create/update/legacy-readiness checks.
+No invalid legacy date was injected into the live DB. Live direct HTTP bypass,
+concurrency/rollback and independent full CAT-006/module acceptance are not
+claimed. Documentation-only checks: `git diff --check`; application suites/build
+were not rerun for prose changes.
 
 ### Storage Location Management
 
