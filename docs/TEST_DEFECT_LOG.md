@@ -900,6 +900,41 @@ preview is shown.
 
 **Owner:** Storage Location Management / Frontend
 
+#### Read-only recheck - 2026-10-21
+
+**Still reproducible; status remains Open (S3/P2).** Reused the existing
+archived fixtures through the signed-in local Storage UI; no records, lots,
+quantities, hierarchy relationships or lifecycle states were changed.
+
+- Cabinet: `TEST CABINET A`, `4fa17866-6e90-4020-a909-63f8163f33bc`.
+- Child: `TEST - DRAW 1 Updated`, `360de017-ac7b-4939-9d4a-251008667209`.
+- The default `/storage` hierarchy included the archived cabinet. Searching
+  its name returned a result without an Archived label, and no Show archived
+  toggle was available.
+- The cabinet's child card did not mark its archived child as Archived. The
+  parent reported one direct child without distinguishing active/history data.
+- Selecting either fixture showed its Archived badge and read-only management
+  notice. The child's direct selection survived reload with the same ID;
+  its audit-history link showed one `ARCHIVE_STORAGE_UNIT` row.
+
+Current source still requests `listStorageLocations("ALL")` and builds the
+hierarchy, search and direct-child list without lifecycle filtering/badges.
+This is the original display defect, not proof that archive data or history
+was lost. No new duplicate defect ID is needed. No repair was implemented.
+
+The initial browser run timed out waiting for read-only text after search
+selection. A direct-link check and a rerun with explicit selection-URL/render
+waits passed the read-only checks and reproduced the display defect. The
+initial timeout's cause was not independently established; it is not classified
+as a separate application/navigation defect from that single observation.
+
+Checkout references: backend base `db45e1a`, frontend `f596a3f`; actual served
+production build hashes were not independently verified. Existing servers and
+sign-in were preserved. The local diagnostic script is Git-ignored at frontend
+`tools/browser/artifacts/storage-archived-display-recheck.txt`. No API mocking,
+direct database writes, credential export, or changes to Inventory occurred.
+This does not retest backend write rejection or lot-assignment restrictions.
+
 #### Reproduction
 
 1. Select a disposable storage location that has an active child or specimen
