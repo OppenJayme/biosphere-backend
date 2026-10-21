@@ -13,6 +13,7 @@ describe('Audit logs (e2e)', () => {
   const curatorAuthId = '11111111-1111-4111-8111-111111111111';
   const curatorAccountId = '22222222-2222-4222-8222-222222222222';
   const developerAuthId = '33333333-3333-4333-8333-333333333333';
+  const developerAccountId = '66666666-6666-4666-8666-666666666666';
   const logId = '44444444-4444-4444-8444-444444444444';
   const affectedRecordId = '55555555-5555-4555-8555-555555555555';
   const testDate = new Date('2026-01-02T03:04:05.000Z');
@@ -40,9 +41,11 @@ describe('Audit logs (e2e)', () => {
   });
 
   beforeEach(async () => {
-    auditFindMany = jest.fn(() => [auditRecord()]);
-    auditFindUnique = jest.fn(({ where }: { where: { id: string } }) =>
-      where.id === logId ? auditRecord() : null,
+    const storedAudits = [auditRecord()];
+    auditFindMany = jest.fn(() => [...storedAudits]);
+    auditFindUnique = jest.fn(
+      ({ where }: { where: { id: string } }) =>
+        storedAudits.find((entry) => entry.id === where.id) ?? null,
     );
 
     const prismaMock = {
@@ -58,7 +61,7 @@ describe('Audit logs (e2e)', () => {
             }
             if (where.auth_user_id === developerAuthId) {
               return {
-                id: '66666666-6666-4666-8666-666666666666',
+                id: developerAccountId,
                 role: 'DEVELOPER',
                 status: 'ACTIVE',
               };
@@ -68,9 +71,26 @@ describe('Audit logs (e2e)', () => {
         ),
       },
       audit_log: {
+        // Persist security events in the same test-only store read by the API.
+        create: jest.fn(({ data }: { data: Record<string, unknown> }) => {
+          const created = auditRecord({
+            ...data,
+            id: crypto.randomUUID(),
+            user_account:
+              data.user_id === developerAccountId
+                ? {
+                    id: developerAccountId,
+                    full_name: 'Audit Developer',
+                    role: 'DEVELOPER',
+                  }
+                : null,
+          });
+          storedAudits.push(created);
+          return created;
+        }),
         findMany: auditFindMany,
         findUnique: auditFindUnique,
-        count: jest.fn(() => 1),
+        count: jest.fn(() => storedAudits.length),
       },
       $transaction: jest.fn((operations: Promise<unknown>[]) =>
         Promise.all(operations),
@@ -123,6 +143,43 @@ describe('Audit logs (e2e)', () => {
       .get('/audit-logs')
       .set('Authorization', `Bearer ${developerToken}`)
       .expect(403);
+  });
+
+  it('records denied access for curator review without granting audit access', async () => {
+    await request(app.getHttpServer())
+      .get('/audit-logs')
+      .set('Authorization', `Bearer ${developerToken}`)
+      .expect(403);
+
+    // Observe the recorded event through the authorized HTTP read boundary.
+    const response = await request(app.getHttpServer())
+      .get('/audit-logs')
+      .set('Authorization', `Bearer ${curatorToken}`)
+      .expect(200);
+
+    expect(response.body.items).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          actor: {
+            id: '66666666-6666-4666-8666-666666666666',
+            fullName: 'Audit Developer',
+            role: 'DEVELOPER',
+          },
+          action: 'ACCESS_DENIED',
+          module: 'auth',
+          result: 'DENIED',
+          affectedRecordId: '66666666-6666-4666-8666-666666666666',
+          affectedRecordType: 'user_account',
+          details: {
+            reason: 'ROLE_NOT_PERMITTED',
+            role: 'DEVELOPER',
+            requiredRoles: ['CURATOR'],
+            method: 'GET',
+            path: '/audit-logs',
+          },
+        }),
+      ]),
+    );
   });
 
   it('strictly validates filters, timestamps, pagination, and identifiers', async () => {

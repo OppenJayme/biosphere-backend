@@ -542,6 +542,52 @@ positive coverage of failed/denied fixtures. This does not sign off AUD-002's
 Cataloging revision/audit traceability or backup/restore. No app code changed;
 full lint/unit/build suites were not rerun for this documentation-only update.
 
+#### Audit backend isolated-suite evidence - 2026-10-19
+
+At backend checkout `021fe0e`, the existing focused suites completed:
+
+| Command | Result |
+| --- | --- |
+| `npm test -- --runInBand --runTestsByPath src/audit/audit.service.spec.ts` | 6/6 passed |
+| `npm run test:e2e -- --runInBand --runTestsByPath test/audit.e2e-spec.ts` | 5/5 passed, with the test-harness warning below |
+
+Both suites inject Prisma mocks; the HTTP suite also overrides Supabase before
+Nest initialization. No live audit writes, browser sessions, or backup/restore
+operations were used. Coverage includes 401 without authentication, 403 for a
+developer token, invalid filters/timestamps/pagination/UUIDs, response shape,
+nullable actors, missing records, filter/order/query arguments, inverted ranges,
+and 404 for routine audit POST/PATCH/DELETE routes.
+
+The HTTP run logged `this.prisma.audit_log.create is not a function` while
+recording `ACCESS_DENIED`. Its read-only Prisma fixture omits the create method
+now used by `SecurityAuditService`. The service catches logging failures, so
+403 still passed; denial-audit creation was not verified. DEF-015 records this
+reproduced test-harness defect, not a demonstrated live persistence failure.
+Do not suppress the error instead of correcting the fixture and asserting the
+expected denial event in a follow-up coordinated with the auth owner.
+
+AUD-001 remains **In progress**: focused mock-backed tests do not prove live
+audit persistence, session expiry, inactive-account denial, or database date
+boundaries. No application/test code changed here, and no full lint/build or
+remaining test suites were run for this documentation-only update.
+
+#### DEF-015 test-fixture repair verification - 2026-10-19
+
+Followed a red/green cycle at the existing HTTP boundary: the new denial-event
+regression failed before the fixture correction, then passed within the full
+Audit HTTP suite (6/6). Audit service tests also passed 6/6. The developer GET
+still returned 403, and an authorized curator GET exposed the expected denial
+event with the developer actor and request metadata. The Prisma create mock
+now stores events in the same per-test collection used by read/count delegates.
+No production/auth code changed, no logger was silenced, and the missing-create
+error did not appear in the focused green rerun. See DEF-015 for evidence and
+independent-retest status. These mocked checks do not prove live persistence
+or complete AUD-001 acceptance.
+
+Full `npm run lint:ci` passed after correcting test formatting (zero errors,
+seven unused-disable warnings). `git diff --check` passed. A production build
+and unrelated test suites were not rerun for this test-fixture-only repair.
+
 ## 9. John Gerozaga acceptance register
 
 Record results with the same statuses and evidence rules as Section 8. Curator
