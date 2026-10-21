@@ -130,6 +130,12 @@ Every `Fail` must reference an entry in the defect log.
 | CAT-013 | Preview and commit mixed-validity CSV rows; retry commit                       | Preview is non-mutating; only reviewed valid rows import as `UNCATALOGED`; retries do not duplicate rows   | **Fail - DEF-009**; mixed-validity preview blocked                    |
 | CAT-014 | Review possible duplicate warnings, including archived matches                 | Warnings show evidence and never auto-merge records                                                        | Blocked pending active duplicate-detection PR acceptance              |
 | CAT-015 | Select multiple specimens from the protected catalog on local and LAN clients  | Every row is keyboard/touch accessible and opens the matching preview/detail route                         | **Fail - DEF-003**                                                    |
+| CAT-016 | Restore an archived specimen after current-requirement revalidation | Same record returns as Cataloged only when complete, otherwise Uncataloged; public display off; history preserved; inventory unchanged | **Partial pass** — live incomplete restore, cancel/error/reload and audit passed; complete branch covered by isolated HTTP tests; live concurrency unverified |
+
+CAT-016 evidence and limits are recorded in
+[Cataloging restoration verification](./CATALOG_RESTORATION_VERIFICATION.md).
+Historical results below are retained; the new restoration check does not
+retroactively sign off earlier cases or other modules.
 
 For CAT-007, Cataloging only verifies the prepared lot. Quantity, placement,
 condition, movement, and transfer behavior belong to John Gerozaga's Inventory
