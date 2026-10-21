@@ -286,6 +286,24 @@ historical evidence; STO-004's original restriction pass is not expanded into
 full Storage sign-off. This backend change is evidence documentation only;
 `git diff --check` is the local check, not a new backend suite execution.
 
+#### Storage post-merge normal-frontend recheck - 2026-10-21
+
+Frontend PR #75 and backend PR #162 are merged; local develop checkouts are
+frontend `0ffa81f` / backend `29fe779`. The running port 3000 frontend exposes
+the new toggle, although its exact served build hash was not independently
+inspected. Read-only browser checks passed active filtering, archived labels
+across all surfaces, separate child counts/lists, toggle/reload, child selection,
+legacy direct links, keyboard hide/fallback, read-only controls, archived-parent
+exclusion and existing archive audit access. Zero page errors were reported;
+no data mutations or server restarts occurred, and sign-in was preserved.
+
+This advances DEF-010's presentation evidence, not full Storage sign-off.
+Backend rejected writes, Inventory lot-assignment restrictions and concurrency
+were not re-executed; the combined protection criterion remains unchecked.
+DEF-010 remains Ready for retest pending that criterion and team acceptance.
+See its defect entry for fixture IDs and the local diagnostic script.
+Documentation-only verification: `git diff --check`; no new local full-suite run.
+
 ### Limited offline and synchronization
 
 | ID      | Test                                                            | Expected result                                                                                 | Status  |
