@@ -1248,3 +1248,41 @@ Copy this section for each new failure:
 
 When a defect is fixed, update its status to `Ready for retest`. A tester then
 records the tested commit and changes it to `Verified`; do not erase the entry.
+
+## 5. Observations awaiting reproduction
+
+These are recorded signals, not confirmed application defects or closed issues.
+Promote an observation to a DEF entry when reproduction establishes an
+application failure; retain the original observation and cross-reference it.
+
+### OBS-001 - Local revision-history navigation exceeded the browser deadline
+
+**Observed:** 2026-10-21 during AUD-002 media replacement/removal testing
+**Checkout references:** frontend `e43e7fc`, backend `39b9aac`; served build
+revisions not independently verified
+**Environment:** Local frontend/backend with signed-in isolated Edge
+**Disposition:** Needs reproduction and timing investigation; not resolved
+**Owner:** Cataloging frontend/backend; no auth or inventory changes authorized
+**Priority:** P2 follow-up; application severity not assigned without reproduction
+
+A `page.goto` to the disposable specimen's revision history exceeded the
+diagnostic's 30-second `load` deadline. A subsequent read saw the document
+still loading, initially no headings/rows, and then a rendered revision.
+Both local app ports were listening and a public login-page check returned 200.
+Once rendered, history still had eighteen revisions and no replacement/removal
+events: no mutation was blindly repeated. No data loss was observed.
+
+The baseline-guarded test was rerun with explicit DOM readiness, existing
+element waits, and a 60-second navigation ceiling; its 78 functional assertions
+passed. This is a harness robustness adjustment, not evidence that the original
+delay was fixed or that page performance meets a target. Root cause (server,
+upstream/database latency, development compilation, browser resources, etc.)
+was not determined. No response-time requirement is invented from the timeout.
+
+Follow-up (read-only; preserve auth/header privacy):
+
+- [ ] Repeat history navigation and measure document/data readiness separately.
+- [ ] Compare warm development and an approved production-build test environment.
+- [ ] Correlate frontend/backend request timing without exporting tokens or records.
+- [ ] If reproducible, define the affected behavior/expected target and open a
+  linked defect; otherwise record evidence for the final disposition.

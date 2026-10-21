@@ -588,6 +588,73 @@ Full `npm run lint:ci` passed after correcting test formatting (zero errors,
 seven unused-disable warnings). `git diff --check` passed. A production build
 and unrelated test suites were not rerun for this test-fixture-only repair.
 
+#### AUD-002 media replacement/removal browser evidence - 2026-10-21
+
+Continued in signed-in isolated Edge session `biosphere-aud002` on disposable
+specimen `5b8e55d4-af0f-4263-9b0e-349b4b314f20`. PRs #153-#155 were still open
+at the start; none was automatically merged. Identified the two test media
+through fixture-scoped creation metadata, guarded the specimen test name,
+and observed eighteen revisions plus one audit for image A and three for B.
+
+The completed run passed 78 executed assertions (includes repeated readiness/
+decoding checks; not 78 acceptance cases):
+
+- Selected a generated replacement PNG, cancelled its confirmation, and verified
+  the original 32 x 32 image and both histories remained unchanged.
+- Confirmed replacement of cover image `TEST AUD-002 media B edited` with a
+  generated green 48 x 48 PNG. The UI request succeeded, retained the same media
+  UUID, and reported `previousStorageCleanupPending: false`. New dimensions and
+  a different private object path were observed, without exporting signed URLs.
+  Caption, display order 2, cover status, and total two media records persisted.
+- Exactly one `Image file replaced` revision used safe previous/replacement
+  labels, and one `REPLACE_SPECIMEN_MEDIA_FILE` audit identified the same media,
+  specimen, and MIME type. Reload retained the 48 x 48 replacement and the
+  unchanged 32 x 32 image A.
+- Cancelled removal and verified both images/histories were unchanged. Confirmed
+  removal of B: only B disappeared, A became cover, and reload preserved this.
+  Exactly one `Image removed` revision showed `Image recorded` -> `No image record`.
+  One `REMOVE_SPECIMEN_MEDIA` audit identified B, `wasCover: true`, and A as
+  `replacementCoverId`; the UI reported no pending cleanup.
+- Removed the remaining generated image A. Exactly one further removal revision
+  and audit recorded `wasCover: true`, `replacementCoverId: null`. The empty-media
+  message and zero media cards persisted after reload. Earlier media audit
+  entries and all observed revisions remained available after removal.
+- For replacement and both removals, verified exact affected `specimen_media`
+  UUID, exact specimen UUID in details, module `specimens`, result `SUCCESS`,
+  matching nonempty displayed revision/audit actor, curator role, media source,
+  measured revision timestamp window (five-second tolerance), and matching
+  audit/revision displayed minute.
+
+Counts were revisions 18 -> 19 -> 20 -> 21 for baseline/replacement/B removal/
+A removal. Final audits were two for A (create/remove) and five for B
+(create/metadata/cover/replace/remove). Replacement/removal reported completed
+storage cleanup; physical object deletion/revocation was not independently probed.
+Only the two generated test images were removed through the UI; they can be
+regenerated but were not moved to a recoverable trash. No museum media was used.
+
+Diagnostic incidents were preserved rather than hidden: an initial dimension
+helper omitted its browser-side argument and was corrected before mutation.
+A later history navigation exceeded the default 30-second `load` deadline.
+Read-only state checks confirmed the unchanged eighteen-revision baseline and
+zero replacement/removal events before rerunning. Added DOM-readiness navigation
+and a 60-second ceiling; the full functional run then passed. The original delay
+is still an unresolved observation, tracked as **OBS-001** in TEST_DEFECT_LOG.md,
+not a proven/fixed application defect or a performance pass.
+
+No direct database writes, request mocks, inventory/lots/storage hierarchy,
+publishing, production source changes, or credential/auth-state exports were
+used. Diagnostic remains ignored locally at frontend
+`tools/browser/artifacts/aud-002-media-replacement-removal.txt`, not a maintained
+CI test. Browser remains open and signed in on the empty-media page.
+
+Checkout references: frontend `e43e7fc`, backend `39b9aac`; actual served build
+revisions not independently verified. Actor UUID equality, exact audit database
+timestamps, full pixel integrity, old signed-link revocation, invalid/oversized
+uploads, failure/rollback/concurrency, and production security remain unproven.
+AUD-002 remains **In progress** for lifecycle/public eligibility; this is not
+full CAT-011 or performance/security acceptance. Documentation only;
+`git diff --check` passed; full lint/unit/build suites were not rerun.
+
 #### AUD-002 core-edit traceability browser evidence - 2026-10-21
 
 Used isolated headed Edge session `biosphere-aud002` after manual curator
