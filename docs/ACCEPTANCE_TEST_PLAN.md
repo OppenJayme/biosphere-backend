@@ -384,6 +384,25 @@ page. Local fixture-specific scripts remain Git-ignored under frontend
 This commit changes documentation only: `git diff --check` is the local check;
 full automated suites/build were not rerun for this evidence update.
 
+#### CAT-005 read-only date-input checkpoint - 2026-10-22
+
+Using the same signed-in browser and retained CAT-013 specimen, opened its
+Provenance form without submitting. The input maximum matched independently
+computed Asia/Manila today (`2026-10-22`). Filling tomorrow (`2026-10-23`)
+produced native `rangeOverflow` / invalid state; today and `2020-01-01` both
+passed native input validity. Reload returned the date to its original blank
+value. A request listener counted zero POST/PUT/PATCH/DELETE requests during
+the check; no record or provenance data changed.
+
+Browser remains open and signed in on that provenance page. Local diagnostic:
+frontend `tools/browser/artifacts/cat005-date-input-readonly.txt` (Git-ignored).
+Frontend checkout `0ffa81f`, backend evidence branch based on `0da6cc6`; exact
+served hashes not independently inspected. This validates the date input only,
+not save persistence, the native calendar popup, validation-bypass resistance
+or live readiness. DEF-002 and full CAT-005/006 acceptance remain pending.
+No application suites/build rerun for this documentation-only addition;
+`git diff --check` passed. Stop this session here at the user's request.
+
 ### Storage Location Management
 
 | ID      | Test                                                  | Expected result                                               | Status                                               |
