@@ -41,6 +41,7 @@ import {
 } from './catalog-completion.policy';
 import { SpecimenAccessionService } from './specimen-accession.service';
 import { SpecimenCatalogingService } from './specimen-cataloging.service';
+import { SpecimenRestoreResult } from './entities/specimen-restore.entity';
 
 interface RevisionChange {
   fieldChanged: string;
@@ -576,6 +577,96 @@ export class SpecimensService {
         return this.toEntity(updated);
       },
       'Specimen changed during the operation. Reload and try again.',
+    );
+  }
+
+  /** Revalidates the existing record only; archived inventory is never reactivated. */
+  async restore(
+    id: string,
+    actingCuratorAccountId: string,
+  ): Promise<SpecimenRestoreResult> {
+    return runSerializableTransaction(
+      this.prisma,
+      async (transaction) => {
+        const existing = await transaction.specimen.findUnique({
+          where: { id },
+        });
+        this.assertExists(existing, id);
+        const readiness = await this.catalogingService.getReadinessWith(
+          transaction,
+          id,
+        );
+
+        // A stale confirmation or retried request must not undo later curator decisions.
+        if (
+          !this.catalogingService.isArchived(
+            existing.status,
+            existing.archived_at,
+          )
+        ) {
+          return {
+            ...this.toEntity(existing),
+            restored: false,
+            missingRequirements: readiness.missingRequirements,
+          };
+        }
+
+        // canComplete is false for archives: requirementsMet is the status-independent checklist.
+        const status = readiness.requirementsMet ? 'CATALOGED' : 'UNCATALOGED';
+        const updated = await transaction.specimen.update({
+          where: { id },
+          data: {
+            status,
+            public_display_allowed: false,
+            archived_at: null,
+            archived_by: null,
+            updated_by: actingCuratorAccountId,
+            updated_at: new Date(),
+          },
+        });
+        const changes: RevisionChange[] = [];
+        if (existing.status !== status) {
+          changes.push({
+            fieldChanged: 'status',
+            oldValue: existing.status,
+            newValue: status,
+          });
+        }
+        if (existing.public_display_allowed) {
+          changes.push({
+            fieldChanged: 'public_display_allowed',
+            oldValue: true,
+            newValue: false,
+          });
+        }
+        if (changes.length > 0) {
+          await this.recordRevisions(
+            transaction,
+            id,
+            actingCuratorAccountId,
+            changes,
+          );
+        }
+        await this.recordAudit(transaction, {
+          userId: actingCuratorAccountId,
+          specimenId: id,
+          action: 'RESTORE_SPECIMEN',
+          details: {
+            previousStatus: existing.status,
+            restoredStatus: status,
+            // Preserve original archive markers in history when clearing the current markers.
+            archivedAt: existing.archived_at?.toISOString() ?? null,
+            archivedBy: existing.archived_by,
+            missingRequirements: readiness.missingRequirements,
+          },
+        });
+        return {
+          ...this.toEntity(updated),
+          restored: true,
+          missingRequirements: readiness.missingRequirements,
+        };
+      },
+      'Specimen changed during restoration. Reload and try again.',
     );
   }
 

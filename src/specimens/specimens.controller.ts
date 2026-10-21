@@ -29,6 +29,7 @@ import { AccessionNumberAvailability } from './entities/accession-number.entity'
 import { CatalogReadiness } from './entities/catalog-readiness.entity';
 import { SpecimenCreateResult } from './entities/specimen-duplicate.entity';
 import { SpecimenRevisionPage } from './entities/specimen-revision.entity';
+import { SpecimenRestoreResult } from './entities/specimen-restore.entity';
 import { Specimen, SpecimenPage } from './entities/specimen.entity';
 import { SpecimenAccessionService } from './specimen-accession.service';
 import { SpecimenCatalogingService } from './specimen-cataloging.service';
@@ -177,6 +178,24 @@ export class SpecimensController {
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<Specimen> {
     return this.service.archive(id, user.accountId);
+  }
+
+  @Patch(':id/restore')
+  @ApiOperation({
+    summary:
+      'Restore an archived specimen after revalidating current Cataloging requirements',
+    description:
+      'No body is needed. Status is computed by the server, public eligibility is disabled, and inventory is never changed. Already-active records are returned unchanged.',
+  })
+  @ApiOkResponse({ type: SpecimenRestoreResult })
+  @ApiConflictResponse({
+    description: 'The record changed concurrently; reload before retrying.',
+  })
+  restore(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<SpecimenRestoreResult> {
+    return this.service.restore(id, user.accountId);
   }
 
   @Patch(':id/public-display')

@@ -63,7 +63,7 @@ successful edit from silently leaving a record Cataloged but incomplete.
 
 ## Concurrency
 
-Completion, reopening, public-display changes, and the core, taxonomy, and
+Completion, restoration, reopening, public-display changes, and the core, taxonomy, and
 provenance edits that guard Cataloged values run under `SERIALIZABLE`
 isolation (`src/prisma/serializable-transaction.ts`), as lot mutations already
 do. Postgres therefore rejects interleavings that would otherwise produce a
@@ -82,10 +82,47 @@ This implementation intentionally does not add:
 
 - accession-number generation (uniqueness is enforced separately; see
   `docs/ACCESSION_NUMBER_GUIDE.md`);
-- specimen restoration from `ARCHIVED`;
 - fuzzy duplicate matching or automatic merging; or
 - XLSX import.
 
 Those concerns remain separate reviewable changes. Automatic accession
 allocation still waits for the museum's official format and assignment
 procedure.
+
+## Restoring archived specimens
+
+`PATCH /specimens/:id/restore` is Curator-only and takes no body. The server
+reuses the current completion checklist inside a serializable transaction:
+
+- requirements pass: restore as `CATALOGED`;
+- any requirement missing: restore as `UNCATALOGED`;
+- either result: disable public eligibility, clear current `archivedAt` and
+  `archivedBy`, and attribute the update to the authenticated account.
+
+The response extends the existing specimen shape with `restored: boolean`
+and `missingRequirements: string[]`. Neither the specimen ID nor accession
+number is regenerated. Existing taxonomy, provenance, media, tags and history
+are preserved. No schema or migration is introduced.
+
+Restoration records actual status/public-eligibility changes in revision
+history and a `RESTORE_SPECIMEN` audit event in the same transaction. The audit
+retains the original archive actor/time, resulting status and missing checks.
+The original archive event/reason is not deleted. Legacy timestamp-only
+archives are recognized without inventing an unchanged-status revision.
+
+Calling restore on an already-active record is a no-op (`restored: false`):
+it does not change status, timestamps, eligibility or history. In particular,
+a retry cannot undo public eligibility subsequently enabled by a curator.
+Concurrent serialization failures use the existing bounded retry/409 behavior.
+
+The UI previews readiness, asks for confirmation, and refreshes the detail,
+catalog queue, revision and audit views after success. Preview data is advisory;
+only the backend's submit-time assessment decides the outcome.
+
+Inventory remains read-only. Restoration never recreates/reactivates lots,
+changes quantities or reuses storage assignments. Since archiving requires
+active lots to be resolved, a typical restored record will be Uncataloged
+until the Inventory owner prepares a valid active lot separately.
+
+See [restoration verification](./CATALOG_RESTORATION_VERIFICATION.md) for
+executed checks and remaining live-test limits.
