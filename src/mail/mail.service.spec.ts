@@ -21,7 +21,7 @@ describe('MailService', () => {
   const configured = {
     BREVO_API_KEY: 'xkeysib-test',
     MAIL_FROM_EMAIL: 'museum@example.com',
-    MAIL_FROM_NAME: 'BioSphere Museum',
+    MAIL_FROM_NAME: 'USC Biological Museum',
     NODE_ENV: 'development',
   };
 
@@ -75,7 +75,7 @@ describe('MailService', () => {
     expect(url).toBe('https://api.brevo.com/v3/smtp/email');
     expect(init.headers['api-key']).toBe('xkeysib-test');
     expect(JSON.parse(init.body)).toEqual({
-      sender: { email: 'museum@example.com', name: 'BioSphere Museum' },
+      sender: { email: 'museum@example.com', name: 'USC Biological Museum' },
       to: [{ email: 'visitor@example.com', name: 'Visitor' }],
       subject: 'Subject',
       textContent: 'Text',

@@ -38,13 +38,13 @@ export function buildCuratorAlertEmail(
     intro,
     `Reference number: ${content.reference}`,
     content.link ? `${action}\n${content.link}` : action,
-    'BioSphere Museum',
+    'USC Biological Museum',
   ].join('\n\n');
 
   const html = `<!doctype html>
 <html><body style="margin:0;padding:24px;background:#f4f6f3;font-family:Arial,Helvetica,sans-serif;color:#1f2a24">
 <div style="max-width:560px;margin:0 auto;background:#ffffff;border-radius:12px;padding:28px">
-<p style="margin:0 0 16px;font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:#2f6b4f;font-weight:bold">BioSphere Museum</p>
+<p style="margin:0 0 16px;font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:#2f6b4f;font-weight:bold">USC Biological Museum</p>
 <p style="margin:0 0 16px">Hello ${escapeHtml(content.curatorName)},</p>
 <p style="margin:0 0 16px;line-height:1.5">${escapeHtml(intro)}</p>
 <p style="margin:0 0 16px;font-size:14px">Reference number: <strong style="font-family:monospace">${escapeHtml(content.reference)}</strong></p>

@@ -47,13 +47,13 @@ export function buildVisitorEmail(content: VisitorEmailContent): OutgoingEmail {
       : []),
     `Reference number: ${content.reference}`,
     'Please include your reference number if you contact us about this.',
-    'BioSphere Museum',
+    'USC Biological Museum',
   ].join('\n\n');
 
   const html = `<!doctype html>
 <html><body style="margin:0;padding:24px;background:#f4f6f3;font-family:Arial,Helvetica,sans-serif;color:#1f2a24">
 <div style="max-width:560px;margin:0 auto;background:#ffffff;border-radius:12px;padding:28px">
-<p style="margin:0 0 16px;font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:#2f6b4f;font-weight:bold">BioSphere Museum</p>
+<p style="margin:0 0 16px;font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:#2f6b4f;font-weight:bold">USC Biological Museum</p>
 <p style="margin:0 0 16px">Hello ${escapeHtml(content.visitorName)},</p>
 ${content.paragraphs
   .map((p) => `<p style="margin:0 0 16px;line-height:1.5">${escapeHtml(p)}</p>`)

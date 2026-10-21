@@ -32,7 +32,7 @@ export class MailService {
     const apiKey = this.config.get<string>('BREVO_API_KEY');
     const fromEmail = this.config.get<string>('MAIL_FROM_EMAIL');
     const fromName =
-      this.config.get<string>('MAIL_FROM_NAME') ?? 'BioSphere Museum';
+      this.config.get<string>('MAIL_FROM_NAME') ?? 'USC Biological Museum';
 
     // Tests load the same .env; never let a test run send real email.
     if (this.config.get<string>('NODE_ENV') === 'test') {
