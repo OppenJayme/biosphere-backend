@@ -58,7 +58,7 @@ system is not a reason to postpone all fixes until the end.
 | DEF-006 | 2026-10-03 | Cataloging / Revision UI   | Media history exposes raw identifiers and storage paths                 | S4 Minor    | P2       | Ready for retest | Cataloging / Frontend   |
 | DEF-007 | 2026-10-03 | Cataloging / Specimen list | Selected-specimen preview never displays its cover image                | S3 Moderate | P2       | Ready for retest | Cataloging / Full stack |
 | DEF-008 | 2026-10-03 | Cataloging / Filters       | Clear all resets results but leaves stale filter values visible         | S3 Moderate | P2       | Ready for retest | Cataloging / Frontend   |
-| DEF-009 | 2026-10-03 | Cataloging / CSV import    | Invalid row values make the entire preview return a generic 502         | S2 Major    | P1       | Ready for retest | Cataloging / Frontend   |
+| DEF-009 | 2026-10-03 | Cataloging / CSV import    | Invalid row values make the entire preview return a generic 502         | S2 Major    | P1       | Verified | Cataloging / Frontend   |
 | DEF-010 | 2026-10-04 | Storage / Hierarchy UI     | Archived locations still look active in the live hierarchy              | S3 Moderate | P2       | Ready for retest | Storage / Frontend      |
 | DEF-011 | 2026-10-07 | Cataloging / Filters UI    | Clear all feels slow and has no appropriate pending feedback            | S4 Minor    | P2       | In progress | Cataloging / Frontend   |
 | DEF-012 | 2026-10-07 | Cataloging / Media UI      | Save metadata and Set as cover lack visible hover feedback              | S4 Minor    | P2       | Ready for retest | Cataloging / Frontend   |
@@ -803,7 +803,7 @@ longer represents the active query.
 
 **Priority:** P1
 
-**Status:** Ready for retest
+**Status:** Verified
 
 **Owner:** Cataloging / Frontend
 
@@ -831,6 +831,33 @@ The separate CSV native-file hover report is tracked as DEF-013.
 selected valid row was imported, its values persisted with UNCATALOGED status,
 and unselected/invalid rows were not imported. Repeat-commit and other invalid
 input edge cases remain unverified; tested commits were not captured.
+
+#### Live regression verification - 2026-10-22
+
+The earlier limitations above are historical. In the real signed-in local UI,
+the mixed file now renders with 2 valid / 3 invalid rows, including invalid
+gender, future collection date and malformed collection UUID. Invalid checkboxes
+are disabled and row errors are visible; no generic 502 occurs. Protected
+before/after reads show identical specimen-ID sets and zero test fixtures after
+preview. A valid-only preview separately passes without creating a record.
+
+Only the selected valid row was imported. Re-selecting it in the same retained
+preview and committing again returns the same specimen UUID; protected reads
+still find one fixture, Uncataloged and public off. Detail/reload preserves name
+and remarks, while Audit Logs shows exactly one successful IMPORT_SPECIMEN event
+after reload. Unselected/invalid rows remain absent. The earlier isolated HTTP
+regressions also reject directly posted invalid/unreviewed row selections.
+
+Fixture: `TEST CSV 20261022 C 7c56d941 Selected`, UUID
+`3e7a3ca2-bf8f-45c9-98d3-94b8bcf31419`, retained for review. Checkout references:
+frontend `0ffa81f`, backend `0da6cc6`; served build hashes not independently
+inspected. No request mocks, direct database writes, auth exports, Inventory
+operations or server restarts. Main commit/retry script reported zero page errors.
+
+**Verified** applies to the original preview-schema regression and tested
+core-only workflow, not extended imports, live concurrency/rollback, response-loss
+recovery or independent module sign-off. Full reproduction, fixture/script
+references and limits are in the CAT-013 live evidence in ACCEPTANCE_TEST_PLAN.md.
 
 #### Reproduction
 
@@ -880,11 +907,11 @@ preview is shown.
 
 #### Retest
 
-- [ ] A mixed-validity CSV returns a visible preview rather than 502.
-- [ ] Invalid raw gender and collection values appear safely with errors.
-- [ ] Invalid rows cannot be selected or committed.
-- [ ] Valid rows remain selectable and previewing creates no records.
-- [ ] Valid-only preview and retry-safe commit behavior remain unchanged.
+- [x] A mixed-validity CSV returns a visible preview rather than 502 (live UI).
+- [x] Invalid raw gender and collection values appear safely with errors (live UI).
+- [x] Invalid rows cannot be selected (live UI) or committed (isolated direct HTTP regression).
+- [x] Valid rows remain selectable and previewing creates no records (live protected reads).
+- [x] Valid-only preview and retry-safe commit behavior remain unchanged (live UI/readback/audit).
 
 ### DEF-010 - Archived locations still look active in the live hierarchy
 

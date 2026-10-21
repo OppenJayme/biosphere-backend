@@ -122,7 +122,8 @@ This documentation-only review uses recorded guides/browser runs plus earlier
 tester confirmations in the project conversation. Those conversation reports
 did not consistently capture execution dates, commits, exact case coverage or
 independent review; they are identified as reports, not newly replayed tests.
-No missing evidence is manufactured and no defect is promoted to Verified.
+No missing evidence is manufactured; this reconciliation alone promotes no
+defect to Verified. Subsequent verification sessions are recorded separately.
 
 Evidence reconciled:
 
@@ -202,7 +203,7 @@ John/Voltaire test-fixture handoff, not permission to absorb Inventory work.
 | CAT-010 | Attach, change, repeat, and detach tags                                        | Relationships remain unique and retry-safe                                                                 | **Pass**; usability issue DEF-005                                     |
 | CAT-011 | Upload, edit, cover, replace, and remove supported media; reject invalid media | Private signed access, database/storage consistency, and usable interaction states are preserved           | In progress; core/media traceability and reported preview retests pass; privacy/error/accessibility gaps remain (original Fail - DEF-004/006/007) |
 | CAT-012 | Search, combine filters, sort, and paginate                                    | Results are bounded, stable, case-insensitive where approved, and archived records are excluded by default | **Pass**; Clear-all UI defect DEF-008                                 |
-| CAT-013 | Preview and commit mixed-validity CSV rows; retry commit                       | Preview is non-mutating; only reviewed valid rows import as `UNCATALOGED`; retries do not duplicate rows   | In progress; isolated HTTP mixed preview/selection/retry/non-mutation/ownership pass; browser/live pipeline sign-off pending (original Fail - DEF-009) |
+| CAT-013 | Preview and commit mixed-validity CSV rows; retry commit                       | Preview is non-mutating; only reviewed valid rows import as `UNCATALOGED`; retries do not duplicate rows   | **Pass** for core-only live UI preview/selection/readback/retry and valid-only preview; DEF-009 Verified; extended imports and module sign-off not implied |
 | CAT-014 | Review possible duplicate warnings, including archived matches                 | Warnings show evidence and never auto-merge records                                                        | In progress; manual/isolated regression evidence in duplicate guide; archived policy and browser failure/retry pending |
 | CAT-015 | Select multiple specimens from the protected catalog on local and LAN clients  | Every row is keyboard/touch accessible and opens the matching preview/detail route                         | In progress; repair ready; complete remote-LAN/keyboard/touch checklist unverified (original Fail - DEF-003) |
 | CAT-016 | Restore an archived specimen after current-requirement revalidation | Same record returns as Cataloged only when complete, otherwise Uncataloged; public display off; history preserved; inventory unchanged | **Partial pass** — live incomplete restore, cancel/error/reload and audit passed; complete branch covered by isolated HTTP tests; live concurrency unverified |
@@ -327,6 +328,61 @@ Real concurrency, rollback, multi-instance/restart durability of the in-memory
 preview cache and independent acceptance remain unverified. DEF-002/009 remain
 Ready for retest, not Verified. DEF-018 records a nonblocking Swagger status
 documentation mismatch observed during these tests.
+
+#### CAT-013 live core-only CSV acceptance - 2026-10-22
+
+After confirming backend PR #166 merged, used the existing signed-in headed
+Edge session `biosphere-aud002` and real local frontend/backend. Checkout
+references: frontend `0ffa81f`, backend `0da6cc6`; exact served build hashes
+were not independently inspected. Servers were not restarted or replaced.
+
+Fixture marker: `TEST CSV 20261022 C 7c56d941`. Only row 1, named
+`TEST CSV 20261022 C 7c56d941 Selected`, was imported. Its specimen UUID is
+`3e7a3ca2-bf8f-45c9-98d3-94b8bcf31419`. Remarks identify it as a disposable
+core-only import acceptance record. No lot/storage/taxonomy/media columns were
+supplied; collection and accession were left unassigned for this draft.
+
+Executed checks:
+
+1. Protected same-origin specimen reads found no fixture before preview.
+2. Uploaded five rows through the actual file input: two valid, one invalid
+   gender, one future collection date and one malformed collection UUID.
+   Preview succeeded (no 502), showing 5 total / 2 valid / 3 invalid / zero
+   warnings with specific row errors. Valid rows were checked; invalid rows
+   were disabled. Protected before/after reads returned identical specimen-ID
+   sets and zero fixture records: preview created nothing.
+3. Unchecked valid row 2 and imported only row 1 through the UI. The completion
+   notice reported one success / zero failures. Protected read returned only
+   the selected fixture, `UNCATALOGED` with public display off.
+4. Re-selected row 1 in the same retained reviewed preview after the UI's
+   refresh, without uploading/re-previewing. Imported again through the UI;
+   protected read still returned one fixture with the identical specimen UUID.
+5. Opened its real detail page in a temporary tab and reloaded. Name and
+   remarks persisted; only that temporary tab was closed. Main commit/retry
+   script reported zero page errors.
+6. Filtered the actual Audit Logs UI by specimen UUID/module/action. One
+   `IMPORT_SPECIMEN` SUCCESS remained after reload; it referenced this specimen,
+   CURATOR role and row 1, with preview/batch IDs and Uncataloged status in
+   structured details. Actor UUID equality/exact timestamp were not asserted.
+7. Previewed a separate valid-only file containing the still-unimported row 2.
+   It showed one valid / zero invalid and a selected checkbox. No commit was
+   made: protected ID sets stayed unchanged and only the original fixture
+   existed. Invalid and unselected mixed-file rows remained absent.
+
+CAT-013 passes this scoped core-only development workflow. DEF-009's original
+mixed-row preview regression is Verified using this repeatable browser result
+and the isolated invalid-row direct-commit regressions in PR #166. Historical
+failed evidence is preserved. This is not independent teammate or full module
+sign-off, nor a test of extended taxonomy/provenance/lot imports, process death,
+lost commit response, concurrent requests, rollback or multi-instance behavior.
+
+The single saved fixture is retained for review; nothing was deleted/archived.
+No direct database writes, request/response mocks, auth-state exports, Inventory
+changes or publication occurred. Browser stays open and signed in on its detail
+page. Local fixture-specific scripts remain Git-ignored under frontend
+`tools/browser/artifacts/cat013-*.txt`; they are diagnostic evidence, not CI tests.
+This commit changes documentation only: `git diff --check` is the local check;
+full automated suites/build were not rerun for this evidence update.
 
 ### Storage Location Management
 
