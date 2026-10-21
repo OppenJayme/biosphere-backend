@@ -244,6 +244,27 @@ list. DEF-010 tracks this lifecycle-presentation issue; archived records must
 remain recoverable for history, but they must not appear to be part of the
 live hierarchy.
 
+#### Storage archive-display recheck - 2026-10-21
+
+Read-only browser recheck of the existing archived `TEST CABINET A` and
+`TEST - DRAW 1 Updated` fixtures reproduced DEF-010: the default hierarchy still
+included the archived cabinet, search and child cards lacked archived labels,
+and the parent counted the archived child without an active/history distinction.
+No Show archived toggle was available. Detail badges and read-only management
+were correct, child selection survived reload, and its audit-history link
+showed one archive event. No live data was mutated.
+
+DEF-010 remains **Open**, not Verified or Ready for retest. The next corrective
+step is the existing scoped frontend remediation in the defect log; repeating
+the same successful archive operation does not repair its display. STO-004's
+earlier archive-restriction result is retained, not extended into module sign-off.
+
+See [DEF-010 recheck](./TEST_DEFECT_LOG.md#def-010---archived-locations-still-look-active-in-the-live-hierarchy)
+for fixture IDs, navigation-timing observation and verification limits.
+Checkout bases: backend `db45e1a`, frontend `f596a3f`; served build hashes were
+not independently verified. No application code changed; documentation check
+is `git diff --check`, not a new full automated-suite/build execution.
+
 ### Limited offline and synchronization
 
 | ID      | Test                                                            | Expected result                                                                                 | Status  |
