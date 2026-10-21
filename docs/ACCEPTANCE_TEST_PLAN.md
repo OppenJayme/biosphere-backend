@@ -407,7 +407,7 @@ documentation-only update.
 | ID      | Test                                                                 | Expected result                                                                                                        | Status   |
 | ------- | -------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- | -------- |
 | AUD-001 | Filter audit logs by actor, module, action, result, record, and date | Results are protected, stable, bounded, and accurate                                                                   | In progress; browser filter checks pass, access/boundary checks pending |
-| AUD-002 | Trace Cataloging actions to revision and audit entries               | Actor, affected record, action, outcome, and timestamp match                                                           | In progress; core-edit/no-change browser checks pass, other actions pending |
+| AUD-002 | Trace Cataloging actions to revision and audit entries               | Actor, affected record, action, outcome, and timestamp match                                                           | In progress; core and taxonomy browser checks pass, other actions pending |
 | BAK-001 | Search and filter backup-history records                             | History loads with correct status/type/creator/date filters                                                            | In progress; empty-history UI checks pass, positive-data cases unavailable |
 | BAK-002 | Execute and restore a real backup                                    | Deferred until deployment ownership, storage, retention, verification, and disposable restore environment are approved | Deferred |
 
@@ -645,6 +645,54 @@ not independently by account UUID; audit timestamps were compared at displayed
 minute precision, not exact database timestamps. Transaction rollback,
 concurrent writes, adversarial access, and production security are not proven.
 Only this documentation changed; full lint/unit/build suites were not rerun.
+
+#### AUD-002 taxonomy traceability browser evidence - 2026-10-21
+
+Continued in isolated Edge session `biosphere-aud002` after manual login,
+using the same disposable specimen `5b8e55d4-af0f-4263-9b0e-349b4b314f20`.
+Verified its test name before mutation and confirmed the taxonomy form was in
+create mode with all ten fields empty. Existing core-test baseline was one
+revision and two fixture-scoped audit entries.
+
+The supervised UI diagnostic completed all 44 executed assertions (including
+initial-empty-field and repeated view-availability checks; not 44 separate
+acceptance test cases):
+
+- Created taxonomy with kingdom `Animalia` and habitat `TEST AUD-002 habitat A`.
+  History gained exactly two revisions from `Not recorded` to the specified
+  values, both under `Specimen Taxonomy`. Audit gained exactly one
+  `CREATE_SPECIMEN_TAXONOMY` entry with fields `kingdom` and `habitat`.
+- Reopened the form in edit mode and confirmed the saved values. Changed only
+  habitat to `TEST AUD-002 habitat B`. History gained exactly one habitat
+  revision with the expected old/new values and taxonomy source. Audit gained
+  exactly one `UPDATE_SPECIMEN_TAXONOMY` entry with only `habitat` in its fields.
+- For both actions, verified module `specimens`, result `SUCCESS`, record type
+  `specimen`, the exact fixture UUID, matching nonempty displayed actor names,
+  and curator role in the selected audit detail. Revision timestamps fell in
+  the measured operation windows with five-second tolerance; audit and revision
+  matched at displayed-minute precision.
+- Reloaded and confirmed saved taxonomy values, observed revision contents,
+  and audit count persisted. Submitting the unchanged taxonomy showed
+  `No changes were saved` and remained on the form. Subsequent reads showed no
+  extra or altered audit/revision entries. Counts were revisions 1 -> 3 -> 4
+  and audits 2 -> 3 -> 4 across baseline, creation, and edit.
+
+No request mocking, direct database writes, inventory/lots/storage operations,
+publishing, credential export, or production source changes were used. No new
+application defect was reproduced. The fixture-specific diagnostic remains
+ignored at frontend `tools/browser/artifacts/aud-002-taxonomy.txt`; it checks
+the expected baseline before mutation and is not a maintained CI suite.
+Per the user's preference, the isolated browser was left open and signed in
+on the taxonomy form; auth state was not exported or saved for reuse.
+
+Checkout references: frontend `e43e7fc`, backend `6df5825`; actual served build
+revisions were not independently verified. Actor identity was compared by
+displayed name, not account UUID; exact audit database timestamps, concurrent
+updates, transaction rollback, and authorization attacks were not tested.
+AUD-002 remains **In progress** for provenance, tags/media, and lifecycle/public
+eligibility traceability. This evidence does not replace broader taxonomy
+validation or independent acceptance. Documentation-only change;
+`git diff --check` passed, and full lint/unit/build suites were not rerun.
 
 ## 9. John Gerozaga acceptance register
 
