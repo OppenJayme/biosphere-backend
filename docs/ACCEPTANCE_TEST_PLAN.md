@@ -194,15 +194,15 @@ John/Voltaire test-fixture handoff, not permission to absorb Inventory work.
 | CAT-002 | Create complete and incomplete specimen drafts                                 | Both start `UNCATALOGED`; public display is off                                                            | **Pass**                                                              |
 | CAT-003 | Edit specimen core fields and submit an unchanged form                         | Changes persist with revision history; no-change submission is rejected clearly                            | **Pass**                                                              |
 | CAT-004 | Create and edit taxonomy                                                       | One taxonomy record exists; draft values and revisions persist                                             | **Pass**; completion requirement remains under CAT-006                |
-| CAT-005 | Create and edit provenance; reject invalid dates                               | Values and revisions persist; empty values normalize; future collection dates are rejected                 | In progress; UI date/save/history retest reported passed; API/import matrix pending (original Fail - DEF-002) |
-| CAT-006 | View readiness with missing and complete requirements                          | Every approved rule reports the correct pass/fail state and fix location                                   | In progress; readiness happy paths reported passed; legacy future-date case pending (original Fail - DEF-002) |
+| CAT-005 | Create and edit provenance; reject invalid dates                               | Values and revisions persist; empty values normalize; future collection dates are rejected                 | In progress; reported UI pass and isolated HTTP date/import checks pass; live/browser sign-off pending (original Fail - DEF-002) |
+| CAT-006 | View readiness with missing and complete requirements                          | Every approved rule reports the correct pass/fail state and fix location                                   | In progress; legacy future-date readiness/completion rejection passes isolated HTTP; live sign-off pending (original Fail - DEF-002) |
 | CAT-007 | Complete Cataloging with one prepared valid active lot                         | Status becomes `CATALOGED`; public display remains off; history/audit are written                          | **Pass** for lifecycle behavior; outstanding DEF-002 verification still gates module sign-off |
 | CAT-008 | Remove required data while Cataloged, then reopen with a reason                | Removal is blocked until reopening; reopening returns to `UNCATALOGED` and disables public display         | **Pass**                                                              |
 | CAT-009 | Enable and disable public eligibility                                          | Only Cataloged specimens qualify; no exhibit is published automatically                                    | **Pass**                                                              |
 | CAT-010 | Attach, change, repeat, and detach tags                                        | Relationships remain unique and retry-safe                                                                 | **Pass**; usability issue DEF-005                                     |
 | CAT-011 | Upload, edit, cover, replace, and remove supported media; reject invalid media | Private signed access, database/storage consistency, and usable interaction states are preserved           | In progress; core/media traceability and reported preview retests pass; privacy/error/accessibility gaps remain (original Fail - DEF-004/006/007) |
 | CAT-012 | Search, combine filters, sort, and paginate                                    | Results are bounded, stable, case-insensitive where approved, and archived records are excluded by default | **Pass**; Clear-all UI defect DEF-008                                 |
-| CAT-013 | Preview and commit mixed-validity CSV rows; retry commit                       | Preview is non-mutating; only reviewed valid rows import as `UNCATALOGED`; retries do not duplicate rows   | In progress; mixed preview reported passed; detailed commit/retry/non-mutation evidence pending (original Fail - DEF-009) |
+| CAT-013 | Preview and commit mixed-validity CSV rows; retry commit                       | Preview is non-mutating; only reviewed valid rows import as `UNCATALOGED`; retries do not duplicate rows   | In progress; isolated HTTP mixed preview/selection/retry/non-mutation/ownership pass; browser/live pipeline sign-off pending (original Fail - DEF-009) |
 | CAT-014 | Review possible duplicate warnings, including archived matches                 | Warnings show evidence and never auto-merge records                                                        | In progress; manual/isolated regression evidence in duplicate guide; archived policy and browser failure/retry pending |
 | CAT-015 | Select multiple specimens from the protected catalog on local and LAN clients  | Every row is keyboard/touch accessible and opens the matching preview/detail route                         | In progress; repair ready; complete remote-LAN/keyboard/touch checklist unverified (original Fail - DEF-003) |
 | CAT-016 | Restore an archived specimen after current-requirement revalidation | Same record returns as Cataloged only when complete, otherwise Uncataloged; public display off; history preserved; inventory unchanged | **Partial pass** — live incomplete restore, cancel/error/reload and audit passed; complete branch covered by isolated HTTP tests; live concurrency unverified |
@@ -278,6 +278,55 @@ tests passed 39/39 and frontend import-contract tests passed 3/3, but the
 frontend contract does not cover invalid raw preview values. DEF-009 tracks
 the response-schema mismatch that prevents the UI from displaying the
 backend's row-level validation result.
+
+#### Cataloging date/import HTTP evidence - 2026-10-22
+
+On backend base `304dee0`, the user approved protected HTTP tests for dates/
+readiness and reviewed CSV preview/selected commit/retry. Extended the existing
+`test/specimens.e2e-spec.ts` fixture without mocking internal Cataloging
+services: only Prisma and Supabase adapters are replaced. The in-memory
+fixture is deliberately limited, not a database emulator or rollback proof.
+
+Fifteen new characterization cases pass:
+
+- Five date cases: create/update accept `2026-01-02` when the clock is
+  `2026-01-01T16:30:00Z` (Manila Jan 2), read back the saved value and check
+  revision/audit attribution. Both reject Jan 3 without writes. A seeded legacy
+  Jan 3 date is the sole missing readiness requirement, blocks completion and
+  remains unchanged/readable. The pre-existing prepared-lot read fixture is
+  reused; no Inventory operation or lot creation is added.
+- CSV preview reports two valid and three invalid rows (gender, future date,
+  malformed collection UUID), preserves the specimen list and performs no
+  create/audit writes. Only selected row 1 is committed as Uncataloged, public
+  off and curator-attributed; retry returns its original record with one
+  total create/IMPORT_SPECIMEN audit. Invalid rows and an unreviewed row 99
+  cannot be committed through a direct request.
+- Preview/commit each reject signed-out, invalid-token and developer callers.
+  Another active curator cannot commit the owner's preview (404); the owner's
+  preview remains usable after that denial.
+
+Cases were added and run one behavior group at a time against existing
+production behavior. They passed immediately; no red-to-green application
+repair is claimed. No runtime, frontend, schema, dependency or Inventory code
+changed, and no live import, database write or server restart occurred.
+
+Verification: focused Specimens HTTP 49/49; full unit 53 suites / 690 tests;
+full HTTP 26 suites / 328 tests passed, one suite / 17 tests skipped.
+TypeScript no-emit and diff checks passed. Lint: zero errors / seven existing
+unused-disable warnings outside this file. Expected negative-path unit logs
+and broader missing-audit fixture errors (including DEF-017) were not silenced;
+the focused 49-case HTTP run had no such error output. Build is delegated to
+PR CI to preserve the running backend's build output.
+
+Date/import API gaps now have isolated evidence; do not repeat these suites
+as if untested. Remaining work is the actual frontend-to-backend preview/
+selection/commit/refresh/retry path in a confirmed development environment,
+with disposable core-only records and explicit non-mutation/readback checks.
+Do not create lots or inject legacy invalid dates into the live database.
+Real concurrency, rollback, multi-instance/restart durability of the in-memory
+preview cache and independent acceptance remain unverified. DEF-002/009 remain
+Ready for retest, not Verified. DEF-018 records a nonblocking Swagger status
+documentation mismatch observed during these tests.
 
 ### Storage Location Management
 

@@ -1,3 +1,4 @@
+/** Protected Cataloging HTTP workflows; only database/Supabase adapters are replaced. */
 import { INestApplication, Logger, ValidationPipe } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import request from 'supertest';
@@ -9,6 +10,8 @@ import { SUPABASE_CLIENT } from '../src/supabase/supabase.constants';
 describe('Specimens (e2e)', () => {
   const curatorToken = 'curator-specimen-token';
   const developerToken = 'developer-specimen-token';
+  const otherCuratorToken = 'other-curator-import-token';
+  const otherCuratorAuthId = '99999999-9999-4999-8999-999999999999';
   const curatorAuthId = '11111111-1111-4111-8111-111111111111';
   const curatorAccountId = '22222222-2222-4222-8222-222222222222';
   const developerAuthId = '33333333-3333-4333-8333-333333333333';
@@ -34,6 +37,12 @@ describe('Specimens (e2e)', () => {
   };
   let auditDelegate: { create: jest.Mock };
   let queryRawMock: jest.Mock;
+  let provenanceRecord: Record<string, unknown> | null;
+  let provenanceDelegate: {
+    findUnique: jest.Mock;
+    create: jest.Mock;
+    update: jest.Mock;
+  };
 
   beforeEach(async () => {
     specimenRecord = {
@@ -111,11 +120,30 @@ describe('Specimens (e2e)', () => {
     };
     auditDelegate = { create: jest.fn(() => ({})) };
     queryRawMock = jest.fn(() => []);
+    provenanceRecord = null;
+    provenanceDelegate = {
+      findUnique: jest.fn(() => provenanceRecord),
+      create: jest.fn(({ data }: { data: Record<string, unknown> }) => {
+        provenanceRecord = { ...data };
+        return provenanceRecord;
+      }),
+      update: jest.fn(({ data }: { data: Record<string, unknown> }) => {
+        provenanceRecord = { ...provenanceRecord, ...data };
+        return provenanceRecord;
+      }),
+    };
 
     const prismaMock = {
       user_account: {
         findUnique: jest.fn(
           ({ where }: { where: { auth_user_id: string } }) => {
+            if (where.auth_user_id === otherCuratorAuthId) {
+              return {
+                id: otherCuratorAuthId,
+                role: 'CURATOR',
+                status: 'ACTIVE',
+              };
+            }
             if (where.auth_user_id === curatorAuthId) {
               return {
                 id: curatorAccountId,
@@ -135,6 +163,7 @@ describe('Specimens (e2e)', () => {
         ),
       },
       specimen: specimenDelegate,
+      specimen_provenance: provenanceDelegate,
       collection: {
         findUnique: jest.fn(({ where }: { where: { id: string } }) =>
           where.id === collectionId ? { id: collectionId } : null,
@@ -156,9 +185,11 @@ describe('Specimens (e2e)', () => {
       const id =
         token === curatorToken
           ? curatorAuthId
-          : token === developerToken
-            ? developerAuthId
-            : null;
+          : token === otherCuratorToken
+            ? otherCuratorAuthId
+            : token === developerToken
+              ? developerAuthId
+              : null;
 
       return id
         ? {
@@ -195,7 +226,317 @@ describe('Specimens (e2e)', () => {
   });
 
   afterEach(async () => {
+    jest.useRealTimers();
     await app.close();
+  });
+
+  describe('collection date HTTP boundary', () => {
+    beforeEach(() => {
+      // UTC Jan 1 is already Jan 2 in Manila. Keep HTTP/event-loop timers real.
+      jest.useFakeTimers({
+        now: new Date('2026-01-01T16:30:00.000Z'),
+        doNotFake: [
+          'nextTick',
+          'setImmediate',
+          'clearImmediate',
+          'setTimeout',
+          'clearTimeout',
+          'setInterval',
+          'clearInterval',
+          'performance',
+          'hrtime',
+          'queueMicrotask',
+        ],
+      });
+    });
+
+    it.each(['post', 'patch'] as const)(
+      'accepts the Manila current date through provenance %s',
+      async (method) => {
+        if (method === 'patch') {
+          provenanceRecord = {
+            specimen_id: specimenId,
+            collection_date: testDate,
+            updated_at: testDate,
+          };
+        }
+        const response = await request(app.getHttpServer())
+          [method](`/specimens/${specimenId}/provenance`)
+          .set('Authorization', `Bearer ${curatorToken}`)
+          .send({ collectionDate: '2026-01-02' })
+          .expect(method === 'post' ? 201 : 200);
+        expect(response.body.collectionDate).toBe('2026-01-02');
+        const read = await request(app.getHttpServer())
+          .get(`/specimens/${specimenId}/provenance`)
+          .set('Authorization', `Bearer ${curatorToken}`)
+          .expect(200);
+        expect(read.body.collectionDate).toBe('2026-01-02');
+        expect(auditDelegate.create).toHaveBeenCalledTimes(1);
+        expect(auditDelegate.create).toHaveBeenCalledWith({
+          data: expect.objectContaining({
+            user_id: curatorAccountId,
+            action:
+              method === 'post'
+                ? 'CREATE_SPECIMEN_PROVENANCE'
+                : 'UPDATE_SPECIMEN_PROVENANCE',
+            status: 'SUCCESS',
+          }),
+        });
+        expect(revisionDelegate.createMany).toHaveBeenCalledWith({
+          data: expect.arrayContaining([
+            expect.objectContaining({
+              changed_by: curatorAccountId,
+              field_changed: 'collection_date',
+              new_value: '2026-01-02',
+            }),
+          ]),
+        });
+      },
+    );
+
+    it('blocks completion for an existing future date without rewriting it', async () => {
+      provenanceRecord = {
+        specimen_id: specimenId,
+        collection_date: new Date('2026-01-03T00:00:00.000Z'),
+        preservation_type: 'Wet specimen',
+        preservation_method: '70% ethanol',
+        updated_at: testDate,
+      };
+      catalogReadinessRecord.specimen_provenance = provenanceRecord;
+      const readiness = await request(app.getHttpServer())
+        .get(`/specimens/${specimenId}/catalog-readiness`)
+        .set('Authorization', `Bearer ${curatorToken}`)
+        .expect(200);
+      expect(readiness.body).toMatchObject({
+        requirementsMet: false,
+        canComplete: false,
+        missingRequirements: [
+          'A valid collection date on or before today is recorded',
+        ],
+      });
+      const complete = await request(app.getHttpServer())
+        .patch(`/specimens/${specimenId}/complete-cataloging`)
+        .set('Authorization', `Bearer ${curatorToken}`)
+        .expect(400);
+      expect(complete.body.missingRequirements).toEqual([
+        'A valid collection date on or before today is recorded',
+      ]);
+      const read = await request(app.getHttpServer())
+        .get(`/specimens/${specimenId}/provenance`)
+        .set('Authorization', `Bearer ${curatorToken}`)
+        .expect(200);
+      expect(read.body.collectionDate).toBe('2026-01-03');
+      expect(specimenDelegate.update).not.toHaveBeenCalled();
+      expect(provenanceDelegate.update).not.toHaveBeenCalled();
+      expect(revisionDelegate.createMany).not.toHaveBeenCalled();
+      expect(auditDelegate.create).not.toHaveBeenCalled();
+    });
+
+    it.each(['post', 'patch'] as const)(
+      'rejects tomorrow through provenance %s without writes',
+      async (method) => {
+        const response = await request(app.getHttpServer())
+          [method](`/specimens/${specimenId}/provenance`)
+          .set('Authorization', `Bearer ${curatorToken}`)
+          .send({ collectionDate: '2026-01-03' })
+          .expect(400);
+        expect(response.body.message).toContain(
+          'collectionDate must be a valid YYYY-MM-DD date on or before today (Asia/Manila)',
+        );
+        expect(provenanceDelegate.create).not.toHaveBeenCalled();
+        expect(provenanceDelegate.update).not.toHaveBeenCalled();
+        expect(specimenDelegate.update).not.toHaveBeenCalled();
+        expect(revisionDelegate.createMany).not.toHaveBeenCalled();
+        expect(auditDelegate.create).not.toHaveBeenCalled();
+      },
+    );
+  });
+
+  describe('reviewed CSV HTTP workflow', () => {
+    describe.each(['preview', 'commit'])('%s access', (endpoint) => {
+      it.each([
+        { token: undefined, status: 401, caller: 'signed out' },
+        { token: 'invalid-import-token', status: 401, caller: 'invalid token' },
+        { token: developerToken, status: 403, caller: 'developer' },
+      ])('rejects $caller', async ({ token, status }) => {
+        const pending = request(app.getHttpServer()).post(
+          `/specimens/import/${endpoint}`,
+        );
+        if (token) pending.set('Authorization', `Bearer ${token}`);
+        await pending.expect(status);
+        expect(specimenDelegate.create).not.toHaveBeenCalled();
+        expect(auditDelegate.create).not.toHaveBeenCalledWith({
+          data: expect.objectContaining({
+            action: 'IMPORT_SPECIMEN',
+            status: 'SUCCESS',
+          }),
+        });
+      });
+    });
+
+    const csv = [
+      'commonName,gender,collectionDate,collectionId',
+      'Selected import,UNKNOWN,,',
+      'Unselected import,FEMALE,,',
+      'Invalid gender,BAD_VALUE,,',
+      'Future date,UNKNOWN,2099-01-01,',
+      'Invalid collection,UNKNOWN,,not-a-uuid',
+    ].join('\n');
+
+    const preview = () =>
+      request(app.getHttpServer())
+        .post('/specimens/import/preview')
+        .set('Authorization', `Bearer ${curatorToken}`)
+        .attach('file', Buffer.from(csv), 'cataloging-http.csv');
+
+    it('commits only a selected valid row and reuses its record on retry', async () => {
+      const reviewed = await preview().expect(201);
+      const previewId = reviewed.body.previewId as string;
+      const commit = () =>
+        request(app.getHttpServer())
+          .post('/specimens/import/commit')
+          .set('Authorization', `Bearer ${curatorToken}`)
+          .send({ previewId, rowNumbers: [1] });
+      const first = await commit().expect(201);
+      expect(first.body).toMatchObject({
+        createdCount: 1,
+        failedCount: 0,
+        results: [
+          {
+            rowNumber: 1,
+            success: true,
+            specimen: {
+              id: specimenId,
+              commonName: 'Selected import',
+              status: 'UNCATALOGED',
+              publicDisplay: false,
+              createdBy: curatorAccountId,
+            },
+          },
+        ],
+      });
+      const retry = await commit().expect(201);
+      expect(retry.body.results).toEqual(first.body.results);
+      const read = await request(app.getHttpServer())
+        .get(`/specimens/${specimenId}`)
+        .set('Authorization', `Bearer ${curatorToken}`)
+        .expect(200);
+      expect(read.body).toMatchObject({
+        commonName: 'Selected import',
+        status: 'UNCATALOGED',
+        publicDisplay: false,
+      });
+      expect(specimenDelegate.create).toHaveBeenCalledTimes(1);
+      expect(auditDelegate.create).toHaveBeenCalledTimes(1);
+      expect(auditDelegate.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          user_id: curatorAccountId,
+          action: 'IMPORT_SPECIMEN',
+          status: 'SUCCESS',
+          details: expect.objectContaining({ rowNumber: 1, previewId }),
+        }),
+      });
+      expect(provenanceDelegate.create).not.toHaveBeenCalled();
+    });
+
+    it('refuses invalid and unreviewed row numbers even when posted directly', async () => {
+      const reviewed = await preview().expect(201);
+      const result = await request(app.getHttpServer())
+        .post('/specimens/import/commit')
+        .set('Authorization', `Bearer ${curatorToken}`)
+        .send({ previewId: reviewed.body.previewId, rowNumbers: [3, 4, 5, 99] })
+        .expect(201);
+      expect(result.body).toMatchObject({ createdCount: 0, failedCount: 4 });
+      expect(result.body.results).toEqual([
+        {
+          rowNumber: 3,
+          success: false,
+          errors: [
+            'This row failed preview validation and cannot be committed.',
+          ],
+        },
+        {
+          rowNumber: 4,
+          success: false,
+          errors: [
+            'This row failed preview validation and cannot be committed.',
+          ],
+        },
+        {
+          rowNumber: 5,
+          success: false,
+          errors: [
+            'This row failed preview validation and cannot be committed.',
+          ],
+        },
+        {
+          rowNumber: 99,
+          success: false,
+          errors: ['This row was not part of the reviewed preview.'],
+        },
+      ]);
+      expect(specimenDelegate.create).not.toHaveBeenCalled();
+      expect(provenanceDelegate.create).not.toHaveBeenCalled();
+      expect(auditDelegate.create).not.toHaveBeenCalled();
+    });
+
+    it('does not let another curator commit a reviewed preview', async () => {
+      const reviewed = await preview().expect(201);
+      const result = await request(app.getHttpServer())
+        .post('/specimens/import/commit')
+        .set('Authorization', `Bearer ${otherCuratorToken}`)
+        .send({ previewId: reviewed.body.previewId, rowNumbers: [1] })
+        .expect(404);
+      expect(result.body.message).toBe(
+        'Import preview not found or expired. Re-run POST /specimens/import/preview before committing.',
+      );
+      expect(specimenDelegate.create).not.toHaveBeenCalled();
+      expect(auditDelegate.create).not.toHaveBeenCalled();
+      // The denied attempt must not consume or invalidate its owner's preview.
+      const owner = await request(app.getHttpServer())
+        .post('/specimens/import/commit')
+        .set('Authorization', `Bearer ${curatorToken}`)
+        .send({ previewId: reviewed.body.previewId, rowNumbers: [1] })
+        .expect(201);
+      expect(owner.body).toMatchObject({ createdCount: 1, failedCount: 0 });
+      expect(specimenDelegate.create).toHaveBeenCalledTimes(1);
+    });
+
+    it('previews mixed rows without changing specimens or audit history', async () => {
+      const before = await request(app.getHttpServer())
+        .get('/specimens')
+        .set('Authorization', `Bearer ${curatorToken}`)
+        .expect(200);
+      const result = await preview().expect(201);
+      expect(result.body).toMatchObject({
+        totalRows: 5,
+        validRows: 2,
+        invalidRows: 3,
+      });
+      const rows = result.body.rows as Array<{
+        rowNumber: number;
+        valid: boolean;
+        errors: string[];
+      }>;
+      expect(rows.map((row) => [row.rowNumber, row.valid])).toEqual([
+        [1, true],
+        [2, true],
+        [3, false],
+        [4, false],
+        [5, false],
+      ]);
+      expect(rows[2].errors.join(' ')).toContain('gender');
+      expect(rows[3].errors.join(' ')).toContain('on or before today');
+      expect(rows[4].errors.join(' ')).toContain('collectionId');
+      const after = await request(app.getHttpServer())
+        .get('/specimens')
+        .set('Authorization', `Bearer ${curatorToken}`)
+        .expect(200);
+      expect(after.body).toEqual(before.body);
+      expect(specimenDelegate.create).not.toHaveBeenCalled();
+      expect(provenanceDelegate.create).not.toHaveBeenCalled();
+      expect(auditDelegate.create).not.toHaveBeenCalled();
+    });
   });
 
   it('rejects a request without a Supabase access token', () =>
