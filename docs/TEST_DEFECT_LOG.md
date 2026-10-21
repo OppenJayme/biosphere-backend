@@ -57,7 +57,7 @@ system is not a reason to postpone all fixes until the end.
 | DEF-007 | 2026-10-03 | Cataloging / Specimen list | Selected-specimen preview never displays its cover image                | S3 Moderate | P2       | Ready for retest | Cataloging / Full stack |
 | DEF-008 | 2026-10-03 | Cataloging / Filters       | Clear all resets results but leaves stale filter values visible         | S3 Moderate | P2       | Ready for retest | Cataloging / Frontend   |
 | DEF-009 | 2026-10-03 | Cataloging / CSV import    | Invalid row values make the entire preview return a generic 502         | S2 Major    | P1       | Ready for retest | Cataloging / Frontend   |
-| DEF-010 | 2026-10-04 | Storage / Hierarchy UI     | Archived locations still look active in the live hierarchy              | S3 Moderate | P2       | Open   | Storage / Frontend      |
+| DEF-010 | 2026-10-04 | Storage / Hierarchy UI     | Archived locations still look active in the live hierarchy              | S3 Moderate | P2       | Ready for retest | Storage / Frontend      |
 | DEF-011 | 2026-10-07 | Cataloging / Filters UI    | Clear all feels slow and has no appropriate pending feedback            | S4 Minor    | P2       | In progress | Cataloging / Frontend   |
 | DEF-012 | 2026-10-07 | Cataloging / Media UI      | Save metadata and Set as cover lack visible hover feedback              | S4 Minor    | P2       | Ready for retest | Cataloging / Frontend   |
 | DEF-013 | 2026-10-07 | Cataloging / Import UI     | CSV Choose file control lacks visible hover feedback                    | S4 Minor    | P2       | Ready for retest | Cataloging / Frontend   |
@@ -896,7 +896,7 @@ preview is shown.
 
 **Priority:** P2
 
-**Status:** Open
+**Status:** Ready for retest
 
 **Owner:** Storage Location Management / Frontend
 
@@ -934,6 +934,44 @@ sign-in were preserved. The local diagnostic script is Git-ignored at frontend
 `tools/browser/artifacts/storage-archived-display-recheck.txt`. No API mocking,
 direct database writes, credential export, or changes to Inventory occurred.
 This does not retest backend write rejection or lot-assignment restrictions.
+
+#### Frontend repair and local verification - 2026-10-21
+
+Frontend commit `79f965f` implements active-first visibility with an explicit
+URL-backed Show archived toggle. Legacy archived selection links still reveal
+history; explicitly hiding archives chooses an active fallback. Tree, search,
+breadcrumbs and child cards consistently label archived records. Active and
+archived direct-child counts/lists are separate. Existing read-only management,
+audit navigation and archived-parent exclusion remain intact.
+
+The existing protected `ALL` read is retained for historical paths and parent
+validation; visibility is frontend presentation, not authorization. No backend
+application code, schema, dependencies, shared Inventory helpers or live data
+were changed. Scope is Storage Location Management only.
+
+- Test-first regressions: 10 new view cases; 18 tests including existing
+  hierarchy/management suites passed. Full frontend: 57 files / 331 tests passed.
+- Frontend lint, TypeScript and production Turbopack build passed. Build used
+  an isolated source-only copy and public CI placeholders, not copied secrets
+  or auth state; normal frontend build output was preserved.
+- Signed-in live UI on loopback port 3100 reused the above archived fixtures
+  and existing backend. Default/search filtering, toggle/reload, all four
+  badge surfaces, counts (zero active / one archived child), child navigation,
+  legacy link, keyboard hide and active fallback passed without data writes.
+- Archived mutation controls were absent, parent options excluded archives,
+  and one existing archive audit row remained accessible. Active navigation
+  and case-insensitive search passed. Delaying only a browser read verified
+  busy feedback, disabled toggle and recovery; the temporary hook was removed.
+- Main UI script recorded zero page errors. Its initial immediate checkbox
+  assertion was corrected to await server URL/render completion and reran
+  successfully; this was a test timing assumption, not a write failure.
+
+Empty/all-archived and malformed legacy hierarchy cases have pure regression
+coverage only. Backend authorization, direct rejected writes, lot-assignment
+restrictions and database concurrency were not re-executed. Local UI success
+is not module sign-off. Status is **Ready for retest**, pending merge, rebuild
+of the normal frontend, and team acceptance. See frontend
+`docs/storage-archive-display.md` for the visibility contract and rollout.
 
 #### Reproduction
 
@@ -983,13 +1021,13 @@ archived` control for historical lookup.
 
 #### Retest
 
-- [ ] The default tree and active child count exclude archived locations.
-- [ ] `Show archived` reveals historical locations with an unmistakable
+- [x] The default tree and active child count exclude archived locations (local repair UI).
+- [x] `Show archived` reveals historical locations with an unmistakable
       archived state.
-- [ ] Archived records remain readable and linked to audit history.
+- [x] Archived records remain readable and linked to audit history (local repair UI).
 - [ ] Archived locations cannot be edited, moved, selected as a parent, or
       assigned new specimen lots.
-- [ ] Active hierarchy navigation and search remain unchanged.
+- [x] Active hierarchy navigation and search remain unchanged (local repair UI).
 
 ### DEF-011 - Clear all feels slow and has no appropriate pending feedback
 

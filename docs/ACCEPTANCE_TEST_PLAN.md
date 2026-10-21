@@ -211,7 +211,7 @@ backend's row-level validation result.
 | STO-001 | Create a root and nested storage hierarchy            | The hierarchy reloads with correct parent-child relationships | **Pass**                                             |
 | STO-002 | Attempt self-parenting and descendant cycles          | Both operations are rejected without changing the hierarchy   | **Pass**; UI manual + automated backend verification |
 | STO-003 | Edit storage metadata and specimen-holding capability | Valid changes persist and invalid values are rejected clearly | **Pass**                                             |
-| STO-004 | Exercise approved archive restrictions                | Referenced/unsafe locations cannot be archived incorrectly    | **Pass**; lifecycle display issue DEF-010            |
+| STO-004 | Exercise approved archive restrictions                | Referenced/unsafe locations cannot be archived incorrectly    | **Pass**; DEF-010 frontend repair ready for post-merge retest |
 
 STO-001 evidence recorded on 2026-10-04: a disposable top-level room and its
 nested storage locations were created with the intended parent-child
@@ -264,6 +264,27 @@ for fixture IDs, navigation-timing observation and verification limits.
 Checkout bases: backend `db45e1a`, frontend `f596a3f`; served build hashes were
 not independently verified. No application code changed; documentation check
 is `git diff --check`, not a new full automated-suite/build execution.
+
+#### Storage archive-display repair verification - 2026-10-21
+
+Frontend `79f965f` repairs DEF-010 with default active-only tree/search,
+explicit historical visibility, consistent archive labels, separate child
+counts/lists and preserved read-only audit access. Local signed-in UI on
+loopback port 3100 passed toggle/reload, old archived links, child/ancestor
+navigation, active fallback, parent-option exclusion and pending feedback.
+The existing archived fixtures were read only; no server data was changed.
+
+Ten test-first view regressions were added; all 331 frontend tests, lint,
+TypeScript and isolated production Turbopack build passed. Empty/all-archived
+states are unit-covered, not manufactured live states. No backend API,
+Inventory behavior, dependencies or schema changed. Backend authorization,
+lot-assignment rejection and concurrency were not re-executed.
+
+DEF-010 is now **Ready for retest**, not Verified: merge/rebuild the normal
+frontend and complete team acceptance. The earlier failed recheck remains
+historical evidence; STO-004's original restriction pass is not expanded into
+full Storage sign-off. This backend change is evidence documentation only;
+`git diff --check` is the local check, not a new backend suite execution.
 
 ### Limited offline and synchronization
 
