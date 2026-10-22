@@ -477,12 +477,41 @@ origin, touch/mobile, no-JavaScript navigation and comprehensive console/chunk
 checks remain unverified here. Native anchors activate with Enter; Space normally
 scrolls, so do not require button-style Space activation on these links or rows.
 
+#### Local Tab and detail-navigation follow-up - 2026-10-22
+
+Same clean frontend source `d4d216b`; a fresh read-only draft preflight again
+found no eligible automatic-sync work. A separate temporary tab used two existing
+`TEST` results and native keyboard traversal, without programmatic link focus:
+
+- Tab from the freshly loaded page reached the first two rows' links in order:
+  first detail, first preview, second detail, second preview.
+- All four focused links matched `:focus-visible` and had a nonzero computed
+  outline width with a non-`none` outline style. This checks presence, not contrast,
+  clipping, overlap or a full visual accessibility review.
+- Enter on the second preview selected its matching ID and live-status label.
+  Shift+Tab reached that row's detail link; Enter loaded the actual detail page.
+  Its header contained the selected common name, its revision-history link used
+  the same specimen ID, and the load-failure message was absent.
+- Browser Back returned to the selected catalog record. The original signed-in
+  Audit tab and URL were preserved; only the temporary tab was closed.
+- Page-error and error-console listeners detected zero matches for the bounded
+  hydration-failure/chunk-load-error patterns used by this diagnostic. This is
+  not a claim that every console message or asset response was inspected.
+- All non-GET/HEAD browser requests were aborted (two); cover loading remains
+  excluded. No forms were submitted and no specimens/inventory were changed.
+
+This closes the local row-link traversal/detail-opening evidence gap from the
+earlier diagnostic, not DEF-003 itself. Full-page keyboard/accessibility,
+screen-reader, touch/mobile, LAN-origin and no-JavaScript checks remain pending;
+no application fix was needed for the behavior exercised here.
+
 #### Retest
 
 - [ ] Selection works through `localhost` and the LAN-IP origin.
 - [ ] The X button clears selection.
 - [ ] Every result has a direct accessible detail link.
-- [ ] Keyboard Enter/Space and touch selection work.
+- [ ] Keyboard link activation with Enter and touch selection work (Space is not
+      required to activate native links).
 - [ ] Mobile users can see which specimen was selected.
 - [ ] No hydration or client-chunk errors appear in the browser console.
 
