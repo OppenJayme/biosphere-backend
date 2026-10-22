@@ -50,6 +50,7 @@ system is not a reason to postpone all fixes until the end.
 | DEF-016 | 2026-10-19 | Backup / HTTP test fixture | Missing audit delegate logs an error despite green denial test | S3 Moderate | P2 | Ready for retest | Backup tests / coordinate with Auth |
 | DEF-017 | 2026-10-21 | Inventory / HTTP test fixture | Storage-inventory denial passes despite missing security-audit delegate | S3 Moderate | P2 | Open | John / coordinate with Voltaire |
 | DEF-018 | 2026-10-22 | Cataloging / Import API docs | Commit Swagger success status differs from actual POST response | S4 Minor | P3 | Ready for retest | Kyer / Cataloging |
+| DEF-019 | 2026-10-22 | Offline / Browser diagnostic | Tab-interruption pilot created a server fixture despite its intended interception | S3 Moderate | P1 | Open | Kyer / test isolation |
 | DEF-001 | 2026-09-29 | Cataloging / Collections   | Duplicate normalized collection names are accepted                      | S2 Major    | P1       | Ready for retest | Cataloging / Backend    |
 | DEF-002 | 2026-10-03 | Cataloging / Provenance    | Future collection dates are accepted and satisfy presence validation    | S2 Major    | P1       | Verified | Cataloging / Full stack |
 | DEF-003 | 2026-10-03 | Cataloging / Specimen list | Client-side specimen selection does not hydrate on a remote LAN browser | S2 Major    | P1       | Ready for retest | Cataloging / Frontend   |
@@ -67,6 +68,84 @@ system is not a reason to postpone all fixes until the end.
 | DEF-015 | 2026-10-19 | Audit / HTTP test fixture | Missing security-audit create mock logs an error despite green denial test | S3 Moderate | P2 | Ready for retest | Audit tests / coordinate with Auth |
 
 ## 3. Defect details
+
+### DEF-019 - Tab-interruption diagnostic failed its no-backend-write guard
+
+**Related test:** OFF-003; ignored browser diagnostic, not application runtime code
+**Environment:** Local signed-in Edge `biosphere-aud002`, shared running frontend/backend
+**Found on:** frontend checkout `bc55ce7`, backend base `27520e1`; served hashes unverified
+**Severity:** S3 Moderate (test isolation failed; one disposable server fixture created)
+**Priority:** P1 before repeating dependent interruption diagnostics
+**Status:** Open
+**Owner:** Kyer / browser diagnostic isolation; no Inventory or Auth fix authorized
+
+#### Intended check and actual result
+
+After a clean eligible-draft preflight, a temporary tab created one labelled
+local draft and held its matching POST in a page-scoped route handler without
+calling `route.fetch` or `route.continue`. IndexedDB and UI showed
+`SYNCHRONIZING`; Remove locally was disabled. The temporary tab was closed,
+then the held handler was released and attempted `route.abort` (a closed-page
+abort error was caught). The persisted local state was still `SYNCHRONIZING`.
+
+A second temporary tab opened the workspace. The UI showed the explicit
+interrupted-sync message and local state became retryable `SYNC_FAILED` /
+`NETWORK`, with the same ID and text payload. Its retry received a synthetic
+503 and retained the local draft. The local fixture was then removed through
+the confirmed UI discard action, with IndexedDB absence verified.
+
+**The final protected server read nevertheless found a matching specimen.**
+The diagnostic failed with `Server-absence read failed`; a separate read
+confirmed HTTP 200 and the same record. Therefore the overall pilot failed
+test isolation and is **not an acceptance pass**, despite its earlier local
+recovery assertions. No further interruption attempts or sync writes were made.
+
+Retained disposable server fixture (not automatically deleted or archived):
+
+- Name: `TEST Offline TAB 20261022 1a163ce65a9`
+- Specimen UUID: `99782144-b9cf-4dd0-ad7b-1d5ec0f18f17`
+- Created: `2026-10-22T13:30:38.440Z`
+- Protected readback: `UNCATALOGED`, `publicDisplay: false`, `collectionId: null`
+- Fixture-scoped audit: one `SYNC_OFFLINE_SPECIMEN_DRAFT` / `SUCCESS` entry
+
+The exact request path/timing that reached the backend was not established.
+Page-route teardown while a request is held is a hypothesis, not a demonstrated
+root cause. Do not claim that no request reached the backend, that the browser
+interception guarantees isolation, or that an application authorization or
+idempotency defect has been established. Do not blindly rerun the pilot.
+
+#### Containment and follow-up
+
+Both temporary tabs were closed; the original signed-in audit tab/URL stayed
+open. Final read-only checks found zero matching local fixtures and no eligible
+unfinished drafts. Earlier successful simulated-401 and six-case matrix fixture
+names were still absent from the protected server list. Those observations do
+not erase this new incident. No existing museum records were edited and no
+Inventory/auth/runtime/server-process changes were made.
+
+Keep the ignored `tools/browser/artifacts/offline-tab-interruption.txt` out of
+further shared-backend runs. An unconditional error guard now disables that
+local script before any browser action; this is containment, not a repaired
+interruption harness. Related read-only incident helpers are
+`offline-tab-final-read.txt`, `offline-tab-incident-read.txt` and
+`offline-tab-audit-read.txt` in that same frontend artifact folder. No credentials,
+headers, auth state or unrelated museum contents were exported.
+
+Before another dependent run:
+
+- [ ] Confirm an isolated disposable target and test-only account/context, with
+  explicit permission for any persistent fixture creation/cleanup.
+- [ ] Establish a transport containment mechanism independently of the tab being
+  destroyed; verify it cannot reach the shared backend during route teardown.
+- [ ] Reproduce without writes to the shared target, then check full recovery
+  and any accepted-write/idempotency branch separately under its approved scope.
+- [ ] Obtain direction on retaining or explicitly archiving the server fixture;
+  do not delete it or conceal its audit automatically.
+
+Application acceptance remains incomplete. This is a diagnostic defect/incident,
+not permission to weaken authentication or change Inventory logic. Documentation
+verification: `git diff --check`; application suites/build were not rerun for
+this evidence-only change.
 
 ### DEF-016 - Backup HTTP fixture omits the security-audit delegate
 
