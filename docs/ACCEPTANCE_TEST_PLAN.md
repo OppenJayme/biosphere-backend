@@ -810,10 +810,28 @@ documentation-only update.
 
 | ID      | Test                                                                 | Expected result                                                                                                        | Status   |
 | ------- | -------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- | -------- |
-| AUD-001 | Filter audit logs by actor, module, action, result, record, and date | Results are protected, stable, bounded, and accurate                                                                   | In progress; browser filters/museum-day boundary, live anonymous access denial and isolated denial-audit checks pass; remaining access/failure/boundary cases pending |
+| AUD-001 | Filter audit logs by actor, module, action, result, record, and date | Results are protected, stable, bounded, and accurate                                                                   | In progress; browser filters/museum-day boundary, live anonymous access denial, isolated denial-audit and frontend failure/recovery checks pass; remaining live access/failure/boundary cases pending |
 | AUD-002 | Trace Cataloging actions to revision and audit entries               | Actor, affected record, action, outcome, and timestamp match                                                           | In progress; core/taxonomy/provenance/tags/media/archive and scoped restoration evidence recorded; completion/reopening/public eligibility and OBS-001 pending |
 | BAK-001 | Search and filter backup-history records                             | History loads with correct status/type/creator/date filters                                                            | In progress; empty-history UI checks pass, positive-data cases unavailable |
 | BAK-002 | Execute and restore a real backup                                    | Deferred until deployment ownership, storage, retention, verification, and disposable restore environment are approved | Deferred |
+
+#### Current scoped follow-ups - 2026-10-22
+
+Frontend PR #76 was confirmed merged with successful CI. Its nine isolated
+Audit page/rendering regressions cover connection/HTTP failures, 401 redirect,
+403 guidance, invalid/non-JSON responses and independent request recovery.
+They run the real audit client/schema/static UI with synthetic session/fetch
+boundaries, not Next RSC, browser hydration or live authorization/outages.
+See frontend `docs/audit-page-verification.md` at commit `bc55ce7` for the
+340-test full-suite, lint/TypeScript evidence and exact limits.
+
+OBS-001 history navigation was separately retried read-only in three local
+browser samples: rendered-history readiness was observed at 1477, 1599 and
+945 ms, with identical 21-entry history. The old 30-second delay did not recur;
+this is not a fix or production-performance sign-off. OBS-001 remains open for
+production comparison/timing correlation. A separate transient notification
+polling observation, OBS-002, is recorded for the dashboard/feed owners; their
+code was not changed. See `TEST_DEFECT_LOG.md` for measurements and limitations.
 
 #### AUD-002 archive checkpoint and blocked restoration - 2026-10-21
 

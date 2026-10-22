@@ -1522,7 +1522,7 @@ application failure; retain the original observation and cross-reference it.
 **Checkout references:** frontend `e43e7fc`, backend `39b9aac`; served build
 revisions not independently verified
 **Environment:** Local frontend/backend with signed-in isolated Edge
-**Disposition:** Needs reproduction and timing investigation; not resolved
+**Disposition:** Not reproduced in three local follow-up samples on 2026-10-22; production comparison and timing correlation remain unverified, not resolved
 **Owner:** Cataloging frontend/backend; no auth or inventory changes authorized
 **Priority:** P2 follow-up; application severity not assigned without reproduction
 
@@ -1542,8 +1542,77 @@ was not determined. No response-time requirement is invented from the timeout.
 
 Follow-up (read-only; preserve auth/header privacy):
 
-- [ ] Repeat history navigation and measure document/data readiness separately.
+- [x] Repeat history navigation and measure document/rendered-history readiness separately (2026-10-22; samples below).
 - [ ] Compare warm development and an approved production-build test environment.
 - [ ] Correlate frontend/backend request timing without exporting tokens or records.
 - [ ] If reproducible, define the affected behavior/expected target and open a
   linked defect; otherwise record evidence for the final disposition.
+
+#### Read-only follow-up - 2026-10-22
+
+PR #170 was confirmed merged with successful CI. Checkout references were
+backend `5d07a58`, frontend `bc55ce7`; exact running build hashes/mode were not
+independently verified. Used the existing signed-in Edge context, first checking
+that fixture `5b8e55d4-af0f-4263-9b0e-349b4b314f20` still had common name
+`TEST - AUD-002 Trace 20261021` through the protected specimen read.
+
+A temporary tab in that context navigated to the fixture history three times.
+Times below are elapsed milliseconds observed by the automation from starting
+navigation, not an approved performance threshold or backend-only timings.
+Rendered-history readiness awaited both the heading and first visible entry;
+the entry timestamps/values were then read and compared in memory.
+
+| Sample | Response committed | DOM ready | History readiness observed | Load observed | Visible revisions |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 1 | 572 | 1174 | 1477 | 1194 | 21 |
+| 2 | 706 | 1115 | 1599 | 1121 | 21 |
+| 3 | 524 | 876 | 945 | 878 | 21 |
+
+All history documents returned 200. Browser navigation timings separately
+reported response start/end at 554/1158, 680/1102 and 499/863 milliseconds.
+Those response timings include the local frontend/auth/upstream path; they
+do not identify an individual backend query's duration or explain the old delay.
+Locator polling/automation overhead is included in the observed history
+readiness timings, not a measurement of first paint or interactive hydration.
+
+All three reads contained the same 21 timestamp/value entries. This is the
+current fixture baseline, not an assertion that the earlier 18-entry baseline
+should persist after subsequent legitimate tests. The probe tab observed zero
+POST/PUT/PATCH/DELETE requests and was closed afterward. The original signed-in
+audit tab and URL remained intact. No auth state, headers, revision values or
+private media URLs were exported. No records or server processes were changed.
+Ignored diagnostic: frontend `tools/browser/artifacts/obs001-history-timing.txt`.
+
+The earlier 30-second delay was **not reproduced**; this does not resolve its
+cause, prove production performance, measure a controlled cold start, or close
+OBS-001/full AUD-002. No speculative performance change was made. Retained-tab
+notification console errors were investigated separately below, not attributed
+to revision history. Documentation-only verification: `git diff --check`;
+application suites/build were not rerun for this evidence update.
+
+### OBS-002 - Retained curator tab reported transient notification polling errors
+
+**Observed:** 2026-10-22 during OBS-001 follow-up
+**Checkout references:** backend `5d07a58`, frontend `bc55ce7`; served hashes unknown
+**Disposition:** Two retained-session console errors observed; one subsequent read recovered; cause unverified
+**Owner:** Dashboard/notification feed owners (John/Charles); coordinate shared backend responsibility
+**Scope:** Observation/handoff only; no notification or authentication code changed
+
+The retained browser session reported two resource failures for local
+`/api/notifications`, both HTTP 502, approximately 60 seconds apart in the
+session-relative console timestamps. These were on the original tab's feed,
+not failed revision-history document responses. No response contents, request
+headers or notification records were exported.
+
+One subsequent authenticated GET to the same local route returned HTTP 200.
+Source inspection shows that its proxy maps non-4xx upstream failures to 502;
+this does not establish whether these two failures were upstream HTTP errors,
+connection failures or another exception. Do not assume a cause or mark the
+notification module passed/failed from this limited observation.
+
+If recurring, the dashboard/feed owners should correlate polling timestamps
+with sanitized frontend/backend logs and verify visible error/retry behavior.
+Keep this separate from OBS-001; a causal connection has not been established.
+Ignored read-only diagnostic: frontend
+`tools/browser/artifacts/obs002-notification-read.txt`. No broader module work
+was undertaken, and no known records or running processes were modified.
