@@ -84,3 +84,51 @@ The client must show confirmation before calling the removal endpoint
 (NFR-PERF-06). Those interaction guarantees belong to the curator frontend;
 the backend still makes each database mutation transactional and rejects
 concurrent serializable conflicts with a reload-and-retry response.
+
+## CAT-011 access checkpoint - 2026-10-22
+
+This is scoped evidence, not whole-media or production-security acceptance.
+Backend source/test base was `9853212`; frontend source was clean at `d4d216b`.
+The running servers' served build hashes were not independently verified.
+
+### Live signed-out access
+
+A fresh browser context with no copied curator storage/auth state made only
+GET requests against the local running servers. It used the existing disposable
+specimen `5b8e55d4-af0f-4263-9b0e-349b4b314f20` and a synthetic valid UUID for
+the individual-media paths (not a claimed existing image).
+
+- Backend media list, individual metadata and signed-URL routes each returned
+  **401**. Their JSON contained only standard error fields, with no extra media
+  fields, storage paths or URLs. This verifies the missing-session gate before
+  record lookup, not stored-object existence or cross-specimen ownership.
+- Opening that specimen's frontend media page redirected to `/login` and showed
+  the sign-in button, not the media-manager heading or a private storage image.
+  No sign-in attempt was made and no credentials were supplied.
+- The anonymous context was closed; the original signed-in Audit tab and its
+  URL remained unchanged. No uploads, metadata changes, removals or Inventory
+  operations were attempted. No cookies, tokens, signed URLs or response dumps
+  were exported to the evidence.
+
+### Existing isolated regressions
+
+- `npm test -- --runInBand specimen-media.service.spec.ts`: **19/19 passed**.
+- `npm run test:e2e -- --runInBand specimen-media.e2e-spec.ts`: **5/5 passed**.
+
+The HTTP suite runs the real Nest application/guards/controller/service with
+mocked Prisma, Supabase auth and storage adapters. It includes missing-session
+401, developer-role 403, metadata/signed-URL reads and mutation contracts; it
+does not use a live developer account or store files in Supabase. The service
+suite verifies scoped metadata lookup and signing the stored path with a
+300-second lifetime argument. A mocked signer is not proof of real expiry.
+Both commands exited successfully with no console errors in the captured run.
+
+### Remaining privacy and acceptance gaps
+
+Use an approved existing test-image fixture and safe account setup before
+checking actual private-object/public-path denial, signed URL validity/expiry,
+cross-specimen media-ID rejection and real wrong-role/inactive-session denial.
+Storage/database cleanup failure behavior and concurrency have isolated
+coverage but are not established as live by this checkpoint. Existing
+accessibility/error-interaction gaps and independent sign-off also remain.
+No defect status was promoted and no application repair was needed here.
