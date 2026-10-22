@@ -1269,6 +1269,62 @@ restore the controls/results for the current page correctly. Clear all appears
 only after filters are applied; this was understood and accepted as current
 Apply-based behavior. The latency/pending-feedback issue remains Open.
 
+#### Controlled browser follow-up - 2026-10-22
+
+Frontend PR #77 was confirmed merged and its CI subsequently passed. Checkout
+references: frontend `d4d216b`, backend `f99f545`; exact served hashes/mode were
+not independently checked. Used temporary tabs in the existing signed-in
+`biosphere-aud002` context. Read-only preflight found no eligible offline drafts
+before opening the workspace, and again after the checks.
+
+For `/specimens?status=UNCATALOGED&gender=UNKNOWN`, held only the unfiltered
+catalog GET long enough to inspect actual pending UI, then released it:
+
+- Clear all changed to **Clearing filters…**, with `aria-busy=true`,
+  `aria-disabled=true` and the live status **Loading unfiltered specimen results…**.
+- No blocking dialog opened. Applied status/gender values and the same rendered
+  row text remained in place while the GET was held; no row values were exported.
+- Repeated keyboard Enter activation during pending work still produced only
+  one held unfiltered navigation request.
+- On completion, URL and status/gender reset together, Clear all disappeared,
+  and the catalog-unavailable message was absent. Collection/public-display
+  controls remained blank; clearing nonblank values for those was not tested.
+- Back restored the filtered status/gender; Forward restored the cleared state.
+  Applying a new filter through the form, modified clicks, JavaScript-disabled
+  navigation and backend failure recovery were not tested in this run.
+
+Three separate samples did not hold/delay the catalog GET. Elapsed automation
+time from Clear all activation through observed URL/control reset was **1200,
+1989 and 1191 ms**. These include browser/automation polling and do not measure
+backend-only query duration, first paint or time to pending feedback. Unfiltered
+prefetch was suppressed. All non-GET requests were deliberately aborted: the
+successful run blocked ten POST Server Actions on `/specimens`. Source inspection
+shows the selected-cover preview uses a read-only Server Action; method alone
+does not establish a record mutation. Its cover-loading behavior was excluded
+from this filter-only diagnostic, not verified or declared broken.
+
+An initial run rejected its own broad non-GET guard at the final assertion.
+A separate sanitized request check identified POST `/specimens` with the
+Server Action header present, without exporting header values/payloads. The
+helper was adjusted to retain the block and explicitly record that condition;
+the complete filter-only run then passed. This was not an app runtime fix or
+a reproduced filter failure.
+
+No draft was created or submitted, no record-edit form used, and no server
+process or app/auth/Inventory code changed. Normal GETs may refresh the local
+read-only cache. Probe tabs/routes were closed after releasing the held GET;
+the original signed-in audit tab/URL remained intact. DEF-019's interruption
+script remained disabled. Ignored frontend diagnostics:
+`tools/browser/artifacts/def011-clear-navigation.txt` and
+`tools/browser/artifacts/def011-request-classification.txt`.
+
+**Disposition:** scoped pending/reset/history checks passed; DEF-011 remains
+**In progress**. Restricted local samples are not an equivalent production
+benchmark, proof of a speed improvement or full defect closure. A controlled
+development/production comparison and sanitized upstream timings are still
+needed before choosing an optimization. Documentation-only verification:
+`git diff --check`; application suites/build were not rerun for this update.
+
 #### Required investigation / remediation
 
 1. Measure frontend navigation and backend request duration; compare development
