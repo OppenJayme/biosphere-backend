@@ -160,3 +160,61 @@ This covers a real accepted-write/lost-response/retry chain, not process death,
 browser closure during the write, live concurrent contention, session-expiry
 recovery, or the full HTTP error matrix. It does not close all OFF-003 cases or
 constitute full module/security acceptance.
+
+## Browser simulated-401 retention check - 2026-10-22
+
+**Result:** Passed for the tested frontend transport-error handling, supplementing
+OFF-003. PR #171 was confirmed merged with successful CI. Checkout references:
+backend `9e42a6c`, frontend `bc55ce7`; exact running build hashes were not checked.
+This did not repeat the accepted-write/lost-response pilot above.
+
+Used a temporary tab in the existing signed-in Edge context `biosphere-aud002`.
+A read-only IndexedDB preflight found no pending, synchronizing or retryable
+failed drafts that opening the workspace could accidentally synchronize. Created
+one uniquely labelled text-only local draft through the actual form:
+`TEST Offline AUTH 20261022 1a163b6bbd4`.
+
+The probe tab intercepted only its offline-draft endpoint requests. For the
+labelled draft, it returned a synthetic HTTP 401 without forwarding the request
+to the application/backend. An unrelated draft request would have aborted the
+diagnostic rather than been submitted. Real cookies/session remained intact;
+the test did not sign out, expire a token, impersonate an account or fake success.
+
+Observed through the real UI and read-only local draft inspection:
+
+- The rejected draft showed **Sync Failed** and the fixed session-expired
+  guidance, retained its common name/remarks, had failure kind `AUTH`, remained
+  retryable and had no server specimen identifier.
+- Reload retained its client draft ID and complete text payload. Opening Edit
+  showed the saved name/remarks; Cancel left them unchanged.
+- Once synchronization/cache refresh finished, Retry was enabled. Retrying
+  produced an identical draft ID/payload; both observed attempts were answered
+  with simulated 401, not delivered to the backend.
+- A real protected specimen-list read found no record with the unique test
+  name. This supplements the transport guard, not a direct database inspection.
+- Removed only this disposable local fixture using **Remove locally → Yes,
+  discard**, then verified its absence from IndexedDB. The removed synthetic
+  text is not recoverable through that local queue; no museum/server record was
+  deleted. Normal workspace reads could refresh the device-local read-only cache.
+
+An initial diagnostic asserted Retry availability too early: the failure badge
+had rendered while the normal cache-refresh operation guard was still active.
+Its own fixture was cleaned up through the UI; a fresh preflight confirmed no
+eligible draft remained. The helper was corrected to await the enabled control,
+then the complete pilot passed. No application defect was established by that
+diagnostic timing error, and no runtime code was changed.
+
+Closed only the temporary tab, which removed its page-scoped interception. The
+original signed-in audit tab/URL remained intact. Final preflight again found
+no eligible drafts. No credentials, auth state, request headers or private museum
+contents were exported. Local scripts remain ignored under frontend
+`tools/browser/artifacts/offline-auth-preflight.txt` and
+`tools/browser/artifacts/offline-auth-401-pilot.txt`.
+
+**Limits:** This verifies browser/local-storage handling of a simulated 401 and
+same-payload retry, not real token expiry, refresh/re-login, inactive accounts,
+successful post-login sync, process death or live concurrency. There was no
+server commit or backend idempotency exercise in this run. OFF-003 stays
+**In progress**; real session-expiry/re-login and interruption cases still need
+an approved disposable setup. Documentation-only verification: `git diff
+--check`; application suites/build were not rerun for this evidence update.
