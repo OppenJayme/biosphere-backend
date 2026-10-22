@@ -218,3 +218,55 @@ server commit or backend idempotency exercise in this run. OFF-003 stays
 **In progress**; real session-expiry/re-login and interruption cases still need
 an approved disposable setup. Documentation-only verification: `git diff
 --check`; application suites/build were not rerun for this evidence update.
+
+## Browser simulated error-state matrix - 2026-10-22
+
+**Result:** Six scoped cases passed, supplementing OFF-003 and the simulated-401
+check above. PR #172 was confirmed merged with green CI. Checkout references
+were backend `e40056d`, frontend `bc55ce7`; served hashes were not independently
+verified. Existing Playwright session `biosphere-aud002` remained signed in.
+
+Read-only preflight found no existing pending/synchronizing/retryable failed
+drafts. A temporary tab awaited the normal mount-time auto-sync/cache refresh
+before creating each of six disposable text-only drafts through the real UI.
+Names used prefix `TEST Offline ERR 20261022 1a163c7cf5a`, suffixed by the status
+below. Each draft request received its page-scoped synthetic response; none
+was forwarded to the application/backend. Unexpected draft requests would
+abort the diagnostic instead of being submitted.
+
+| Simulated response | Retained failure kind | Retry enabled | Edit offered | Result |
+| --- | --- | --- | --- | --- |
+| 400, validation-message array | VALIDATION | No | Yes | Pass |
+| 403, permission denied | AUTH | No | Yes | Pass |
+| 409, conflict without a supplied message | CONFLICT | No | No | Pass |
+| 429, rate limited | SERVER | Yes | Yes | Pass |
+| 503, server unavailable | SERVER | Yes | Yes | Pass |
+| 200, invalid success-response schema | UNKNOWN | No | Yes | Pass |
+
+For each case, the visible **Sync Failed** message, persisted failure kind,
+retry flag and actual Retry/Edit controls matched the expected behavior after
+the operation/cache refresh finished. Client draft ID and complete text payload
+remained unchanged; no server specimen ID was assigned. The 400 message array
+displayed joined validation guidance; 409 displayed the fallback conflict
+message. Internal diagnostic markers supplied in 403/429/503/invalid-response
+bodies were not displayed. Invalid 200 data did not produce false synchronization.
+There was exactly one intercepted request per case, six total, with no unexpected
+draft requests. This checks control state, not a successful later retry.
+
+Each labelled fixture was removed through **Remove locally → Yes, discard**;
+read-only IndexedDB checks confirmed removal. These six synthetic local drafts
+are no longer recoverable through their queues. No museum/server specimen was
+deleted. A real protected specimen-list read found no matching test prefix;
+final preflight found no eligible local drafts. Normal workspace reads could
+refresh the device-local read-only cache. The temporary tab and its interception
+were closed; the original curator audit tab/URL remained untouched. No credentials,
+auth exports, headers or private museum data were included in shared evidence.
+Ignored diagnostic: frontend `tools/browser/artifacts/offline-error-matrix.txt`.
+
+No application defect was reproduced or runtime code changed. This is a real
+browser/UI/local-storage exercise with **simulated HTTP outcomes**, not backend
+validation, role denial, live throttling/outage, genuine server conflict or real
+session expiry. It does not prove re-login/successful retry, process interruption,
+database concurrency, full error/pending behavior or complete offline acceptance.
+OFF-003 remains **In progress** for those gaps. Documentation-only verification:
+`git diff --check`; no application suites/build were rerun for this evidence.
