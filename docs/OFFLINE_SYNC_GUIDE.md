@@ -270,3 +270,27 @@ session expiry. It does not prove re-login/successful retry, process interruptio
 database concurrency, full error/pending behavior or complete offline acceptance.
 OFF-003 remains **In progress** for those gaps. Documentation-only verification:
 `git diff --check`; no application suites/build were rerun for this evidence.
+
+## Tab-interruption pilot stopped: test-isolation failure - 2026-10-22
+
+The next OFF-003 diagnostic attempted to close a temporary tab while its draft
+request was held locally, then reopen the workspace and retry against a
+synthetic 503. Earlier local assertions observed retained `SYNCHRONIZING` state
+after closure, recovery to retryable `NETWORK` failure, and unchanged retry
+payload. **The final server-absence guard failed:** a disposable server specimen
+had been created despite the intended page-scoped request interception.
+
+See **DEF-019** in `TEST_DEFECT_LOG.md` for the full sequence and retained fixture
+`99782144-b9cf-4dd0-ad7b-1d5ec0f18f17`. It remains Uncataloged with public display
+off and a successful sync audit. Only its local draft was discarded; the server
+record was not automatically deleted or archived. Original sign-in/tab remains
+intact; no eligible local drafts remain. The precise transport path causing the
+write has not been established, and no app authorization defect is inferred.
+
+This run is **not an acceptance pass**. Do not repeat the ignored interruption
+script against the shared running backend. Further interruption tests require
+an explicitly confirmed disposable target and containment independent of the
+tab being destroyed. The earlier 401/matrix fixture names were still absent
+on readback, but that does not excuse or close the new isolation defect.
+Actual browser/process death, accepted-write interruption, re-login and live
+concurrency remain unverified. No runtime code was changed in this checkpoint.
