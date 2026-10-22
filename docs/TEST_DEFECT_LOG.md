@@ -444,6 +444,39 @@ Filter/search until the intended specimen becomes the first result, then use
 its `View full specimen details` link. This workaround is not sufficient for
 module acceptance.
 
+#### Local keyboard evidence - 2026-10-22
+
+Read-only Playwright check against the running `localhost:3000` frontend;
+frontend worktree was clean at `d4d216b` (PR #77, merged into develop as
+`590be23`). This is a local selection check, not a reproduction of the original
+remote-LAN hydration failure. DEF-003 remains **Ready for retest**.
+
+- A read-only IndexedDB preflight found no existing drafts eligible for automatic
+  synchronization before opening the specimen workspace.
+- A temporary tab opened `/specimens?search=TEST&selected=none` using the existing
+  curator session. Two existing results were checked to have `TEST` names before
+  interaction; no specimen was created or edited.
+- Programmatically focused each common-name preview link and pressed native
+  keyboard **Enter**. Both selected the matching URL ID, panel live-status text,
+  current-link marker and full-detail target; the second did not remain stuck on
+  the first result. Each corresponding row-detail link also targeted the same ID.
+- Reload retained the second selection. Enter on **Clear selection** set
+  `selected=none`, cleared the live-status text/selection marker, and Back/Forward
+  restored/cleared the correct preview.
+- All non-GET/HEAD requests in the temporary tab were aborted (four requests).
+  Cover-preview Server Action behavior is therefore excluded from this result;
+  this was not a normal image-loading or performance check.
+- The temporary tab was closed; the original signed-in Audit tab and its URL
+  remained unchanged. No credentials, auth exports or museum-record dumps were
+  retained in the shared evidence.
+
+Limits: programmatic focus plus Enter does not establish complete Tab order,
+visible-focus contrast, screen-reader announcements or physical keyboard/device
+acceptance. Detail destinations were inspected, not opened in this check. LAN
+origin, touch/mobile, no-JavaScript navigation and comprehensive console/chunk
+checks remain unverified here. Native anchors activate with Enter; Space normally
+scrolls, so do not require button-style Space activation on these links or rows.
+
 #### Retest
 
 - [ ] Selection works through `localhost` and the LAN-IP origin.
