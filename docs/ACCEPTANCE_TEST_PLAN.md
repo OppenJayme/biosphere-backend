@@ -5,6 +5,28 @@
 **Started:** 2026-09-29  
 **Defects:** [TEST_DEFECT_LOG.md](./TEST_DEFECT_LOG.md)
 
+## Start here
+
+Use this page as a checklist, not a requirement to repeat every historical run.
+This navigation checkpoint summarizes recorded evidence as of **2026-10-22**;
+the linked register rows and dated notes retain the exact results and limits.
+It changes no acceptance or defect status.
+
+| What you need | Where to go / current checkpoint |
+| --- | --- |
+| What already passed? | [Cataloging register](#cataloging-management): draft/core/taxonomy, provenance dates, completion/reopening, public eligibility, tags, filtering and core-only CSV have recorded passing coverage. Some rows retain explicit subcase or independent-sign-off gaps; this is not whole-module acceptance. |
+| What is still pending? | [Remaining completion queue](#remaining-completion-queue-owner-scope-only), then the relevant [Storage](#storage-location-management), [Offline](#limited-offline-and-synchronization), [FAQ](#faq-knowledge-management) or [Audit/backup](#audit-and-backup-history) row. Choose an uncovered requirement, not an optional enhancement. |
+| What must not be rerun yet? | [DEF-019 containment gate](./TEST_DEFECT_LOG.md#def-019---tab-interruption-diagnostic-failed-its-no-backend-write-guard): shared-backend tab-interruption diagnostics remain stopped until an isolated target and independent containment are approved. Earlier offline subcase passes do not clear this gate. |
+| What needs another person or a safe environment? | [Ownership](#3-module-ownership): John prepares Inventory-owned lot/placement evidence; FAQ activation/public tests need approved policy and an isolated setup; real [backup/restore](./BACKUP_HISTORY_GUIDE.md) stays Deferred until its procedure and disposable environment are approved. Do not manufacture fixtures in another owner's module. |
+| How do we find or report a bug? | [Defect summary](./TEST_DEFECT_LOG.md#2-summary) has current statuses; its linked IDs open the detailed evidence. Use the [defect template](./TEST_DEFECT_LOG.md#4-new-defect-template) for a reproducible issue, or [observations](./TEST_DEFECT_LOG.md#5-observations-awaiting-reproduction) for an unconfirmed symptom. |
+| When do we finish? | Apply the existing [completion criteria](#12-completion-criteria), then [sign-off](#13-sign-off): critical/major cases and important failure/retry paths pass, blocking defects are resolved, regressions are green, deferrals are explicit, and owner plus teammate acceptance is recorded. |
+
+Before the next session, check [entry criteria](#6-entry-criteria) and select
+one safe outstanding case. Record its result once at the relevant evidence
+location, update its register row if warranted, and link rather than copying
+the same run into multiple guides. Historical failures are not new failures;
+`Ready for retest` is not `Verified`, and a passing mock is not live acceptance.
+
 ## 1. Purpose
 
 This document is the shared guide for validating BioSphere after initial
