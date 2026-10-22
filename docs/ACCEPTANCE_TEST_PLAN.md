@@ -810,7 +810,7 @@ documentation-only update.
 
 | ID      | Test                                                                 | Expected result                                                                                                        | Status   |
 | ------- | -------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- | -------- |
-| AUD-001 | Filter audit logs by actor, module, action, result, record, and date | Results are protected, stable, bounded, and accurate                                                                   | In progress; browser filters/museum-day boundary and isolated denial-audit checks pass; remaining access/failure/boundary cases pending |
+| AUD-001 | Filter audit logs by actor, module, action, result, record, and date | Results are protected, stable, bounded, and accurate                                                                   | In progress; browser filters/museum-day boundary, live anonymous access denial and isolated denial-audit checks pass; remaining access/failure/boundary cases pending |
 | AUD-002 | Trace Cataloging actions to revision and audit entries               | Actor, affected record, action, outcome, and timestamp match                                                           | In progress; core/taxonomy/provenance/tags/media/archive and scoped restoration evidence recorded; completion/reopening/public eligibility and OBS-001 pending |
 | BAK-001 | Search and filter backup-history records                             | History loads with correct status/type/creator/date filters                                                            | In progress; empty-history UI checks pass, positive-data cases unavailable |
 | BAK-002 | Execute and restore a real backup                                    | Deferred until deployment ownership, storage, retention, verification, and disposable restore environment are approved | Deferred |
@@ -1051,6 +1051,33 @@ outage handling, concurrency or independent full AUD-001 acceptance. AUD-001
 remains In progress; no new defect was reproduced. Documentation-only checks:
 `git diff --check`; full local application suites/build not rerun. Session ends
 here as requested; remaining access/failure cases are future scoped work.
+
+#### AUD-001 signed-out live access check - 2026-10-22
+
+Used a new empty browser context inside existing Edge session
+`biosphere-aud002`, without copying cookies or exporting authentication state.
+The curator's existing audit tab was left unchanged. Backend checkout was
+`ad0711c`, frontend `0ffa81f`; exact running build hashes were not inspected.
+
+- Anonymous navigation to `/audit-logs` redirected to `/login` with
+  `from=/audit-logs` and a visible password field, not the Audit Logs heading.
+- A direct filtered audit bookmark for disposable specimen
+  `3e7a3ca2-bf8f-45c9-98d3-94b8bcf31419` also redirected to login; the rendered
+  login body did not contain that specimen UUID or an Audit Logs heading.
+- A separate anonymous GET to `http://localhost:3001/audit-logs` returned HTTP
+  `401` with `statusCode: 401`, not an array or an `items`/`data` response.
+- The temporary anonymous context was closed. The original curator tab kept
+  its URL and visible Audit Logs heading; no sign-out or sign-in was performed.
+
+No mutation requests were submitted by this diagnostic, API responses were
+not mocked, and no museum records, Inventory data or server processes were
+changed. Local diagnostic remains ignored at frontend
+`tools/browser/artifacts/aud001-signed-out-access.txt`. No new defect was
+reproduced. This establishes the tested anonymous denial paths, not a full
+security review: wrong-role/deactivated accounts, expired sessions, backend
+outages, exact boundary cases and full AUD-001 acceptance remain pending.
+Documentation-only verification: `git diff --check`; application suites/build
+were not rerun for this evidence update.
 
 #### Audit backend isolated-suite evidence - 2026-10-19
 
