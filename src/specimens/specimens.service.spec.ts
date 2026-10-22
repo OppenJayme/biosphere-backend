@@ -35,6 +35,7 @@ const revisionDelegate = {
 const auditDelegate = { create: jest.fn() };
 const transactionMock = jest.fn();
 const queryRawMock = jest.fn();
+const executeRawMock = jest.fn();
 
 const prismaMock = {
   specimen: specimenDelegate,
@@ -45,6 +46,7 @@ const prismaMock = {
   audit_log: auditDelegate,
   $transaction: transactionMock,
   $queryRaw: queryRawMock,
+  $executeRaw: executeRawMock,
 };
 
 const ACCOUNT_ID = '22222222-2222-4222-8222-222222222222';
@@ -138,6 +140,7 @@ describe('SpecimensService', () => {
 
   it('creates an Uncataloged specimen with account attribution and an audit event', async () => {
     collectionDelegate.findUnique.mockResolvedValue({ id: COLLECTION_ID });
+    queryRawMock.mockResolvedValueOnce([{ last: 41 }]).mockResolvedValue([]);
     specimenDelegate.create.mockResolvedValue(
       specimenRecord({ collection_id: COLLECTION_ID }),
     );
@@ -163,6 +166,7 @@ describe('SpecimensService', () => {
         updated_by: ACCOUNT_ID,
         status: 'UNCATALOGED',
         public_display_allowed: false,
+        accession_number: expect.stringMatching(/^USC-BM-\d{4}-0042$/),
       }),
     });
     expect(auditDelegate.create).toHaveBeenCalledWith({
@@ -184,6 +188,7 @@ describe('SpecimensService', () => {
 
   it('creates an offline draft through the same core writer with sync audit metadata', async () => {
     specimenDelegate.create.mockResolvedValue(specimenRecord());
+    queryRawMock.mockResolvedValueOnce([{ last: null }]).mockResolvedValue([]);
 
     await expect(
       service.createOfflineDraft(
@@ -199,6 +204,8 @@ describe('SpecimensService', () => {
         action: 'SYNC_OFFLINE_SPECIMEN_DRAFT',
         details: {
           status: 'UNCATALOGED',
+          accessionNumber: expect.stringMatching(/^USC-BM-\d{4}-0001$/),
+          accessionNumberGenerated: true,
           clientDraftId: '55555555-5555-4555-8555-555555555555',
         },
       }),
@@ -282,12 +289,31 @@ describe('SpecimensService', () => {
       ).rejects.toThrow(ConflictException);
     });
 
-    it('skips the lookup when no number is given', async () => {
+    it('generates the next USC-BM number under a lock when none is given', async () => {
       specimenDelegate.create.mockResolvedValue(specimenRecord());
+      queryRawMock.mockResolvedValueOnce([{ last: 7 }]).mockResolvedValue([]);
 
       await service.create({ commonName: 'Test specimen' }, ACCOUNT_ID);
 
-      expect(queryRawMock).not.toHaveBeenCalled();
+      const [lockSql] = executeRawMock.mock.calls[0] as [Prisma.Sql];
+      expect(lockSql.text).toContain('pg_advisory_xact_lock');
+      expect(specimenDelegate.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          accession_number: expect.stringMatching(/^USC-BM-\d{4}-0008$/),
+        }),
+      });
+    });
+
+    it('keeps a curator-entered number without generating one', async () => {
+      specimenDelegate.create.mockResolvedValue(specimenRecord());
+      queryRawMock.mockResolvedValue([]);
+
+      await service.create({ accessionNumber: 'ZOO-1987-14' }, ACCOUNT_ID);
+
+      expect(executeRawMock).not.toHaveBeenCalled();
+      expect(specimenDelegate.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({ accession_number: 'ZOO-1987-14' }),
+      });
     });
 
     it('excludes the edited record so it can keep or re-case its own number', async () => {
@@ -324,16 +350,15 @@ describe('SpecimensService', () => {
       expect(revisionDelegate.createMany).not.toHaveBeenCalled();
     });
 
-    it('allows clearing an Uncataloged record number without a lookup', async () => {
+    it('refuses to clear an assigned number, even while Uncataloged', async () => {
       specimenDelegate.findUnique.mockResolvedValue(
         specimenRecord({ accession_number: '2026.1.1' }),
       );
-      specimenDelegate.update.mockResolvedValue(specimenRecord());
 
-      await service.update(SPECIMEN_ID, { accessionNumber: null }, ACCOUNT_ID);
-
-      expect(queryRawMock).not.toHaveBeenCalled();
-      expect(specimenDelegate.update).toHaveBeenCalled();
+      await expect(
+        service.update(SPECIMEN_ID, { accessionNumber: null }, ACCOUNT_ID),
+      ).rejects.toThrow(BadRequestException);
+      expect(specimenDelegate.update).not.toHaveBeenCalled();
     });
 
     it('maps a unique-index race on update to the same conflict', async () => {

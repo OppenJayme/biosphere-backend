@@ -2,14 +2,17 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   FAQ_ASSISTANT_NOTICE,
+  FAQ_CLARIFY_MESSAGE,
   FAQ_NO_MATCH_MESSAGE,
   FAQ_VISIT_REQUEST_MESSAGE,
   FaqAssistantOutcome,
   FaqAssistantRedirect,
 } from './entities/faq-assistant.entity';
 import { FaqAssistantService } from './faq-assistant.service';
+import { FaqUnansweredService } from './faq-unanswered.service';
 
 const faqDelegate = { findMany: jest.fn() };
+const unansweredMock = { record: jest.fn() };
 const prismaMock = { faq_entry: faqDelegate };
 
 const HOURS = {
@@ -38,9 +41,69 @@ describe('FaqAssistantService', () => {
       providers: [
         FaqAssistantService,
         { provide: PrismaService, useValue: prismaMock },
+        { provide: FaqUnansweredService, useValue: unansweredMock },
       ],
     }).compile();
     service = module.get(FaqAssistantService);
+  });
+
+  describe('clarification and unanswered logging (client proposal §7)', () => {
+    const PARKING_CARS = {
+      id: '33333333-3333-4333-8333-333333333333',
+      question: 'Is there parking available for cars?',
+      answer: 'Cars may park at the approved campus lot.',
+      alternative_wording: [],
+      keywords: ['parking'],
+      category: 'Visit',
+    };
+    const PARKING_BUSES = {
+      id: '44444444-4444-4444-8444-444444444444',
+      question: 'Is there parking available for buses?',
+      answer: 'Buses must be arranged with campus security.',
+      alternative_wording: [],
+      keywords: ['parking'],
+      category: 'Visit',
+    };
+
+    it('asks the visitor to choose when two approved answers fit equally', async () => {
+      faqDelegate.findMany.mockResolvedValue([PARKING_CARS, PARKING_BUSES]);
+
+      const result = await service.ask({
+        question: 'Is there parking available?',
+      });
+
+      expect(result.outcome).toBe(FaqAssistantOutcome.CLARIFY);
+      expect(result.answer).toBeNull();
+      expect(result.message).toBe(FAQ_CLARIFY_MESSAGE);
+      expect(result.redirect).toBe(FaqAssistantRedirect.GENERAL_INQUIRY);
+      expect(result.related.map((item) => item.id).sort()).toEqual(
+        [PARKING_CARS.id, PARKING_BUSES.id].sort(),
+      );
+      expect(unansweredMock.record).toHaveBeenCalledWith(
+        'Is there parking available?',
+        FaqAssistantOutcome.CLARIFY,
+      );
+    });
+
+    it('logs an unmatched question for curator review', async () => {
+      faqDelegate.findMany.mockResolvedValue([HOURS]);
+
+      await service.ask({ question: 'Do you sell fossils?' });
+
+      expect(unansweredMock.record).toHaveBeenCalledWith(
+        'Do you sell fossils?',
+        FaqAssistantOutcome.NO_MATCH,
+      );
+    });
+
+    it('does not log answered questions or visit transactions', async () => {
+      faqDelegate.findMany.mockResolvedValue([HOURS]);
+
+      await service.ask({ question: 'what are the museum opening hours' });
+      await service.ask({ question: 'Please approve my visit request' });
+
+      expect(unansweredMock.record).not.toHaveBeenCalled();
+    });
   });
 
   it('reads only active knowledge and returns the stored answer', async () => {

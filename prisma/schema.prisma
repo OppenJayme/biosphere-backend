@@ -629,19 +629,20 @@ model exhibit_media {
 
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
 model faq_entry {
-  id                                              String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id                                              String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   question                                        String
   answer                                          String
-  alternative_wording                             String[]      @default([])
-  keywords                                        String[]      @default([])
-  category                                        String?       @db.VarChar(100)
-  status                                          faq_status    @default(INACTIVE)
-  created_by                                      String        @db.Uuid
-  updated_by                                      String?       @db.Uuid
-  created_at                                      DateTime      @default(now()) @db.Timestamptz(6)
-  updated_at                                      DateTime      @default(now()) @db.Timestamptz(6)
-  user_account_faq_entry_created_byTouser_account user_account  @relation("faq_entry_created_byTouser_account", fields: [created_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  user_account_faq_entry_updated_byTouser_account user_account? @relation("faq_entry_updated_byTouser_account", fields: [updated_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  alternative_wording                             String[]                  @default([])
+  keywords                                        String[]                  @default([])
+  category                                        String?                   @db.VarChar(100)
+  status                                          faq_status                @default(INACTIVE)
+  created_by                                      String                    @db.Uuid
+  updated_by                                      String?                   @db.Uuid
+  created_at                                      DateTime                  @default(now()) @db.Timestamptz(6)
+  updated_at                                      DateTime                  @default(now()) @db.Timestamptz(6)
+  user_account_faq_entry_created_byTouser_account user_account              @relation("faq_entry_created_byTouser_account", fields: [created_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  user_account_faq_entry_updated_byTouser_account user_account?             @relation("faq_entry_updated_byTouser_account", fields: [updated_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  faq_unanswered_question                         faq_unanswered_question[]
 
   @@index([category], map: "idx_faq_entry_category")
   @@index([status], map: "idx_faq_entry_status")
@@ -726,6 +727,26 @@ model specimen {
 
   @@index([collection_id], map: "idx_specimen_collection_id")
   @@index([status], map: "idx_specimen_status")
+  @@schema("public")
+}
+
+/// Public FAQ assistant questions with no approved answer, for curator review.
+/// Retained for 90 days (pruned by FaqUnansweredService); stores no visitor identity.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model faq_unanswered_question {
+  id                  String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  question            String        @db.VarChar(500)
+  normalized_question String        @db.VarChar(500)
+  outcome             String        @db.VarChar(40)
+  asked_at            DateTime      @default(now()) @db.Timestamptz(6)
+  reviewed_at         DateTime?     @db.Timestamptz(6)
+  reviewed_by         String?       @db.Uuid
+  faq_entry_id        String?       @db.Uuid
+  user_account        user_account? @relation(fields: [reviewed_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  faq_entry           faq_entry?    @relation(fields: [faq_entry_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([asked_at], map: "idx_faq_unanswered_question_asked_at")
+  @@index([normalized_question], map: "idx_faq_unanswered_question_normalized")
   @@schema("public")
 }
 
@@ -947,6 +968,7 @@ model user_account {
   faq_entry_faq_entry_updated_byTouser_account       faq_entry[]                 @relation("faq_entry_updated_byTouser_account")
   inquiry                                            inquiry[]
   offline_draft_sync                                 offline_draft_sync[]
+  faq_unanswered_question                            faq_unanswered_question[]
   specimen_specimen_archived_byTouser_account        specimen[]                  @relation("specimen_archived_byTouser_account")
   specimen_specimen_created_byTouser_account         specimen[]                  @relation("specimen_created_byTouser_account")
   specimen_specimen_updated_byTouser_account         specimen[]                  @relation("specimen_updated_byTouser_account")
@@ -1159,6 +1181,7 @@ enum quantity_adjustment_type {
   DEACCESSION
   MISSING_LOSS
   DESTRUCTION
+  TEMPORARY_ABSENCE
   DATA_CORRECTION
 
   @@schema("public")

@@ -20,12 +20,36 @@ export class SpecimenDetailLot extends SpecimenLot {
   storageLocation!: StorageLocationSummary;
 }
 
+/**
+ * Why a record has no active quantity: the most recent reduction that
+ * emptied its inventory (loss, transfer, destruction, temporary absence...).
+ * The record keeps its status and accession number (client proposal §2).
+ */
+export class SpecimenZeroQuantityReason {
+  @ApiPropertyOptional({ nullable: true })
+  adjustmentType!: string | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  reason!: string | null;
+
+  @ApiProperty()
+  recordedAt!: Date;
+}
+
 export class SpecimenLotOverview {
   @ApiProperty({ minimum: 0 })
   activeLotCount!: number;
 
   @ApiProperty({ minimum: 0 })
   totalQuantity!: number;
+
+  @ApiPropertyOptional({
+    type: SpecimenZeroQuantityReason,
+    nullable: true,
+    description:
+      'Set only when the quantity is zero after inventory was previously recorded',
+  })
+  zeroQuantityReason!: SpecimenZeroQuantityReason | null;
 }
 
 export class SpecimenDetail {

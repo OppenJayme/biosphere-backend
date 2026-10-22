@@ -9,6 +9,31 @@ import { SpecimenStatus } from './entities/specimen.entity';
 
 export const ACCESSION_NUMBER_TAKEN = 'ACCESSION_NUMBER_TAKEN';
 
+/**
+ * Proposed museum format for generated numbers: `USC-BM-YYYY-NNNN`, where
+ * YYYY is the acceptance year in Asia/Manila and NNNN restarts at 0001 each
+ * year. Pending museum confirmation; curator-entered numbers in any other
+ * format are still accepted and never rewritten.
+ */
+export const ACCESSION_PREFIX = 'USC-BM';
+const ACCESSION_TIME_ZONE = 'Asia/Manila';
+const ACCESSION_SEQUENCE_DIGITS = 4;
+// Serializes concurrent allocators; any constant key works.
+const ACCESSION_ALLOCATION_LOCK = 4_232_026;
+
+export function accessionYear(at: Date): number {
+  return Number(
+    new Intl.DateTimeFormat('en-CA', {
+      timeZone: ACCESSION_TIME_ZONE,
+      year: 'numeric',
+    }).format(at),
+  );
+}
+
+export function formatAccessionNumber(year: number, sequence: number): string {
+  return `${ACCESSION_PREFIX}-${year}-${String(sequence).padStart(ACCESSION_SEQUENCE_DIGITS, '0')}`;
+}
+
 interface HolderRow {
   id: string;
   accession_number: string;
@@ -18,6 +43,10 @@ interface HolderRow {
 }
 
 type SpecimenReader = Pick<Prisma.TransactionClient, '$queryRaw'>;
+type SpecimenAllocator = Pick<
+  Prisma.TransactionClient,
+  '$queryRaw' | '$executeRaw'
+>;
 
 /**
  * Mirrors the `uq_specimen_accession_number` index expression,
@@ -83,6 +112,32 @@ export class SpecimenAccessionService {
     if (holder) {
       throw this.conflict(accessionNumber as string, holder);
     }
+  }
+
+  /**
+   * Allocates the next generated number for the acceptance year inside the
+   * caller's transaction. A transaction-scoped advisory lock serializes
+   * allocators, and the sequence is read from every record, Archived
+   * included, so a number is never reissued. Gaps left by rolled-back
+   * transactions are not refilled.
+   */
+  async allocateNext(
+    client: SpecimenAllocator,
+    at: Date = new Date(),
+  ): Promise<string> {
+    const year = accessionYear(at);
+    await client.$executeRaw(
+      Prisma.sql`SELECT pg_advisory_xact_lock(${ACCESSION_ALLOCATION_LOCK})`,
+    );
+    const pattern = `^${ACCESSION_PREFIX}-${year}-[0-9]+$`;
+    const prefixLength = `${ACCESSION_PREFIX}-${year}-`.length;
+    const rows = await client.$queryRaw<{ last: number | null }[]>(Prisma.sql`
+      SELECT max(substring(btrim(s.accession_number) FROM ${prefixLength + 1})::int) AS last
+      FROM specimen s
+      WHERE ${INDEXED_ACCESSION}
+        AND upper(btrim(s.accession_number)) ~ ${pattern}`);
+    const last = rows[0]?.last ?? 0;
+    return formatAccessionNumber(year, Number(last) + 1);
   }
 
   /**

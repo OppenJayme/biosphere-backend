@@ -6,7 +6,6 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { parse } from 'csv-parse/sync';
 import { isUUID, validate } from 'class-validator';
 import type { ValidationError } from 'class-validator';
 import { plainToInstance } from 'class-transformer';
@@ -20,6 +19,7 @@ import { CreateSpecimenProvenanceDto } from './dto/create-specimen-provenance.dt
 import { CreateSpecimenTaxonomyDto } from './dto/create-specimen-taxonomy.dto';
 import { CreateSpecimenDto } from './dto/create-specimen.dto';
 import { ImportSpecimenRowDto } from './dto/import-specimen-row.dto';
+import { parseImportFile } from './import-file.parser';
 import {
   DuplicateMatchField,
   PossibleDuplicate,
@@ -202,6 +202,8 @@ interface CachedPreview {
   rows: Map<number, CachedPreviewRow>;
 }
 
+const GENERATED_ACCESSION_PLACEHOLDER = 'generated at import';
+
 @Injectable()
 export class SpecimenImportService {
   private readonly logger = new Logger(SpecimenImportService.name);
@@ -232,7 +234,7 @@ export class SpecimenImportService {
   ): Promise<SpecimenImportPreviewResult> {
     this.sweepExpiredPreviews();
 
-    const rawRecords = this.parseCsv(file);
+    const rawRecords = await parseImportFile(file);
     if (rawRecords.length === 0) {
       throw new BadRequestException('The uploaded file has no data rows.');
     }
@@ -332,6 +334,8 @@ export class SpecimenImportService {
           duplicateWarnings,
           possibleDuplicates,
           valid: errors.length === 0,
+          accessionNumberWillBeGenerated:
+            accessionNumberKey(context.fields.accessionNumber) === undefined,
           catalogReadiness: this.buildCatalogReadiness(context.fields, extras),
           dto: this.toCreateSpecimenDto(context.fields),
           extras,
@@ -361,6 +365,7 @@ export class SpecimenImportService {
         duplicateWarnings: row.duplicateWarnings,
         possibleDuplicates: row.possibleDuplicates,
         valid: row.valid,
+        accessionNumberWillBeGenerated: row.accessionNumberWillBeGenerated,
         catalogReadiness: row.catalogReadiness,
       })),
       unmappedColumns,
@@ -504,34 +509,6 @@ export class SpecimenImportService {
       if (now - cached.createdAt > PREVIEW_TTL_MS) {
         this.previewCache.delete(id);
       }
-    }
-  }
-
-  private parseCsv(
-    file: Express.Multer.File | undefined,
-  ): Record<string, string>[] {
-    if (!file) {
-      throw new BadRequestException('A CSV file is required.');
-    }
-    if (!file.originalname.toLowerCase().endsWith('.csv')) {
-      throw new BadRequestException(
-        'Only .csv files are supported for import.',
-      );
-    }
-
-    try {
-      return parse(file.buffer.toString('utf8'), {
-        columns: true,
-        bom: true,
-        trim: true,
-        skip_empty_lines: true,
-      }) as Record<string, string>[];
-    } catch (error) {
-      throw new BadRequestException(
-        `The uploaded file could not be parsed as CSV: ${
-          error instanceof Error ? error.message : 'unknown error'
-        }`,
-      );
     }
   }
 
@@ -770,7 +747,7 @@ export class SpecimenImportService {
         specimen.id,
         {
           ...lot,
-          reason: `Imported from CSV row ${importDetails.rowNumber} (batch ${importDetails.importBatchId})`,
+          reason: `Imported from file row ${importDetails.rowNumber} (batch ${importDetails.importBatchId})`,
         },
         actingCuratorAccountId,
       );
@@ -794,7 +771,9 @@ export class SpecimenImportService {
       : null;
     const results = evaluateCatalogRequirements({
       collectionId: fields.collectionId ?? null,
-      accessionNumber: fields.accessionNumber ?? null,
+      // A blank number is generated at commit, so it never blocks readiness.
+      accessionNumber:
+        fields.accessionNumber ?? GENERATED_ACCESSION_PLACEHOLDER,
       commonName: fields.commonName ?? null,
       kingdom: fields.kingdom ?? null,
       collectionDate:

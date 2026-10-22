@@ -72,22 +72,30 @@ required value or the last qualifying lot being deactivated mid-completion.
 It also rejects duplicate completion history from two simultaneous requests.
 Serialization failures are retried up to three times, then reported as `409`.
 
-Inventory changes are not made or blocked by this Cataloging feature. Future
-inventory policy must decide how deaccessioning or depleting the final active
-lot affects an already Cataloged record.
+Inventory changes are not made or blocked by this Cataloging feature.
+
+### Zero quantity after cataloging (proposal §2)
+
+Per the client proposals of 2026-10-22, applied for the presentation and pending museum confirmation: when a Cataloged record's active quantity reaches zero it
+**stays Cataloged** and keeps its accession number. The reduction must use a
+quantity adjustment with a required reason and one of the reduction types
+(`MISSING_LOSS`, `TRANSFER_OUT`, `DESTRUCTION`, `DEACCESSION`, `REMOVAL`, or the
+new `TEMPORARY_ABSENCE` for loans and off-site conservation, migration
+`20261022000100_add_temporary_absence_adjustment`).
+`GET /specimens/:id/details` reports the latest such reduction as
+`lotOverview.zeroQuantityReason` when the quantity is zero, and the curator
+details page shows it. If the same specimen returns, inventory is added back
+to the existing record; a separately acquired replacement gets a new record.
+Whether a return needs another cataloging review is still open.
 
 ## Deferred decisions
 
-This implementation intentionally does not add:
-
-- accession-number generation (uniqueness is enforced separately; see
-  `docs/ACCESSION_NUMBER_GUIDE.md`);
-- fuzzy duplicate matching or automatic merging; or
-- XLSX import.
-
-Those concerns remain separate reviewable changes. Automatic accession
-allocation still waits for the museum's official format and assignment
-procedure.
+Accession-number generation (proposed `USC-BM-YYYY-NNNN`, see
+`docs/ACCESSION_NUMBER_GUIDE.md`) and Excel import (see
+`docs/SPECIMEN_IMPORT_GUIDE.md`) were added for the 2026-10-22 client
+proposals and still await the museum's confirmation of the official format.
+This implementation still intentionally does not add fuzzy duplicate matching
+that blocks saves, or automatic merging.
 
 ## Restoring archived specimens
 

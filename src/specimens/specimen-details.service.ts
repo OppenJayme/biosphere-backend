@@ -11,6 +11,7 @@ import { MuseumCollection } from './entities/collection.entity';
 import {
   SpecimenDetail,
   SpecimenDetailLot,
+  SpecimenZeroQuantityReason,
 } from './entities/specimen-detail.entity';
 import { SpecimenMedia } from './entities/specimen-media.entity';
 import { SpecimenProvenance } from './entities/specimen-provenance.entity';
@@ -69,6 +70,11 @@ export class SpecimenDetailsService {
         unitOnlyLocation(lot.storage_unit),
     }));
 
+    const totalQuantity = activeLots.reduce(
+      (total, lot) => total + lot.quantity,
+      0,
+    );
+
     return {
       specimen: this.toSpecimen(record),
       collection: record.collection
@@ -83,10 +89,11 @@ export class SpecimenDetailsService {
       activeLots,
       lotOverview: {
         activeLotCount: activeLots.length,
-        totalQuantity: activeLots.reduce(
-          (total, lot) => total + lot.quantity,
-          0,
-        ),
+        totalQuantity,
+        zeroQuantityReason:
+          totalQuantity === 0
+            ? await this.findZeroQuantityReason(specimenId)
+            : null,
       },
       media: record.specimen_media.map((item) => this.toMedia(item)),
       tags: record.specimen_tag
@@ -97,6 +104,28 @@ export class SpecimenDetailsService {
               sensitivity: 'base',
             }) || left.id.localeCompare(right.id),
         ),
+    };
+  }
+
+  /** Latest reduction recorded against one of the specimen's lots. */
+  private async findZeroQuantityReason(
+    specimenId: string,
+  ): Promise<SpecimenZeroQuantityReason | null> {
+    const latest = await this.prisma.specimen_lot_transaction.findFirst({
+      where: {
+        transaction_type: 'QUANTITY_ADJUSTMENT',
+        specimen_lot_specimen_lot_transaction_source_lot_idTospecimen_lot: {
+          specimen_id: specimenId,
+        },
+      },
+      orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
+      select: { adjustment_type: true, reason: true, created_at: true },
+    });
+    if (!latest) return null;
+    return {
+      adjustmentType: latest.adjustment_type,
+      reason: latest.reason,
+      recordedAt: latest.created_at,
     };
   }
 

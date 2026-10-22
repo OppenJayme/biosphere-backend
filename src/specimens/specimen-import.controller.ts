@@ -47,7 +47,7 @@ export class SpecimenImportController {
   })
   @ApiOperation({
     summary:
-      'Validate a CSV of specimen rows and flag possible duplicates without saving anything (REQ-4.4-19/20/21)',
+      'Validate a CSV or Excel (.xlsx) file of specimen rows and flag possible duplicates without saving anything (REQ-4.4-19/20/21)',
   })
   @ApiCreatedResponse({ type: SpecimenImportPreviewResult })
   preview(

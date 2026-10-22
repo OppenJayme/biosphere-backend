@@ -4,10 +4,13 @@ import { PrismaService } from '../prisma/prisma.service';
 import {
   SpecimenAccessionService,
   accessionNumberKey,
+  accessionYear,
+  formatAccessionNumber,
 } from './specimen-accession.service';
 
 const queryRawMock = jest.fn();
-const prismaMock = { $queryRaw: queryRawMock };
+const executeRawMock = jest.fn();
+const prismaMock = { $queryRaw: queryRawMock, $executeRaw: executeRawMock };
 
 const SPECIMEN_ID = '33333333-3333-4333-8333-333333333333';
 const OTHER_ID = '44444444-4444-4444-8444-444444444444';
@@ -35,6 +38,40 @@ describe('SpecimenAccessionService', () => {
     }).compile();
 
     service = module.get(SpecimenAccessionService);
+  });
+
+  describe('generated numbers (USC-BM-YYYY-NNNN)', () => {
+    it('formats with a zero-padded yearly sequence', () => {
+      expect(formatAccessionNumber(2026, 1)).toBe('USC-BM-2026-0001');
+      expect(formatAccessionNumber(2026, 12345)).toBe('USC-BM-2026-12345');
+    });
+
+    it('uses the acceptance year in Asia/Manila', () => {
+      // 2026-12-31T17:00Z is already 2027-01-01 01:00 in Manila.
+      expect(accessionYear(new Date('2026-12-31T17:00:00Z'))).toBe(2027);
+      expect(accessionYear(new Date('2026-12-31T15:00:00Z'))).toBe(2026);
+    });
+
+    it('locks, then continues after the highest number of the year across all records', async () => {
+      queryRawMock.mockResolvedValue([{ last: 9 }]);
+
+      await expect(
+        service.allocateNext(prismaMock, new Date('2026-06-01T00:00:00Z')),
+      ).resolves.toBe('USC-BM-2026-0010');
+
+      expect(executeRawMock).toHaveBeenCalledTimes(1);
+      const sql = normalizedText(lastSql());
+      expect(sql).not.toContain('status');
+      expect(lastSql().values).toContain('^USC-BM-2026-[0-9]+$');
+    });
+
+    it('starts each year at 0001', async () => {
+      queryRawMock.mockResolvedValue([{ last: null }]);
+
+      await expect(
+        service.allocateNext(prismaMock, new Date('2027-02-01T00:00:00Z')),
+      ).resolves.toBe('USC-BM-2027-0001');
+    });
   });
 
   it('mirrors btrim: strips only surrounding spaces and case-folds', () => {

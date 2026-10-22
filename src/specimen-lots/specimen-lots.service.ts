@@ -52,6 +52,7 @@ const DECREASE_ONLY_ADJUSTMENTS = new Set<QuantityAdjustmentType>([
   QuantityAdjustmentType.DEACCESSION,
   QuantityAdjustmentType.MISSING_LOSS,
   QuantityAdjustmentType.DESTRUCTION,
+  QuantityAdjustmentType.TEMPORARY_ABSENCE,
 ]);
 
 type LotDimensionOperation =

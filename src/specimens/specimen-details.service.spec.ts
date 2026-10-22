@@ -17,9 +17,11 @@ const ROOM_ID = '99999999-9999-4999-8999-999999999999';
 
 const specimenFindUnique = jest.fn();
 const storageUnitFindMany = jest.fn();
+const lotTransactionFindFirst = jest.fn();
 const prismaMock = {
   specimen: { findUnique: specimenFindUnique },
   storage_unit: { findMany: storageUnitFindMany },
+  specimen_lot_transaction: { findFirst: lotTransactionFindFirst },
 };
 
 function detailRecord(overrides: Record<string, unknown> = {}) {
@@ -161,7 +163,11 @@ describe('SpecimenDetailsService', () => {
         provenance: expect.objectContaining({
           collectionDate: '2026-08-20',
         }),
-        lotOverview: { activeLotCount: 1, totalQuantity: 3 },
+        lotOverview: {
+          activeLotCount: 1,
+          totalQuantity: 3,
+          zeroQuantityReason: null,
+        },
         activeLots: [
           expect.objectContaining({
             id: LOT_ID,
@@ -199,7 +205,11 @@ describe('SpecimenDetailsService', () => {
         taxonomy: null,
         provenance: null,
         activeLots: [],
-        lotOverview: { activeLotCount: 0, totalQuantity: 0 },
+        lotOverview: {
+          activeLotCount: 0,
+          totalQuantity: 0,
+          zeroQuantityReason: null,
+        },
         media: [],
         tags: [],
       }),
@@ -260,5 +270,32 @@ describe('SpecimenDetailsService', () => {
     await service.findOne(SPECIMEN_ID);
 
     expect(storageUnitFindMany).not.toHaveBeenCalled();
+  });
+
+  it('explains a zero quantity with the latest recorded reduction', async () => {
+    specimenFindUnique.mockResolvedValue(
+      detailRecord({ status: 'CATALOGED', specimen_lot: [] }),
+    );
+    lotTransactionFindFirst.mockResolvedValue({
+      adjustment_type: 'TEMPORARY_ABSENCE',
+      reason: 'On loan to the Philippine National Museum',
+      created_at: TEST_DATE,
+    });
+
+    const result = await service.findOne(SPECIMEN_ID);
+
+    expect(result.specimen.status).toBe('CATALOGED');
+    expect(result.lotOverview.zeroQuantityReason).toEqual({
+      adjustmentType: 'TEMPORARY_ABSENCE',
+      reason: 'On loan to the Philippine National Museum',
+      recordedAt: TEST_DATE,
+    });
+    expect(lotTransactionFindFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          transaction_type: 'QUANTITY_ADJUSTMENT',
+        }),
+      }),
+    );
   });
 });

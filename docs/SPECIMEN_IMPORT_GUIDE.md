@@ -1,7 +1,7 @@
 # BioSphere Specimen Bulk Import Guide
 
-This module implements the CSV import slice of Cataloging Management (SRS
-REQ-4.4-18 through REQ-4.4-23). It reuses the existing specimen-core creation
+This module implements the CSV and Excel import slice of Cataloging
+Management (SRS REQ-4.4-18 through REQ-4.4-23). It reuses the existing specimen-core creation
 path (`public.specimen`, `public.specimen_revision_history`,
 `public.audit_log`, `public.collection`) through Prisma and introduces no
 database structures.
@@ -22,7 +22,11 @@ commit provably operates on what was actually previewed rather than on
 arbitrary rows a client happens to send:
 
 1. `POST /specimens/import/preview` — `multipart/form-data` upload with a
-   `.csv` file field named `file`. Parses and validates every row, flags
+   `.csv` or Excel `.xlsx` file field named `file`. For a workbook, the first
+   worksheet is read and its first non-empty row is the header row; Excel
+   dates become `YYYY-MM-DD` and formulas contribute their cached result
+   (`src/specimens/import-file.parser.ts`, using `exceljs`). Legacy `.xls`
+   files must be saved as `.xlsx` first. Parses and validates every row, flags
    possible duplicates, and returns the results plus a `previewId`. Nothing
    is persisted and no audit event is written.
 2. `POST /specimens/import/commit` — JSON body of `{ previewId, rowNumbers?

@@ -505,7 +505,9 @@ describe('Storage locations (e2e)', () => {
   it('records a move using the authenticated BioSphere account id', async () => {
     storageUnitDelegate.findUnique
       .mockResolvedValueOnce(storageUnitRecord({ parent_id: oldParentId }))
-      .mockResolvedValueOnce(storageUnitRecord({ id: newParentId }))
+      .mockResolvedValueOnce(
+        storageUnitRecord({ id: newParentId, unit_type: 'ROOM' }),
+      )
       .mockResolvedValueOnce({ parent_id: null });
     storageUnitDelegate.update.mockResolvedValue(
       storageUnitRecord({ parent_id: newParentId }),

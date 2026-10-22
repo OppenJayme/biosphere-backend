@@ -4,6 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
+import ExcelJS from 'exceljs';
 import { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { SpecimenLotsService } from '../specimen-lots/specimen-lots.service';
@@ -131,12 +132,43 @@ describe('SpecimenImportService', () => {
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 
-    it('rejects a non-CSV file', async () => {
+    it('rejects a file that is neither CSV nor Excel', async () => {
+      const file = csvFile('a,b\n1,2\n');
+      file.originalname = 'specimens.xls';
+      await expect(
+        service.previewImport(file, CURATOR_ID),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('rejects a .xlsx name whose content is not a workbook', async () => {
       const file = csvFile('a,b\n1,2\n');
       file.originalname = 'specimens.xlsx';
       await expect(
         service.previewImport(file, CURATOR_ID),
       ).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('reads the first worksheet of an Excel workbook like a CSV', async () => {
+      const workbook = new ExcelJS.Workbook();
+      const sheet = workbook.addWorksheet('Specimens');
+      sheet.addRow(['Common Name', 'Kingdom', 'Collection Date']);
+      sheet.addRow(['Civet', 'Animalia', new Date('2020-05-04T00:00:00Z')]);
+      const file = {
+        originalname: 'Museum Records.XLSX',
+        buffer: Buffer.from(await workbook.xlsx.writeBuffer()),
+      } as Express.Multer.File;
+
+      const result = await service.previewImport(file, CURATOR_ID);
+
+      expect(result.totalRows).toBe(1);
+      expect(result.rows[0].errors).toEqual([]);
+      expect(result.rows[0].data).toEqual(
+        expect.objectContaining({
+          commonName: 'Civet',
+          kingdom: 'Animalia',
+          collectionDate: '2020-05-04',
+        }),
+      );
     });
 
     it('rejects a file with no data rows', async () => {
@@ -737,7 +769,7 @@ describe('SpecimenImportService', () => {
           conditionClass: 'Good',
           quantity: 12,
           storageNotes: 'Top shelf',
-          reason: expect.stringMatching(/^Imported from CSV row 1 \(batch /),
+          reason: expect.stringMatching(/^Imported from file row 1 \(batch /),
         }),
         CURATOR_ID,
       );
@@ -856,13 +888,14 @@ describe('SpecimenImportService', () => {
 
       expect(result.rows[0].valid).toBe(true);
       expect(result.rows[0].errors).toEqual([]);
+      // A blank accession number is generated at commit.
+      expect(result.rows[0].accessionNumberWillBeGenerated).toBe(true);
       expect(result.rows[0].catalogReadiness).toEqual(
         expect.objectContaining({
           requirementsMet: false,
           resultingStatus: 'UNCATALOGED',
           missingRequirements: [
             'Collection is assigned',
-            'Accession number is assigned',
             'A valid collection date on or before today is recorded',
             'Preservation type is recorded',
             'Preservation method is recorded',
