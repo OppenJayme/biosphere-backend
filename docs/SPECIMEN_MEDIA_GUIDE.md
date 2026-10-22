@@ -132,3 +132,122 @@ Storage/database cleanup failure behavior and concurrency have isolated
 coverage but are not established as live by this checkpoint. Existing
 accessibility/error-interaction gaps and independent sign-off also remain.
 No defect status was promoted and no application repair was needed here.
+
+## CAT-011 consolidated media batch - 2026-10-22
+
+The available safe batch is **complete within the scope below**, not full
+CAT-011 acceptance. The user subsequently approved one generated-image upload,
+allowing the live checks to continue on the same branch.
+Backend base `ffe801a`, frontend clean source `d4d216b`; actual served build
+hashes were not independently checked. Earlier signed-out evidence above remains
+valid only within its recorded scope and was not silently promoted.
+
+### Completed safe checks
+
+- Read-only local draft preflight found no work eligible for automatic sync.
+  Inspected the first eight `TEST`-named catalog results' media pages, plus the
+  known disposable AUD-002 media page. None inspected had media cards. This is
+  a bounded fixture search, not proof that no test images exist anywhere.
+- The AUD-002 empty-media page retained its empty state and exactly one upload
+  picker. Its accept list was JPEG/PNG/WebP; clicking Upload without a file
+  activated native required-field validation without a network submission.
+- File-selector hover changed its computed background color. Real reverse/
+  forward Tab established keyboard focus, with a changed computed focus ring.
+  This verifies feedback presence, not full accessibility/contrast acceptance.
+- On a `TEST` result's cover preview, aborting its read-only Server Action
+  request showed safe failure guidance and Retry. Clicking Retry issued exactly
+  one additional blocked request and returned to the error state. Both requests
+  were aborted; no actual provider failure, signed URL expiry or successful
+  retry recovery is claimed.
+- Each temporary tab was closed; the signed-in Audit tab/URL stayed unchanged.
+  No files were uploaded and no specimen, media or Inventory records changed.
+
+The initial browser helper expected an outline after pointer interaction and
+reported failure. Actual keyboard traversal showed `:focus-visible` with an
+outline style of `none`, but inspection confirmed the existing focus-ring
+shadow changes. Correcting the helper to recognize that ring completed the
+check; no runtime fix or new application defect was established.
+
+### Regression results
+
+- Backend media-service plus storage-service suites: **31/31 passed**.
+- Existing protected media HTTP suite: **5/5 passed**.
+- Frontend cover presentation/action, native file feedback, media history and
+  media-form suites: **30/30 passed** across five files.
+
+These **66 existing tests** use isolated adapters, simulated responses or static
+rendering as appropriate. They cover MIME/signature/size rejection, safe signer
+errors, compensation/cleanup/conflicts, presentation and input contracts; they
+do not prove those failures against real Supabase/database infrastructure.
+
+### Approved live-image checks
+
+After explicit user approval, submitted exactly one 32 x 32 generated PNG
+through the existing upload form on disposable specimen
+`5b8e55d4-af0f-4263-9b0e-349b4b314f20`. The common-name identity guard matched
+`TEST - AUD-002 Trace 20261021` and the initial media list was empty. Caption:
+`TEST MEDIA PRIVACY 20261022 - generated PNG`; media UUID:
+`2871271c-9df8-41cb-9d96-3e3495384d83`. The labelled image is retained, not
+automatically removed, and no museum photograph was used.
+
+- One approved multipart POST returned **201**. The single media card persisted
+  its caption and automatic first-image cover state on a separate page load;
+  the browser decoded the expected 32 x 32 dimensions.
+- A fresh anonymous HTTP context fetched the signed object with **200**, PNG
+  content type and PNG byte signature. This is expected bearer-URL access, not
+  a login bypass: possession of the valid signed URL grants temporary access.
+- The exact same object's signed-object path without its token returned **400**.
+  Its unsigned public-object path also returned **400**, rather than image bytes.
+  These results establish denial for this existing object, not a bucket-wide
+  enumeration or every possible storage endpoint.
+- The token's decoded expiry metadata specified **300 seconds**. URLs/tokens
+  stayed in diagnostic memory/normal image DOM, never shared logs or committed
+  evidence.
+- Save-metadata hover changed its computed background. Opening Remove focused
+  Cancel; Escape closed the dialog and restored trigger focus, with no mutation
+  request. Removal was not confirmed and metadata was not resaved.
+- A read-only action/date-filtered audit view showed a successful
+  `CREATE_SPECIMEN_MEDIA` event for the media UUID, matching specimen ID,
+  `image/png` MIME type and `isCover: true`.
+
+The initial audit helper incorrectly searched by the parent specimen ID,
+whereas media events use the media ID as their affected-record ID. It found no
+rows and timed out. Retesting with the action/date filter and validating the
+returned specimen/media details passed; no missing-audit defect was established
+and no upload was repeated.
+
+The upload intentionally created one private object/media row and its normal
+parent attribution, revision and audit effects. No specimen core fields,
+Inventory data, storage hierarchy, publishing or account configuration changed.
+The original signed-in Audit tab remained open and unchanged throughout.
+
+### Live expiry and recovery
+
+Retained the original image tab without refreshing its URL until after the
+decoded expiry deadline. A fresh anonymous HTTP context then requested that
+original URL with `Cache-Control: no-cache`, outside the browser image cache:
+
+- The original signed URL returned **400** after expiry. The diagnostic completed
+  32 seconds after its decoded expiry timestamp; this is not an exact measurement
+  of the provider's rejection boundary or a clock-skew study.
+- Reloading the curator media page produced a different signed URL with an
+  advanced expiry and another **300-second** token lifetime. Anonymous HTTP
+  access to that refreshed URL returned **200** with PNG content type, and the
+  browser decoded the expected 32 x 32 image again.
+- Exactly one media card remained; expiry recovery caused no second upload or
+  media edit. An already decoded/cached image need not disappear at token expiry;
+  rejection of the new HTTP request, not its on-screen persistence, was checked.
+
+The generated fixture remains available for later tests. Temporary test contexts
+and tabs were closed after verification; the original signed-in Audit tab was
+preserved. No signed URL/token was included in captured results or these docs.
+
+### Remaining acceptance limits
+
+A real wrong-role/inactive-session check requires an appropriate test account;
+do not alter another owner's accounts or copy credentials to manufacture it.
+Live backend rejection of an authenticated wrong specimen/media-ID pair still
+needs a suitable authorized API test setup; anonymous 401 and mocked ownership
+checks do not prove it. Provider/database rollback, cleanup failure, concurrency,
+complete accessibility and independent sign-off remain outside this batch.
+CAT-011 remains In progress and no defect is closed by these partial results.
