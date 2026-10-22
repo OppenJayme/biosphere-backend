@@ -49,7 +49,7 @@ system is not a reason to postpone all fixes until the end.
 | ------- | ---------- | -------------------------- | ----------------------------------------------------------------------- | ----------- | -------- | ------ | ----------------------- |
 | DEF-016 | 2026-10-19 | Backup / HTTP test fixture | Missing audit delegate logs an error despite green denial test | S3 Moderate | P2 | Ready for retest | Backup tests / coordinate with Auth |
 | DEF-017 | 2026-10-21 | Inventory / HTTP test fixture | Storage-inventory denial passes despite missing security-audit delegate | S3 Moderate | P2 | Open | John / coordinate with Voltaire |
-| DEF-018 | 2026-10-22 | Cataloging / Import API docs | Commit Swagger success status differs from actual POST response | S4 Minor | P3 | Open | Kyer / Cataloging |
+| DEF-018 | 2026-10-22 | Cataloging / Import API docs | Commit Swagger success status differs from actual POST response | S4 Minor | P3 | Ready for retest | Kyer / Cataloging |
 | DEF-001 | 2026-09-29 | Cataloging / Collections   | Duplicate normalized collection names are accepted                      | S2 Major    | P1       | Ready for retest | Cataloging / Backend    |
 | DEF-002 | 2026-10-03 | Cataloging / Provenance    | Future collection dates are accepted and satisfy presence validation    | S2 Major    | P1       | Verified | Cataloging / Full stack |
 | DEF-003 | 2026-10-03 | Cataloging / Specimen list | Client-side specimen selection does not hydrate on a remote LAN browser | S2 Major    | P1       | Ready for retest | Cataloging / Frontend   |
@@ -1422,10 +1422,10 @@ guards and existing 401/403 behavior; do not silence the error or bypass auth.
 **Found on:** backend base `304dee0`, 2026-10-22
 **Severity:** S4 Minor (API documentation inconsistency)
 **Priority:** P3 (nonblocking; no import failure observed)
-**Status:** Open
+**Status:** Ready for retest
 **Owner:** Kyer / Cataloging
 
-The selected-row commit and retry return HTTP 201. The controller's
+At discovery, selected-row commit and retry returned HTTP 201. The controller's
 `POST /specimens/import/commit` declares `@ApiOkResponse` (200), with no
 `@HttpCode` override. Both successful import behavior and retry checks pass;
 this is not a data-integrity or duplicate-import failure. No runtime status
@@ -1436,8 +1436,39 @@ established 201 response, retaining its response DTO, and verify the generated
 operation. If the team instead chooses 200, explicitly review caller
 compatibility and the desired contract before changing runtime behavior.
 
-- [ ] Generated Swagger response and the actual commit response agree.
-- [ ] Selected-row commit and same-preview retry remain correct.
+#### Correction and scoped verification - 2026-10-22
+
+On backend base `d832885`, replaced only the commit success documentation with
+`@ApiCreatedResponse`, retaining `SpecimenImportCommitResult`. No `@HttpCode`,
+service, permission, transaction, import behavior or Inventory code changed.
+
+An isolated Nest application containing the real import controller and a stub
+import service generated Swagger before and after the correction. The original
+operation declared only `200`; the corrected operation declares only `201`
+with the same `#/components/schemas/SpecimenImportCommitResult` response schema.
+No service methods, live providers, listening ports or database were used in
+this diagnostic. This was a one-off generated-contract check, not a newly
+maintained Swagger regression test or proof of the deployed `/docs` output.
+
+The existing protected Cataloging HTTP suite passed **49/49** after the change,
+including selected-valid-row commit and same-preview retry returning `201`.
+That suite uses real controllers/services with mocked database/auth adapters;
+it does not establish live database concurrency or independent acceptance.
+The targeted commit/retry case also passed before the correction, confirming
+the existing HTTP behavior was not the defect.
+
+Import-service unit regressions passed **40/40**. Their intentionally injected
+`connection reset` case emitted its existing server-side error log while
+asserting that the returned row error does not expose those internals; this
+was not a live connection failure. TypeScript `--noEmit --incremental false`
+and `git diff --check` passed. `npm run lint:ci` completed with zero errors
+and seven existing unused-disable warnings in untouched files. Full backend
+suites/build and live Swagger retest were not run locally for this metadata-only
+change; PR CI runs the normal suites/build separately.
+
+- [x] Isolated generated Swagger response and actual tested commit response agree.
+- [x] Selected-row commit and same-preview retry remain correct in the isolated HTTP suite.
+- [ ] Independently verify the merged/deployed Swagger operation; status remains Ready for retest.
 
 ## 4. New defect template
 
