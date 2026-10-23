@@ -67,6 +67,7 @@ system is not a reason to postpone all fixes until the end.
 
 | ID      | Date       | Module                     | Summary                                                                 | Severity    | Priority | Status | Owner                   |
 | ------- | ---------- | -------------------------- | ----------------------------------------------------------------------- | ----------- | -------- | ------ | ----------------------- |
+| [DEF-020](#def-020---interrupted-duplicate-check-removes-the-unsaved-core-form) | 2026-10-23 | Cataloging / Duplicate warning | Rejected client request escapes the warning check and removes the unsaved form | S3 Moderate | P1 | Ready for retest | Kyer / Cataloging frontend |
 | [DEF-016](#def-016---backup-http-fixture-omits-the-security-audit-delegate) | 2026-10-19 | Backup / HTTP test fixture | Missing audit delegate logs an error despite green denial test | S3 Moderate | P2 | Ready for retest | Backup tests / coordinate with Auth |
 | [DEF-017](#def-017---storage-inventory-denial-fixture-omits-security-audit-persistence) | 2026-10-21 | Inventory / HTTP test fixture | Storage-inventory denial passes despite missing security-audit delegate | S3 Moderate | P2 | Open | John / coordinate with Voltaire |
 | [DEF-018](#def-018---csv-commit-success-status-differs-from-swagger-declaration) | 2026-10-22 | Cataloging / Import API docs | Commit Swagger success status differs from actual POST response | S4 Minor | P3 | Ready for retest | Kyer / Cataloging |
@@ -88,6 +89,90 @@ system is not a reason to postpone all fixes until the end.
 | [DEF-015](#def-015---audit-http-fixture-omits-the-security-audit-create-method) | 2026-10-19 | Audit / HTTP test fixture | Missing security-audit create mock logs an error despite green denial test | S3 Moderate | P2 | Ready for retest | Audit tests / coordinate with Auth |
 
 ## 3. Defect details
+
+### DEF-020 - Interrupted duplicate check removes the unsaved core form
+
+**Related test:** CAT-014
+
+**Environment:** Local signed-in Edge; running frontend/backend, simulated read-request interruption
+
+**Found on:** frontend `d4d216b`, backend base `d04ede2`; actual served hashes unverified
+
+**Severity:** S3 Moderate; unsaved input becomes unavailable, no persistent data loss established
+
+**Priority:** P1 before Cataloging acceptance
+
+**Status:** Ready for retest
+
+**Owner:** Kyer / Cataloging frontend
+
+#### Reproduction and evidence - 2026-10-23
+
+1. Read the two populated names from existing Cataloging test specimen
+   `79d5a204-c21d-4df6-b0bb-ebbfe1877975` (`TEST Offline Draft 20261017 A`).
+2. Open an unsaved new-specimen form, enter those names and blur the field.
+   A live warning links the matching test record and Save remains enabled.
+3. Enter unrelated test names; the clear result replaces the warning and its
+   old link disappears.
+4. Change a checked name again. Hold only its validated duplicate-check Server
+   Action request, verify the checking message, then abort that read request.
+
+Expected: preserve the form/entered values, show that duplicates are unknown,
+and allow an explicit retry. Actual: the unknown/Check again state was absent,
+the Save form was no longer rendered and one browser page error was observed.
+The client transition awaited the Server Action without catching transport
+rejection; the server-side action's backend-error catch cannot handle a request
+that fails before its result reaches the browser.
+
+The diagnostic observed five duplicate read attempts (one deliberately aborted),
+with no other non-read requests. No save was submitted, specimen created/edited,
+merge/archive performed or Inventory touched. The probe closed and the original
+signed-in Audit tab/URL remained unchanged. This is a simulated browser transport
+failure, not evidence of a live backend outage or an authorization defect.
+
+Earlier fixture guards stopped before any check because those fixtures did not
+satisfy the expected name pair. They are test precondition failures, not failed
+application acceptance results. The resumed run used the fixture above.
+
+#### Repair and scoped verification - 2026-10-23
+
+The user approved client-request tests with a mocked remote Server Action and
+a repeated read-only browser check. A client-side request boundary now resolves
+transport rejection to `unavailable` without exposing error details. The existing
+component uses it inside its original transition/request-ID guard. Backend
+authentication/validation, matcher, archived exclusion and Inventory are unchanged.
+Repair: [frontend PR #78](https://github.com/OppenJayme/biosphere-frontend/pull/78),
+commit `417b0c6`, based on frontend develop `99a9252`.
+
+The first behavioral regression failed because the request rejected with
+`Failed to fetch` instead of resolving unavailable; it passed after the fallback.
+Five request tests and the existing duplicate contracts passed (20 focused tests).
+Full frontend suite: **366/366 in 62 files**; lint, TypeScript and diff checks
+passed. See frontend `docs/cataloging-defect-retest.md#def-020---interrupted-duplicate-warning-request`.
+
+Port 3000 was confirmed to run `next start` against an existing production build.
+A retry there still showed the original failure, but was not a verification of
+changed source. With user approval, started a temporary dev server bound only
+to `127.0.0.1:3002`; no production process or build was replaced.
+
+The same browser diagnostic on port 3002 passed: live matching warning and
+correct link, Save enabled, unrelated values clearing stale results, pending
+feedback, interrupted lookup -> unknown/Check again, both entered names retained,
+form/Save available and successful explicit retry with zero page errors. Six
+validated duplicate read attempts included one aborted transport; no form was
+submitted and no other non-read request occurred. The temporary tab closed and
+the original signed-in Audit tab/URL remained unchanged. This does not prove
+production deployment, true provider outage or independent module acceptance.
+The task-owned dev server was stopped after retest; the original port-3000
+frontend still returned HTTP 200. No shared server was killed or rebuilt.
+
+#### Retest
+
+- [x] Rejected client transport resolves to an unavailable warning, never clear.
+- [x] Form and entered values remain available; explicit retry recovers.
+- [ ] Normal matching/clear behavior and stale-response guards remain intact.
+- [x] Full frontend regression/lint/type checks pass.
+- [ ] Independent merged/deployed retest, including stale in-flight results.
 
 ### DEF-019 - Tab-interruption diagnostic failed its no-backend-write guard
 
