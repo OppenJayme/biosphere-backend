@@ -4,6 +4,21 @@ Source review checkpoint, not feature acceptance or approval to publish test
 answers. Backend reviewed at `a3961d1`; frontend at `9ea97c7`. No chatbot code
 or active knowledge was changed and no public ask request was made here.
 
+## Progress update - 2026-10-25
+
+The first implementation slice is now complete on feature branches, not yet
+merged/accepted: backend `bafe427`, frontend `83ff93b`. Equal strongest eligible
+scores return clarification with up to three choices, and explicit selected
+identity returns only a still-active approved answer. Focused HTTP/request and
+isolated real-widget checks passed. See [evidence and rollout limits](./FAQ_KNOWLEDGE_GUIDE.md#equal-score-clarification-implementation-checkpoint---2026-10-25).
+
+Next: review/merge the paired changes (backend API before frontend deployment),
+then design bounded contextual follow-ups from the already agreed direction.
+Do not repeat the passed Cataloging tests. Near-tie evaluation, language/context
+design and unanswered-log retention/access controls remain unresolved; no
+logging or provider/migration work was bundled into this slice. Historical
+2026-10-24 gap descriptions below describe the pre-implementation checkpoint.
+
 ## What already exists
 
 - Backend public suggestion/ask routes, bounded question DTO, per-route throttle

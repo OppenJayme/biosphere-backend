@@ -7,6 +7,11 @@ status and does not authorize migrations, account changes or teammate-owned work
 
 ## Current checkpoint
 
+- FAQ equal-score clarification/selection feature completed on backend `bafe427`
+  and frontend `83ff93b`: FAQ HTTP 23/23, backend unit 690/690, frontend 378/378,
+  lint/type-check and isolated real-widget checks passed. No live FAQ activation
+  or browser ask forwarded. Review paired branches; deploy backend API first.
+  Context, evaluated near-ties and unanswered review remain subsequent slices.
 - P1 **DEF-022** merged in frontend #80; backend #185 documentation also merged.
   Both post-merge CI runs passed. Approved frontend production rebuild and
   blocked-save/retry verification passed on `9ea97c7`; backend was untouched.
