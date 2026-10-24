@@ -135,3 +135,60 @@ and alternative wording, all case-insensitively as substrings. Keywords and
 alternative wording are searched with a parameterized `ILIKE` over the arrays,
 because Prisma's array filters are case-sensitive; `%` and `_` in the search
 text are matched literally. It combines with `status` and `category`.
+
+## FAQ-003 category HTTP boundary checkpoint - 2026-10-23
+
+Added four isolated HTTP regressions in `test/faq.e2e-spec.ts` at the
+user-approved management API boundary:
+
+- Create accepts a 100-character category; GET readback preserves it and the
+  new entry remains `INACTIVE`.
+- Edit accepts a 100-character category; GET readback preserves it without
+  changing the other knowledge fields (apart from the update timestamp).
+- Create rejects a 101-character category with `400` and a category-specific
+  validation message; the management list is unchanged afterward.
+- Edit rejects a 101-character category with `400`; full GET readback is
+  unchanged, including an otherwise valid answer submitted in the same request.
+
+Each new test passed on its first run against the existing implementation;
+no runtime fix or new defect was needed. The complete FAQ HTTP suite passed
+**17/17**, and `npm run lint:ci` exited successfully with zero errors and seven
+unused-disable warnings on pre-existing ESLint directives (left unchanged).
+The tests call real Nest controllers,
+guards, DTO validation and services, replacing only the database and Supabase
+adapters. Readback assertions use HTTP rather than inspecting mock storage.
+
+This closes the previously untested category-length API bypass case, not all
+of FAQ-003. Duplicate-question policy, browser lifecycle acceptance and formal
+public-matching approval remain pending. The suite does not prove live database
+constraints, rollback, concurrency or persisted audit history. No live records
+were changed, and no test answer was activated in the public knowledge base.
+
+## FAQ-002 activation cancellation checkpoint - 2026-10-23
+
+Used the existing signed-in Edge session and retained inactive TEST entry
+`231d8430-41d9-4d84-ab2b-1f8ddb6b8a4a` on `localhost:3000`, in a separate probe
+tab allowing only GET/HEAD. No activation confirmation was submitted.
+
+- The confirmation had an accessible title and description explaining public
+  chatbot matching, plus a separate explicit **Yes, activate** button.
+- Cancel and Escape closed it and restored focus to the activation trigger.
+- Space opened it from the focused trigger. Six Tab presses did not focus a
+  background page control; Escape again closed it and restored focus.
+- The entry stayed inactive with unchanged displayed details after each
+  cancellation and a reload. The probe recorded zero non-read requests and
+  zero page errors; the original Audit tab remained open and signed in.
+
+The initial diagnostic incorrectly required every Tab position to stay inside
+the document. A bounded follow-up observed two positions with the body active,
+`document.hasFocus() === false` and the dialog still `:modal`, followed by focus
+returning to its buttons. The corrected check distinguishes those browser-level
+focus departures from background-page focus. No application defect was
+reproduced; this observation is not full keyboard/screen-reader sign-off.
+
+FAQ-002 remains In progress: actual activation/deactivation, submitted error and
+pending states, persisted lifecycle audits and active-to-archived behavior need
+separate checks. Public activation still requires a confirmed isolated setup.
+These results concern the existing served build, not deployment of newer local
+source. No application code changed; only `git diff --check` was run for this
+documentation update, not another full test/build run.

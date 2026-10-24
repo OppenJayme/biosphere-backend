@@ -251,3 +251,40 @@ needs a suitable authorized API test setup; anonymous 401 and mocked ownership
 checks do not prove it. Provider/database rollback, cleanup failure, concurrency,
 complete accessibility and independent sign-off remain outside this batch.
 CAT-011 remains In progress and no defect is closed by these partial results.
+
+## CAT-011 wrong-pair HTTP checkpoint - 2026-10-23
+
+Added two user-approved read-boundary regressions in
+`test/specimen-media.e2e-spec.ts`. The mock database contains two existing
+specimen parents, with the image belonging only to the first; rejection cannot
+pass merely because the second specimen is missing.
+
+- Metadata GET succeeds for the correct pair with the expected metadata,
+  returns `404` for the same media ID under the other specimen, and still
+  returns unchanged metadata for the correct pair afterward. The rejected
+  response contains no caption or storage-path field.
+- Signed-URL GET succeeds for the correct pair, returns `404` for the wrong
+  pair without a signed URL or storage-path field, and never invokes the
+  storage signer for that rejection. A subsequent correct request succeeds.
+
+Both new tests passed on first execution against the existing implementation;
+no runtime fix or new application defect was needed. The complete media HTTP
+suite passed **7/7**; running it with the FAQ HTTP suite passed **24/24**.
+Targeted ESLint for `test/specimen-media.e2e-spec.ts` and `git diff --check`
+also passed.
+These use real Nest guards, validation, controllers and services with mocked
+database, authentication and storage adapters. Signer-call assertions observe
+that external boundary, not a live provider request.
+
+No live browser/API request, upload, image edit, account change or storage
+operation was performed. This closes the isolated HTTP coverage gap only:
+authenticated wrong-pair denial against the live database/provider, real
+wrong-role/inactive-session access and the previously documented failure,
+concurrency/accessibility and sign-off gaps remain pending. CAT-011 stays
+In progress. No full unit/build suite was rerun for this test-only addition.
+
+The subsequent [live Developer access checkpoint](./AUDIT_LOG_GUIDE.md#aud-001-live-developer-access-checkpoint---2026-10-24)
+verified that the protected TEST media page redirects a Developer to the
+restricted workspace without a private-image request. This is page-level
+evidence only: direct signed-URL API role denial and inactive-account access
+remain unverified. Security-audit review awaits curator reauthentication.

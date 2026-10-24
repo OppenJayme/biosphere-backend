@@ -126,3 +126,114 @@ until the Inventory owner prepares a valid active lot separately.
 
 See [restoration verification](./CATALOG_RESTORATION_VERIFICATION.md) for
 executed checks and remaining live-test limits.
+
+## CAT-006 read-only readiness checkpoint - 2026-10-23
+
+The existing signed-in curator session on `localhost:3000` was used to inspect
+six existing `TEST` Uncataloged records, then reload each detail page (12 detail
+views). This was a bounded sample, not a search of every record:
+
+- All eight checklist labels and their order matched the approved requirements.
+- The first seven pass/fail states matched the displayed collection, core,
+  taxonomy and provenance fields; collection dates were compared with the
+  current Asia/Manila date.
+- Every missing check linked to its expected core, taxonomy, provenance or
+  dedicated Inventory lot page; passed checks had no Fix link. Links were
+  inspected, not followed or submitted.
+- All six records showed no active lots and correctly failed the active-lot
+  check. Their Catalog buttons were disabled, public eligibility was off, and
+  their checklists remained unchanged after reload.
+- No browser page errors or non-GET/HEAD requests were observed in the probe.
+  The original Audit tab stayed open. No specimen, lot, storage or status was
+  changed, and no new audit/revision output was expected from these reads.
+
+Representative existing fixtures were
+`5b8e55d4-af0f-4263-9b0e-349b4b314f20` (five requirements met) and
+`3e7a3ca2-bf8f-45c9-98d3-94b8bcf31419` (two met). The retained DEF-019 test
+fixture was viewed only; this check does not resolve that diagnostic incident.
+
+Existing regression checks also passed:
+
+| Check | Result | Evidence scope |
+| --- | --- | --- |
+| `specimen-cataloging.service.spec.ts`, `collection-date.policy.spec.ts` | 7/7 | Mocked database readiness, missing fields, Cataloged state, unknown record and museum-date policy |
+| `lifecycle.test.ts`, `cataloging-queue.test.ts` (frontend) | 9/9 | Presentation rules, Fix-path mapping and queue rules; not browser rendering |
+| `specimens.e2e-spec.ts`, filtered to `collection date HTTP boundary` and `server-authoritative Cataloging readiness checklist` | 6/6; 43 skipped | Real Nest HTTP/controller/service flow with mocked database/Supabase adapters; date acceptance/rejection and readiness |
+
+**Remaining:** CAT-006 stays In progress. No fully ready record was found in
+this six-record sample, so the all-green/enabled-button branch was not checked
+live here. It needs an Inventory-owner-prepared qualifying active lot; Cataloging
+must not create one to force a pass. Positive-lot storage eligibility, live
+completion/audit evidence, concurrent changes and independent module sign-off
+are not established by this checkpoint. Existing historical CAT-007 evidence
+remains separate. Port 3000 served the existing production build; these reads
+do not verify deployment of the newer duplicate-transport fix (DEF-020).
+
+### Existing Inventory test fixture preflight - 2026-10-23
+
+A separate read-only check of `TEST - INV Acceptance Beetle`
+(`85f158c6-a73b-41ae-aa5c-9cac347d79de`) found it `UNCATALOGED`, public
+eligibility off, with two active lots and displayed total quantity 12. The
+backend readiness checklist reports the active-lot and common-name checks as
+passed. Collection, accession number, kingdom, collection date, preservation
+type and preservation method are missing; the Catalog button is disabled.
+These observations stayed unchanged after reload, with zero non-read requests
+and zero probe page errors. The original signed-in Audit tab was preserved.
+
+This identifies a potential reusable fixture; it does not establish an
+all-green readiness result or independently verify the Inventory storage query.
+No lot, quantity, storage assignment, Cataloging field, status or public flag
+was changed. Confirm reuse of this shared Inventory fixture before filling its
+six missing Cataloging fields; Inventory need not create another lot merely for
+this check. Completion and subsequent lifecycle/audit transitions remain a
+separate approved step. No new defect was found and no test suites were rerun
+for this read-only preflight; `git diff --check` passed for the documentation.
+
+### Approved fully-ready fixture and history check - 2026-10-23
+
+After explicit user approval to reuse that shared TEST fixture, submitted one
+core save, one taxonomy create and one provenance create through the real
+curator forms. Only these six previously empty fields changed:
+
+| Field | Retained test value |
+| --- | --- |
+| Collection | Existing `TEST - Collection Retest` (no collection created) |
+| Accession number | `TEST-READY-20261023-A`; inline availability passed before save |
+| Kingdom | `Animalia` |
+| Collection date | `2020-01-01` (synthetic past date for this TEST record) |
+| Preservation type | `TEST - Dry specimen` |
+| Preservation method | `TEST - Pinned acceptance fixture` |
+
+Readiness progressed from 2/8 to 4/8, then 5/8 and **8/8**. Each save was
+followed by detail readback and reload; the final checklist had every check met,
+no Fix links and an enabled Catalog button. Status stayed `UNCATALOGED` and
+public eligibility stayed off. The displayed lot section, two active lots and
+total quantity 12 stayed unchanged across each save. No lot, placement,
+quantity, storage, completion, reopening or public-eligibility action was sent.
+
+Read-only history verification found exactly one matching empty-to-saved
+revision for each of the six fields, with curator attribution and timestamps.
+The protected date/record-filtered audit view showed one successful event for
+each preparation operation, with the same actor and exact changed-field lists:
+`UPDATE_SPECIMEN` (collection/accession), `CREATE_SPECIMEN_TAXONOMY` (kingdom),
+and `CREATE_SPECIMEN_PROVENANCE` (the three provenance fields).
+
+The three approved form submissions and two read-only advisory checks produced
+no blocked unexpected request or probe page error. The history follow-up used
+GET/HEAD only. Temporary tabs were closed; the original signed-in Audit tab was
+preserved. The prepared fixture and normal audit/revision effects are retained,
+not automatically reverted; these test values are not claims about a museum
+object. The preparation helper is disabled against accidental repeat execution.
+
+This supersedes the earlier missing-ready-fixture limitation for CAT-006:
+the recorded incomplete/fully-ready UI, Fix-link, button and reload behavior
+now passes. Independent module sign-off remains pending. Completion itself was
+not invoked, so this does not close CAT-007/AUD-002 lifecycle follow-ups,
+Inventory acceptance, concurrency or rollback checks. This verifies the existing
+served build, not newer local-source deployment. No runtime code changed or
+full test/build suites were rerun; `git diff --check` is the documentation check.
+
+The subsequent approved [lifecycle/audit batch](./AUDIT_LOG_GUIDE.md#aud-002-approved-lifecycle-traceability-batch---2026-10-23)
+completed, toggled eligibility off again, reopened and re-completed this fixture.
+It is now retained **Cataloged with public eligibility off**, with its existing
+Inventory display unchanged. The earlier Uncataloged state above is historical.

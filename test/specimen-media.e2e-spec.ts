@@ -14,6 +14,7 @@ describe('Specimen media (e2e)', () => {
   const curatorAccountId = '22222222-2222-4222-8222-222222222222';
   const developerAuthId = '33333333-3333-4333-8333-333333333333';
   const specimenId = '44444444-4444-4444-8444-444444444444';
+  const otherSpecimenId = '77777777-7777-4777-8777-777777777777';
   const mediaId = '55555555-5555-4555-8555-555555555555';
   const testDate = new Date('2026-01-01T00:00:00.000Z');
   const storagePath = `${specimenId}/image.jpg`;
@@ -99,7 +100,14 @@ describe('Specimen media (e2e)', () => {
         ),
       },
       specimen: {
-        findUnique: jest.fn(() => specimenRecord),
+        // Both parents exist: mismatched-media checks must reach pair validation.
+        findUnique: jest.fn(({ where }: { where: { id: string } }) => {
+          if (where.id === specimenId) return specimenRecord;
+          if (where.id === otherSpecimenId) {
+            return { ...specimenRecord, id: otherSpecimenId };
+          }
+          return null;
+        }),
         update: jest.fn(({ data }: { data: Record<string, unknown> }) => {
           specimenRecord = { ...specimenRecord, ...data };
           return specimenRecord;
@@ -278,6 +286,91 @@ describe('Specimen media (e2e)', () => {
         signedUrl: 'https://signed.example/image',
         expiresIn: 300,
       });
+  });
+
+  it('returns metadata only for the matching specimen and media IDs', async () => {
+    mediaRecord = {
+      id: mediaId,
+      specimen_id: specimenId,
+      storage_path: storagePath,
+      display_order: 0,
+      caption: 'Private test image',
+      is_cover: true,
+      created_at: testDate,
+    };
+
+    const correct = await request(app.getHttpServer())
+      .get(`/specimens/${specimenId}/media/${mediaId}`)
+      .set('Authorization', `Bearer ${curatorToken}`)
+      .expect(200);
+    expect(correct.body).toEqual({
+      id: mediaId,
+      specimenId,
+      storagePath,
+      displayOrder: 0,
+      caption: 'Private test image',
+      isCover: true,
+      createdAt: '2026-01-01T00:00:00.000Z',
+    });
+
+    const rejected = await request(app.getHttpServer())
+      .get(`/specimens/${otherSpecimenId}/media/${mediaId}`)
+      .set('Authorization', `Bearer ${curatorToken}`)
+      .expect(404);
+    expect(rejected.body).not.toHaveProperty('storagePath');
+    expect(rejected.body).not.toHaveProperty('caption');
+    expect(storageMock.createSignedUrl).not.toHaveBeenCalled();
+
+    const unchanged = await request(app.getHttpServer())
+      .get(`/specimens/${specimenId}/media/${mediaId}`)
+      .set('Authorization', `Bearer ${curatorToken}`)
+      .expect(200);
+    expect(unchanged.body).toEqual(correct.body);
+  });
+
+  it('rejects signing media under another existing specimen before calling storage', async () => {
+    mediaRecord = {
+      id: mediaId,
+      specimen_id: specimenId,
+      storage_path: storagePath,
+      display_order: 0,
+      caption: 'Private test image',
+      is_cover: true,
+      created_at: testDate,
+    };
+
+    const correctUrl = `/specimens/${specimenId}/media/${mediaId}/signed-url`;
+    await request(app.getHttpServer())
+      .get(correctUrl)
+      .set('Authorization', `Bearer ${curatorToken}`)
+      .expect(200)
+      .expect({
+        mediaId,
+        signedUrl: 'https://signed.example/image',
+        expiresIn: 300,
+      });
+    expect(storageMock.createSignedUrl).toHaveBeenCalledTimes(1);
+    storageMock.createSignedUrl.mockClear();
+
+    const rejected = await request(app.getHttpServer())
+      .get(`/specimens/${otherSpecimenId}/media/${mediaId}/signed-url`)
+      .set('Authorization', `Bearer ${curatorToken}`)
+      .expect(404);
+    expect(rejected.body).not.toHaveProperty('signedUrl');
+    expect(rejected.body).not.toHaveProperty('storagePath');
+    expect(storageMock.createSignedUrl).not.toHaveBeenCalled();
+
+    // A rejected mismatched read must not invalidate the legitimate pair.
+    await request(app.getHttpServer())
+      .get(correctUrl)
+      .set('Authorization', `Bearer ${curatorToken}`)
+      .expect(200)
+      .expect({
+        mediaId,
+        signedUrl: 'https://signed.example/image',
+        expiresIn: 300,
+      });
+    expect(storageMock.createSignedUrl).toHaveBeenCalledTimes(1);
   });
 
   it('updates metadata, selects a cover, replaces, and removes media', async () => {
