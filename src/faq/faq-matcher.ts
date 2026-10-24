@@ -17,8 +17,9 @@
  *    ANSWER_THRESHOLD and at least MIN_EVIDENCE_TOKENS of the question's tokens
  *    (or all of them, for a one-token question) appear in the entry's approved
  *    vocabulary: question, alternative wording, and keywords.
- * 5. Among eligible entries the highest score wins; other entries at or above
- *    RELATED_THRESHOLD are offered as related approved questions.
+ * 5. A unique highest eligible score wins. Equal strongest eligible scores
+ *    require clarification with up to three approved question choices.
+ *    Otherwise other RELATED_THRESHOLD entries are related questions.
  * Otherwise the caller falls back to General Inquiry.
  */
 
@@ -132,6 +133,7 @@ export interface FaqMatchCandidate {
 export interface FaqMatchResult<T extends FaqMatchCandidate> {
   best: { entry: T; score: number } | null;
   related: Array<{ entry: T; score: number }>;
+  ambiguous?: true;
 }
 
 export function normalizeFaqText(text: string): string {
@@ -266,6 +268,21 @@ export function matchFaqEntries<T extends FaqMatchCandidate>(
     );
 
   const best = ranked.find((candidate) => isAnswerable(query, candidate));
+  if (best) {
+    const tied = ranked.filter(
+      (candidate) =>
+        candidate.score === best.score && isAnswerable(query, candidate),
+    );
+    if (tied.length > 1) {
+      // Equal strongest eligible scores cannot establish visitor intent.
+      // Near-tie margins require separate evaluation; do not invent one here.
+      return {
+        best: null,
+        related: tied.slice(0, FAQ_MATCHING_RULES.MAX_RELATED),
+        ambiguous: true,
+      };
+    }
+  }
   return {
     best: best ?? null,
     related: ranked

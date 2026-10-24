@@ -5,6 +5,7 @@ import { AskFaqAssistantDto } from './dto/ask-faq-assistant.dto';
 import { ListFaqSuggestionsQueryDto } from './dto/list-faq-suggestions-query.dto';
 import {
   FAQ_ASSISTANT_NOTICE,
+  FAQ_CLARIFICATION_MESSAGE,
   FAQ_NO_MATCH_MESSAGE,
   FAQ_VISIT_REQUEST_MESSAGE,
   FaqAssistantOutcome,
@@ -13,7 +14,11 @@ import {
   FaqSuggestionList,
   PublicFaqQuestion,
 } from './entities/faq-assistant.entity';
-import { isVisitRequestTransaction, matchFaqEntries } from './faq-matcher';
+import {
+  isVisitRequestTransaction,
+  matchFaqEntries,
+  type FaqMatchResult,
+} from './faq-matcher';
 
 const PUBLIC_QUESTION_SELECT = {
   id: true,
@@ -60,11 +65,33 @@ export class FaqAssistantService {
       alternativeWording: entry.alternative_wording,
     }));
 
-    const { best, related } = matchFaqEntries(dto.question, candidates);
+    // IDs are public references, not authorization: always recheck ACTIVE status.
+    // A stale/unknown choice must not silently answer from a different entry.
+    const selected = dto.selectedFaqId
+      ? candidates.find((entry) => entry.id === dto.selectedFaqId)
+      : undefined;
+    const match: FaqMatchResult<(typeof candidates)[number]> = dto.selectedFaqId
+      ? {
+          best: selected ? { entry: selected, score: 1 } : null,
+          related: [],
+        }
+      : matchFaqEntries(dto.question, candidates);
+    const { best, related, ambiguous } = match;
     const visitTransaction = isVisitRequestTransaction(dto.question);
     const relatedQuestions = related.map(({ entry }) =>
       this.toPublicQuestion(entry),
     );
+
+    if (ambiguous) {
+      return {
+        outcome: FaqAssistantOutcome.CLARIFICATION_NEEDED,
+        answer: null,
+        related: relatedQuestions,
+        message: FAQ_CLARIFICATION_MESSAGE,
+        redirect: visitTransaction ? FaqAssistantRedirect.VISIT_REQUEST : null,
+        notice: FAQ_ASSISTANT_NOTICE,
+      };
+    }
 
     if (best) {
       return {

@@ -413,3 +413,25 @@ DEF-022 is Ready for retest, not Verified: this is development-mode branch
 evidence, not merged production, real successful-save/concurrency or independent
 acceptance evidence. The ordinary save/authorization code was not changed or
 live-tested here. Diagnostic `def022-metadata-recovery-retest.txt` remains ignored.
+
+## Merged metadata repair verification - 2026-10-24
+
+Frontend #80/backend #185 merged and their post-merge CI runs passed. With
+explicit user approval, merged frontend `9ea97c7` rebuilt successfully and
+restarted on port 3000, build `LBh_6bSAbWnotNM8iR4sW`. The previous build was
+preserved outside both repositories for recovery. Backend 3001/PID 17496 was
+not restarted; no 3002 listener remained and production login returned 200.
+
+One fresh production-mode probe blocked the initial metadata save and explicit
+retry. Both retained edits, exposed pending status/disabled controls, recovered
+with the expected accessible unknown-outcome message and enabled controls.
+Two POSTs were intercepted before forwarding, with zero unexpected non-read
+requests or probe page errors. Reload read unchanged saved metadata/card count/
+Cover state. Request failures settled before closing the probe; original role
+windows were preserved. No successful save or private storage mutation occurred.
+
+DEF-022 owner deployment verification is complete; independent acceptance and
+separate live-success/provider/concurrency checks remain pending. Do not repeat
+already-passing owner checks without a relevant change. CAT-011 stays In progress.
+Ignored diagnostic: `def022-metadata-recovery-merged-3000.txt`. No app code changed
+after merge; unchanged suites were not rerun. `git diff --check` passed.

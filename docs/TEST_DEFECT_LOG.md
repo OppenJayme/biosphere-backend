@@ -102,7 +102,7 @@ system is not a reason to postpone all fixes until the end.
 
 **Priority:** P1 before media failure/retry acceptance
 
-**Status:** Ready for retest (branch owner checks passed; merged production and independent acceptance pending)
+**Status:** Ready for retest (merged production owner verification passed; independent acceptance pending)
 
 **Owner:** Kyer / Cataloging frontend
 
@@ -188,6 +188,32 @@ on Cancel and Escape, returned focus to their trigger and issued no request.
 Remove initially focused Cancel. These passes do not close DEF-022 or certify
 full keyboard/screen-reader/provider behavior. See the
 [media checkpoint](./SPECIMEN_MEDIA_GUIDE.md#metadata-interruption-and-confirmation-cancellation---2026-10-24).
+
+#### Merged production owner verification - 2026-10-24
+
+Frontend #80 and backend #185 merged; both post-merge CI runs succeeded.
+With explicit user approval, the verified frontend PID 24288 was stopped and
+its `.next` build preserved outside both repositories at workspace sibling
+`biosphere-frontend-build-recovery-def022-20261024`. Merged frontend `9ea97c7`
+compiled, type-checked and generated production pages on the first build run.
+Production restarted on 3000 as PID 47696, build `LBh_6bSAbWnotNM8iR4sW`;
+the expected login page returned 200. Backend PID 17496 stayed unchanged and
+3002 had no listener. Do not upload or serve the retained recovery build.
+
+The approved blocked-save probe passed on this merged production build: one
+initial save and one explicit retry were held then aborted locally before
+forwarding. Both preserved caption/order, cleared pending state, displayed
+accessible unknown-outcome guidance and re-enabled controls. There were two
+expected intercepted POSTs, zero unexpected non-read requests and zero probe
+page errors. Reload read unchanged saved metadata/card count/Cover state.
+The probe closed after request settlement; original role windows/URLs stayed
+open. Diagnostic `def022-metadata-recovery-merged-3000.txt` remains ignored.
+
+Owner deployment verification is complete; do not repeat it as an untested
+case. Independent acceptance and the separate live-success/provider/concurrency
+limits remain pending. DEF-022 stays Ready for retest and CAT-011 In progress.
+No application code changed after merge, so unchanged suites were not rerun.
+Documentation verification: `git diff --check`.
 
 ### DEF-021 - Interrupted CSV commit request removes the reviewed preview
 
@@ -2361,6 +2387,14 @@ No speculative performance fix was made. Documentation check:
 `git diff --check`; full app suites/build were not rerun.
 
 ### OBS-002 - Retained curator tab reported transient notification polling errors
+
+**Additional bounded observation - 2026-10-24:** During the explicitly approved
+frontend-only refresh for DEF-022, the retained original tab reported two new
+`/api/notifications` connection-refused entries while the frontend was stopped.
+The restarted login endpoint returned 200 and the separate metadata probe had
+zero page errors. These expected outage-window client errors are not evidence
+of a new notification/backend defect or proof that the original polling issue
+is resolved. No notification contents, credentials or raw console log exported.
 
 **Observed:** 2026-10-22 during OBS-001 follow-up
 **Checkout references:** backend `5d07a58`, frontend `bc55ce7`; served hashes unknown

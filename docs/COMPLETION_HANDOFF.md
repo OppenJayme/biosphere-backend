@@ -7,11 +7,18 @@ status and does not authorize migrations, account changes or teammate-owned work
 
 ## Current checkpoint
 
-- P1 **DEF-022** repair pushed as frontend `7bad285`: focused 21/21 and full
-  375/375 tests, lint/type-check and temporary loopback dev recovery/retry passed.
-  No save reached the server; existing production/backend stayed untouched.
-  Ready for retest pending merge, deployed-build verification and independent
-  acceptance. See the [repair checkpoint](./SPECIMEN_MEDIA_GUIDE.md#metadata-transport-recovery-repair---2026-10-24).
+- FAQ equal-score clarification/selection feature completed on backend `bafe427`
+  and frontend `83ff93b`: FAQ HTTP 23/23, backend unit 690/690, frontend 378/378,
+  lint/type-check and isolated real-widget checks passed. No live FAQ activation
+  or browser ask forwarded. Review paired branches; deploy backend API first.
+  Context, evaluated near-ties and unanswered review remain subsequent slices.
+- P1 **DEF-022** merged in frontend #80; backend #185 documentation also merged.
+  Both post-merge CI runs passed. Approved frontend production rebuild and
+  blocked-save/retry verification passed on `9ea97c7`; backend was untouched.
+  Owner checks complete; Ready for retest for independent acceptance and
+  separate live-success limits. See the [merged checkpoint](./SPECIMEN_MEDIA_GUIDE.md#merged-metadata-repair-verification---2026-10-24).
+- Move from the repeated owner-test loop to the [FAQ assistant next-step plan](./FAQ_ASSISTANT_NEXT_STEPS.md).
+  This does not erase remaining release/sign-off gates or approve new policy.
 - Frontend #78 and backend #181/#182 merged; their post-merge CI passed.
 - Consolidated automated run: backend unit 690/690, isolated HTTP 337/337,
   frontend 366/366. The live Developer suite was explicitly excluded.
@@ -30,7 +37,7 @@ status and does not authorize migrations, account changes or teammate-owned work
 | P1 collection integrity: CAT-001 / DEF-001 | Kyer/backend; database/deployment owner | Confirm actual normalized-uniqueness/index deployment, then approved isolated concurrent collision/data/audit checks. UI collision reports alone are insufficient. No migration is authorized here. |
 | P1 browser behavior: CAT-014/015, DEF-020/003 | Kyer plus independent teammate / second-device tester | Teammate repeats the merged no-save duplicate failure/retry checklist; cover stale in-flight ordering separately. On an actual LAN client check selection, close, another row, direct details, reload and Back/Forward. Local browser checks do not substitute for LAN/touch evidence. |
 | P1 diagnostic isolation: OFF-003 / DEF-019 | Kyer/test isolation; deployment owner for disposable target | Approve a disposable full-stack target and independently establish containment before repeating interruption tests. Keep the shared-backend pilot disabled and its retained evidence intact. Credential-free canary non-reproduction did not close this defect. |
-| FAQ and duplicate business rules | Team/curator confirmation; Kyer implementation | Decide archived-match inclusion, FAQ duplicate-question handling, public match strategy/threshold or ambiguity rules and fallback/referral wording. Then approve an isolated public-FAQ lifecycle/matching setup. Do not activate arbitrary answers in the shared knowledge base. |
+| FAQ and duplicate business rules | Team/curator confirmation; Kyer implementation | The retained eight-decisions handoff already sets FAQ ambiguity/context/unanswered-review working directions; use the reconciled next-step plan rather than asking again. Algorithm/thresholds, language/context design, log retention, duplicate-question policy and isolated activation setup remain open. Archived specimen duplicate-match policy is separate. Do not activate arbitrary shared test answers. |
 | Cross-module and live provider coverage | Kyer with John/Voltaire as appropriate | John supplies/approves Inventory/storage fixtures and placement evidence; Kyer tests Cataloging/Storage boundaries only. Complete the specified media role/wrong-pair/failure/accessibility and full restoration branches in an authorized setup. Isolated HTTP tests are supporting evidence, not provider/concurrency proof. |
 | Audit/backup and final acceptance | Kyer, relevant test owners, deployment owner, independent reviewer | Resolve OBS-001 disposition, remaining audit access/failure/correlation cases and populated backup-history evidence. Fix/review fixture gaps without suppressing audit errors. Real backup/restore stays Deferred until procedure, storage/retention and disposable restore environment are approved. Record independent module sign-off. |
 
@@ -66,9 +73,11 @@ adapter while preserving the real 403 guard and checking denial persistence.
 John, coordinate the Inventory-owned storage/lot acceptance evidence with Kyer;
 this handoff does not ask Kyer to implement Inventory behavior.
 
-**Team / curator:** Please confirm archived specimens' duplicate-match policy
-and FAQ duplicate/matching/ambiguity/fallback rules, and identify an isolated
-FAQ test setup before any activation. Existing code behavior is not approval.
+**Team / curator:** Please review only unresolved FAQ algorithm/threshold,
+language/context and log-retention details, FAQ duplicate-question policy and
+an isolated activation setup. Ambiguity/context/unanswered-review working
+directions are already in the retained eight-decisions handoff. Archived
+specimens' duplicate-match policy is separate; code behavior is not approval.
 
 **Deployment owner:** Please confirm normalized collection-index deployment
 and a safe database/concurrency verification procedure. Real backup/restore and
