@@ -98,7 +98,7 @@ system is not a reason to postpone all fixes until the end.
 **Found on:** frontend `d38476b`, build `l4aSSUwwq2D41IdpX_t9G`; backend source base `f1bcd69` (no request forwarded)
 **Severity:** S3 Moderate; reviewed client state becomes unavailable, no persisted data loss demonstrated
 **Priority:** P1 before import failure/retry acceptance
-**Status:** Ready for retest (frontend `3177c19`; merged/deployed independent verification pending)
+**Status:** Ready for retest (merged-build owner verification passed; independent reviewer acceptance pending)
 **Owner:** Kyer / Cataloging frontend
 
 #### Reproduction and evidence - 2026-10-24
@@ -149,7 +149,8 @@ Coordinate any retry/idempotency API change separately; none is authorized here.
 - [x] Explicit retry uses the same preview/rows; no automatic commit attempt in focused tests/two browser runs.
 - [x] Existing resolved success and backend-rejection outcomes pass through unchanged in focused request tests.
 - [x] Focused regressions and safe blocked-request browser retest pass.
-- [ ] Verify after merge/CI and approved deployment; obtain independent acceptance.
+- [x] Verify after merge/CI and approved local production-mode deployment (2026-10-24 below).
+- [ ] Obtain independent reviewer acceptance; owner retest is not teammate sign-off.
 
 No runtime fix was made at discovery. Pause dependent import failure/retry
 acceptance until repaired; unrelated safe checks may continue. Documentation
@@ -197,6 +198,47 @@ schema, Inventory, matching, import idempotency, authorization or service-worker
 policy changed. Production port 3000 still serves the pre-fix build; no local
 production rebuild was performed. Status is Ready for retest, not Verified or
 whole CAT-013 acceptance. Merge/CI, deployment and independent review remain.
+
+#### Merged production-build import retest - 2026-10-24
+
+Frontend #79 and backend #184 were confirmed merged, and both post-merge CI
+runs completed successfully. Clean source references: frontend `bf4e325`, backend
+`9fb819a` (backend running build revision not independently identified).
+With explicit approval, stopped only verified frontend PID 21052, retained its
+old `.next` outside both repositories at workspace sibling
+`biosphere-frontend-build-recovery-def021-20261024`, and built the merged frontend.
+Compilation, TypeScript and page generation passed on the first attempt.
+Recovery artifacts remain local/private; do not upload or serve them.
+
+Started `next start` on port 3000 as hidden PID 24288. Build ID:
+`iYERvY7VAlsPSlLelDmS4`; fresh `/login` GET returned 200 with sign-in content.
+Backend 3001 retained its preflight PID 17496 throughout; no backend restart
+or build was performed. No port-3002 listener remained. Frontend stayed clean.
+
+After the local draft preflight found no eligible pending work, two fresh
+temporary-tab probes repeated the repaired synthetic scenario on **port 3000**.
+Each locally supplied one preview and blocked/aborted exactly two commit actions
+(initial plus explicit retry) before forwarding. Both used the same preview ID
+and selected row `[2]`. Unknown-outcome alerts appeared, preview/file/selection/
+warning acknowledgement survived, invalid row 3 stayed disabled and controls
+re-enabled. Both probes had zero page errors and unexpected non-read requests;
+all held requests were settled before their tabs closed.
+
+Original Curator and Developer windows were not navigated or signed out.
+No live import, preview record, museum record or account change was made by the
+diagnostic. This verifies the merged frontend's transport recovery, not actual
+database commit/idempotency, provider failure, concurrency or full accessibility.
+The earlier pre-fix-port-3000 statements above are historical and superseded
+for this local runtime by this checkpoint.
+
+Owner merged-build verification is complete; do not repeat the same happy path
+as an uncovered case. DEF-021 remains Ready for retest solely for independent
+reviewer acceptance, and CAT-013 remains In progress for sign-off/other stated
+limits. No reviewer identity or acceptance is invented. Ignored diagnostic:
+`csv-commit-transport-retest-merged-3000.txt`; local startup logs:
+`frontend-refresh-def021-20261024.*.log`. Documentation check: `git diff --check`.
+No full automated suites were repeated: source was unchanged from green CI and
+the previously recorded 370 frontend / 40 import unit / 49 HTTP passes.
 
 ### DEF-020 - Interrupted duplicate check removes the unsaved core form
 
