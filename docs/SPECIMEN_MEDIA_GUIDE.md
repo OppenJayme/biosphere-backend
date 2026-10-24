@@ -296,3 +296,34 @@ add explicit Developer 403 checks for metadata and signed-URL access, with
 authorized positive controls and no signer invocation on denial. The complete
 media HTTP suite now passes 9/9; these isolated results do not replace the
 remaining live credential/provider and acceptance checks.
+
+## Enabled media controls feedback checkpoint - 2026-10-24
+
+On refreshed frontend `bf4e325`, production build `iYERvY7VAlsPSlLelDmS4`, two
+GET/HEAD-only temporary-tab probes used the retained TEST media fixture under
+specimen `5b8e55d4-af0f-4263-9b0e-349b4b314f20`, identified by its generated-PNG
+test caption. Both upload/replacement native file controls and Save metadata
+were enabled, changed computed background during pointer hover, and were
+reachable using Tab without activating any control. The pickers exposed
+`:focus-visible` plus a new 1px forest-colored box-shadow ring; Save metadata
+exposed `:focus-visible` and a nonzero 2px outline.
+
+The first diagnostic rejected the picker for lacking an outline. Source and
+computed-style review showed its existing focus ring; the helper was corrected
+to accept measured outline or ring feedback. That overly narrow harness
+expectation is not recorded as a new application defect. Hover samples include
+transition colors and are not final-color/contrast or perceptual certification.
+
+Set as cover was absent, and a fresh read confirmed the fixture's Cover badge.
+The existing conditional UI hides that action for an already-cover image; it
+was not tested or marked passed, and no fixture was changed to expose it.
+Both completed probes observed zero page errors or non-read requests; no file
+was selected, native dialog opened, metadata saved or cover/upload changed.
+Temporary tabs closed, preserving the original role windows and their URLs.
+
+DEF-004's enabled hover/focus subcases and DEF-012's Save metadata subcase now
+have scoped browser evidence. Disabled/pending, native-dialog/file submission,
+Set as cover and independent visual/accessibility acceptance remain separate;
+both defects remain Ready for retest. No application source/server changed.
+Ignored diagnostic: frontend `media-controls-feedback-readonly.txt`.
+Documentation verification: `git diff --check`; unchanged suites not rerun.

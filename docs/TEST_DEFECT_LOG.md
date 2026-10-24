@@ -897,10 +897,14 @@ block file selection, but it provides weak interaction feedback.
 
 #### Retest
 
-- [ ] Upload and replacement file controls visibly respond to pointer hover.
-- [ ] Keyboard focus is visible without relying on color alone.
+- [x] Upload and replacement file controls show computed hover feedback in the scoped 2026-10-24 browser checks; independent visual/contrast review remains separate.
+- [x] Keyboard Tab reaches both controls with measured focus rings (2026-10-24); full accessibility review remains separate.
 - [ ] Disabled/pending appearance is clear.
 - [ ] Selecting and submitting a valid file still works.
+
+Scoped [enabled-control browser evidence](./SPECIMEN_MEDIA_GUIDE.md#enabled-media-controls-feedback-checkpoint---2026-10-24)
+passed twice on the refreshed production build without selecting or submitting
+a file. It does not close the remaining checklist; status stays Ready for retest.
 
 ### DEF-005 - Vocabulary search hides the matching tag names
 
@@ -1735,9 +1739,15 @@ mutation failure was reported. This is separate from native file-picker DEF-004.
 
 #### Retest
 
-- [ ] Both enabled buttons visibly respond to hover and keyboard focus.
+- [x] Save metadata shows computed hover feedback and a keyboard focus outline in the 2026-10-24 scoped browser checks.
+- [ ] Set as cover hover/focus is checked on a suitable existing non-cover fixture; current TEST image is already Cover and intentionally hides that control.
 - [ ] Pending/disabled states remain clear and do not imply the action is enabled.
 - [ ] Metadata and cover mutations still save and persist after refresh.
+
+See [enabled-control browser evidence](./SPECIMEN_MEDIA_GUIDE.md#enabled-media-controls-feedback-checkpoint---2026-10-24).
+No cover/metadata action was invoked, and no unrelated fixture was changed to
+force coverage. The initial outline-only picker diagnostic was corrected to
+recognize an existing focus ring; no new application defect was reproduced.
 
 ### DEF-013 - CSV Choose file control lacks visible hover feedback
 
