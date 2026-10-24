@@ -63,6 +63,18 @@ wording).
 
 ### Approval status of the matching rules
 
+**2026-10-24 source/decision reconciliation:** Section 7 of the user's retained
+2026-10-05 eight-decisions handoff already sets working directions for ambiguous
+match clarification (up to three choices), paraphrase/context handling and
+unanswered-question logging/curator review. These are not missing user answers.
+The current implementation described below does not fulfill all of them:
+ties choose a winner, requests carry no topic context and no unanswered log is
+written. Algorithm/provider, numeric thresholds, supported language/context
+design and log retention remain open; institutional approval is not established.
+See [implementation gap and next slice](./FAQ_ASSISTANT_NEXT_STEPS.md). Current
+no-logging descriptions remain accurate implementation statements, not a
+rejection of the later working logging requirement. No code/persistence changed.
+
 **Not yet formally approved.** The SRS does not fix the matching rules, and the
 earlier version of this guide required the team/client to approve the matching
 method, thresholds, ambiguity behavior, and fallback wording before release.
