@@ -628,6 +628,32 @@ model exhibit_media {
 }
 
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model faq_review_item {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  question_hash     String   @unique @db.Char(64)
+  question          String   @db.VarChar(500)
+  repeat_count      Int      @default(1)
+  status            String   @default("PENDING") @db.VarChar(16)
+  first_submitted_at DateTime @default(now()) @db.Timestamptz(6)
+  last_submitted_at DateTime @default(now()) @db.Timestamptz(6)
+  expires_at        DateTime @db.Timestamptz(6)
+  receipts          faq_review_receipt[]
+
+  @@index([expires_at])
+  @@index([status, last_submitted_at])
+  @@schema("public")
+}
+
+model faq_review_receipt {
+  id            String @id @db.Uuid
+  queue_id      String @db.Uuid
+  question_hash String @db.Char(64)
+  queue         faq_review_item @relation(fields: [queue_id], references: [id], onDelete: Cascade)
+
+  @@index([queue_id])
+  @@schema("public")
+}
+
 model faq_entry {
   id                                              String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   question                                        String

@@ -7,6 +7,14 @@
 
 ## Start here
 
+2026-10-25 FAQ scope update: the approved [opt-in review contract and evidence](./FAQ_REVIEW_QUEUE_GUIDE.md)
+adds consented question submission and curator review to the remaining FAQ
+acceptance scope. Test default-off/no implicit collection, explicit consent,
+same-token retry, Curator-only queue access, review/dismiss/removal confirmation,
+expiry and safe failures. Isolated support checks passed; live curator browser,
+database/RLS, scheduled purge and independent sign-off remain pending. Do not
+enable collection or apply the prepared migration as an incidental test step.
+
 For the current grouped queue, owners and ready-to-send teammate messages, use
 the [2026-10-24 completion handoff](./COMPLETION_HANDOFF.md). It supersedes stale
 task-selection instructions below, not historical evidence or acceptance statuses.

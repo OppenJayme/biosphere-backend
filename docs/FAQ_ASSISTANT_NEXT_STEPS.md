@@ -6,6 +6,17 @@ or active knowledge was changed and no public ask request was made here.
 
 ## Progress update - 2026-10-25
 
+Latest slice: [opt-in question review](./FAQ_REVIEW_QUEUE_GUIDE.md) is implemented
+with isolated API/UI evidence, **disabled by default**. Migration is prepared
+only; no live question collection or scheduled cleanup was enabled. This explicit
+opt-in design supersedes the earlier automatic unanswered logging proposal.
+Context changes below are now merged (backend #187/frontend #82). Next is paired
+review and the guide's finite deployment/privacy/cleanup gates, not another
+round of previously passed Cataloging tests. Duplicate knowledge policy and
+measured near-tie/language evaluation remain separate future work.
+The older next-step/source-review paragraphs below retain their dated context;
+they do not override this newer approved scope or authorize deployment.
+
 The first implementation slice is merged in backend #186/frontend #81 (source
 commits `bafe427`/`83ff93b`), not fully accepted. Equal strongest eligible
 scores return clarification with up to three choices, and explicit selected
