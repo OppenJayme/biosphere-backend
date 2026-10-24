@@ -137,6 +137,41 @@ solely from these results. Before further live acceptance, merge the pending
 work through PR/CI and confirm the running build, then choose an uncovered case
 from the owner queue; independent sign-off and explicit safety/policy gates remain.
 
+### Merged frontend runtime refresh - 2026-10-24
+
+Verified frontend PR #78 and backend PRs #181/#182 merged. Post-merge frontend
+CI run `40077400871` and backend CI run `40077423810` completed successfully.
+Both local repositories were fast-forwarded to clean `develop`: frontend
+`d38476b`, backend `735d4d1`. This does not establish the backend process's
+served source revision; it was deliberately not rebuilt or restarted.
+
+After explicit approval for a frontend-only outage, verified and stopped the
+old port-3000 Next production process (PID 3588). Preserved its `.next` build
+for recovery. The initial placement under the ignored browser-artifact folder
+was picked up by the project's broad TypeScript include before relocation;
+that build failed with generated-validator import errors. This was an operator
+backup-placement error, not a source regression. The recovery copy now lives
+outside both repositories at workspace sibling
+`biosphere-frontend-build-recovery-20261024`; it may contain private generated
+artifacts and must not be committed, uploaded or served. No recovery files were
+deleted, and no application or TypeScript configuration was changed.
+
+A second `npm run build`, with the recovery copy outside the source tree,
+passed compilation, TypeScript and page generation. Started `next start` on
+port 3000 as a hidden background process, PID 21052. Build ID:
+`l4aSSUwwq2D41IdpX_t9G`. Fresh `/login` GET returned 200 with the expected sign-in
+page. Listener checks confirmed port 3000 belonged to PID 21052 and backend
+3001 retained PID 36052. Frontend worktree remained clean. Browser windows,
+credentials, account configuration and museum records were not manipulated.
+
+The refreshed frontend is ready for post-merge live testing. This operational
+smoke check does not itself verify DEF-020, authenticated page recovery,
+service-worker freshness or other acceptance cases. Existing tabs may retain
+older client assets until refreshed; no automatic browser reload or offline
+draft synchronization was initiated. Startup logs remain local under ignored
+`tools/browser/artifacts/frontend-refresh-20261024.*.log`. The previous build
+remains available for a separately scoped recovery operation if needed.
+
 ## 7. Recommended execution order
 
 Run tests in this order because later workflows depend on earlier records:
