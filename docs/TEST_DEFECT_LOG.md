@@ -67,7 +67,7 @@ system is not a reason to postpone all fixes until the end.
 
 | ID      | Date       | Module                     | Summary                                                                 | Severity    | Priority | Status | Owner                   |
 | ------- | ---------- | -------------------------- | ----------------------------------------------------------------------- | ----------- | -------- | ------ | ----------------------- |
-| [DEF-021](#def-021---interrupted-csv-commit-request-removes-the-reviewed-preview) | 2026-10-24 | Cataloging / CSV import UI | Rejected client commit transport removes the reviewed preview and recovery controls | S3 Moderate | P1 | Open | Kyer / Cataloging frontend |
+| [DEF-021](#def-021---interrupted-csv-commit-request-removes-the-reviewed-preview) | 2026-10-24 | Cataloging / CSV import UI | Rejected client commit transport removes the reviewed preview and recovery controls | S3 Moderate | P1 | Ready for retest | Kyer / Cataloging frontend |
 | [DEF-020](#def-020---interrupted-duplicate-check-removes-the-unsaved-core-form) | 2026-10-23 | Cataloging / Duplicate warning | Rejected client request escapes the warning check and removes the unsaved form | S3 Moderate | P1 | Ready for retest | Kyer / Cataloging frontend |
 | [DEF-016](#def-016---backup-http-fixture-omits-the-security-audit-delegate) | 2026-10-19 | Backup / HTTP test fixture | Missing audit delegate logs an error despite green denial test | S3 Moderate | P2 | Ready for retest | Backup tests / coordinate with Auth |
 | [DEF-017](#def-017---storage-inventory-denial-fixture-omits-security-audit-persistence) | 2026-10-21 | Inventory / HTTP test fixture | Storage-inventory denial passes despite missing security-audit delegate | S3 Moderate | P2 | Open | John / coordinate with Voltaire |
@@ -98,7 +98,7 @@ system is not a reason to postpone all fixes until the end.
 **Found on:** frontend `d38476b`, build `l4aSSUwwq2D41IdpX_t9G`; backend source base `f1bcd69` (no request forwarded)
 **Severity:** S3 Moderate; reviewed client state becomes unavailable, no persisted data loss demonstrated
 **Priority:** P1 before import failure/retry acceptance
-**Status:** Open
+**Status:** Ready for retest (frontend `3177c19`; merged/deployed independent verification pending)
 **Owner:** Kyer / Cataloging frontend
 
 #### Reproduction and evidence - 2026-10-24
@@ -144,15 +144,59 @@ invent success counts, generate a new preview or clear reviewed selections.
 Explicit retries must retain the same preview ID and selected row identities.
 Coordinate any retry/idempotency API change separately; none is authorized here.
 
-- [ ] Rejected client transport preserves preview, row selection and recovery UI.
-- [ ] A clear unknown-outcome error appears without a browser page crash.
-- [ ] Explicit retry uses the same preview/rows; no automatic commit attempt.
-- [ ] Existing resolved success and backend-rejection handling remain intact.
-- [ ] Focused regressions and safe blocked-request browser retest pass.
+- [x] Rejected client transport preserves preview, row selection and recovery UI in the scoped dev retest.
+- [x] A clear unknown-outcome error appears without a browser page crash in the scoped dev retest.
+- [x] Explicit retry uses the same preview/rows; no automatic commit attempt in focused tests/two browser runs.
+- [x] Existing resolved success and backend-rejection outcomes pass through unchanged in focused request tests.
+- [x] Focused regressions and safe blocked-request browser retest pass.
+- [ ] Verify after merge/CI and approved deployment; obtain independent acceptance.
 
 No runtime fix was made at discovery. Pause dependent import failure/retry
 acceptance until repaired; unrelated safe checks may continue. Documentation
 verification: `git diff --check`; no full automated suite/build was rerun.
+
+#### Repair and batched verification - 2026-10-24
+
+User approved the client request seam with only the remote Server Action mocked,
+plus a temporary loopback dev browser retest. Frontend `3177c19` on
+`fix/import-commit-transport-recovery` adds a narrow request wrapper and switches
+the existing workspace caller to it. The wrapper returns an unknown-outcome
+message on rejected transport, without retrying or changing server behavior.
+Existing failure rendering retains the preview, selections, warning
+acknowledgement and selected file. No success result is invented.
+
+The first regression failed with rejected `Failed to fetch` before the fallback,
+then passed. Four request tests cover transport failure/no automatic retry,
+same-preview/rows explicit retry, backend rejection and resolved result counts.
+Focused import tests passed **10/10**; full frontend passed **370/370 across 63
+files**, full lint and TypeScript `--noEmit --incremental false` passed. Existing
+backend import unit tests passed **40/40** and Cataloging HTTP tests **49/49**;
+their database/auth adapters are mocked. The unit suite's deliberate connection-
+reset case emitted its existing diagnostic, not a new live provider error.
+
+Temporary `next dev` bound only to `127.0.0.1:3002`. Two successful browser runs
+used a locally fulfilled three-row preview: two valid, one invalid, one duplicate
+warning. Only warning row 2 was selected and acknowledged. Each run aborted the
+first commit and one explicit retry before forwarding; both attempts retained
+the same preview ID/row `[2]`. Unknown-outcome alerts appeared, all reviewed
+state/file remained, the invalid row stayed disabled, and controls recovered
+with zero page errors or unexpected non-read requests. No real preview or commit
+was sent by the diagnostic. This is not live idempotency/concurrency evidence.
+
+An initial cold-dev attempt clicked before the React submit handler attached,
+causing a GET form navigation and no preview action; the helper now explicitly
+waits for hydration. This harness precondition miss is recorded, not counted as
+a recovery failure. Existing browser session handling was used normally; no
+cookies/tokens were copied or exported. Temporary tabs closed, and only the
+task-owned dev process was stopped. Port 3002 had no listener; production 3000
+and backend 3001 retained PIDs 21052/36052 and the login GET remained 200.
+
+Source/reference: frontend `docs/cataloging-defect-retest.md` DEF-021 section.
+Ignored diagnostic: `csv-commit-transport-retest-3002.txt`. No backend runtime,
+schema, Inventory, matching, import idempotency, authorization or service-worker
+policy changed. Production port 3000 still serves the pre-fix build; no local
+production rebuild was performed. Status is Ready for retest, not Verified or
+whole CAT-013 acceptance. Merge/CI, deployment and independent review remain.
 
 ### DEF-020 - Interrupted duplicate check removes the unsaved core form
 
