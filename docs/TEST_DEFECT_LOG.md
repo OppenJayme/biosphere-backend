@@ -67,6 +67,7 @@ system is not a reason to postpone all fixes until the end.
 
 | ID      | Date       | Module                     | Summary                                                                 | Severity    | Priority | Status | Owner                   |
 | ------- | ---------- | -------------------------- | ----------------------------------------------------------------------- | ----------- | -------- | ------ | ----------------------- |
+| [DEF-022](#def-022---interrupted-media-metadata-save-removes-the-edit-form) | 2026-10-24 | Cataloging / Media UI | Rejected metadata Server Action transport removes the edit form and local edits | S3 Moderate | P1 | Open | Kyer / Cataloging frontend |
 | [DEF-021](#def-021---interrupted-csv-commit-request-removes-the-reviewed-preview) | 2026-10-24 | Cataloging / CSV import UI | Rejected client commit transport removes the reviewed preview and recovery controls | S3 Moderate | P1 | Ready for retest | Kyer / Cataloging frontend |
 | [DEF-020](#def-020---interrupted-duplicate-check-removes-the-unsaved-core-form) | 2026-10-23 | Cataloging / Duplicate warning | Rejected client request escapes the warning check and removes the unsaved form | S3 Moderate | P1 | Ready for retest | Kyer / Cataloging frontend |
 | [DEF-016](#def-016---backup-http-fixture-omits-the-security-audit-delegate) | 2026-10-19 | Backup / HTTP test fixture | Missing audit delegate logs an error despite green denial test | S3 Moderate | P2 | Ready for retest | Backup tests / coordinate with Auth |
@@ -90,6 +91,67 @@ system is not a reason to postpone all fixes until the end.
 | [DEF-015](#def-015---audit-http-fixture-omits-the-security-audit-create-method) | 2026-10-19 | Audit / HTTP test fixture | Missing security-audit create mock logs an error despite green denial test | S3 Moderate | P2 | Ready for retest | Audit tests / coordinate with Auth |
 
 ## 3. Defect details
+
+### DEF-022 - Interrupted media metadata save removes the edit form
+
+**Related test:** CAT-011; separate from cosmetic DEF-012
+
+**Found on:** 2026-10-24, frontend `bf4e325`, production build `iYERvY7VAlsPSlLelDmS4`
+
+**Severity:** S3 Moderate; local unsaved edits unavailable, no persisted loss demonstrated
+
+**Priority:** P1 before media failure/retry acceptance
+
+**Status:** Open
+
+**Owner:** Kyer / Cataloging frontend
+
+#### Reproduction and evidence
+
+Two fresh temporary-tab runs used the retained generated-PNG TEST media fixture
+under specimen `5b8e55d4-af0f-4263-9b0e-349b4b314f20`. Before navigation each
+probe blocked every non-GET/HEAD request. It edited only local caption/order,
+clicked Save metadata, held the exact same-page Server Action POST and aborted
+it while the tab was alive, awaiting request failure before closing the probe.
+No mutation was forwarded to frontend/backend/storage.
+
+Both runs exposed Saving image details status and disabled caption, order and
+Save metadata while pending. After transport rejection, the media form was
+absent, local edits were unavailable, no form-local connection/retry alert was
+found and one page error was emitted per run. Recovery failed in both runs;
+the diagnostic command exiting successfully does not mean acceptance passed.
+A fresh reload restored the unchanged server-backed caption/order, card count
+and Cover badge. Each run intercepted one expected POST and zero other
+non-read requests. Original signed-in role windows were preserved.
+
+Source inspection finds MetadataForm passes its bound Server Action directly
+to useActionState without a client transport-rejection boundary. This supports
+the observed failure mechanism; it does not establish when it was introduced.
+No application fix or dependency/server change was made in this checkpoint.
+Ignored diagnostic: frontend `media-metadata-cancel-recovery.txt`.
+
+#### Expected / repair boundary
+
+Retain the local caption/order and usable media form, release pending state,
+and show an accessible recovery message without asserting an unknown real save
+outcome or automatically retrying. Preserve validation and authorization. A
+locally blocked request proves only client transport handling, not behavior
+after a server may already have committed. Cover/remove transport behavior was
+not tested and must not be claimed defective from this result.
+
+#### Retest
+
+- [ ] Rejected metadata action transport preserves local edits and form controls.
+- [ ] Pending status clears; actionable accessible recovery feedback appears.
+- [ ] No unhandled page error or automatic mutation retry occurs.
+- [ ] Server-returned validation, normal successful saves and authorized readback remain correct.
+- [ ] Reviewer verifies the repaired build with the same blocked-write setup.
+
+Related cancellation checks passed in both runs: Replace and Remove each closed
+on Cancel and Escape, returned focus to their trigger and issued no request.
+Remove initially focused Cancel. These passes do not close DEF-022 or certify
+full keyboard/screen-reader/provider behavior. See the
+[media checkpoint](./SPECIMEN_MEDIA_GUIDE.md#metadata-interruption-and-confirmation-cancellation---2026-10-24).
 
 ### DEF-021 - Interrupted CSV commit request removes the reviewed preview
 

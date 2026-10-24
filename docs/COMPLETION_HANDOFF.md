@@ -7,6 +7,11 @@ status and does not authorize migrations, account changes or teammate-owned work
 
 ## Current checkpoint
 
+- New P1 **DEF-022** reproduced twice: locally interrupted media metadata save
+  removes the edit form instead of retaining edits and recovery controls.
+  No request reached the server. Fix this before dependent media recovery
+  acceptance; Cancel/Escape on Replace/Remove passed separately. See the
+  [media checkpoint](./SPECIMEN_MEDIA_GUIDE.md#metadata-interruption-and-confirmation-cancellation---2026-10-24).
 - Frontend #78 and backend #181/#182 merged; their post-merge CI passed.
 - Consolidated automated run: backend unit 690/690, isolated HTTP 337/337,
   frontend 366/366. The live Developer suite was explicitly excluded.

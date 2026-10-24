@@ -359,3 +359,31 @@ retest for its native-dialog/full-flow and independent visual acceptance limits;
 metadata/Set as cover pending states under DEF-012 were not tested here.
 Ignored diagnostic: `media-upload-replace-pending-recovery.txt`.
 Documentation check: `git diff --check`; no unchanged application suite/build rerun.
+
+## Metadata interruption and confirmation cancellation - 2026-10-24
+
+Two temporary-tab probes on production frontend `bf4e325`, build
+`iYERvY7VAlsPSlLelDmS4`, checked the same retained generated-PNG TEST fixture.
+Replace and Remove each passed Cancel and Escape: the dialog closed, focus
+returned to its trigger and no request was issued. Remove initially focused
+Cancel. No replacement file was selected or destructive confirmation accepted.
+
+Each probe then edited local caption/order and held exactly one same-page
+metadata Server Action POST. All mutations were blocked before forwarding.
+Saving image details status appeared and all metadata controls disabled.
+Aborting the request while the page was alive reproduced **DEF-022** twice:
+the edit form disappeared, local values became unavailable, no form-local
+recovery alert appeared and one page error occurred. This is a failed recovery
+case, not a passed test or a recurrence of cosmetic DEF-012.
+
+Fresh reloads matched the in-memory server-backed caption/order, card count
+and Cover badge. Zero unexpected non-read requests occurred. The probes closed
+only after request failure settled; original Curator/Developer windows remained
+open. No runtime source, server, credentials or actual media record was changed.
+
+CAT-011 remains In progress with an open P1 client-recovery defect. Cover/remove
+transport, actual storage success/failure and post-commit unknown outcomes were
+not tested. Pending metadata styling is observed, but full DEF-012 acceptance
+still requires its separate cover/mutation/reviewer subcases. No unchanged
+application suite/build was rerun. Ignored diagnostic:
+`media-metadata-cancel-recovery.txt`; documentation check: `git diff --check`.
