@@ -185,3 +185,31 @@ No live data was changed and no running servers were stopped. Remaining items
 include browser pending/error/retry behavior, archived-record policy alignment,
 and the review/dashboard follow-ups above. CAT-014 is partially verified, not
 fully accepted.
+
+## CAT-014 duplicate-review batch - 2026-10-23
+
+Existing isolated regressions passed on backend `d04ede2` and frontend `d4d216b`:
+23 duplicate-service tests, 49 protected Cataloging HTTP tests and 15 frontend
+duplicate contracts (**87 total**, including broader HTTP workflows, not 87
+separate duplicate acceptance cases). Database/Supabase and frontend API/router
+boundaries are mocked; archive-policy approval and live concurrency are not implied.
+
+A signed-in read-only browser check used existing test specimen
+`79d5a204-c21d-4df6-b0bb-ebbfe1877975`, with its names copied into an unsaved
+new-specimen form. The live warning linked that record and left Save enabled;
+unrelated test values cleared the old warning/link. Holding a validated duplicate
+read showed pending feedback, but aborting it removed the form instead of offering
+unknown/Retry. This reproduced [DEF-020](./TEST_DEFECT_LOG.md#def-020---interrupted-duplicate-check-removes-the-unsaved-core-form),
+not an archived-policy or matcher defect. Earlier guard failures were fixture
+precondition problems; no form was submitted during any run.
+
+The approved frontend repair and red-to-green test evidence are recorded once
+in DEF-020. Its browser retest passed on a separately approved loopback dev
+server on port 3002, without replacing the older production build on port 3000.
+No specimen, lot, storage, publication or account records were changed.
+
+CAT-014 remains In progress: DEF-020 awaits merged/deployed independent retest;
+archived-match policy still conflicts with the active-only implementation and
+needs a team/curator decision. Discoverable saved-record review remains an
+explicit follow-up, while dashboard indication stays with John/Charles. This
+batch authorizes no archive-policy or dashboard implementation.
