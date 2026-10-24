@@ -1824,7 +1824,7 @@ application failure; retain the original observation and cross-reference it.
 **Checkout references:** frontend `e43e7fc`, backend `39b9aac`; served build
 revisions not independently verified
 **Environment:** Local frontend/backend with signed-in isolated Edge
-**Disposition:** Not reproduced in three local follow-up samples on 2026-10-22; production comparison and timing correlation remain unverified, not resolved
+**Disposition:** Not reproduced in local follow-ups or the bounded dev/production-mode comparison on 2026-10-24; backend timing correlation and final owner disposition remain pending, not resolved
 **Owner:** Cataloging frontend/backend; no auth or inventory changes authorized
 **Priority:** P2 follow-up; application severity not assigned without reproduction
 
@@ -1845,7 +1845,7 @@ was not determined. No response-time requirement is invented from the timeout.
 Follow-up (read-only; preserve auth/header privacy):
 
 - [x] Repeat history navigation and measure document/rendered-history readiness separately (2026-10-22; samples below).
-- [ ] Compare warm development and an approved production-build test environment.
+- [x] Record a bounded warm-development/local-production-mode comparison (2026-10-24; below). This is not an identical-build causal benchmark.
 - [ ] Correlate frontend/backend request timing without exporting tokens or records.
 - [ ] If reproducible, define the affected behavior/expected target and open a
   linked defect; otherwise record evidence for the final disposition.
@@ -1892,6 +1892,87 @@ notification console errors were investigated separately below, not attributed
 to revision history. Documentation-only verification: `git diff --check`;
 application suites/build were not rerun for this evidence update.
 
+#### Confirmed local production-mode follow-up - 2026-10-24
+
+Port 3000's listener and process ancestry identified an existing `next start`
+server, not `next dev`; only sanitized mode flags were recorded. Ports 3000 and
+3001 were left running unchanged, and port 3002 had no listener. Reused the
+existing signed-in Edge session and the same identity-guarded TEST specimen
+`5b8e55d4-af0f-4263-9b0e-349b4b314f20`. A separate probe allowed only GET/HEAD.
+
+| Sample | Response committed | DOM ready | History readiness observed | Load observed | Visible revisions | Response start/end |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| 1 | 512 ms | 813 ms | 870 ms | 815 ms | 22 | 496/804 ms |
+| 2 | 430 ms | 981 ms | 1306 ms | 993 ms | 22 | 413/974 ms |
+| 3 | 419 ms | 663 ms | 796 ms | 664 ms | 22 | 399/656 ms |
+
+All documents returned 200, with identical timestamp/value snapshots across
+the three reads. The 22-entry count is this run's baseline, not an assertion
+that earlier snapshots must remain unchanged after legitimate later edits.
+No probe page errors or non-read requests occurred. Temporary tabs closed;
+the original Audit tab stayed signed in and unchanged. Revision values,
+credentials, headers and auth state were not exported.
+
+This supplies a confirmed local production-mode sample, not the missing
+controlled dev/production comparison. The server was already running: no
+cold-start, exact served-build revision or production deployment claim is made.
+Frontend document timings still include authentication/upstream/browser and
+automation costs, not isolated backend-query timings. No response target is
+invented and no speculative fix is justified by this non-reproduction.
+OBS-001 remains open pending comparison/timing correlation and disposition.
+Diagnostic: ignored frontend `tools/browser/artifacts/obs001-production-history-timing.txt`.
+No app code or records changed; documentation verification: `git diff --check`.
+
+#### Approved development-mode comparison - 2026-10-24
+
+After explicit approval, started a temporary `next dev` server bound only to
+`127.0.0.1:3002`, leaving the existing `next start` frontend and backend alone.
+The dev checkout was frontend `417b0c6`; the production server's exact served
+revision was not established, so differences cannot be attributed solely to
+mode. Next used its separate `.next/dev` artifacts; no production rebuild or
+cache purge was performed.
+
+The existing browser session accessed `localhost:3002` through normal browser
+session handling. No cookie/token was copied, exported or entered by the
+diagnostic, and manual login was not needed. The same guarded TEST specimen
+and GET/HEAD-only history probe were used. One route warm-up was kept separate:
+history readiness was observed at **2386 ms**, not asserted to be a clean cold
+start because existing compiler/filesystem caches were retained.
+
+| Warm dev sample | Response committed | DOM ready | History readiness observed | Load observed | Visible revisions | Response start/end |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| 1 | 577 ms | 1236 ms | 1439 ms | 1237 ms | 22 | 553/1213 ms |
+| 2 | 548 ms | 975 ms | 1431 ms | 976 ms | 22 | 520/957 ms |
+| 3 | 518 ms | 907 ms | 1379 ms | 908 ms | 22 | 489/888 ms |
+
+Observed readiness ranges were **796-1306 ms** for local production mode and
+**1379-1439 ms** for warm development (three samples each). The 30-second delay
+was not reproduced in either run. An additional read-only cross-mode check
+confirmed identical timestamps/values for all 22 visible revisions. Neither
+probe observed page errors or mutation attempts; the original Audit tab stayed
+open and unchanged. These small samples do not define a response-time target,
+explain the original event or establish deployed production performance.
+
+Dev server diagnostics reported a shared header-logo LCP/loading advisory.
+It did not prevent rendering; no link to the original delay is established.
+Record it as a nonblocking advisory, not a newly reproduced functional defect;
+no shared header/Dashboard component was changed. The printed Next request
+durations are frontend runtime timings, not isolated Nest/database timings.
+
+Closed the temporary probe tabs and stopped only the task-owned dev process.
+Port 3002 had no remaining listener; ports 3000/3001 retained their original
+listener PIDs, and the existing frontend login page returned HTTP 200. The
+frontend worktree stayed clean. No records, account settings, dependencies or
+runtime source changed. Diagnostic scripts remain ignored under frontend
+`tools/browser/artifacts/obs001-dev-history-timing.txt` and
+`obs001-cross-mode-history-check.txt`.
+
+The local mode-comparison task is complete. OBS-001 remains **not reproduced,
+pending final disposition**, rather than Fixed/Verified: backend timing
+correlation, exact-build comparison and owner acceptance have not been supplied.
+No speculative performance fix was made. Documentation check:
+`git diff --check`; full app suites/build were not rerun.
+
 ### OBS-002 - Retained curator tab reported transient notification polling errors
 
 **Observed:** 2026-10-22 during OBS-001 follow-up
@@ -1918,3 +1999,27 @@ Keep this separate from OBS-001; a causal connection has not been established.
 Ignored read-only diagnostic: frontend
 `tools/browser/artifacts/obs002-notification-read.txt`. No broader module work
 was undertaken, and no known records or running processes were modified.
+
+### OBS-003 - Isolated HTTP tests log missing security-audit mock adapters
+
+**Observed:** 2026-10-24 consolidated backend regression, checkout `44b661d`
+**Disposition:** Test-harness coverage limitation; no live audit failure established
+**Owner:** Backend test maintainers / relevant module owners
+
+The full isolated HTTP run passed 26 suites / 337 tests, but emitted repeated
+`SecurityAuditService` errors during authorization rejection: accessing
+`audit_log.create` on an undefined mock adapter. Source inspection found several
+HTTP fixtures without an `audit_log` adapter, including `auth.e2e-spec.ts`;
+individual emitted events were not mapped to every originating test.
+
+Authorization assertions can pass because security-audit failures are caught;
+these fixtures therefore do not establish denial-event persistence. The dedicated
+Audit HTTP suite separately has an adapter and authorized readback coverage.
+This is not evidence that the live database loses audit entries, nor a reason
+to suppress the logger or change production authorization. Follow up by adding
+appropriate external-adapter fixtures and public HTTP readback where persistence
+is claimed; do not silently treat a no-op mock as persistence proof.
+
+No harness/runtime fix was made in this checkpoint. The live Developer suite
+was explicitly excluded. No museum record or account was changed. Results are
+linked from the acceptance plan; documentation verification: `git diff --check`.

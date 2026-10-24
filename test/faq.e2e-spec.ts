@@ -293,6 +293,103 @@ describe('FAQ knowledge management (e2e)', () => {
       .expect(400);
   });
 
+  // Exercise the API directly: browser maxLength must not be the only protection.
+  it('rejects a 101-character category on create without adding or changing entries', async () => {
+    const before = await request(app.getHttpServer())
+      .get('/faq/entries')
+      .set('Authorization', `Bearer ${curatorToken}`)
+      .expect(200);
+
+    const rejected = await request(app.getHttpServer())
+      .post('/faq/entries')
+      .set('Authorization', `Bearer ${curatorToken}`)
+      .send({
+        question: 'Where is the test gallery?',
+        answer: 'Use the approved directions.',
+        category: 'C'.repeat(101),
+      })
+      .expect(400);
+    expect(rejected.body.message).toContain(
+      'category must be shorter than or equal to 100 characters',
+    );
+
+    const after = await request(app.getHttpServer())
+      .get('/faq/entries')
+      .set('Authorization', `Bearer ${curatorToken}`)
+      .expect(200);
+    expect(after.body).toEqual(before.body);
+  });
+
+  it('rejects a 101-character category on edit without changing any entry fields', async () => {
+    const before = await request(app.getHttpServer())
+      .get(`/faq/entries/${entryId}`)
+      .set('Authorization', `Bearer ${curatorToken}`)
+      .expect(200);
+
+    const rejected = await request(app.getHttpServer())
+      .patch(`/faq/entries/${entryId}`)
+      .set('Authorization', `Bearer ${curatorToken}`)
+      .send({
+        answer: 'This otherwise valid change must not be partially saved.',
+        category: 'C'.repeat(101),
+      })
+      .expect(400);
+    expect(rejected.body.message).toContain(
+      'category must be shorter than or equal to 100 characters',
+    );
+
+    const after = await request(app.getHttpServer())
+      .get(`/faq/entries/${entryId}`)
+      .set('Authorization', `Bearer ${curatorToken}`)
+      .expect(200);
+    expect(after.body).toEqual(before.body);
+  });
+
+  it('accepts a 100-character category on create and preserves it on readback', async () => {
+    const category = 'C'.repeat(100);
+    const created = await request(app.getHttpServer())
+      .post('/faq/entries')
+      .set('Authorization', `Bearer ${curatorToken}`)
+      .send({
+        question: 'Where is the test gallery?',
+        answer: 'Use the approved directions.',
+        category,
+      })
+      .expect(201);
+    expect(created.body).toMatchObject({ category, status: 'INACTIVE' });
+
+    const retrieved = await request(app.getHttpServer())
+      .get(`/faq/entries/${created.body.id}`)
+      .set('Authorization', `Bearer ${curatorToken}`)
+      .expect(200);
+    expect(retrieved.body).toEqual(created.body);
+  });
+
+  it('accepts a 100-character category on edit without changing other knowledge fields', async () => {
+    const category = 'C'.repeat(100);
+    const before = await request(app.getHttpServer())
+      .get(`/faq/entries/${entryId}`)
+      .set('Authorization', `Bearer ${curatorToken}`)
+      .expect(200);
+
+    const updated = await request(app.getHttpServer())
+      .patch(`/faq/entries/${entryId}`)
+      .set('Authorization', `Bearer ${curatorToken}`)
+      .send({ category })
+      .expect(200);
+    expect(updated.body).toEqual({
+      ...before.body,
+      category,
+      updatedAt: expect.any(String),
+    });
+
+    const retrieved = await request(app.getHttpServer())
+      .get(`/faq/entries/${entryId}`)
+      .set('Authorization', `Bearer ${curatorToken}`)
+      .expect(200);
+    expect(retrieved.body).toEqual(updated.body);
+  });
+
   it('creates normalized inactive knowledge with curator attribution and audit', async () => {
     const response = await request(app.getHttpServer())
       .post('/faq/entries')
