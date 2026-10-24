@@ -207,3 +207,34 @@ reauthentication prerequisite is satisfied for this review, but AUD-001 stays
 In progress for remaining access/failure/boundary cases and independent sign-off.
 No new defect was reproduced. Documentation-only verification:
 `git diff --check`; application tests/build were not rerun.
+
+### Direct-endpoint role-denial HTTP regressions - 2026-10-24
+
+At the user-approved HTTP seams, added one Audit detail test and two private
+media tests in `test/audit.e2e-spec.ts` and `test/specimen-media.e2e-spec.ts`.
+Each establishes successful Curator access to an existing synthetic record,
+issues a Developer GET to the same endpoint, then confirms Curator access
+still succeeds with unchanged response data.
+
+- Audit detail returns 403 with only the standard error-envelope keys, without
+  entry details, actor data or the protected affected-record identifier.
+- Media metadata returns 403 without caption or storage-path data.
+- Media signed-URL access returns 403 without a signed URL or storage path and
+  does not invoke the mocked storage signer for the rejected request. Authorized
+  signing before and after denial succeeds, providing a positive control.
+
+All three new tests passed on their first runs against existing guards. No
+runtime repair or artificially failing implementation was introduced. The
+complete Audit/media HTTP suites passed **16/16** (Audit 7, media 9). Targeted
+ESLint passed with zero errors and one pre-existing unused-disable warning;
+initial formatting errors and new unsafe-argument warnings were corrected.
+`git diff --check` passed. Full unit/build suites were not rerun.
+
+These exercise real Nest authentication/role guards, validation, controllers
+and services, replacing external authentication, database and storage adapters.
+Only synthetic test credentials are used; no live browser, account, database or
+storage changes occur. This closes isolated direct-endpoint coverage gaps, not
+live bearer-authenticated denial, exact live audit correlation, inactive-account
+behavior, database concurrency or comprehensive security acceptance. AUD-001
+and CAT-011 remain In progress. The TDD skill kept the tests at the explicitly
+approved public seams and each test was executed before adding the next.

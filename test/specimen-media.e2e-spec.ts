@@ -173,6 +173,95 @@ describe('Specimen media (e2e)', () => {
       .expect(403);
   });
 
+  it('denies Developer media metadata access without exposing or changing the image', async () => {
+    mediaRecord = {
+      id: mediaId,
+      specimen_id: specimenId,
+      storage_path: storagePath,
+      display_order: 0,
+      caption: 'Private test image',
+      is_cover: true,
+      created_at: testDate,
+    };
+    const path = `/specimens/${specimenId}/media/${mediaId}`;
+    const before = await request(app.getHttpServer())
+      .get(path)
+      .set('Authorization', `Bearer ${curatorToken}`)
+      .expect(200);
+    expect(before.body).toMatchObject({
+      id: mediaId,
+      caption: 'Private test image',
+    });
+
+    const denied = await request(app.getHttpServer())
+      .get(path)
+      .set('Authorization', `Bearer ${developerToken}`)
+      .expect(403);
+    expect(Object.keys(denied.body as Record<string, unknown>).sort()).toEqual([
+      'error',
+      'message',
+      'statusCode',
+    ]);
+    expect(denied.body).not.toHaveProperty('storagePath');
+    expect(denied.body).not.toHaveProperty('caption');
+    expect(JSON.stringify(denied.body)).not.toContain('Private test image');
+    expect(storageMock.createSignedUrl).not.toHaveBeenCalled();
+
+    const after = await request(app.getHttpServer())
+      .get(path)
+      .set('Authorization', `Bearer ${curatorToken}`)
+      .expect(200);
+    expect(after.body).toEqual(before.body);
+  });
+
+  it('denies Developer signed-URL access without invoking storage signing', async () => {
+    mediaRecord = {
+      id: mediaId,
+      specimen_id: specimenId,
+      storage_path: storagePath,
+      display_order: 0,
+      caption: 'Private test image',
+      is_cover: true,
+      created_at: testDate,
+    };
+    const path = `/specimens/${specimenId}/media/${mediaId}/signed-url`;
+    // Establish that the fixture can be signed for an authorized caller.
+    const before = await request(app.getHttpServer())
+      .get(path)
+      .set('Authorization', `Bearer ${curatorToken}`)
+      .expect(200);
+    expect(before.body).toEqual({
+      mediaId,
+      signedUrl: 'https://signed.example/image',
+      expiresIn: 300,
+    });
+    expect(storageMock.createSignedUrl).toHaveBeenCalledTimes(1);
+    storageMock.createSignedUrl.mockClear();
+
+    const denied = await request(app.getHttpServer())
+      .get(path)
+      .set('Authorization', `Bearer ${developerToken}`)
+      .expect(403);
+    expect(Object.keys(denied.body as Record<string, unknown>).sort()).toEqual([
+      'error',
+      'message',
+      'statusCode',
+    ]);
+    expect(denied.body).not.toHaveProperty('signedUrl');
+    expect(denied.body).not.toHaveProperty('storagePath');
+    expect(JSON.stringify(denied.body)).not.toContain(
+      'https://signed.example/image',
+    );
+    expect(storageMock.createSignedUrl).not.toHaveBeenCalled();
+
+    const after = await request(app.getHttpServer())
+      .get(path)
+      .set('Authorization', `Bearer ${curatorToken}`)
+      .expect(200);
+    expect(after.body).toEqual(before.body);
+    expect(storageMock.createSignedUrl).toHaveBeenCalledTimes(1);
+  });
+
   it('validates UUIDs, files, and strict multipart metadata', async () => {
     await request(app.getHttpServer())
       .post('/specimens/not-a-uuid/media')

@@ -145,6 +145,34 @@ describe('Audit logs (e2e)', () => {
       .expect(403);
   });
 
+  it('denies Developer audit detail access without exposing the protected entry', async () => {
+    const path = `/audit-logs/${logId}`;
+    const before = await request(app.getHttpServer())
+      .get(path)
+      .set('Authorization', `Bearer ${curatorToken}`)
+      .expect(200);
+    expect(before.body).toMatchObject({ id: logId, action: 'UPDATE_SPECIMEN' });
+
+    const denied = await request(app.getHttpServer())
+      .get(path)
+      .set('Authorization', `Bearer ${developerToken}`)
+      .expect(403);
+    expect(Object.keys(denied.body as Record<string, unknown>).sort()).toEqual([
+      'error',
+      'message',
+      'statusCode',
+    ]);
+    expect(denied.body).not.toHaveProperty('details');
+    expect(denied.body).not.toHaveProperty('actor');
+    expect(JSON.stringify(denied.body)).not.toContain(affectedRecordId);
+
+    const after = await request(app.getHttpServer())
+      .get(path)
+      .set('Authorization', `Bearer ${curatorToken}`)
+      .expect(200);
+    expect(after.body).toEqual(before.body);
+  });
+
   it('records denied access for curator review without granting audit access', async () => {
     await request(app.getHttpServer())
       .get('/audit-logs')

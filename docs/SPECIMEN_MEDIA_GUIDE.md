@@ -290,3 +290,9 @@ evidence only: direct signed-URL API role denial and inactive-account access
 remain unverified. The subsequent [Curator audit follow-up](./AUDIT_LOG_GUIDE.md#curator-denial-audit-follow-up---2026-10-24)
 found persisted matching Developer denials on two reads; exact request-to-event
 correlation remains unverified.
+
+The [2026-10-24 direct-endpoint HTTP regressions](./AUDIT_LOG_GUIDE.md#direct-endpoint-role-denial-http-regressions---2026-10-24)
+add explicit Developer 403 checks for metadata and signed-URL access, with
+authorized positive controls and no signer invocation on denial. The complete
+media HTTP suite now passes 9/9; these isolated results do not replace the
+remaining live credential/provider and acceptance checks.
