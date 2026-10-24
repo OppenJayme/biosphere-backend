@@ -1621,7 +1621,8 @@ This is the import picker, not the media picker covered by DEF-004.
 #### Retest
 
 - [x] Enabled CSV file control responds visibly to hover and keyboard focus (2026-10-24 scoped browser check below).
-- [ ] Pending/disabled states remain distinct.
+- [x] Preview-pending controls have distinct disabled appearance and recover after a simulated preview error (2026-10-24 below).
+- [ ] Commit-pending controls and remaining full-flow behavior are independently retested.
 - [ ] File selection, preview validation and saving behavior remain unchanged.
 
 #### Enabled picker browser feedback - 2026-10-24
@@ -1644,6 +1645,36 @@ untouched. Diagnostic is ignored frontend browser artifact
 DEF-013 remains Ready for retest for the remaining checklist, not because the
 enabled hover/focus subcase is untested. Documentation-only verification:
 `git diff --check`; application suites were not rerun for these browser reads.
+
+#### Preview-pending picker and simulated recovery - 2026-10-24
+
+Two temporary-tab runs on the same refreshed frontend selected an in-memory
+synthetic CSV through Playwright's file-input API. Each intercepted exactly one
+preview POST locally; the handler never called `route.continue` or `route.fetch`
+for that request. It held the response while checking pending state, then
+fulfilled it locally with HTTP 502 and a synthetic retry message. No commit
+action was invoked; this was not a live CSV validation or database test.
+
+In both runs the file input and Preview button became disabled. The picker
+showed `cursor: not-allowed`, opacity 0.6 and changed file-button styling; the
+loading surface exposed a status labelled "Validating CSV rows". After the
+simulated error, an alert showed the expected retry message, both controls
+re-enabled, opacity returned to 1 and the synthetic file remained selected.
+No additional non-read request or browser page error was observed. Computed
+colors were sampled during CSS transitions, not claimed as final target colors.
+
+The held request was settled before closing each probe tab; no tab-close
+interruption or offline toggle was used. The original Curator and Developer
+windows remained open. This local interception is not independent server-side
+containment evidence and does not resolve DEF-019. No preview/commit was
+forwarded by the diagnostic and no intended server data write occurred.
+Ignored diagnostic: `csv-picker-pending-recovery.txt`.
+
+This passes the preview-pending/disabled/recovery subcase only. Native-dialog
+interaction, real row validation/commit and commit-pending states were not
+exercised here; earlier CAT-013 evidence stays separate. DEF-013 remains Ready
+for retest for its remaining checklist. No runtime source changed;
+documentation verification: `git diff --check`, not another full suite/build.
 
 ### DEF-014 - Already-attached tag notice resembles successful new attachment
 
