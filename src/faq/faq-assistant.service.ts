@@ -6,6 +6,7 @@ import { ListFaqSuggestionsQueryDto } from './dto/list-faq-suggestions-query.dto
 import {
   FAQ_ASSISTANT_NOTICE,
   FAQ_CLARIFICATION_MESSAGE,
+  FAQ_CONTEXT_MESSAGE,
   FAQ_NO_MATCH_MESSAGE,
   FAQ_VISIT_REQUEST_MESSAGE,
   FaqAssistantOutcome,
@@ -17,6 +18,8 @@ import {
 import {
   isVisitRequestTransaction,
   matchFaqEntries,
+  normalizeFaqText,
+  tokenizeFaqText,
   type FaqMatchResult,
 } from './faq-matcher';
 
@@ -70,12 +73,47 @@ export class FaqAssistantService {
     const selected = dto.selectedFaqId
       ? candidates.find((entry) => entry.id === dto.selectedFaqId)
       : undefined;
-    const match: FaqMatchResult<(typeof candidates)[number]> = dto.selectedFaqId
-      ? {
-          best: selected ? { entry: selected, score: 1 } : null,
-          related: [],
-        }
-      : matchFaqEntries(dto.question, candidates);
+    const followup = normalizeFaqText(dto.question).match(
+      /^(?:how|what) about(?: (.*))?$/,
+    );
+    let match: FaqMatchResult<(typeof candidates)[number]>;
+    if (dto.selectedFaqId) {
+      match = {
+        best: selected ? { entry: selected, score: 1 } : null,
+        related: [],
+      };
+    } else if (followup) {
+      const context = candidates.find((entry) => entry.id === dto.contextFaqId);
+      const qualifiers = tokenizeFaqText(followup[1] ?? '');
+      const topic = context ? tokenizeFaqText(context.question) : [];
+      // Context is a public hint, not authority. Require approved vocabulary
+      // for every meaningful qualifier and some evidence of the prior topic.
+      const contextualCandidates =
+        context && qualifiers.length && topic.length
+          ? candidates.filter((entry) => {
+              const vocabulary = new Set(
+                [
+                  entry.question,
+                  ...entry.alternativeWording,
+                  ...entry.keywords,
+                ].flatMap(tokenizeFaqText),
+              );
+              return (
+                qualifiers.every((token) => vocabulary.has(token)) &&
+                topic.some((token) => vocabulary.has(token))
+              );
+            })
+          : [];
+      match = context
+        ? matchFaqEntries(
+            `${context.question} ${followup[1] ?? ''}`,
+            contextualCandidates,
+          )
+        : { best: null, related: [] };
+    } else {
+      // A complete new question must not inherit a previous topic.
+      match = matchFaqEntries(dto.question, candidates);
+    }
     const { best, related, ambiguous } = match;
     const visitTransaction = isVisitRequestTransaction(dto.question);
     const relatedQuestions = related.map(({ entry }) =>
@@ -115,7 +153,9 @@ export class FaqAssistantService {
       related: relatedQuestions,
       message: visitTransaction
         ? FAQ_VISIT_REQUEST_MESSAGE
-        : FAQ_NO_MATCH_MESSAGE,
+        : followup && !dto.selectedFaqId
+          ? FAQ_CONTEXT_MESSAGE
+          : FAQ_NO_MATCH_MESSAGE,
       redirect: visitTransaction
         ? FaqAssistantRedirect.VISIT_REQUEST
         : FaqAssistantRedirect.GENERAL_INQUIRY,
