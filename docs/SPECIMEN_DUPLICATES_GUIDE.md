@@ -213,3 +213,18 @@ archived-match policy still conflicts with the active-only implementation and
 needs a team/curator decision. Discoverable saved-record review remains an
 explicit follow-up, while dashboard indication stays with John/Charles. This
 batch authorizes no archive-policy or dashboard implementation.
+
+## Merged browser retest checkpoint - 2026-10-24
+
+The [DEF-020 follow-up](./TEST_DEFECT_LOG.md#merged-production-mode-browser-follow-up---2026-10-24)
+now records successful warning/clear, interrupted lookup/form preservation and
+explicit retry on the rebuilt merged production-mode frontend, not just the
+earlier temporary dev server. A delayed lookup also ended with the correct
+newer values/result; fully reordered completion was not forced. An initial
+diagnostic scheduling assumption timed out and is documented as inconclusive,
+not a functional failure. No form was saved or museum data changed.
+
+DEF-020 remains Ready for retest for independent acceptance and complete stale
+in-flight coverage. CAT-014 stays In progress for those limits and the existing
+archived-match policy/saved-review decisions. Do not repeat the already passing
+owner failure/retry sequence merely because the overall row is not yet closed.

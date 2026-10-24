@@ -7,6 +7,10 @@
 
 ## Start here
 
+For the current grouped queue, owners and ready-to-send teammate messages, use
+the [2026-10-24 completion handoff](./COMPLETION_HANDOFF.md). It supersedes stale
+task-selection instructions below, not historical evidence or acceptance statuses.
+
 Use this page as a checklist, not a requirement to repeat every historical run.
 This navigation checkpoint summarizes recorded evidence as of **2026-10-22**;
 the linked register rows and dated notes retain the exact results and limits.
@@ -137,6 +141,41 @@ solely from these results. Before further live acceptance, merge the pending
 work through PR/CI and confirm the running build, then choose an uncovered case
 from the owner queue; independent sign-off and explicit safety/policy gates remain.
 
+### Merged frontend runtime refresh - 2026-10-24
+
+Verified frontend PR #78 and backend PRs #181/#182 merged. Post-merge frontend
+CI run `40077400871` and backend CI run `40077423810` completed successfully.
+Both local repositories were fast-forwarded to clean `develop`: frontend
+`d38476b`, backend `735d4d1`. This does not establish the backend process's
+served source revision; it was deliberately not rebuilt or restarted.
+
+After explicit approval for a frontend-only outage, verified and stopped the
+old port-3000 Next production process (PID 3588). Preserved its `.next` build
+for recovery. The initial placement under the ignored browser-artifact folder
+was picked up by the project's broad TypeScript include before relocation;
+that build failed with generated-validator import errors. This was an operator
+backup-placement error, not a source regression. The recovery copy now lives
+outside both repositories at workspace sibling
+`biosphere-frontend-build-recovery-20261024`; it may contain private generated
+artifacts and must not be committed, uploaded or served. No recovery files were
+deleted, and no application or TypeScript configuration was changed.
+
+A second `npm run build`, with the recovery copy outside the source tree,
+passed compilation, TypeScript and page generation. Started `next start` on
+port 3000 as a hidden background process, PID 21052. Build ID:
+`l4aSSUwwq2D41IdpX_t9G`. Fresh `/login` GET returned 200 with the expected sign-in
+page. Listener checks confirmed port 3000 belonged to PID 21052 and backend
+3001 retained PID 36052. Frontend worktree remained clean. Browser windows,
+credentials, account configuration and museum records were not manipulated.
+
+The refreshed frontend is ready for post-merge live testing. This operational
+smoke check does not itself verify DEF-020, authenticated page recovery,
+service-worker freshness or other acceptance cases. Existing tabs may retain
+older client assets until refreshed; no automatic browser reload or offline
+draft synchronization was initiated. Startup logs remain local under ignored
+`tools/browser/artifacts/frontend-refresh-20261024.*.log`. The previous build
+remains available for a separately scoped recovery operation if needed.
+
 ## 7. Recommended execution order
 
 Run tests in this order because later workflows depend on earlier records:
@@ -210,6 +249,13 @@ Evidence reconciled:
 
 #### Remaining completion queue (owner scope only)
 
+**2026-10-24 update:** Read the [completion handoff](./COMPLETION_HANDOFF.md)
+before selecting work from this older queue. Date/import/readiness and the
+approved completion/reopening/eligibility audit batch below now have evidence;
+do not repeat them as though untested. Owner merged-build duplicate failure/retry
+also passed, and DEF-018's declaration mismatch is Verified. Independent review,
+explicit policy/environment gates and the remaining precise subcases still apply.
+
 1. Close the identified Cataloging gaps, not every previously passed happy path:
    date/API/import/readiness cases, reviewed CSV commit/retry evidence, remote
    LAN interaction and relevant media/error/privacy checks. Verify collection
@@ -253,7 +299,7 @@ John/Voltaire test-fixture handoff, not permission to absorb Inventory work.
 | CAT-011 | Upload, edit, cover, replace, and remove supported media; reject invalid media | Private signed access, database/storage consistency, and usable interaction states are preserved           | In progress; [media/privacy batch](./SPECIMEN_MEDIA_GUIDE.md#cat-011-consolidated-media-batch---2026-10-22) and [wrong-pair HTTP regressions](./SPECIMEN_MEDIA_GUIDE.md#cat-011-wrong-pair-http-checkpoint---2026-10-23) pass; live role/wrong-pair access, failure/concurrency and full accessibility/sign-off gaps remain (original Fail - DEF-004/006/007) |
 | CAT-012 | Search, combine filters, sort, and paginate                                    | Results are bounded, stable, case-insensitive where approved, and archived records are excluded by default | **Pass**; Clear-all UI defect DEF-008                                 |
 | CAT-013 | Preview and commit mixed-validity CSV rows; retry commit                       | Preview is non-mutating; only reviewed valid rows import as `UNCATALOGED`; retries do not duplicate rows   | **Pass** for core-only live UI preview/selection/readback/retry and valid-only preview; DEF-009 Verified; extended imports and module sign-off not implied |
-| CAT-014 | Review possible duplicate warnings, including archived matches                 | Warnings show evidence and never auto-merge records                                                        | In progress; [duplicate-review batch](./SPECIMEN_DUPLICATES_GUIDE.md#cat-014-duplicate-review-batch---2026-10-23) covers live warning/clear and repaired client failure/retry; DEF-020 Ready for retest, archived policy and independent acceptance pending |
+| CAT-014 | Review possible duplicate warnings, including archived matches                 | Warnings show evidence and never auto-merge records                                                        | In progress; [merged browser retest](./SPECIMEN_DUPLICATES_GUIDE.md#merged-browser-retest-checkpoint---2026-10-24) passes owner warning/clear, transport failure/form retention/retry and final delayed-read result; full stale-response coverage, archived policy and independent acceptance pending |
 | CAT-015 | Select multiple specimens from the protected catalog on local and LAN clients  | Every row is keyboard/touch accessible and opens the matching preview/detail route                         | In progress; local preview/clear, reload/history, first-two-row Tab traversal with computed focus outlines and Enter opening the matching detail page pass (2026-10-22, DEF-003); LAN, touch and full keyboard/accessibility remain unverified |
 | CAT-016 | Restore an archived specimen after current-requirement revalidation | Same record returns as Cataloged only when complete, otherwise Uncataloged; public display off; history preserved; inventory unchanged | **Partial pass** — live incomplete restore, cancel/error/reload and audit passed; complete branch covered by isolated HTTP tests; live concurrency unverified |
 
@@ -379,6 +425,12 @@ Ready for retest, not Verified. DEF-018 records a nonblocking Swagger status
 documentation mismatch observed during these tests.
 
 #### CAT-013 live core-only CSV acceptance - 2026-10-22
+
+Later contract-only follow-up: [DEF-018 running Swagger verification](./TEST_DEFECT_LOG.md#running-swagger-verification---2026-10-24)
+passed on two reads on 2026-10-24. The declaration now lists 201 and the correct
+commit response DTO; DEF-018 is Verified for that mismatch only. Earlier dated
+pending statements remain historical; no new CSV mutation or module sign-off
+is implied.
 
 After confirming backend PR #166 merged, used the existing signed-in headed
 Edge session `biosphere-aud002` and real local frontend/backend. Checkout

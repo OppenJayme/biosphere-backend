@@ -70,7 +70,7 @@ system is not a reason to postpone all fixes until the end.
 | [DEF-020](#def-020---interrupted-duplicate-check-removes-the-unsaved-core-form) | 2026-10-23 | Cataloging / Duplicate warning | Rejected client request escapes the warning check and removes the unsaved form | S3 Moderate | P1 | Ready for retest | Kyer / Cataloging frontend |
 | [DEF-016](#def-016---backup-http-fixture-omits-the-security-audit-delegate) | 2026-10-19 | Backup / HTTP test fixture | Missing audit delegate logs an error despite green denial test | S3 Moderate | P2 | Ready for retest | Backup tests / coordinate with Auth |
 | [DEF-017](#def-017---storage-inventory-denial-fixture-omits-security-audit-persistence) | 2026-10-21 | Inventory / HTTP test fixture | Storage-inventory denial passes despite missing security-audit delegate | S3 Moderate | P2 | Open | John / coordinate with Voltaire |
-| [DEF-018](#def-018---csv-commit-success-status-differs-from-swagger-declaration) | 2026-10-22 | Cataloging / Import API docs | Commit Swagger success status differs from actual POST response | S4 Minor | P3 | Ready for retest | Kyer / Cataloging |
+| [DEF-018](#def-018---csv-commit-success-status-differs-from-swagger-declaration) | 2026-10-22 | Cataloging / Import API docs | Commit Swagger success status differs from actual POST response | S4 Minor | P3 | Verified | Kyer / Cataloging |
 | [DEF-019](#def-019---tab-interruption-diagnostic-failed-its-no-backend-write-guard) | 2026-10-22 | Offline / Browser diagnostic | Tab-interruption pilot created a server fixture despite its intended interception | S3 Moderate | P1 | Open | Kyer / test isolation |
 | [DEF-001](#def-001---duplicate-normalized-collection-names-are-accepted) | 2026-09-29 | Cataloging / Collections   | Duplicate normalized collection names are accepted                      | S2 Major    | P1       | Ready for retest | Cataloging / Backend    |
 | [DEF-002](#def-002---future-provenance-collection-dates-are-accepted) | 2026-10-03 | Cataloging / Provenance    | Future collection dates are accepted and satisfy presence validation    | S2 Major    | P1       | Verified | Cataloging / Full stack |
@@ -165,6 +165,49 @@ the original signed-in Audit tab/URL remained unchanged. This does not prove
 production deployment, true provider outage or independent module acceptance.
 The task-owned dev server was stopped after retest; the original port-3000
 frontend still returned HTTP 200. No shared server was killed or rebuilt.
+
+#### Merged production-mode browser follow-up - 2026-10-24
+
+After frontend PR #78 merged and the explicitly approved frontend rebuild,
+repeated the no-save diagnostic on `localhost:3000`: frontend `d38476b`, build
+ID `l4aSSUwwq2D41IdpX_t9G`, backend checkout `735d4d1` (its process revision not
+independently established). The Curator session passed a fresh protected read
+and the local draft preflight found no eligible automatic-sync work.
+
+Using the same identity-guarded TEST fixture, live matching warning/detail link,
+warning-only Save behavior and clearing unrelated values passed. Holding then
+aborting one validated duplicate-read action showed pending, followed by
+unknown/Check again. Both entered names and the form survived, Save stayed
+enabled and explicit retry returned a clear result. Six validated read attempts
+included the deliberately aborted one; no other non-read request or page error
+was observed, and the form was never submitted.
+
+A separate delayed-read check held a known matching lookup while the names
+were changed to unrelated test values. After release, the delayed response
+contained a matching result, but the final UI correctly showed clear for the
+new names with no old fixture link; values and enabled Save remained intact.
+That completed probe observed four validated duplicate reads, zero other
+non-read requests and zero page errors. This does not force out-of-order Server
+Action completion or prove absence of a transient stale display.
+
+The first delayed-read diagnostic timed out awaiting a newer response before
+releasing the old action. That helper assumed concurrent completion and attached
+its response observer after editing. Corrected the helper to register before
+editing and release the old request before awaiting completion. The timeout is
+an inconclusive harness attempt, not a reproduced application defect or proof
+of a specific scheduling cause. No form save was attempted in either version.
+
+Temporary tabs were closed; original Curator and Developer windows were not
+navigated or signed out. No source, matcher, archive policy, Inventory or museum
+record changed. Diagnostics remain ignored under frontend browser artifacts.
+`git diff --check` passed; automated suites were not repeated for this live
+evidence update (the consolidated regression checkpoint remains separate).
+
+The original transport-loss failure is not reproduced on the refreshed merged
+build. Status remains **Ready for retest** for independent reviewer acceptance
+and the full stale in-flight/out-of-order requirement, not because the owner
+browser failure/retry check is still unexecuted. CAT-014's archived-policy and
+saved-review discovery gaps are separate and remain pending.
 
 #### Retest
 
@@ -1724,7 +1767,7 @@ guards and existing 401/403 behavior; do not silence the error or bypass auth.
 **Found on:** backend base `304dee0`, 2026-10-22
 **Severity:** S4 Minor (API documentation inconsistency)
 **Priority:** P3 (nonblocking; no import failure observed)
-**Status:** Ready for retest
+**Status:** Verified (repeatable running Swagger contract check, 2026-10-24)
 **Owner:** Kyer / Cataloging
 
 At discovery, selected-row commit and retry returned HTTP 201. The controller's
@@ -1770,7 +1813,27 @@ change; PR CI runs the normal suites/build separately.
 
 - [x] Isolated generated Swagger response and actual tested commit response agree.
 - [x] Selected-row commit and same-preview retry remain correct in the isolated HTTP suite.
-- [ ] Independently verify the merged/deployed Swagger operation; status remains Ready for retest.
+- [x] Verify the running Swagger operation on repeatable live reads (2026-10-24 below); independent module sign-off remains separate.
+
+#### Running Swagger verification - 2026-10-24
+
+Two separate unauthenticated GETs to local `http://localhost:3001/docs-json`
+returned the import commit operation with exactly one successful response code,
+`201`, and response schema `#/components/schemas/SpecimenImportCommitResult`.
+The first document response was HTTP 200; both checks asserted the same code
+and schema. Only this sanitized operation summary was returned to the tester,
+not the complete API document or authentication material.
+
+This closes the observed declaration mismatch against the earlier tested 201
+HTTP behavior. DEF-018 is Verified for that narrow contract defect by repeatable
+owner checks, not independent teammate sign-off or a new live CSV commit test.
+No preview/commit request, record creation, credential access, server restart or
+runtime source change occurred. Backend documentation checkout was `8cb6da7`,
+with runtime-source base `735d4d1`; the running process's exact build revision
+was not independently established. No claim about public
+Swagger access policy, durable preview storage, concurrency or whole-module
+acceptance follows. Documentation verification: `git diff --check`; no automated
+suite was rerun for these read-only contract checks.
 
 ## 4. New defect template
 
