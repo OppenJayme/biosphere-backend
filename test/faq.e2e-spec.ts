@@ -573,6 +573,252 @@ describe('FAQ knowledge management (e2e)', () => {
       ];
     });
 
+    it('asks the visitor to choose when active approved questions have equal strongest matches', async () => {
+      entries = [
+        initialRecord({
+          status: 'ACTIVE',
+          question: 'What are weekday visiting hours?',
+          alternative_wording: ['When can I visit?'],
+        }),
+        initialRecord({
+          id: secondEntryId,
+          status: 'ACTIVE',
+          question: 'What are weekend visiting hours?',
+          alternative_wording: ['When can I visit?'],
+          answer: 'Approved weekend information.',
+        }),
+      ];
+      await request(app.getHttpServer())
+        .post('/faq/assistant/ask')
+        .send({ question: 'When can I visit?' })
+        .expect(200)
+        .expect((response) => {
+          expect(response.body).toEqual({
+            outcome: 'CLARIFICATION_NEEDED',
+            answer: null,
+            related: [
+              {
+                id: entryId,
+                question: 'What are weekday visiting hours?',
+                category: 'Visit',
+              },
+              {
+                id: secondEntryId,
+                question: 'What are weekend visiting hours?',
+                category: 'Visit',
+              },
+            ],
+            message:
+              'More than one approved question matches. Which one did you mean?',
+            redirect: null,
+            notice:
+              'Answers are limited to curator-approved museum information. The assistant cannot approve visits or process campus entry.',
+          });
+        });
+      expect(faqCreate).not.toHaveBeenCalled();
+      expect(faqUpdate).not.toHaveBeenCalled();
+      expect(auditCreate).not.toHaveBeenCalled();
+    });
+
+    it('returns the explicitly selected active answer even when its wording overlaps another entry', async () => {
+      entries = [
+        initialRecord({
+          status: 'ACTIVE',
+          alternative_wording: ['When can I visit?'],
+        }),
+        initialRecord({
+          id: secondEntryId,
+          status: 'ACTIVE',
+          question: 'What are weekend visiting hours?',
+          alternative_wording: ['When can I visit?'],
+          answer: 'Approved weekend information.',
+        }),
+      ];
+      await request(app.getHttpServer())
+        .post('/faq/assistant/ask')
+        .send({ question: 'When can I visit?', selectedFaqId: secondEntryId })
+        .expect(200)
+        .expect((response) => {
+          expect(response.body.outcome).toBe('ANSWERED');
+          expect(response.body.answer).toEqual({
+            id: secondEntryId,
+            question: 'What are weekend visiting hours?',
+            category: 'Visit',
+            answer: 'Approved weekend information.',
+          });
+        });
+      expect(faqCreate).not.toHaveBeenCalled();
+      expect(faqUpdate).not.toHaveBeenCalled();
+      expect(auditCreate).not.toHaveBeenCalled();
+    });
+
+    it('bounds equal non-exact choices to three and excludes inactive/archived matching entries', async () => {
+      entries = [
+        initialRecord({
+          id: entryId,
+          status: 'ACTIVE',
+          question: 'Weekday visiting hours',
+          alternative_wording: [],
+          keywords: [],
+        }),
+        initialRecord({
+          id: secondEntryId,
+          status: 'ACTIVE',
+          question: 'Weekend visiting hours',
+          alternative_wording: [],
+          keywords: [],
+        }),
+        initialRecord({
+          id: '77777777-7777-4777-8777-777777777777',
+          status: 'ACTIVE',
+          question: 'Holiday visiting hours',
+          alternative_wording: [],
+          keywords: [],
+        }),
+        initialRecord({
+          id: '88888888-8888-4888-8888-888888888888',
+          status: 'ACTIVE',
+          question: 'Evening visiting hours',
+          alternative_wording: [],
+          keywords: [],
+        }),
+        initialRecord({
+          id: '99999999-9999-4999-8999-999999999999',
+          status: 'INACTIVE',
+          question: 'Draft visiting hours',
+          answer: 'PRIVATE DRAFT ANSWER',
+          alternative_wording: ['visiting hours'],
+        }),
+        initialRecord({
+          id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+          status: 'ARCHIVED',
+          question: 'Archived visiting hours',
+          answer: 'PRIVATE ARCHIVED ANSWER',
+          alternative_wording: ['visiting hours'],
+        }),
+      ];
+      for (const reverse of [false, true]) {
+        if (reverse) entries.reverse();
+        await request(app.getHttpServer())
+          .post('/faq/assistant/ask')
+          .send({ question: 'visiting hours' })
+          .expect(200)
+          .expect((response) => {
+            expect(response.body.outcome).toBe('CLARIFICATION_NEEDED');
+            expect(response.body.answer).toBeNull();
+            expect(response.body.related).toEqual([
+              {
+                id: '88888888-8888-4888-8888-888888888888',
+                question: 'Evening visiting hours',
+                category: 'Visit',
+              },
+              {
+                id: '77777777-7777-4777-8777-777777777777',
+                question: 'Holiday visiting hours',
+                category: 'Visit',
+              },
+              {
+                id: entryId,
+                question: 'Weekday visiting hours',
+                category: 'Visit',
+              },
+            ]);
+            expect(JSON.stringify(response.body)).not.toMatch(
+              /PRIVATE|created_by|keywords|score|alternative_wording|status/,
+            );
+          });
+      }
+    });
+
+    it('does not reveal or substitute another answer for a stale, inactive, archived or unknown choice', async () => {
+      entries = [initialRecord({ status: 'ACTIVE' })];
+      for (const status of ['INACTIVE', 'ARCHIVED'] as const) {
+        entries.push(
+          initialRecord({
+            id: secondEntryId,
+            status,
+            answer: 'PRIVATE SELECTED ANSWER',
+          }),
+        );
+        await request(app.getHttpServer())
+          .post('/faq/assistant/ask')
+          .send({
+            question: 'When is the museum open?',
+            selectedFaqId: secondEntryId,
+          })
+          .expect(200)
+          .expect((response) => {
+            expect(response.body.outcome).toBe('NO_MATCH');
+            expect(response.body.answer).toBeNull();
+            expect(response.body.related).toEqual([]);
+            expect(JSON.stringify(response.body)).not.toContain(
+              'PRIVATE SELECTED ANSWER',
+            );
+          });
+        entries.pop();
+      }
+      await request(app.getHttpServer())
+        .post('/faq/assistant/ask')
+        .send({
+          question: 'When is the museum open?',
+          selectedFaqId: secondEntryId,
+        })
+        .expect(200)
+        .expect((response) => expect(response.body.answer).toBeNull());
+      // It was active when offered, but deactivated before the choice arrived.
+      entries[0].status = 'INACTIVE';
+      await request(app.getHttpServer())
+        .post('/faq/assistant/ask')
+        .send({ question: 'When is the museum open?', selectedFaqId: entryId })
+        .expect(200)
+        .expect((response) => expect(response.body.answer).toBeNull());
+    });
+
+    it('rejects malformed choice IDs and still rejects injected personal or lifecycle data', async () => {
+      for (const selectedFaqId of ['not-a-uuid', '', null, 12, [entryId]]) {
+        await request(app.getHttpServer())
+          .post('/faq/assistant/ask')
+          .send({ question: 'When can I visit?', selectedFaqId })
+          .expect(400);
+      }
+      for (const extra of [{ status: 'ACTIVE' }, { email: 'a@b.com' }]) {
+        await request(app.getHttpServer())
+          .post('/faq/assistant/ask')
+          .send({
+            question: 'When can I visit?',
+            selectedFaqId: entryId,
+            ...extra,
+          })
+          .expect(400);
+      }
+      expect(faqCreate).not.toHaveBeenCalled();
+      expect(faqUpdate).not.toHaveBeenCalled();
+    });
+
+    it('keeps visit-request referral when equally matching FAQs need clarification', async () => {
+      entries = [
+        initialRecord({
+          status: 'ACTIVE',
+          alternative_wording: ['Book my visit'],
+        }),
+        initialRecord({
+          id: secondEntryId,
+          status: 'ACTIVE',
+          question: 'Weekend booking information',
+          alternative_wording: ['Book my visit'],
+        }),
+      ];
+      await request(app.getHttpServer())
+        .post('/faq/assistant/ask')
+        .send({ question: 'Book my visit' })
+        .expect(200)
+        .expect((response) => {
+          expect(response.body.outcome).toBe('CLARIFICATION_NEEDED');
+          expect(response.body.answer).toBeNull();
+          expect(response.body.redirect).toBe('VISIT_REQUEST');
+        });
+    });
+
     it('lists only active suggestions without management fields and without a token', async () => {
       await request(app.getHttpServer())
         .get('/faq/assistant/suggestions')

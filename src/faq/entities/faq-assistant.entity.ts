@@ -6,11 +6,15 @@ export const FAQ_ASSISTANT_NOTICE =
 export const FAQ_NO_MATCH_MESSAGE =
   'No approved answer is available for that question. Please send it through the General Inquiry form so a curator can respond.';
 
+export const FAQ_CLARIFICATION_MESSAGE =
+  'More than one approved question matches. Which one did you mean?';
+
 export const FAQ_VISIT_REQUEST_MESSAGE =
   'The assistant cannot submit, approve, change, or cancel Visit Requests. Please use the Visit Request form or contact the curator.';
 
 export enum FaqAssistantOutcome {
   ANSWERED = 'ANSWERED',
+  CLARIFICATION_NEEDED = 'CLARIFICATION_NEEDED',
   NO_MATCH = 'NO_MATCH',
   VISIT_REQUEST_REDIRECT = 'VISIT_REQUEST_REDIRECT',
 }
