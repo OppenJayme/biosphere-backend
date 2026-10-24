@@ -327,3 +327,35 @@ Set as cover and independent visual/accessibility acceptance remain separate;
 both defects remain Ready for retest. No application source/server changed.
 Ignored diagnostic: frontend `media-controls-feedback-readonly.txt`.
 Documentation verification: `git diff --check`; unchanged suites not rerun.
+
+## Upload/replacement pending and transport recovery - 2026-10-24
+
+On the same production frontend `bf4e325`, build `iYERvY7VAlsPSlLelDmS4`, a
+temporary browser tab tested upload and replacement together on the retained
+generated-PNG TEST fixture. It selected an in-memory synthetic PNG via the file
+input API. The replacement confirmation was explicitly confirmed only within
+this blocked-request setup; neither request was allowed to reach the server.
+
+The probe intercepted exactly one POST upload and one PUT replacement at the
+known specimen's media-files route. Each request was held locally to inspect
+pending state, then aborted while the page was alive and its failure awaited.
+Both native file inputs and their action buttons disabled; picker opacity was
+0.6 with a not-allowed cursor, and the respective Uploading/Replacing status
+was exposed. The expected actionable error then appeared, controls re-enabled
+and each synthetic file remained selected. No extra non-read request or browser
+page error was observed; no automatic retry was initiated by the probe.
+
+Displayed caption, display order, Cover badge and card count matched the
+in-memory baseline after each failure and after a fresh page reload. Baseline
+values and signed image URLs were not exported. The probe tab closed; original
+Curator/Developer windows remained untouched. No server, source, credentials,
+museum record or actual private object was intentionally changed.
+
+This passes the upload/replacement pending and client-transport recovery
+subcases, not real image-signature validation, upload/replacement success,
+provider rollback/cleanup, concurrent mutation or an unknown real server outcome.
+It does not clear DEF-019's full-stack isolation gate. DEF-004 remains Ready for
+retest for its native-dialog/full-flow and independent visual acceptance limits;
+metadata/Set as cover pending states under DEF-012 were not tested here.
+Ignored diagnostic: `media-upload-replace-pending-recovery.txt`.
+Documentation check: `git diff --check`; no unchanged application suite/build rerun.

@@ -899,12 +899,18 @@ block file selection, but it provides weak interaction feedback.
 
 - [x] Upload and replacement file controls show computed hover feedback in the scoped 2026-10-24 browser checks; independent visual/contrast review remains separate.
 - [x] Keyboard Tab reaches both controls with measured focus rings (2026-10-24); full accessibility review remains separate.
-- [ ] Disabled/pending appearance is clear.
+- [x] Upload/replacement pending inputs and action buttons disable with distinct styling and accessible status; locally aborted requests show errors and restore controls (2026-10-24).
 - [ ] Selecting and submitting a valid file still works.
 
 Scoped [enabled-control browser evidence](./SPECIMEN_MEDIA_GUIDE.md#enabled-media-controls-feedback-checkpoint---2026-10-24)
 passed twice on the refreshed production build without selecting or submitting
 a file. It does not close the remaining checklist; status stays Ready for retest.
+
+The subsequent [pending/recovery batch](./SPECIMEN_MEDIA_GUIDE.md#uploadreplacement-pending-and-transport-recovery---2026-10-24)
+selected synthetic files and locally intercepted/aborted one upload and one
+replacement. Controls recovered and displayed media stayed unchanged after
+reload. Neither request was forwarded; this is not a new real upload or storage
+rollback check. Native-dialog/full-flow and independent visual acceptance remain.
 
 ### DEF-005 - Vocabulary search hides the matching tag names
 
