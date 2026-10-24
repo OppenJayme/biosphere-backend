@@ -387,3 +387,29 @@ not tested. Pending metadata styling is observed, but full DEF-012 acceptance
 still requires its separate cover/mutation/reviewer subcases. No unchanged
 application suite/build was rerun. Ignored diagnostic:
 `media-metadata-cancel-recovery.txt`; documentation check: `git diff --check`.
+
+## Metadata transport recovery repair - 2026-10-24
+
+Frontend `7bad285` (`fix/media-metadata-transport-recovery`) now retains raw
+caption/order on a rejected remote metadata action and returns accessible
+unknown-outcome guidance, with no automatic retry. Server responses and Next
+redirect control flow remain intact; backend rules/private storage are unchanged.
+The TDD regression failed before recovery was added, then passed. Five new
+client-boundary tests plus existing media checks passed 21/21; the full frontend
+passed 375/375 across 64 files. Lint and non-incremental type-check also passed.
+
+On the approved temporary loopback dev server, a fresh probe locally blocked
+the initial save and an explicit retry. Both kept edits, disabled controls
+while pending, cleared pending afterward and showed the exact unknown-outcome
+alert with controls enabled. There were two expected intercepted POSTs, no
+unexpected mutation attempts and no page errors. Reload read unchanged saved
+metadata/card count/Cover state. No actual metadata/storage write was forwarded.
+No credential copying or session export occurred; original role tabs remained
+open. The probe closed after request settlement and only verified task-owned
+server processes were stopped. Existing 3000/3001 listener PIDs were preserved;
+3002 was clear and production login still returned 200.
+
+DEF-022 is Ready for retest, not Verified: this is development-mode branch
+evidence, not merged production, real successful-save/concurrency or independent
+acceptance evidence. The ordinary save/authorization code was not changed or
+live-tested here. Diagnostic `def022-metadata-recovery-retest.txt` remains ignored.

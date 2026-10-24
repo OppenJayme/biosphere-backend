@@ -67,7 +67,7 @@ system is not a reason to postpone all fixes until the end.
 
 | ID      | Date       | Module                     | Summary                                                                 | Severity    | Priority | Status | Owner                   |
 | ------- | ---------- | -------------------------- | ----------------------------------------------------------------------- | ----------- | -------- | ------ | ----------------------- |
-| [DEF-022](#def-022---interrupted-media-metadata-save-removes-the-edit-form) | 2026-10-24 | Cataloging / Media UI | Rejected metadata Server Action transport removes the edit form and local edits | S3 Moderate | P1 | Open | Kyer / Cataloging frontend |
+| [DEF-022](#def-022---interrupted-media-metadata-save-removes-the-edit-form) | 2026-10-24 | Cataloging / Media UI | Rejected metadata Server Action transport removes the edit form and local edits | S3 Moderate | P1 | Ready for retest | Kyer / Cataloging frontend |
 | [DEF-021](#def-021---interrupted-csv-commit-request-removes-the-reviewed-preview) | 2026-10-24 | Cataloging / CSV import UI | Rejected client commit transport removes the reviewed preview and recovery controls | S3 Moderate | P1 | Ready for retest | Kyer / Cataloging frontend |
 | [DEF-020](#def-020---interrupted-duplicate-check-removes-the-unsaved-core-form) | 2026-10-23 | Cataloging / Duplicate warning | Rejected client request escapes the warning check and removes the unsaved form | S3 Moderate | P1 | Ready for retest | Kyer / Cataloging frontend |
 | [DEF-016](#def-016---backup-http-fixture-omits-the-security-audit-delegate) | 2026-10-19 | Backup / HTTP test fixture | Missing audit delegate logs an error despite green denial test | S3 Moderate | P2 | Ready for retest | Backup tests / coordinate with Auth |
@@ -102,7 +102,7 @@ system is not a reason to postpone all fixes until the end.
 
 **Priority:** P1 before media failure/retry acceptance
 
-**Status:** Open
+**Status:** Ready for retest (branch owner checks passed; merged production and independent acceptance pending)
 
 **Owner:** Kyer / Cataloging frontend
 
@@ -141,11 +141,47 @@ not tested and must not be claimed defective from this result.
 
 #### Retest
 
-- [ ] Rejected metadata action transport preserves local edits and form controls.
-- [ ] Pending status clears; actionable accessible recovery feedback appears.
-- [ ] No unhandled page error or automatic mutation retry occurs.
+- [x] Rejected metadata action transport preserves local edits and form controls in the approved temporary dev retest.
+- [x] Pending status clears; actionable accessible recovery feedback appears in the approved temporary dev retest.
+- [x] No unhandled page error or automatic mutation retry occurs in the approved temporary dev retest.
 - [ ] Server-returned validation, normal successful saves and authorized readback remain correct.
 - [ ] Reviewer verifies the repaired build with the same blocked-write setup.
+
+#### Repair / scoped retest - 2026-10-24
+
+Frontend `7bad285` on `fix/media-metadata-transport-recovery` adds a client
+request boundary used by MetadataForm. A failed remote action returns raw
+submitted caption/order and an unknown-outcome recovery message, not a claim
+that nothing saved. No automatic retry is performed. Resolved server errors
+pass through; Next's documented `unstable_rethrow` preserves framework control
+flow, including success and sign-in redirects. Existing server authorization,
+validation, revalidation, Cover/Remove and private storage logic are unchanged.
+
+The first isolated regression failed because the remote rejection escaped;
+the minimal repair then passed. Five new tests mock only the remote Server
+Action: interrupted transport/raw values, returned validation/permission
+feedback, intentional clearing and explicit retry, successful-save redirect,
+and sign-in redirect. Focused media regressions passed 21/21; full frontend
+passed 375/375 across 64 files. Full lint and non-incremental type-check passed.
+These client tests do not prove live validation, successful saves or session
+expiry; redirects are checked using real Next redirect errors at the approved
+mocked-remote boundary.
+
+An approved temporary server bound only to 127.0.0.1:3002 served the changed
+source. One fresh browser probe held/aborted the initial save and one explicit
+retry before forwarding. Both retained edits, released pending state, exposed
+the exact accessible recovery message and re-enabled controls. Two expected
+POSTs, zero unexpected non-read requests and zero page errors were observed.
+Fresh reload matched the prior server-backed metadata/card count/Cover badge.
+The probe closed after requests settled; role windows remained open. Only the
+verified temporary server processes were stopped. Ports 3000/3001 retained
+PIDs 24288/17496, port 3002 had no listener and production login returned 200.
+
+No production rebuild/restart or real save occurred. The repair is pushed but
+not merged/deployed; merged production-mode verification and independent
+acceptance remain pending. CAT-011 stays In progress. Ignored diagnostic:
+frontend `def022-metadata-recovery-retest.txt`. No credentials or generated
+browser artifacts are committed. Documentation check: `git diff --check`.
 
 Related cancellation checks passed in both runs: Replace and Remove each closed
 on Cancel and Escape, returned focus to their trigger and issued no request.
