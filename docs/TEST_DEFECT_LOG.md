@@ -1620,9 +1620,30 @@ This is the import picker, not the media picker covered by DEF-004.
 
 #### Retest
 
-- [ ] Enabled CSV file control responds visibly to hover and keyboard focus.
+- [x] Enabled CSV file control responds visibly to hover and keyboard focus (2026-10-24 scoped browser check below).
 - [ ] Pending/disabled states remain distinct.
 - [ ] File selection, preview validation and saving behavior remain unchanged.
+
+#### Enabled picker browser feedback - 2026-10-24
+
+Two read-only temporary-tab probes on the refreshed frontend `d38476b`, build
+`l4aSSUwwq2D41IdpX_t9G`, opened `/cataloging/import`. The single enabled native
+CSV picker showed a computed file-button background change from
+`rgb(247, 248, 242)` to `rgb(243, 245, 239)` on hover. Keyboard Tab reached the
+picker with `:focus-visible` and a solid 2px `rgb(31, 71, 50)` outline. These
+computed-style checks establish an appearance change, not contrast/perceptual
+or full assistive-technology certification. The second helper compared against
+the measured baseline and awaited any exposed element animations rather than
+relying on its initial hard-coded baseline-color assumption.
+
+Both probes had zero page errors/non-GET-or-HEAD requests and no selected file.
+They did not open the native file dialog, preview rows, commit records or force
+disabled/pending states. Temporary tabs closed; original role windows remained
+untouched. Diagnostic is ignored frontend browser artifact
+`csv-picker-feedback-readonly.txt`; no application code or server changed.
+DEF-013 remains Ready for retest for the remaining checklist, not because the
+enabled hover/focus subcase is untested. Documentation-only verification:
+`git diff --check`; application suites were not rerun for these browser reads.
 
 ### DEF-014 - Already-attached tag notice resembles successful new attachment
 
