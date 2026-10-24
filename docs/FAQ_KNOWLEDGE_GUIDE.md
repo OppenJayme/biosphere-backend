@@ -55,7 +55,8 @@ visitors. Both routes are throttled at 30 requests per minute per IP.
   entries only (`id`, `question`, `category`), oldest first, max 20.
 - `POST /faq/assistant/ask` with `{ "question": "..." }` (1–500 chars), optionally
   `selectedFaqId` (UUID) for an explicit public question choice. Other fields
-  remain rejected; no visitor contact details or conversation history accepted.
+  remain rejected except optional `contextFaqId` (UUID) for bounded follow-ups;
+  no visitor contact details or conversation history accepted.
 
 The assistant only reads `ACTIVE` entries. It never writes: the question is not
 stored, and no audit row is created. Responses contain only stored curator text
@@ -288,3 +289,85 @@ FAQ-004 is In progress for this isolated slice, not Passed. Deploy the matching
 backend API before the frontend: the old API rejects `selectedFaqId`, and the
 old frontend treats the new outcome as unavailable. Browser helpers remain
 ignored: `faq-clarification-ui-20261025.txt`, `faq-public-readonly-preflight.txt`.
+
+## Bounded topic follow-ups checkpoint - 2026-10-25
+
+Clarification backend #186/frontend #81 are confirmed merged. The next slice,
+backend `4608b9f` and frontend `94293d1`, adds optional `contextFaqId` to the
+public ask DTO. It is a public hint, not authorization or stored conversation.
+The widget retains only the last ANSWERED FAQ ID in component memory and sends
+it for explicit English `How about ...` / `What about ...` follow-ups. A full
+new question and an explicit selected choice do not carry the previous topic.
+No-match, clarification, errors and reload clear the hint. Minimize/reopen in
+the same mounted widget preserves its existing conversation; no persistence
+or multi-tab history sharing is introduced.
+
+### Retrieval boundary
+
+The backend recognizes these two prefixes after existing text normalization.
+It rechecks the topic ID against the ACTIVE read set. Candidates must contain
+every meaningful qualifier token in their approved question/alternatives/
+keywords and share at least one meaningful token with the prior canonical
+question. The existing matcher ranks the prior canonical question plus the
+follow-up qualifier, using the same thresholds and equal-score clarification.
+No answer text is used as matching authority and no missing facts are generated.
+
+Missing/unknown/inactive/archived context, empty meaningful qualifiers or absent
+approved follow-up evidence produce no answer and ask for a complete question,
+an approved FAQ choice or General Inquiry. This avoids blindly repeating the
+last answer. Explicit `selectedFaqId` still takes precedence and is checked
+against ACTIVE knowledge. Complete new questions ignore even a supplied topic
+hint. Submitted history and malformed context IDs remain rejected by the DTO.
+
+This is lexical, conservative topic assistance, not broad semantic/multilingual
+understanding. Approved alternative wording may be needed to bridge vocabulary
+(for example `open` versus `opening`). Unrecognized follow-up phrasing uses the
+ordinary stateless question matcher. No near-tie margin, new language model,
+threshold adjustment, FAQ activation or visitor logging was added.
+
+### Test evidence and limits
+
+The user approved isolated public HTTP and frontend request/widget seams.
+The first HTTP context request failed with 400 before the DTO/service change;
+the first frontend context payload assertion failed before serialization was
+added. Both passed after their corresponding minimal implementations.
+
+- FAQ HTTP 29/29: six new tests cover successful follow-ups, missing approved
+  qualifiers, missing/inactive/archived topic references, tied contextual
+  candidates, topic change/explicit-selection precedence and invalid IDs/history.
+  Controllers, validation, service and matcher are real; only database/auth
+  adapters are isolated. No live knowledge was activated.
+- Backend unit 690/690 across 53 suites; frontend 379/379 across 64 files.
+  Both non-emitting type-checks and frontend lint passed. Final full backend
+  lint passed with zero errors and seven existing unused-disable warnings.
+  Deliberate unit failure-injection logs are not live email/import/audit incidents.
+- One context-tie fixture initially expected clarification despite having one
+  exact and one non-exact candidate. Its approved alternative wordings were
+  corrected to actually tie; matching semantics/assertions were not weakened.
+  A new untyped HTTP assertion lint issue was corrected using a typed response
+  projection, without adding a lint suppression. These are development-check
+  corrections, not newly established production defects.
+
+A loopback-only temporary dev server and separate public-page probe locally
+intercepted every FAQ request. The final thirteen-turn widget run verified the
+context-ID payload after an answer; no context on complete new questions or
+explicit choices; immediate follow-ups after no-match/error/clarification with
+the hint cleared; and reload clearing. It observed zero unexpected requests,
+zero page errors and zero live FAQ requests forwarded. Synthetic response
+checks establish UI wiring, not live retrieval quality or browser/API integration.
+The initial twelve-turn pass was strengthened with an immediate post-no-match
+follow-up; only the final thirteen-turn run is claimed for that reset assertion.
+
+Original browser role windows were preserved. Only verified task-owned 3002
+processes were stopped; 3002 was clear afterward. Production frontend PID 47696
+remained and login returned 200; backend listener was 36788 at preflight/cleanup.
+The existing backend is in watch mode and may rebuild source; no manual backend
+restart or fixed-runtime-build claim is made. No production frontend rebuild,
+schema migration, dependency install or live FAQ mutation occurred. Ignored
+diagnostic: `faq-context-ui-20261025.txt`.
+
+The branches require review/merge and coordinated deployment (backend first:
+old DTOs reject `contextFaqId`). Independent/live acceptance and representative
+language/context/near-tie evaluation remain pending. FAQ-004 is In progress.
+Next unresolved work includes duplicate knowledge policy and safe unanswered
+review retention/access/abuse decisions before any persistent log is introduced.
