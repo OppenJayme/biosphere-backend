@@ -415,6 +415,12 @@ documentation mismatch observed during these tests.
 
 #### CAT-013 live core-only CSV acceptance - 2026-10-22
 
+Later contract-only follow-up: [DEF-018 running Swagger verification](./TEST_DEFECT_LOG.md#running-swagger-verification---2026-10-24)
+passed on two reads on 2026-10-24. The declaration now lists 201 and the correct
+commit response DTO; DEF-018 is Verified for that mismatch only. Earlier dated
+pending statements remain historical; no new CSV mutation or module sign-off
+is implied.
+
 After confirming backend PR #166 merged, used the existing signed-in headed
 Edge session `biosphere-aud002` and real local frontend/backend. Checkout
 references: frontend `0ffa81f`, backend `0da6cc6`; exact served build hashes

@@ -70,7 +70,7 @@ system is not a reason to postpone all fixes until the end.
 | [DEF-020](#def-020---interrupted-duplicate-check-removes-the-unsaved-core-form) | 2026-10-23 | Cataloging / Duplicate warning | Rejected client request escapes the warning check and removes the unsaved form | S3 Moderate | P1 | Ready for retest | Kyer / Cataloging frontend |
 | [DEF-016](#def-016---backup-http-fixture-omits-the-security-audit-delegate) | 2026-10-19 | Backup / HTTP test fixture | Missing audit delegate logs an error despite green denial test | S3 Moderate | P2 | Ready for retest | Backup tests / coordinate with Auth |
 | [DEF-017](#def-017---storage-inventory-denial-fixture-omits-security-audit-persistence) | 2026-10-21 | Inventory / HTTP test fixture | Storage-inventory denial passes despite missing security-audit delegate | S3 Moderate | P2 | Open | John / coordinate with Voltaire |
-| [DEF-018](#def-018---csv-commit-success-status-differs-from-swagger-declaration) | 2026-10-22 | Cataloging / Import API docs | Commit Swagger success status differs from actual POST response | S4 Minor | P3 | Ready for retest | Kyer / Cataloging |
+| [DEF-018](#def-018---csv-commit-success-status-differs-from-swagger-declaration) | 2026-10-22 | Cataloging / Import API docs | Commit Swagger success status differs from actual POST response | S4 Minor | P3 | Verified | Kyer / Cataloging |
 | [DEF-019](#def-019---tab-interruption-diagnostic-failed-its-no-backend-write-guard) | 2026-10-22 | Offline / Browser diagnostic | Tab-interruption pilot created a server fixture despite its intended interception | S3 Moderate | P1 | Open | Kyer / test isolation |
 | [DEF-001](#def-001---duplicate-normalized-collection-names-are-accepted) | 2026-09-29 | Cataloging / Collections   | Duplicate normalized collection names are accepted                      | S2 Major    | P1       | Ready for retest | Cataloging / Backend    |
 | [DEF-002](#def-002---future-provenance-collection-dates-are-accepted) | 2026-10-03 | Cataloging / Provenance    | Future collection dates are accepted and satisfy presence validation    | S2 Major    | P1       | Verified | Cataloging / Full stack |
@@ -1767,7 +1767,7 @@ guards and existing 401/403 behavior; do not silence the error or bypass auth.
 **Found on:** backend base `304dee0`, 2026-10-22
 **Severity:** S4 Minor (API documentation inconsistency)
 **Priority:** P3 (nonblocking; no import failure observed)
-**Status:** Ready for retest
+**Status:** Verified (repeatable running Swagger contract check, 2026-10-24)
 **Owner:** Kyer / Cataloging
 
 At discovery, selected-row commit and retry returned HTTP 201. The controller's
@@ -1813,7 +1813,27 @@ change; PR CI runs the normal suites/build separately.
 
 - [x] Isolated generated Swagger response and actual tested commit response agree.
 - [x] Selected-row commit and same-preview retry remain correct in the isolated HTTP suite.
-- [ ] Independently verify the merged/deployed Swagger operation; status remains Ready for retest.
+- [x] Verify the running Swagger operation on repeatable live reads (2026-10-24 below); independent module sign-off remains separate.
+
+#### Running Swagger verification - 2026-10-24
+
+Two separate unauthenticated GETs to local `http://localhost:3001/docs-json`
+returned the import commit operation with exactly one successful response code,
+`201`, and response schema `#/components/schemas/SpecimenImportCommitResult`.
+The first document response was HTTP 200; both checks asserted the same code
+and schema. Only this sanitized operation summary was returned to the tester,
+not the complete API document or authentication material.
+
+This closes the observed declaration mismatch against the earlier tested 201
+HTTP behavior. DEF-018 is Verified for that narrow contract defect by repeatable
+owner checks, not independent teammate sign-off or a new live CSV commit test.
+No preview/commit request, record creation, credential access, server restart or
+runtime source change occurred. Backend documentation checkout was `8cb6da7`,
+with runtime-source base `735d4d1`; the running process's exact build revision
+was not independently established. No claim about public
+Swagger access policy, durable preview storage, concurrency or whole-module
+acceptance follows. Documentation verification: `git diff --check`; no automated
+suite was rerun for these read-only contract checks.
 
 ## 4. New defect template
 
