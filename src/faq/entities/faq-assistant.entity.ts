@@ -9,6 +9,9 @@ export const FAQ_NO_MATCH_MESSAGE =
 export const FAQ_CLARIFICATION_MESSAGE =
   'More than one approved question matches. Which one did you mean?';
 
+export const FAQ_CONTEXT_MESSAGE =
+  'I could not find an approved answer for that follow-up. Please ask a complete museum question, choose an approved FAQ, or send a General Inquiry.';
+
 export const FAQ_VISIT_REQUEST_MESSAGE =
   'The assistant cannot submit, approve, change, or cancel Visit Requests. Please use the Visit Request form or contact the curator.';
 

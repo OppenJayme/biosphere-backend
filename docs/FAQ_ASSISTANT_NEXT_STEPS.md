@@ -6,14 +6,24 @@ or active knowledge was changed and no public ask request was made here.
 
 ## Progress update - 2026-10-25
 
-The first implementation slice is now complete on feature branches, not yet
-merged/accepted: backend `bafe427`, frontend `83ff93b`. Equal strongest eligible
+The first implementation slice is merged in backend #186/frontend #81 (source
+commits `bafe427`/`83ff93b`), not fully accepted. Equal strongest eligible
 scores return clarification with up to three choices, and explicit selected
 identity returns only a still-active approved answer. Focused HTTP/request and
 isolated real-widget checks passed. See [evidence and rollout limits](./FAQ_KNOWLEDGE_GUIDE.md#equal-score-clarification-implementation-checkpoint---2026-10-25).
 
-Next: review/merge the paired changes (backend API before frontend deployment),
-then design bounded contextual follow-ups from the already agreed direction.
+The second slice is implemented on `feat/faq-bounded-followups`: backend
+`4608b9f`, frontend `94293d1`. It carries one ephemeral answered-FAQ topic ID
+for explicit `How about` / `What about` follow-ups, rechecks ACTIVE status and
+requires approved qualifier/topic evidence. Hint clears on non-answer/error/
+reload. HTTP 29/29, backend unit 690/690, frontend 379/379, type-check/lint and
+final thirteen-turn synthetic widget checks passed. This is bounded lexical
+context, not general conversation or multilingual understanding.
+See [contract, evidence and limits](./FAQ_KNOWLEDGE_GUIDE.md#bounded-topic-follow-ups-checkpoint---2026-10-25).
+
+Next: review/merge the paired context changes (backend API before frontend
+deployment), then settle unanswered-review retention/access/abuse details and
+duplicate knowledge policy before implementing persistence or activation rules.
 Do not repeat the passed Cataloging tests. Near-tie evaluation, language/context
 design and unanswered-log retention/access controls remain unresolved; no
 logging or provider/migration work was bundled into this slice. Historical

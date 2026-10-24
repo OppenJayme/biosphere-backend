@@ -9,7 +9,7 @@ import {
 } from 'class-validator';
 import { trimFaqText } from './faq-text.transform';
 
-// Question plus an optional public FAQ choice; no personal information or
+// Question plus optional public FAQ choice/topic IDs; no personal information or
 // conversation history is accepted or persisted (REQ-4.11-07).
 export class AskFaqAssistantDto {
   @ApiProperty({ example: 'What time does the museum open?', maxLength: 500 })
@@ -27,4 +27,13 @@ export class AskFaqAssistantDto {
   @ValidateIf((_object, value: unknown) => value !== undefined)
   @IsUUID()
   selectedFaqId?: string;
+
+  @ApiPropertyOptional({
+    format: 'uuid',
+    description:
+      'Last answered public FAQ, used only for explicit supported follow-ups; not conversation history.',
+  })
+  @ValidateIf((_object, value: unknown) => value !== undefined)
+  @IsUUID()
+  contextFaqId?: string;
 }

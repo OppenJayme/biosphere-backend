@@ -7,6 +7,12 @@ status and does not authorize migrations, account changes or teammate-owned work
 
 ## Current checkpoint
 
+- Bounded FAQ context implemented on backend `4608b9f` / frontend `94293d1`:
+  FAQ HTTP 29/29, backend unit 690/690, frontend 379/379, lint/type-check and
+  thirteen-turn synthetic widget checks passed. Review paired branches; backend
+  deployment first. This supports two explicit English follow-up prefixes with
+  approved lexical evidence, not general semantic context. No live FAQ writes.
+  See [context checkpoint](./FAQ_KNOWLEDGE_GUIDE.md#bounded-topic-follow-ups-checkpoint---2026-10-25).
 - FAQ equal-score clarification/selection feature completed on backend `bafe427`
   and frontend `83ff93b`: FAQ HTTP 23/23, backend unit 690/690, frontend 378/378,
   lint/type-check and isolated real-widget checks passed. No live FAQ activation
