@@ -296,3 +296,120 @@ add explicit Developer 403 checks for metadata and signed-URL access, with
 authorized positive controls and no signer invocation on denial. The complete
 media HTTP suite now passes 9/9; these isolated results do not replace the
 remaining live credential/provider and acceptance checks.
+
+## Enabled media controls feedback checkpoint - 2026-10-24
+
+On refreshed frontend `bf4e325`, production build `iYERvY7VAlsPSlLelDmS4`, two
+GET/HEAD-only temporary-tab probes used the retained TEST media fixture under
+specimen `5b8e55d4-af0f-4263-9b0e-349b4b314f20`, identified by its generated-PNG
+test caption. Both upload/replacement native file controls and Save metadata
+were enabled, changed computed background during pointer hover, and were
+reachable using Tab without activating any control. The pickers exposed
+`:focus-visible` plus a new 1px forest-colored box-shadow ring; Save metadata
+exposed `:focus-visible` and a nonzero 2px outline.
+
+The first diagnostic rejected the picker for lacking an outline. Source and
+computed-style review showed its existing focus ring; the helper was corrected
+to accept measured outline or ring feedback. That overly narrow harness
+expectation is not recorded as a new application defect. Hover samples include
+transition colors and are not final-color/contrast or perceptual certification.
+
+Set as cover was absent, and a fresh read confirmed the fixture's Cover badge.
+The existing conditional UI hides that action for an already-cover image; it
+was not tested or marked passed, and no fixture was changed to expose it.
+Both completed probes observed zero page errors or non-read requests; no file
+was selected, native dialog opened, metadata saved or cover/upload changed.
+Temporary tabs closed, preserving the original role windows and their URLs.
+
+DEF-004's enabled hover/focus subcases and DEF-012's Save metadata subcase now
+have scoped browser evidence. Disabled/pending, native-dialog/file submission,
+Set as cover and independent visual/accessibility acceptance remain separate;
+both defects remain Ready for retest. No application source/server changed.
+Ignored diagnostic: frontend `media-controls-feedback-readonly.txt`.
+Documentation verification: `git diff --check`; unchanged suites not rerun.
+
+## Upload/replacement pending and transport recovery - 2026-10-24
+
+On the same production frontend `bf4e325`, build `iYERvY7VAlsPSlLelDmS4`, a
+temporary browser tab tested upload and replacement together on the retained
+generated-PNG TEST fixture. It selected an in-memory synthetic PNG via the file
+input API. The replacement confirmation was explicitly confirmed only within
+this blocked-request setup; neither request was allowed to reach the server.
+
+The probe intercepted exactly one POST upload and one PUT replacement at the
+known specimen's media-files route. Each request was held locally to inspect
+pending state, then aborted while the page was alive and its failure awaited.
+Both native file inputs and their action buttons disabled; picker opacity was
+0.6 with a not-allowed cursor, and the respective Uploading/Replacing status
+was exposed. The expected actionable error then appeared, controls re-enabled
+and each synthetic file remained selected. No extra non-read request or browser
+page error was observed; no automatic retry was initiated by the probe.
+
+Displayed caption, display order, Cover badge and card count matched the
+in-memory baseline after each failure and after a fresh page reload. Baseline
+values and signed image URLs were not exported. The probe tab closed; original
+Curator/Developer windows remained untouched. No server, source, credentials,
+museum record or actual private object was intentionally changed.
+
+This passes the upload/replacement pending and client-transport recovery
+subcases, not real image-signature validation, upload/replacement success,
+provider rollback/cleanup, concurrent mutation or an unknown real server outcome.
+It does not clear DEF-019's full-stack isolation gate. DEF-004 remains Ready for
+retest for its native-dialog/full-flow and independent visual acceptance limits;
+metadata/Set as cover pending states under DEF-012 were not tested here.
+Ignored diagnostic: `media-upload-replace-pending-recovery.txt`.
+Documentation check: `git diff --check`; no unchanged application suite/build rerun.
+
+## Metadata interruption and confirmation cancellation - 2026-10-24
+
+Two temporary-tab probes on production frontend `bf4e325`, build
+`iYERvY7VAlsPSlLelDmS4`, checked the same retained generated-PNG TEST fixture.
+Replace and Remove each passed Cancel and Escape: the dialog closed, focus
+returned to its trigger and no request was issued. Remove initially focused
+Cancel. No replacement file was selected or destructive confirmation accepted.
+
+Each probe then edited local caption/order and held exactly one same-page
+metadata Server Action POST. All mutations were blocked before forwarding.
+Saving image details status appeared and all metadata controls disabled.
+Aborting the request while the page was alive reproduced **DEF-022** twice:
+the edit form disappeared, local values became unavailable, no form-local
+recovery alert appeared and one page error occurred. This is a failed recovery
+case, not a passed test or a recurrence of cosmetic DEF-012.
+
+Fresh reloads matched the in-memory server-backed caption/order, card count
+and Cover badge. Zero unexpected non-read requests occurred. The probes closed
+only after request failure settled; original Curator/Developer windows remained
+open. No runtime source, server, credentials or actual media record was changed.
+
+CAT-011 remains In progress with an open P1 client-recovery defect. Cover/remove
+transport, actual storage success/failure and post-commit unknown outcomes were
+not tested. Pending metadata styling is observed, but full DEF-012 acceptance
+still requires its separate cover/mutation/reviewer subcases. No unchanged
+application suite/build was rerun. Ignored diagnostic:
+`media-metadata-cancel-recovery.txt`; documentation check: `git diff --check`.
+
+## Metadata transport recovery repair - 2026-10-24
+
+Frontend `7bad285` (`fix/media-metadata-transport-recovery`) now retains raw
+caption/order on a rejected remote metadata action and returns accessible
+unknown-outcome guidance, with no automatic retry. Server responses and Next
+redirect control flow remain intact; backend rules/private storage are unchanged.
+The TDD regression failed before recovery was added, then passed. Five new
+client-boundary tests plus existing media checks passed 21/21; the full frontend
+passed 375/375 across 64 files. Lint and non-incremental type-check also passed.
+
+On the approved temporary loopback dev server, a fresh probe locally blocked
+the initial save and an explicit retry. Both kept edits, disabled controls
+while pending, cleared pending afterward and showed the exact unknown-outcome
+alert with controls enabled. There were two expected intercepted POSTs, no
+unexpected mutation attempts and no page errors. Reload read unchanged saved
+metadata/card count/Cover state. No actual metadata/storage write was forwarded.
+No credential copying or session export occurred; original role tabs remained
+open. The probe closed after request settlement and only verified task-owned
+server processes were stopped. Existing 3000/3001 listener PIDs were preserved;
+3002 was clear and production login still returned 200.
+
+DEF-022 is Ready for retest, not Verified: this is development-mode branch
+evidence, not merged production, real successful-save/concurrency or independent
+acceptance evidence. The ordinary save/authorization code was not changed or
+live-tested here. Diagnostic `def022-metadata-recovery-retest.txt` remains ignored.

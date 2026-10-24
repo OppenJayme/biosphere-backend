@@ -67,6 +67,7 @@ system is not a reason to postpone all fixes until the end.
 
 | ID      | Date       | Module                     | Summary                                                                 | Severity    | Priority | Status | Owner                   |
 | ------- | ---------- | -------------------------- | ----------------------------------------------------------------------- | ----------- | -------- | ------ | ----------------------- |
+| [DEF-022](#def-022---interrupted-media-metadata-save-removes-the-edit-form) | 2026-10-24 | Cataloging / Media UI | Rejected metadata Server Action transport removes the edit form and local edits | S3 Moderate | P1 | Ready for retest | Kyer / Cataloging frontend |
 | [DEF-021](#def-021---interrupted-csv-commit-request-removes-the-reviewed-preview) | 2026-10-24 | Cataloging / CSV import UI | Rejected client commit transport removes the reviewed preview and recovery controls | S3 Moderate | P1 | Ready for retest | Kyer / Cataloging frontend |
 | [DEF-020](#def-020---interrupted-duplicate-check-removes-the-unsaved-core-form) | 2026-10-23 | Cataloging / Duplicate warning | Rejected client request escapes the warning check and removes the unsaved form | S3 Moderate | P1 | Ready for retest | Kyer / Cataloging frontend |
 | [DEF-016](#def-016---backup-http-fixture-omits-the-security-audit-delegate) | 2026-10-19 | Backup / HTTP test fixture | Missing audit delegate logs an error despite green denial test | S3 Moderate | P2 | Ready for retest | Backup tests / coordinate with Auth |
@@ -91,6 +92,103 @@ system is not a reason to postpone all fixes until the end.
 
 ## 3. Defect details
 
+### DEF-022 - Interrupted media metadata save removes the edit form
+
+**Related test:** CAT-011; separate from cosmetic DEF-012
+
+**Found on:** 2026-10-24, frontend `bf4e325`, production build `iYERvY7VAlsPSlLelDmS4`
+
+**Severity:** S3 Moderate; local unsaved edits unavailable, no persisted loss demonstrated
+
+**Priority:** P1 before media failure/retry acceptance
+
+**Status:** Ready for retest (branch owner checks passed; merged production and independent acceptance pending)
+
+**Owner:** Kyer / Cataloging frontend
+
+#### Reproduction and evidence
+
+Two fresh temporary-tab runs used the retained generated-PNG TEST media fixture
+under specimen `5b8e55d4-af0f-4263-9b0e-349b4b314f20`. Before navigation each
+probe blocked every non-GET/HEAD request. It edited only local caption/order,
+clicked Save metadata, held the exact same-page Server Action POST and aborted
+it while the tab was alive, awaiting request failure before closing the probe.
+No mutation was forwarded to frontend/backend/storage.
+
+Both runs exposed Saving image details status and disabled caption, order and
+Save metadata while pending. After transport rejection, the media form was
+absent, local edits were unavailable, no form-local connection/retry alert was
+found and one page error was emitted per run. Recovery failed in both runs;
+the diagnostic command exiting successfully does not mean acceptance passed.
+A fresh reload restored the unchanged server-backed caption/order, card count
+and Cover badge. Each run intercepted one expected POST and zero other
+non-read requests. Original signed-in role windows were preserved.
+
+Source inspection finds MetadataForm passes its bound Server Action directly
+to useActionState without a client transport-rejection boundary. This supports
+the observed failure mechanism; it does not establish when it was introduced.
+No application fix or dependency/server change was made in this checkpoint.
+Ignored diagnostic: frontend `media-metadata-cancel-recovery.txt`.
+
+#### Expected / repair boundary
+
+Retain the local caption/order and usable media form, release pending state,
+and show an accessible recovery message without asserting an unknown real save
+outcome or automatically retrying. Preserve validation and authorization. A
+locally blocked request proves only client transport handling, not behavior
+after a server may already have committed. Cover/remove transport behavior was
+not tested and must not be claimed defective from this result.
+
+#### Retest
+
+- [x] Rejected metadata action transport preserves local edits and form controls in the approved temporary dev retest.
+- [x] Pending status clears; actionable accessible recovery feedback appears in the approved temporary dev retest.
+- [x] No unhandled page error or automatic mutation retry occurs in the approved temporary dev retest.
+- [ ] Server-returned validation, normal successful saves and authorized readback remain correct.
+- [ ] Reviewer verifies the repaired build with the same blocked-write setup.
+
+#### Repair / scoped retest - 2026-10-24
+
+Frontend `7bad285` on `fix/media-metadata-transport-recovery` adds a client
+request boundary used by MetadataForm. A failed remote action returns raw
+submitted caption/order and an unknown-outcome recovery message, not a claim
+that nothing saved. No automatic retry is performed. Resolved server errors
+pass through; Next's documented `unstable_rethrow` preserves framework control
+flow, including success and sign-in redirects. Existing server authorization,
+validation, revalidation, Cover/Remove and private storage logic are unchanged.
+
+The first isolated regression failed because the remote rejection escaped;
+the minimal repair then passed. Five new tests mock only the remote Server
+Action: interrupted transport/raw values, returned validation/permission
+feedback, intentional clearing and explicit retry, successful-save redirect,
+and sign-in redirect. Focused media regressions passed 21/21; full frontend
+passed 375/375 across 64 files. Full lint and non-incremental type-check passed.
+These client tests do not prove live validation, successful saves or session
+expiry; redirects are checked using real Next redirect errors at the approved
+mocked-remote boundary.
+
+An approved temporary server bound only to 127.0.0.1:3002 served the changed
+source. One fresh browser probe held/aborted the initial save and one explicit
+retry before forwarding. Both retained edits, released pending state, exposed
+the exact accessible recovery message and re-enabled controls. Two expected
+POSTs, zero unexpected non-read requests and zero page errors were observed.
+Fresh reload matched the prior server-backed metadata/card count/Cover badge.
+The probe closed after requests settled; role windows remained open. Only the
+verified temporary server processes were stopped. Ports 3000/3001 retained
+PIDs 24288/17496, port 3002 had no listener and production login returned 200.
+
+No production rebuild/restart or real save occurred. The repair is pushed but
+not merged/deployed; merged production-mode verification and independent
+acceptance remain pending. CAT-011 stays In progress. Ignored diagnostic:
+frontend `def022-metadata-recovery-retest.txt`. No credentials or generated
+browser artifacts are committed. Documentation check: `git diff --check`.
+
+Related cancellation checks passed in both runs: Replace and Remove each closed
+on Cancel and Escape, returned focus to their trigger and issued no request.
+Remove initially focused Cancel. These passes do not close DEF-022 or certify
+full keyboard/screen-reader/provider behavior. See the
+[media checkpoint](./SPECIMEN_MEDIA_GUIDE.md#metadata-interruption-and-confirmation-cancellation---2026-10-24).
+
 ### DEF-021 - Interrupted CSV commit request removes the reviewed preview
 
 **Related test:** CAT-013; discovered during DEF-013 commit-pending UI check
@@ -98,7 +196,7 @@ system is not a reason to postpone all fixes until the end.
 **Found on:** frontend `d38476b`, build `l4aSSUwwq2D41IdpX_t9G`; backend source base `f1bcd69` (no request forwarded)
 **Severity:** S3 Moderate; reviewed client state becomes unavailable, no persisted data loss demonstrated
 **Priority:** P1 before import failure/retry acceptance
-**Status:** Ready for retest (frontend `3177c19`; merged/deployed independent verification pending)
+**Status:** Ready for retest (merged-build owner verification passed; independent reviewer acceptance pending)
 **Owner:** Kyer / Cataloging frontend
 
 #### Reproduction and evidence - 2026-10-24
@@ -149,7 +247,8 @@ Coordinate any retry/idempotency API change separately; none is authorized here.
 - [x] Explicit retry uses the same preview/rows; no automatic commit attempt in focused tests/two browser runs.
 - [x] Existing resolved success and backend-rejection outcomes pass through unchanged in focused request tests.
 - [x] Focused regressions and safe blocked-request browser retest pass.
-- [ ] Verify after merge/CI and approved deployment; obtain independent acceptance.
+- [x] Verify after merge/CI and approved local production-mode deployment (2026-10-24 below).
+- [ ] Obtain independent reviewer acceptance; owner retest is not teammate sign-off.
 
 No runtime fix was made at discovery. Pause dependent import failure/retry
 acceptance until repaired; unrelated safe checks may continue. Documentation
@@ -197,6 +296,47 @@ schema, Inventory, matching, import idempotency, authorization or service-worker
 policy changed. Production port 3000 still serves the pre-fix build; no local
 production rebuild was performed. Status is Ready for retest, not Verified or
 whole CAT-013 acceptance. Merge/CI, deployment and independent review remain.
+
+#### Merged production-build import retest - 2026-10-24
+
+Frontend #79 and backend #184 were confirmed merged, and both post-merge CI
+runs completed successfully. Clean source references: frontend `bf4e325`, backend
+`9fb819a` (backend running build revision not independently identified).
+With explicit approval, stopped only verified frontend PID 21052, retained its
+old `.next` outside both repositories at workspace sibling
+`biosphere-frontend-build-recovery-def021-20261024`, and built the merged frontend.
+Compilation, TypeScript and page generation passed on the first attempt.
+Recovery artifacts remain local/private; do not upload or serve them.
+
+Started `next start` on port 3000 as hidden PID 24288. Build ID:
+`iYERvY7VAlsPSlLelDmS4`; fresh `/login` GET returned 200 with sign-in content.
+Backend 3001 retained its preflight PID 17496 throughout; no backend restart
+or build was performed. No port-3002 listener remained. Frontend stayed clean.
+
+After the local draft preflight found no eligible pending work, two fresh
+temporary-tab probes repeated the repaired synthetic scenario on **port 3000**.
+Each locally supplied one preview and blocked/aborted exactly two commit actions
+(initial plus explicit retry) before forwarding. Both used the same preview ID
+and selected row `[2]`. Unknown-outcome alerts appeared, preview/file/selection/
+warning acknowledgement survived, invalid row 3 stayed disabled and controls
+re-enabled. Both probes had zero page errors and unexpected non-read requests;
+all held requests were settled before their tabs closed.
+
+Original Curator and Developer windows were not navigated or signed out.
+No live import, preview record, museum record or account change was made by the
+diagnostic. This verifies the merged frontend's transport recovery, not actual
+database commit/idempotency, provider failure, concurrency or full accessibility.
+The earlier pre-fix-port-3000 statements above are historical and superseded
+for this local runtime by this checkpoint.
+
+Owner merged-build verification is complete; do not repeat the same happy path
+as an uncovered case. DEF-021 remains Ready for retest solely for independent
+reviewer acceptance, and CAT-013 remains In progress for sign-off/other stated
+limits. No reviewer identity or acceptance is invented. Ignored diagnostic:
+`csv-commit-transport-retest-merged-3000.txt`; local startup logs:
+`frontend-refresh-def021-20261024.*.log`. Documentation check: `git diff --check`.
+No full automated suites were repeated: source was unchanged from green CI and
+the previously recorded 370 frontend / 40 import unit / 49 HTTP passes.
 
 ### DEF-020 - Interrupted duplicate check removes the unsaved core form
 
@@ -855,10 +995,20 @@ block file selection, but it provides weak interaction feedback.
 
 #### Retest
 
-- [ ] Upload and replacement file controls visibly respond to pointer hover.
-- [ ] Keyboard focus is visible without relying on color alone.
-- [ ] Disabled/pending appearance is clear.
+- [x] Upload and replacement file controls show computed hover feedback in the scoped 2026-10-24 browser checks; independent visual/contrast review remains separate.
+- [x] Keyboard Tab reaches both controls with measured focus rings (2026-10-24); full accessibility review remains separate.
+- [x] Upload/replacement pending inputs and action buttons disable with distinct styling and accessible status; locally aborted requests show errors and restore controls (2026-10-24).
 - [ ] Selecting and submitting a valid file still works.
+
+Scoped [enabled-control browser evidence](./SPECIMEN_MEDIA_GUIDE.md#enabled-media-controls-feedback-checkpoint---2026-10-24)
+passed twice on the refreshed production build without selecting or submitting
+a file. It does not close the remaining checklist; status stays Ready for retest.
+
+The subsequent [pending/recovery batch](./SPECIMEN_MEDIA_GUIDE.md#uploadreplacement-pending-and-transport-recovery---2026-10-24)
+selected synthetic files and locally intercepted/aborted one upload and one
+replacement. Controls recovered and displayed media stayed unchanged after
+reload. Neither request was forwarded; this is not a new real upload or storage
+rollback check. Native-dialog/full-flow and independent visual acceptance remain.
 
 ### DEF-005 - Vocabulary search hides the matching tag names
 
@@ -1693,9 +1843,15 @@ mutation failure was reported. This is separate from native file-picker DEF-004.
 
 #### Retest
 
-- [ ] Both enabled buttons visibly respond to hover and keyboard focus.
+- [x] Save metadata shows computed hover feedback and a keyboard focus outline in the 2026-10-24 scoped browser checks.
+- [ ] Set as cover hover/focus is checked on a suitable existing non-cover fixture; current TEST image is already Cover and intentionally hides that control.
 - [ ] Pending/disabled states remain clear and do not imply the action is enabled.
 - [ ] Metadata and cover mutations still save and persist after refresh.
+
+See [enabled-control browser evidence](./SPECIMEN_MEDIA_GUIDE.md#enabled-media-controls-feedback-checkpoint---2026-10-24).
+No cover/metadata action was invoked, and no unrelated fixture was changed to
+force coverage. The initial outline-only picker diagnostic was corrected to
+recognize an existing focus ring; no new application defect was reproduced.
 
 ### DEF-013 - CSV Choose file control lacks visible hover feedback
 
