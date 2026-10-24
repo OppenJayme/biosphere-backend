@@ -7,6 +7,10 @@
 
 ## Start here
 
+For the current grouped queue, owners and ready-to-send teammate messages, use
+the [2026-10-24 completion handoff](./COMPLETION_HANDOFF.md). It supersedes stale
+task-selection instructions below, not historical evidence or acceptance statuses.
+
 Use this page as a checklist, not a requirement to repeat every historical run.
 This navigation checkpoint summarizes recorded evidence as of **2026-10-22**;
 the linked register rows and dated notes retain the exact results and limits.
@@ -244,6 +248,13 @@ Evidence reconciled:
   prove the live Cataloged restoration branch or close all audit lifecycle work.
 
 #### Remaining completion queue (owner scope only)
+
+**2026-10-24 update:** Read the [completion handoff](./COMPLETION_HANDOFF.md)
+before selecting work from this older queue. Date/import/readiness and the
+approved completion/reopening/eligibility audit batch below now have evidence;
+do not repeat them as though untested. Owner merged-build duplicate failure/retry
+also passed, and DEF-018's declaration mismatch is Verified. Independent review,
+explicit policy/environment gates and the remaining precise subcases still apply.
 
 1. Close the identified Cataloging gaps, not every previously passed happy path:
    date/API/import/readiness cases, reviewed CSV commit/retry evidence, remote
