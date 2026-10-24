@@ -110,6 +110,33 @@ Before starting a test session:
 - [ ] A valid active curator test account is available.
 - [ ] The tester knows which records are disposable.
 
+### Consolidated automated regression checkpoint - 2026-10-24
+
+Executed against backend `44b661d` and frontend `417b0c6`, without runtime
+source changes, dependency installation, builds, server restarts or browser
+interaction:
+
+| Check | Command | Result |
+| --- | --- | --- |
+| Backend unit | `npm test -- --runInBand` | 53 suites, 690 tests passed |
+| Backend isolated HTTP | `npm run test:e2e -- --runInBand --testPathIgnorePatterns=developer.e2e-spec.ts` | 26 suites, 337 tests passed; live Developer file explicitly excluded |
+| Frontend | `npm test -- --maxWorkers=2` | 62 files, 366 tests passed |
+
+The frontend's first attempt failed before executing tests with a Windows
+sandbox `spawn EPERM`; the approved retry outside that restriction passed.
+This is not an application regression. Backend unit output includes deliberate
+failure-path diagnostics; the HTTP run also exposed incomplete security-audit
+mock adapters, tracked as [OBS-003](./TEST_DEFECT_LOG.md#obs-003---isolated-http-tests-log-missing-security-audit-mock-adapters).
+Green request assertions do not establish audit persistence in those fixtures.
+
+This checkpoint verifies the existing automated suites together, not live
+database/provider behavior, builds, CI, merged deployment, concurrency or final
+module acceptance. Lint was not rerun in this checkpoint (the preceding focused
+test change had targeted lint evidence). No acceptance row or defect is promoted
+solely from these results. Before further live acceptance, merge the pending
+work through PR/CI and confirm the running build, then choose an uncovered case
+from the owner queue; independent sign-off and explicit safety/policy gates remain.
+
 ## 7. Recommended execution order
 
 Run tests in this order because later workflows depend on earlier records:

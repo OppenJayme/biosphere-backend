@@ -1999,3 +1999,27 @@ Keep this separate from OBS-001; a causal connection has not been established.
 Ignored read-only diagnostic: frontend
 `tools/browser/artifacts/obs002-notification-read.txt`. No broader module work
 was undertaken, and no known records or running processes were modified.
+
+### OBS-003 - Isolated HTTP tests log missing security-audit mock adapters
+
+**Observed:** 2026-10-24 consolidated backend regression, checkout `44b661d`
+**Disposition:** Test-harness coverage limitation; no live audit failure established
+**Owner:** Backend test maintainers / relevant module owners
+
+The full isolated HTTP run passed 26 suites / 337 tests, but emitted repeated
+`SecurityAuditService` errors during authorization rejection: accessing
+`audit_log.create` on an undefined mock adapter. Source inspection found several
+HTTP fixtures without an `audit_log` adapter, including `auth.e2e-spec.ts`;
+individual emitted events were not mapped to every originating test.
+
+Authorization assertions can pass because security-audit failures are caught;
+these fixtures therefore do not establish denial-event persistence. The dedicated
+Audit HTTP suite separately has an adapter and authorized readback coverage.
+This is not evidence that the live database loses audit entries, nor a reason
+to suppress the logger or change production authorization. Follow up by adding
+appropriate external-adapter fixtures and public HTTP readback where persistence
+is claimed; do not silently treat a no-op mock as persistence proof.
+
+No harness/runtime fix was made in this checkpoint. The live Developer suite
+was explicitly excluded. No museum record or account was changed. Results are
+linked from the acceptance plan; documentation verification: `git diff --check`.
