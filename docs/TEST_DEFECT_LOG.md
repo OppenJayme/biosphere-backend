@@ -166,6 +166,49 @@ production deployment, true provider outage or independent module acceptance.
 The task-owned dev server was stopped after retest; the original port-3000
 frontend still returned HTTP 200. No shared server was killed or rebuilt.
 
+#### Merged production-mode browser follow-up - 2026-10-24
+
+After frontend PR #78 merged and the explicitly approved frontend rebuild,
+repeated the no-save diagnostic on `localhost:3000`: frontend `d38476b`, build
+ID `l4aSSUwwq2D41IdpX_t9G`, backend checkout `735d4d1` (its process revision not
+independently established). The Curator session passed a fresh protected read
+and the local draft preflight found no eligible automatic-sync work.
+
+Using the same identity-guarded TEST fixture, live matching warning/detail link,
+warning-only Save behavior and clearing unrelated values passed. Holding then
+aborting one validated duplicate-read action showed pending, followed by
+unknown/Check again. Both entered names and the form survived, Save stayed
+enabled and explicit retry returned a clear result. Six validated read attempts
+included the deliberately aborted one; no other non-read request or page error
+was observed, and the form was never submitted.
+
+A separate delayed-read check held a known matching lookup while the names
+were changed to unrelated test values. After release, the delayed response
+contained a matching result, but the final UI correctly showed clear for the
+new names with no old fixture link; values and enabled Save remained intact.
+That completed probe observed four validated duplicate reads, zero other
+non-read requests and zero page errors. This does not force out-of-order Server
+Action completion or prove absence of a transient stale display.
+
+The first delayed-read diagnostic timed out awaiting a newer response before
+releasing the old action. That helper assumed concurrent completion and attached
+its response observer after editing. Corrected the helper to register before
+editing and release the old request before awaiting completion. The timeout is
+an inconclusive harness attempt, not a reproduced application defect or proof
+of a specific scheduling cause. No form save was attempted in either version.
+
+Temporary tabs were closed; original Curator and Developer windows were not
+navigated or signed out. No source, matcher, archive policy, Inventory or museum
+record changed. Diagnostics remain ignored under frontend browser artifacts.
+`git diff --check` passed; automated suites were not repeated for this live
+evidence update (the consolidated regression checkpoint remains separate).
+
+The original transport-loss failure is not reproduced on the refreshed merged
+build. Status remains **Ready for retest** for independent reviewer acceptance
+and the full stale in-flight/out-of-order requirement, not because the owner
+browser failure/retry check is still unexecuted. CAT-014's archived-policy and
+saved-review discovery gaps are separate and remain pending.
+
 #### Retest
 
 - [x] Rejected client transport resolves to an unavailable warning, never clear.
