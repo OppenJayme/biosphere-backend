@@ -67,6 +67,7 @@ system is not a reason to postpone all fixes until the end.
 
 | ID      | Date       | Module                     | Summary                                                                 | Severity    | Priority | Status | Owner                   |
 | ------- | ---------- | -------------------------- | ----------------------------------------------------------------------- | ----------- | -------- | ------ | ----------------------- |
+| [DEF-021](#def-021---interrupted-csv-commit-request-removes-the-reviewed-preview) | 2026-10-24 | Cataloging / CSV import UI | Rejected client commit transport removes the reviewed preview and recovery controls | S3 Moderate | P1 | Open | Kyer / Cataloging frontend |
 | [DEF-020](#def-020---interrupted-duplicate-check-removes-the-unsaved-core-form) | 2026-10-23 | Cataloging / Duplicate warning | Rejected client request escapes the warning check and removes the unsaved form | S3 Moderate | P1 | Ready for retest | Kyer / Cataloging frontend |
 | [DEF-016](#def-016---backup-http-fixture-omits-the-security-audit-delegate) | 2026-10-19 | Backup / HTTP test fixture | Missing audit delegate logs an error despite green denial test | S3 Moderate | P2 | Ready for retest | Backup tests / coordinate with Auth |
 | [DEF-017](#def-017---storage-inventory-denial-fixture-omits-security-audit-persistence) | 2026-10-21 | Inventory / HTTP test fixture | Storage-inventory denial passes despite missing security-audit delegate | S3 Moderate | P2 | Open | John / coordinate with Voltaire |
@@ -89,6 +90,69 @@ system is not a reason to postpone all fixes until the end.
 | [DEF-015](#def-015---audit-http-fixture-omits-the-security-audit-create-method) | 2026-10-19 | Audit / HTTP test fixture | Missing security-audit create mock logs an error despite green denial test | S3 Moderate | P2 | Ready for retest | Audit tests / coordinate with Auth |
 
 ## 3. Defect details
+
+### DEF-021 - Interrupted CSV commit request removes the reviewed preview
+
+**Related test:** CAT-013; discovered during DEF-013 commit-pending UI check
+**Environment:** Signed-in Edge, refreshed production-mode frontend on port 3000
+**Found on:** frontend `d38476b`, build `l4aSSUwwq2D41IdpX_t9G`; backend source base `f1bcd69` (no request forwarded)
+**Severity:** S3 Moderate; reviewed client state becomes unavailable, no persisted data loss demonstrated
+**Priority:** P1 before import failure/retry acceptance
+**Status:** Open
+**Owner:** Kyer / Cataloging frontend
+
+#### Reproduction and evidence - 2026-10-24
+
+1. Open `/cataloging/import` in a temporary test tab with mutation requests
+   blocked by default. Select a synthetic in-memory CSV.
+2. Fulfill preview locally with one valid, selected row and synthetic preview
+   UUID `00000000-0000-4000-8000-000000000013`; no server preview is created.
+3. Click Import selected rows. Hold only the matching serialized Server Action
+   request with that preview UUID and row `[1]`; never forward or fetch it.
+4. Confirm pending state, then abort the request while the tab is alive.
+
+Two fresh probes reproduced the same result: the file picker, synthetic preview
+row and Import button disappeared, no actionable alert appeared, and each
+observed one browser page error. Pending styling itself passed: input/Preview/
+Import disabled, picker opacity 0.6 and not-allowed cursor, accessible Importing
+specimens status. Each probe intercepted exactly one local synthetic preview
+and one commit action, with zero unexpected non-read requests. Diagnostic exit
+success reports observations; it does not mean the recovery expectation passed.
+
+Expected: retain the preview, selected rows and warning acknowledgement, show
+that the commit outcome could not be confirmed, and allow a deliberate same-
+preview retry or an explained recovery path without a generic page crash.
+Source inspection shows `handleCommit` awaits the Server Action without a
+client transport catch. The action's backend-error catch cannot handle failure
+before its result reaches the browser. This is analogous to DEF-020 but in a
+separate workflow/call site; the duplicate-check fix does not cover import.
+
+No actual preview/commit was forwarded by the diagnostic and no record was
+intentionally created. The held request was aborted and its failure observed
+before the probe tab closed. No offline toggle, tab-close interruption, shared
+server stop, Inventory change, token extraction or role change occurred. Original
+Curator/Developer windows were preserved. This is not a reproduction of a live
+database/provider outage, partial server commit or DEF-019 containment proof.
+Ignored diagnostic: frontend `csv-commit-pending-interrupted.txt`.
+
+#### Scoped repair recommendation and retest
+
+Add a narrow client transport boundary for the commit action; preserve existing
+server validation, authorization and import idempotency. A transport failure is
+an **unknown outcome**, not proof that nothing was saved. Do not auto-retry,
+invent success counts, generate a new preview or clear reviewed selections.
+Explicit retries must retain the same preview ID and selected row identities.
+Coordinate any retry/idempotency API change separately; none is authorized here.
+
+- [ ] Rejected client transport preserves preview, row selection and recovery UI.
+- [ ] A clear unknown-outcome error appears without a browser page crash.
+- [ ] Explicit retry uses the same preview/rows; no automatic commit attempt.
+- [ ] Existing resolved success and backend-rejection handling remain intact.
+- [ ] Focused regressions and safe blocked-request browser retest pass.
+
+No runtime fix was made at discovery. Pause dependent import failure/retry
+acceptance until repaired; unrelated safe checks may continue. Documentation
+verification: `git diff --check`; no full automated suite/build was rerun.
 
 ### DEF-020 - Interrupted duplicate check removes the unsaved core form
 
@@ -1622,7 +1686,7 @@ This is the import picker, not the media picker covered by DEF-004.
 
 - [x] Enabled CSV file control responds visibly to hover and keyboard focus (2026-10-24 scoped browser check below).
 - [x] Preview-pending controls have distinct disabled appearance and recover after a simulated preview error (2026-10-24 below).
-- [ ] Commit-pending controls and remaining full-flow behavior are independently retested.
+- [x] Commit-pending disabled controls/status pass with a locally intercepted synthetic commit (2026-10-24; recovery failure tracked separately as DEF-021).
 - [ ] File selection, preview validation and saving behavior remain unchanged.
 
 #### Enabled picker browser feedback - 2026-10-24
@@ -1675,6 +1739,14 @@ interaction, real row validation/commit and commit-pending states were not
 exercised here; earlier CAT-013 evidence stays separate. DEF-013 remains Ready
 for retest for its remaining checklist. No runtime source changed;
 documentation verification: `git diff --check`, not another full suite/build.
+
+The subsequent commit-pending check passed disabled appearance/status twice,
+but aborting the browser-to-Server-Action transport reproduced
+[DEF-021](#def-021---interrupted-csv-commit-request-removes-the-reviewed-preview).
+This is a separate import recovery failure, not a renewed picker styling failure.
+No real preview/commit was sent. Keep DEF-013 Ready for retest for its remaining
+independent full-flow checklist; do not mark CAT-013 fully accepted while DEF-021
+is open.
 
 ### DEF-014 - Already-attached tag notice resembles successful new attachment
 
