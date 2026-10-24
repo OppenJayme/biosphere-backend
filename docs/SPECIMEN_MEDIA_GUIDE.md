@@ -287,4 +287,6 @@ The subsequent [live Developer access checkpoint](./AUDIT_LOG_GUIDE.md#aud-001-l
 verified that the protected TEST media page redirects a Developer to the
 restricted workspace without a private-image request. This is page-level
 evidence only: direct signed-URL API role denial and inactive-account access
-remain unverified. Security-audit review awaits curator reauthentication.
+remain unverified. The subsequent [Curator audit follow-up](./AUDIT_LOG_GUIDE.md#curator-denial-audit-follow-up---2026-10-24)
+found persisted matching Developer denials on two reads; exact request-to-event
+correlation remains unverified.

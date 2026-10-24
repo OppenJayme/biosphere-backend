@@ -175,3 +175,35 @@ Normal login/denial events may be appended by the security-audit mechanism;
 no museum data or account configuration was edited. AUD-001 remains In progress.
 No runtime code or servers changed; `git diff --check` passed. Full app suites
 were not rerun for these live checks against the existing served build.
+
+### Curator denial-audit follow-up - 2026-10-24
+
+After the user confirmed login, a fresh protected read identified the original
+`biosphere-aud002` context as authenticated; the newly opened follow-up context
+still redirected to login. Used only the authenticated original context. The
+separate Developer window and both existing Curator tabs were left open.
+
+Two independent GET/HEAD-only probe tabs queried `module=auth`,
+`action=ACCESS_DENIED`, `result=DENIED` and the museum date 2026-10-24.
+Both reads found the same six matching Developer GET-denial entries on the
+first filtered page:
+
+- Three for `/audit-logs`.
+- One for `/specimens`.
+- One each for the known TEST specimen detail and media paths.
+
+Every matching entry had `ROLE_NOT_PERMITTED`, required role `CURATOR`, a
+displayed actor, `user_account` attribution and a displayed timestamp. The
+counts remained unchanged on the repeated query. Both probes recorded zero
+non-read requests and closed only their temporary tabs. No account names,
+credentials, headers or raw audit payloads were exported.
+
+This verifies persisted denial evidence consistent with the earlier Developer
+checks, including the specimen-list API denial. It does not establish exact
+caller UUID, timestamp or request-ID correlation for each earlier browser
+request; page navigation can trigger backend reads, so these entries are not
+proof of independently issued direct Audit/media API tests. The previous
+reauthentication prerequisite is satisfied for this review, but AUD-001 stays
+In progress for remaining access/failure/boundary cases and independent sign-off.
+No new defect was reproduced. Documentation-only verification:
+`git diff --check`; application tests/build were not rerun.
