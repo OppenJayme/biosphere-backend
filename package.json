@@ -20,6 +20,7 @@
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
+    "test:faq-review:db": "cross-env RUN_FAQ_REVIEW_DISPOSABLE_DB=true node --experimental-vm-modules node_modules/jest/bin/jest.js --config ./test/jest-faq-review-db.json --runInBand",
     "test:e2e:live:developer": "cross-env RUN_LIVE_DEVELOPER_E2E=true NODE_OPTIONS=--experimental-vm-modules jest --config ./test/jest-e2e.json test/developer.e2e-spec.ts --runInBand",
     "benchmark:specimen-import": "ts-node --transpile-only scripts/benchmark-specimen-import.ts",
     "db:check-accession-collisions": "ts-node --transpile-only scripts/check-accession-collisions.ts",

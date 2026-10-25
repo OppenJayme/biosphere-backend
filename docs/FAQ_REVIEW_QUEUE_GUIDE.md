@@ -2,9 +2,12 @@
 
 ## Status and authority
 
-Implemented on paired `feat/faq-opt-in-review-queue` branches. **Disabled by
-default; migration prepared only, not applied. No live question collection.**
-The user approved isolated HTTP/UI checks and migration preparation only.
+Merged in backend #188/frontend #83. **Disabled by default; migration not
+applied to the shared database. No live question collection.** An approved
+disposable PostgreSQL trial is now recorded below; it is not deployment approval.
+The initial approval covered isolated HTTP/UI checks and migration preparation
+only; follow-up approval permits the owned disposable SQL/HTTP/cleanup trial,
+not shared-database migration or feature activation.
 This is a working project policy, not institutional/privacy/legal sign-off.
 It supersedes the older automatic unanswered-question logging proposal for
 this slice: ordinary ask requests still do not create review records.
@@ -59,6 +62,12 @@ tests do not prove transaction rollback or actual RLS/concurrency.
 
 ## Retention and deployment gate
 
+The [disposable database checkpoint](#disposable-postgresql-checkpoint---2026-10-25)
+now supplies local migration/RLS/rollback/cleanup evidence. The checklist below
+still requires verification on the actual approved deployment, privacy/backup
+policy, a monitored scheduler and independent acceptance. Do not repeat the
+local checks as if they had never run, or enable collection from this result.
+
 **30 days from the first grouped submission** is the chosen project baseline,
 not a statutory requirement. Repeat submissions and review do not renew it.
 Expiry immediately excludes text from queue reads/dispositions; this is not
@@ -76,7 +85,8 @@ npx --no-install ts-node scripts/purge-expired-faq-review.ts
 
 The command requires a dedicated `FAQ_REVIEW_CLEANUP_DATABASE_URL`, never falls
 back to the main connection, emits counts only, and fails nonzero with a generic
-message. No command was executed or scheduled in this task. A deployment-owned
+message. The later trial below executed it only against owned disposable data;
+no deployment command or scheduled job was run. A deployment-owned
 job should run at least daily with failure/missed-run monitoring; thus expiry
 and physical disposal have different deadlines. Backups can retain text until
 their separately approved retention/deletion policy; removing a live row does
@@ -140,3 +150,94 @@ the exact 30-day policy is our project decision.
 - Curator live browser lifecycle, migration, RLS, real rollback/concurrency,
   physical purge, scheduler and independent acceptance remain pending. No
   acceptance case or existing defect is promoted to Passed/Verified by this slice.
+
+## Disposable PostgreSQL checkpoint - 2026-10-25
+
+User-approved seams: direct SQL migration/RLS, real FAQ review HTTP routes with
+synthetic authentication, and the real cleanup CLI. Baseline: merged backend
+`39a3ea6`; work branch `test/faq-review-disposable-db`. This checkpoint supersedes
+the previous local-database evidence gaps only, not deployed-environment gates.
+
+`npm run test:faq-review:db` passed **13/13** checks against actual PostgreSQL:
+
+- Migration applies; RLS enabled on both tables. SQL rejects invalid counts,
+  blank/oversized text, invalid status/expiry ordering, duplicate hashes and
+  missing receipt parents; deletion cascades receipts.
+- `anon` and `authenticated` fixture roles cannot read/write private tables.
+  RLS still hides seeded text if SELECT is temporarily granted inside a rolled
+  back test transaction. API uses a test service role with migration grants.
+- Actual Nest controllers, validation, auth/role/throttle guards, AuthService,
+  FaqReviewService and Prisma/pg run together. Only the external provider
+  identity is synthetic; account lookup and audit writes are real local SQL.
+  Anonymous/Developer queue access is denied; Curator readback works.
+- Four simultaneous same-token requests count once. Four distinct normalized
+  opt-ins retain every count, reopen review and never renew original expiry.
+  A bounded 503 is permitted under contention; the test explicitly retries the
+  same receipt and verifies the final count. This is not an unlimited-load or
+  guaranteed-first-attempt-success claim.
+- Revoking audit INSERT causes failed disposition/deletion to roll back,
+  including cascaded receipts. Failed queue-read audit returns no text. After
+  permissions are restored, HTTP readback verifies unchanged state and safe
+  retry. Removal audit details do not copy question/hash.
+- Expired text is hidden and late review rejected. Reusing a receipt after
+  expiry creates a new group under the documented bounded-idempotency contract.
+- Actual cleanup entry point defaults to count-only dry-run. Explicit `--apply`
+  deletes expired groups/receipts, preserves active groups, and repeat apply
+  deletes zero. Missing dedicated connection or denied DELETE fails nonzero
+  with generic feedback, not private output or a fallback connection.
+- The dedicated fixture cleanup role has no RLS bypass, can SELECT only the
+  expiry column and DELETE only expired rows through role-specific policies.
+  It cannot read question text or delete active rows. These policies/role are
+  **test fixtures**, not deployment grants created by the FAQ migration.
+
+### Reproduce and containment
+
+This opt-in suite is separate from normal unit/e2e discovery and is not
+automatically added to CI. It currently supports Windows Docker Desktop's
+explicit local Linux-engine named pipe only; remote Docker endpoints are not
+accepted. Requires installed dependencies/generated Prisma types, running
+Docker Desktop, and the pinned official PostgreSQL image in the local cache:
+
+```powershell
+docker pull postgres@sha256:eee6c6e1b0894fa4fe0075eb054af9fd1cf39a35321c2d4110626cfe506411fb
+npm run test:faq-review:db
+```
+
+The helper never accepts an existing database URL. It creates its own random
+container identity/password, loopback-only random port, fixed disposable DB
+name, memory-backed data directory and ownership label. It rejects persistent
+or host mounts and rechecks ownership before removing the exact container ID.
+Docker uses `--pull=never`; the explicit image download is separate. Children
+receive allowlisted OS settings only, not application/DB/Supabase credentials.
+No `.env`, `DIRECT_URL` or shared `DATABASE_URL` is loaded by this test module.
+The cleanup child runs from a new empty directory, so its normal dotenv call
+cannot read the workspace `.env`. The empty directory is removed non-recursively.
+
+Only this FAQ migration is applied, plus minimal local account/audit dependency
+fixtures matching the fields exercised. This does **not** replay the historical
+full application schema or reproduce hosted Supabase infrastructure. HTTP binds
+to loopback port zero; existing app ports 3000/3001 are not claimed/restarted.
+Natural Nest watch reloads may occur from workspace edits.
+
+Normal completion removes the owned container and synthetic data; no persistent
+DB volumes are created. Force-killing the test process can bypass its teardown:
+inspect the exact test container ID/ownership label before any manual removal,
+never prune Docker or delete unrelated containers. The downloaded image remains
+cached and Docker Desktop remains running. No deployment scheduler, backups,
+real accounts, shared database or public feature flag was changed.
+
+Harness-only issues corrected during development: Jest needed Node's VM-module
+flag for the actual Prisma compiler, and the Nest factory generic needed the
+application type. Tightening the storage guard initially rejected the container
+because Docker reports legacy `--tmpfs` in `HostConfig.Tmpfs`, not necessarily
+the regular `Mounts` list. The failed run stopped and removed its owned container.
+The final guard checks both configuration and the actual filesystem type via
+`stat`; the final rerun passed 13/13. No production workaround/logger suppression
+was introduced. Existing FAQ HTTP regressions also passed **41/41**; type check
+passed and lint had zero errors with seven pre-existing unused-disable warnings.
+No new reproducible application defect was established, and no acceptance or
+defect status is promoted by this local evidence.
+
+Remaining: approved shared-environment migration/grants review, deployment
+connection verification, privacy/backup approval, monitored scheduled purge and
+independent authenticated browser acceptance. Collection stays default-off.

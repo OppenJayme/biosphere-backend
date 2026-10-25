@@ -6,6 +6,12 @@ defect entry.
 
 ## Start here
 
+2026-10-25 follow-up: [13 disposable PostgreSQL SQL/HTTP/cleanup checks](./FAQ_REVIEW_QUEUE_GUIDE.md#disposable-postgresql-checkpoint---2026-10-25)
+passed. Migration/RLS, contention retries, actual rollback and expiry deletion
+now have local real-database evidence. Harness setup issues were corrected;
+no application defect was established and no existing status promoted. Shared
+deployment, scheduler, backup and independent acceptance gates remain.
+
 2026-10-25 FAQ opt-in review checkpoint: [isolated evidence and remaining
 deployment gates](./FAQ_REVIEW_QUEUE_GUIDE.md#isolated-evidence-and-limits).
 No new reproducible application defect was established in this slice; expected
