@@ -7,6 +7,13 @@ status and does not authorize migrations, account changes or teammate-owned work
 
 ## Current checkpoint
 
+- FAQ opt-in review is merged in backend #188/frontend #83 with successful PR
+  CI. Approved disposable PostgreSQL migration/RLS, HTTP concurrency/rollback
+  and real cleanup checks passed 13/13. See the [local evidence and remaining
+  deployment gates](./FAQ_REVIEW_QUEUE_GUIDE.md#disposable-postgresql-checkpoint---2026-10-25).
+  No shared migration, scheduler or live collection was enabled; do not treat
+  this as hosted-environment or independent acceptance evidence.
+
 - Opt-in unanswered FAQ review implemented on paired
   `feat/faq-opt-in-review-queue` branches: collection stays default-off, migration
   prepared only, no live collection. See [contract, isolated evidence and finite

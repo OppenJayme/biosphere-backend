@@ -6,12 +6,20 @@ or active knowledge was changed and no public ask request was made here.
 
 ## Progress update - 2026-10-25
 
+Backend #188/frontend #83 are merged; both PR CI runs passed and fetched source
+matched merged develop. The approved [disposable PostgreSQL checkpoint](./FAQ_REVIEW_QUEUE_GUIDE.md#disposable-postgresql-checkpoint---2026-10-25)
+now passes 13 real SQL/HTTP/cleanup cases. Migration was applied **only to owned
+temporary containers**, not the shared database. Next: deployment/privacy/backup
+and monitored-scheduler approval plus independent acceptance; collection stays
+disabled. Do not repeat the completed local checks or claim deployment readiness.
+
 Latest slice: [opt-in question review](./FAQ_REVIEW_QUEUE_GUIDE.md) is implemented
-with isolated API/UI evidence, **disabled by default**. Migration is prepared
-only; no live question collection or scheduled cleanup was enabled. This explicit
+with isolated API/UI evidence, **disabled by default**. Shared migration remains
+unapplied; only the approved disposable trial ran. No live question collection
+or deployed scheduled cleanup was enabled. This explicit
 opt-in design supersedes the earlier automatic unanswered logging proposal.
-Context changes below are now merged (backend #187/frontend #82). Next is paired
-review and the guide's finite deployment/privacy/cleanup gates, not another
+Context changes below are now merged (backend #187/frontend #82). Paired review
+is merged; next are the guide's finite deployment/privacy/cleanup gates, not another
 round of previously passed Cataloging tests. Duplicate knowledge policy and
 measured near-tie/language evaluation remain separate future work.
 The older next-step/source-review paragraphs below retain their dated context;
