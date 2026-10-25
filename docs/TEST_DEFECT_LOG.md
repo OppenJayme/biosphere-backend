@@ -79,6 +79,7 @@ system is not a reason to postpone all fixes until the end.
 
 | ID      | Date       | Module                     | Summary                                                                 | Severity    | Priority | Status | Owner                   |
 | ------- | ---------- | -------------------------- | ----------------------------------------------------------------------- | ----------- | -------- | ------ | ----------------------- |
+| [DEF-024](#def-024---faq-matcher-answers-parking-questions-with-unrelated-fee-information) | 2026-10-25 | FAQ / Answer quality | Fee keyword overlap answers a parking question even when the fee topic is excluded or parking inclusion is unsupported | S3 Moderate | P1 | Open | Kyer / FAQ matching; team reviews abstention policy |
 | [DEF-023](#def-023---conflicting-faq-cleanup-modes-perform-deletion) | 2026-10-25 | FAQ / Cleanup operations | Combining --apply and --dry-run deletes expired rows instead of rejecting conflicting modes | S3 Moderate | P1 | Ready for retest | Kyer / FAQ backend |
 | [DEF-022](#def-022---interrupted-media-metadata-save-removes-the-edit-form) | 2026-10-24 | Cataloging / Media UI | Rejected metadata Server Action transport removes the edit form and local edits | S3 Moderate | P1 | Ready for retest | Kyer / Cataloging frontend |
 | [DEF-021](#def-021---interrupted-csv-commit-request-removes-the-reviewed-preview) | 2026-10-24 | Cataloging / CSV import UI | Rejected client commit transport removes the reviewed preview and recovery controls | S3 Moderate | P1 | Ready for retest | Kyer / Cataloging frontend |
@@ -104,6 +105,45 @@ system is not a reason to postpone all fixes until the end.
 | [DEF-015](#def-015---audit-http-fixture-omits-the-security-audit-create-method) | 2026-10-19 | Audit / HTTP test fixture | Missing security-audit create mock logs an error despite green denial test | S3 Moderate | P2 | Ready for retest | Audit tests / coordinate with Auth |
 
 ## 3. Defect details
+
+### DEF-024 - FAQ matcher answers parking questions with unrelated fee information
+
+**Found on:** 2026-10-25, merged backend `bfd5d01`, synthetic HTTP evaluation.
+
+**Severity / priority:** S3 Moderate / P1 before FAQ answer-quality sign-off.
+
+**Status:** Open. Reproduced; no matcher fix or threshold change implemented.
+
+**Owner:** Kyer / FAQ matching; team reviews partially covered-question policy.
+
+**Environment / reproduction:** Run `npm run evaluate:faq`. The loopback Nest
+fixture has an ACTIVE synthetic admission-fee entry and ARCHIVED parking entry.
+No real records, external provider or browser credentials are used.
+
+| Case | Question | Expected working label | Observed HTTP result |
+| --- | --- | --- | --- |
+| E19 | I am not asking about admission fees; where can I park? | NO_MATCH / General Inquiry | 200, ANSWERED, fee entry ID `11111111-1111-4111-8111-111111111111` |
+| E20 | Do admission fees include parking? | NO_MATCH / General Inquiry | 200, ANSWERED, same fee entry |
+
+Returned answer: `TEST ONLY: Admission is five fictional credits.` It is stored
+text, but it does not answer parking or parking inclusion. E19 explicitly
+excludes fees; E20 is a recommended abstention label requiring team review for
+partially covered questions. No archived answer or personal data was exposed.
+
+**Source explanation:** The lexical matcher permits sufficient overlapping fee
+tokens and keyword bonuses without resolving excluded topics or unsupported
+qualifiers. This explains the reproduction; it is not a claim of broad semantic
+understanding, a complete root-cause fix or an approved new numerical threshold.
+
+**Evidence:** 25 fixed cases, 23 passed and E19/E20 failed; evaluation exits 1.
+The opt-in diagnostic is separate from normal CI discovery, not skipped or
+relabelled as passing. Ordinary CI must not imply answer-quality acceptance.
+See [corpus, limits and content review](./FAQ_CONTENT_REVIEW.md).
+
+**Next:** Agree the narrow abstention policy, fix under the public HTTP seam,
+retain established passes and add different hold-out cases before sign-off.
+No approval to publish fixture answers, enable question collection or deploy a
+paid semantic provider is implied. No shared database mutation occurred.
 
 ### DEF-023 - Conflicting FAQ cleanup modes perform deletion
 

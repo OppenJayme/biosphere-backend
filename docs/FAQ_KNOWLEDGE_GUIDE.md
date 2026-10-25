@@ -1,5 +1,10 @@
 # BioSphere FAQ Knowledge Management Guide
 
+Current answer-quality checkpoint: [content review and 25-case synthetic HTTP
+evaluation](./FAQ_CONTENT_REVIEW.md), with two open wrong-topic findings in
+DEF-024. A green unit/CI run is not a passing content-quality evaluation or
+approval of the fixture's fictional museum facts.
+
 Latest addition (2026-10-25): [opt-in unanswered question review](./FAQ_REVIEW_QUEUE_GUIDE.md).
 It is separate from approved FAQ entries, default-off, with a prepared-only
 migration. The historical no-schema-change description below applies to the
