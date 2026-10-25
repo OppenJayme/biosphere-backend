@@ -80,8 +80,13 @@ Prepared command (do not run against a shared database without authorization):
 ```powershell
 npx --no-install ts-node scripts/purge-expired-faq-review.ts
 # Default: read-only count of expired groups.
+# An explicit --dry-run also counts only.
 # Only an authorized cleanup job adds --apply for irreversible deletion.
 ```
+
+Use **no options or exactly one of `--dry-run` / `--apply`**. Conflicting,
+duplicated or unknown options exit nonzero before configuration loading or a
+database connection; arguments are never echoed. Do not combine modes.
 
 The command requires a dedicated `FAQ_REVIEW_CLEANUP_DATABASE_URL`, never falls
 back to the main connection, emits counts only, and fails nonzero with a generic
@@ -241,3 +246,26 @@ defect status is promoted by this local evidence.
 Remaining: approved shared-environment migration/grants review, deployment
 connection verification, privacy/backup approval, monitored scheduled purge and
 independent authenticated browser acceptance. Collection stays default-off.
+
+## Cleanup command safety checkpoint - 2026-10-25
+
+Backend #189 is merged (`878ff0e`). Follow-up source review reproduced
+[DEF-023](./TEST_DEFECT_LOG.md#def-023---conflicting-faq-cleanup-modes-perform-deletion):
+`--apply --dry-run` silently selected deletion. In the disposable fixture it
+exited 0, reported one deletion, and left one of two rows. No shared data was
+used; only the seeded expired test row was removed.
+
+The repaired CLI accepts a single unambiguous mode, validates before dotenv or
+connection setup, and retains default count-only behavior. The prior 13-case
+suite plus seven focused CLI regressions now pass **20/20**. The same public
+CLI/SQL seams were used; no internal mock bypasses argument validation or SQL.
+Type check passed; lint has zero errors and seven pre-existing unused-disable
+warnings. No unrelated acceptance tests were repeated for this command-only fix.
+Owner evidence is recorded without promoting the defect beyond Ready for retest.
+
+This is provider-neutral command hardening, **not a deployed scheduler**. Hosting
+is not established in the repository, so no cloud provider, Windows task, cron
+job, alert destination or production secret was selected/configured. Before
+scheduling: verify the approved target, restricted role, privacy/backup notice,
+protected secret injection, success/failure and missed-run monitoring, then
+perform independent deployment acceptance. Keep collection disabled until then.

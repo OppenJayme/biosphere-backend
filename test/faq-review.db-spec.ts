@@ -518,6 +518,73 @@ describe('FAQ review migration on owned disposable PostgreSQL', () => {
       expect(result.stdout + result.stderr).not.toMatch(/TEST|eeee|ffff/);
     });
 
+    it('rejects contradictory apply/dry-run options without deleting any rows', async () => {
+      const result = runFaqCleanup(database.url('faq_cleanup'), [
+        '--apply',
+        '--dry-run',
+      ]);
+      const remaining = await database.admin.query<{ count: string }>(
+        'SELECT count(*) FROM faq_review_item',
+      );
+      expect({
+        status: result.status,
+        stdout: result.stdout,
+        remaining: remaining.rows[0].count,
+      }).toEqual({ status: 1, stdout: '', remaining: '2' });
+    });
+
+    it.each([
+      { label: 'reversed conflicting modes', args: ['--dry-run', '--apply'] },
+      { label: 'duplicate apply', args: ['--apply', '--apply'] },
+      {
+        label: 'apply plus unknown option',
+        args: ['--apply', '--DO_NOT_ECHO_SYNTHETIC_VALUE'],
+      },
+      { label: 'misspelled mode', args: ['--aply'] },
+    ])('fails closed for $label', async ({ args }) => {
+      const result = runFaqCleanup(database.url('faq_cleanup'), args);
+      expect(result.status).toBe(1);
+      expect(result.stdout).toBe('');
+      expect(result.stderr).toBe(
+        'Invalid cleanup options. Use no options, --dry-run, or --apply; choose only one mode.',
+      );
+      expect(
+        (
+          await database.admin.query<{ count: string }>(
+            'SELECT count(*) FROM faq_review_item',
+          )
+        ).rows,
+      ).toEqual([{ count: '2' }]);
+    });
+
+    it('accepts an explicit dry-run without deleting rows', async () => {
+      const result = runFaqCleanup(database.url('faq_cleanup'), ['--dry-run']);
+      expect(result.status).toBe(0);
+      expect(JSON.parse(result.stdout)).toEqual({
+        mode: 'dry-run',
+        expired: '1',
+      });
+      expect(
+        (
+          await database.admin.query<{ count: string }>(
+            'SELECT count(*) FROM faq_review_item',
+          )
+        ).rows,
+      ).toEqual([{ count: '2' }]);
+    });
+
+    it('reports invalid options before requiring configuration and does not echo arguments', () => {
+      const result = runFaqCleanup(undefined, [
+        '--apply',
+        '--DO_NOT_ECHO_SYNTHETIC_VALUE',
+      ]);
+      expect(result.status).toBe(1);
+      expect(result.stdout).toBe('');
+      expect(result.stderr).toBe(
+        'Invalid cleanup options. Use no options, --dry-run, or --apply; choose only one mode.',
+      );
+    });
+
     it('physically deletes only expired groups and cascades their receipts when --apply is explicit', async () => {
       const result = runFaqCleanup(database.url('faq_cleanup'), ['--apply']);
       expect(result.status).toBe(0);

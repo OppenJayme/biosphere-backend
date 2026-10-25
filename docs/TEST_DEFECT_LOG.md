@@ -79,6 +79,7 @@ system is not a reason to postpone all fixes until the end.
 
 | ID      | Date       | Module                     | Summary                                                                 | Severity    | Priority | Status | Owner                   |
 | ------- | ---------- | -------------------------- | ----------------------------------------------------------------------- | ----------- | -------- | ------ | ----------------------- |
+| [DEF-023](#def-023---conflicting-faq-cleanup-modes-perform-deletion) | 2026-10-25 | FAQ / Cleanup operations | Combining --apply and --dry-run deletes expired rows instead of rejecting conflicting modes | S3 Moderate | P1 | Ready for retest | Kyer / FAQ backend |
 | [DEF-022](#def-022---interrupted-media-metadata-save-removes-the-edit-form) | 2026-10-24 | Cataloging / Media UI | Rejected metadata Server Action transport removes the edit form and local edits | S3 Moderate | P1 | Ready for retest | Kyer / Cataloging frontend |
 | [DEF-021](#def-021---interrupted-csv-commit-request-removes-the-reviewed-preview) | 2026-10-24 | Cataloging / CSV import UI | Rejected client commit transport removes the reviewed preview and recovery controls | S3 Moderate | P1 | Ready for retest | Kyer / Cataloging frontend |
 | [DEF-020](#def-020---interrupted-duplicate-check-removes-the-unsaved-core-form) | 2026-10-23 | Cataloging / Duplicate warning | Rejected client request escapes the warning check and removes the unsaved form | S3 Moderate | P1 | Ready for retest | Kyer / Cataloging frontend |
@@ -103,6 +104,44 @@ system is not a reason to postpone all fixes until the end.
 | [DEF-015](#def-015---audit-http-fixture-omits-the-security-audit-create-method) | 2026-10-19 | Audit / HTTP test fixture | Missing security-audit create mock logs an error despite green denial test | S3 Moderate | P2 | Ready for retest | Audit tests / coordinate with Auth |
 
 ## 3. Defect details
+
+### DEF-023 - Conflicting FAQ cleanup modes perform deletion
+
+**Found on:** 2026-10-25, merged backend baseline `878ff0e`.
+
+**Severity / priority:** S3 Moderate / P1 before cleanup deployment.
+
+**Owner:** Kyer / FAQ backend.
+
+**Status:** Ready for retest; owner reproduction and repaired disposable regression
+passed, independent review and deployed-job acceptance pending.
+
+**Reproduction:** Seed one expired question with a retry receipt and one active
+question. Invoke the real cleanup CLI with both `--apply --dry-run`, using the
+restricted disposable cleanup role. No shared database or live data is involved.
+
+**Expected:** Exit nonzero, no success output, neither question deleted; reject
+ambiguous modes before loading configuration or opening a connection.
+
+**Actual before fix:** Exit 0, output `{"mode":"apply","deleted":1}`, and SQL
+readback showed one remaining question instead of two. `includes('--apply')`
+silently selected deletion despite the dry-run option. This does not establish
+any shared-data loss or deletion of active records.
+
+**Repair:** Accept no options (dry run) or exactly one recognized
+mode, `--dry-run` or `--apply`. Reject conflicting, duplicated or unknown options
+without echoing arguments or opening a database connection. Retain default
+dry-run and explicit apply behavior. Regression seam: actual cleanup CLI and
+SQL readback in the already-approved disposable database harness.
+
+**Owner evidence:** Red run returned exit 0, `deleted:1`, SQL remaining count 1
+instead of 2. After repair, the same test passes with exit 1, empty stdout and
+remaining count 2. The full disposable suite passes **20/20**, including both
+conflict orders, duplicate/unknown/typo options, argument privacy, rejection
+before requiring configuration, explicit and default dry-run, valid apply,
+RLS, rollback and concurrency. Test containers removed normally; no shared
+data, scheduler, backups or collection flag changed. Do not treat owner evidence
+as independent acceptance or repeat earlier UI cases to close this defect.
 
 ### DEF-022 - Interrupted media metadata save removes the edit form
 

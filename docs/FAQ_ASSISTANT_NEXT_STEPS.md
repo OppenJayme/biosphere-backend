@@ -6,6 +6,13 @@ or active knowledge was changed and no public ask request was made here.
 
 ## Progress update - 2026-10-25
 
+Backend #189 is merged. Next-step source review reproduced and repaired
+[DEF-023 cleanup argument safety](./TEST_DEFECT_LOG.md#def-023---conflicting-faq-cleanup-modes-perform-deletion):
+conflicting apply/dry-run flags previously performed deletion. The disposable
+suite now passes 20/20 with strict single-mode validation. Scheduler preparation
+remains provider-neutral; no hosting target, live job, shared migration or
+collection enablement is inferred from approval to continue local work.
+
 Backend #188/frontend #83 are merged; both PR CI runs passed and fetched source
 matched merged develop. The approved [disposable PostgreSQL checkpoint](./FAQ_REVIEW_QUEUE_GUIDE.md#disposable-postgresql-checkpoint---2026-10-25)
 now passes 13 real SQL/HTTP/cleanup cases. Migration was applied **only to owned
