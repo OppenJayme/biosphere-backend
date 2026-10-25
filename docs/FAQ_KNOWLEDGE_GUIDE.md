@@ -1,5 +1,10 @@
 # BioSphere FAQ Knowledge Management Guide
 
+Latest addition (2026-10-25): [opt-in unanswered question review](./FAQ_REVIEW_QUEUE_GUIDE.md).
+It is separate from approved FAQ entries, default-off, with a prepared-only
+migration. The historical no-schema-change description below applies to the
+original knowledge lifecycle, not this gated review extension.
+
 This module implements the curator-controlled knowledge lifecycle required by
 REQ-4.11-02, REQ-4.11-03, and REQ-4.11-09, plus the public assistant below, using the existing
 `public.faq_entry` table. It does not change the database schema.

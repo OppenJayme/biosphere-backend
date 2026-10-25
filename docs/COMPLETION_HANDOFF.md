@@ -7,6 +7,13 @@ status and does not authorize migrations, account changes or teammate-owned work
 
 ## Current checkpoint
 
+- Opt-in unanswered FAQ review implemented on paired
+  `feat/faq-opt-in-review-queue` branches: collection stays default-off, migration
+  prepared only, no live collection. See [contract, isolated evidence and finite
+  activation gates](./FAQ_REVIEW_QUEUE_GUIDE.md). Retention is now a 30-day working
+  baseline, not unresolved user input or institutional approval. Deployment,
+  real database/RLS/purge and independent acceptance are still required.
+
 - Bounded FAQ context implemented on backend `4608b9f` / frontend `94293d1`:
   FAQ HTTP 29/29, backend unit 690/690, frontend 379/379, lint/type-check and
   thirteen-turn synthetic widget checks passed. Review paired branches; backend

@@ -6,6 +6,12 @@ defect entry.
 
 ## Start here
 
+2026-10-25 FAQ opt-in review checkpoint: [isolated evidence and remaining
+deployment gates](./FAQ_REVIEW_QUEUE_GUIDE.md#isolated-evidence-and-limits).
+No new reproducible application defect was established in this slice; expected
+red-first development failures are not defect closures. No existing status was
+promoted. Prepared migration/cleanup are not deployment evidence.
+
 - [Summary](#2-summary): current status and owner; select a linked defect ID
   to jump to its evidence instead of reading the full history.
 - [Repair order](#when-to-fix-a-discovered-defect): fix or contain blockers
