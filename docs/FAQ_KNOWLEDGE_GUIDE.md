@@ -1,9 +1,11 @@
 # BioSphere FAQ Knowledge Management Guide
 
 Current answer-quality checkpoint: [content review and 25-case synthetic HTTP
-evaluation](./FAQ_CONTENT_REVIEW.md), with two open wrong-topic findings in
-DEF-024. A green unit/CI run is not a passing content-quality evaluation or
-approval of the fixture's fictional museum facts.
+evaluation](./FAQ_CONTENT_REVIEW.md), now 25/25 passing after bounded scope
+checks; the original 23/25 diagnostic is retained. DEF-024 is Ready for retest,
+with 15 ordinary HTTP scope regressions. Numerical thresholds are unchanged.
+These synthetic passes are not independent acceptance, broad language accuracy
+or approval of the fixture's fictional museum facts.
 
 Latest addition (2026-10-25): [opt-in unanswered question review](./FAQ_REVIEW_QUEUE_GUIDE.md).
 It is separate from approved FAQ entries, default-off, with a prepared-only

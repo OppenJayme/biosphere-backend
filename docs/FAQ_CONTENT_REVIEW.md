@@ -9,7 +9,45 @@ unchanged; this is not a guarantee that every existing service has unlimited
 free usage. The current assistant uses stored answers and deterministic matching,
 not a newly introduced paid inference provider.
 
-## Synthetic HTTP evaluation
+## DEF-024 repair checkpoint
+
+The user approved proceeding with conservative abstention. The unchanged
+25-case evaluation now passes **25/25** (exit 0), including E19/E20. The original
+23/25 diagnostic below is retained as pre-fix evidence, not the current result.
+Fifteen ordinary CI-discovered public HTTP regressions cover the reproductions,
+different wording, positive approved inclusion answers, direction reversal,
+keyword-only evidence, cross-alias scope and ordinary factual negation.
+Both original failures were observed red before implementing their repairs.
+
+Broader repair verification: **690/690** unit tests and **376/376** isolated
+HTTP tests pass (live Developer suite excluded). Type-check and diff checks pass;
+lint has zero errors and the same seven pre-existing unused-disable warnings.
+The full HTTP run still emits existing missing-audit-adapter errors (the class
+tracked in DEF-017); those green tests do not establish denial-audit persistence.
+No unrelated test fixture was repaired or its status promoted in this slice.
+
+The matcher now filters scope before ranking, without changing numerical
+thresholds. Exact approved question/alias wording remains authoritative for its
+candidate; explicit selected-ID handling is unchanged. Non-exact English
+`not asking about/for`, `not interested in`, and `do not/don't/did not/didn't mean`
+forms conservatively decline instead of guessing which clause to answer.
+This may reject an otherwise answerable compound question; ask a direct question
+or choose an approved FAQ rather than infer clause intent.
+
+For `include/includes`, `cover/covers`, `included in` and `covered by`, all
+meaningful source and target tokens must occur in the same roles in ONE approved
+question or alias. Keywords cannot authorize a relationship or join evidence
+across aliases. Unknown or empty relationship scope declines. This is a bounded
+lexical safeguard, not general semantic, multilingual, negation or conditional
+understanding. Other wording still uses the existing matcher; curator review of
+aliases and independent acceptance remain necessary.
+
+DEF-024 is **Ready for retest**, not independently verified or full chatbot
+acceptance. No museum facts, shared database, activation, new paid service or
+collection setting changed. Next: independent review/retest and real factual
+content approval, not another unrelated regression campaign.
+
+## Original synthetic HTTP evaluation (pre-fix)
 
 Baseline: merged backend `bfd5d01`; branch `test/faq-answer-quality-evaluation`.
 The user approved real public HTTP evaluation with a fixed synthetic knowledge
@@ -62,7 +100,7 @@ are synthetic. No AppModule/dotenv initialization, real database, provider login
 ordinary visitor query collection, browser credentials or public FAQ activation
 is used. This does not prove actual database/provider/browser behavior.
 
-### Next repair boundary
+### Original repair recommendation (superseded by checkpoint above)
 
 Review abstention for excluded topics and unsupported qualifiers before changing
 ranking. Keep E19/E20 as visible counterexamples; do not simply raise a global
@@ -70,8 +108,9 @@ threshold, add the exact test sentence as an alias, or claim a broad language
 understanding fix from a phrase-specific patch. Any approved repair should keep
 the 23 passing behaviors and add genuinely different held-out counterexamples.
 Then promote the agreed fixed behavior into ordinary HTTP regression coverage.
-This evaluation slice deliberately changes no runtime matcher, thresholds or
-supported-language promises.
+The original evaluation-only commit deliberately changed no runtime matcher,
+thresholds or supported-language promises. The repair above changes bounded
+scope eligibility, not thresholds or a supported-language promise.
 
 ## Real museum content review sheet
 
@@ -105,8 +144,8 @@ created, edited or activated by preparing this sheet.
 
 ## Finite local-demo finish line
 
-1. Review and repair DEF-024 under an agreed abstention policy, preserving
-   established passing behaviors; do not repeat unrelated Cataloging tests.
+1. Independently review/retest the DEF-024 repair and conservative abstention
+   policy; do not repeat unrelated Cataloging tests.
 2. Supply/review the actual FAQ facts above and independently approve any public
    entries. Existing code tests do not replace that content approval.
 3. Independently check the actual visitor flow with approved content before

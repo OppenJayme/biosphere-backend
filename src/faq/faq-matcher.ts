@@ -253,11 +253,59 @@ function isAnswerable(
   );
 }
 
+/** Preserve direction: "X includes Y" and "Y included in X" share roles. */
+function inclusionScope(normalized: string) {
+  const match =
+    /^(.*?)\b(included in|covered by|includes?|covers?)\b(.*)$/.exec(
+      normalized,
+    );
+  if (!match) return null;
+  const passive = match[2] === 'included in' || match[2] === 'covered by';
+  return {
+    source: tokenizeFaqText(passive ? match[3] : match[1]),
+    target: tokenizeFaqText(passive ? match[1] : match[3]),
+  };
+}
+
+/** Bounded English scope checks, not a general intent/negation interpreter. */
+function hasApprovedScope(
+  query: string,
+  candidate: FaqMatchCandidate,
+): boolean {
+  const normalizedQuery = normalizeFaqText(query);
+  const phrases = [candidate.question, ...candidate.alternativeWording];
+  if (phrases.some((phrase) => normalizeFaqText(phrase) === normalizedQuery)) {
+    return true;
+  }
+  if (
+    /\b(?:not asking (?:about|for)|not interested in|(?:do not|don t|did not|didn t) mean)\b/.test(
+      normalizedQuery,
+    )
+  ) {
+    return false;
+  }
+  const requested = inclusionScope(normalizedQuery);
+  if (!requested) return true;
+  if (!requested.source.length || !requested.target.length) return false;
+
+  // Keywords are ranking hints, not evidence of an approved relationship.
+  // Require both roles in ONE question/alias, never assemble scope across aliases.
+  return phrases.some((phrase) => {
+    const approved = inclusionScope(normalizeFaqText(phrase));
+    return (
+      approved !== null &&
+      requested.source.every((token) => approved.source.includes(token)) &&
+      requested.target.every((token) => approved.target.includes(token))
+    );
+  });
+}
+
 export function matchFaqEntries<T extends FaqMatchCandidate>(
   query: string,
   candidates: T[],
 ): FaqMatchResult<T> {
   const ranked = candidates
+    .filter((entry) => hasApprovedScope(query, entry))
     .map((entry) => ({ entry, score: scoreFaqCandidate(query, entry) }))
     .filter(({ score }) => score >= FAQ_MATCHING_RULES.RELATED_THRESHOLD)
     .sort(

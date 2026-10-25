@@ -10,11 +10,13 @@ or active knowledge was changed and no public ask request was made here.
 question collection disabled; hosted migration/scheduler work is parked pending
 its separate approval gates. Backend #190 is merged with successful PR CI.
 The approved [synthetic public HTTP quality evaluation and factual-content
-review sheet](./FAQ_CONTENT_REVIEW.md) now records **23/25 passing, two visible
-wrong-topic failures (DEF-024)**. No thresholds changed and no real FAQ facts
-were invented or activated. Next: review abstention for those cases, obtain
-actual content approval, then independent local-demo acceptance—not another
-round of passed database/Cataloging tests.
+review sheet](./FAQ_CONTENT_REVIEW.md) retains the original **23/25** result and
+now records a **25/25 passing** repaired evaluation, with 15 ordinary public HTTP
+scope regressions. DEF-024 is Ready for retest: bounded English exclusions and
+inclusion relationships decline unsupported scope without changing thresholds.
+No real FAQ facts were invented or activated. Next: independent repair review,
+actual content approval, then local-demo acceptance—not another round of passed
+database/Cataloging tests. This is not broad semantic/multilingual accuracy.
 
 Backend #189 is merged. Next-step source review reproduced and repaired
 [DEF-023 cleanup argument safety](./TEST_DEFECT_LOG.md#def-023---conflicting-faq-cleanup-modes-perform-deletion):
