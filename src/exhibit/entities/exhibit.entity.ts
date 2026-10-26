@@ -101,6 +101,22 @@ export class Exhibit {
   })
   arAssetCount!: number;
 
+  @ApiProperty({
+    description:
+      'True when the curator has marked the exhibit for AR preparation (REQ-4.13-02); developers can deploy AR assets only to selected exhibits',
+  })
+  arSelected!: boolean;
+
+  @ApiPropertyOptional({ nullable: true })
+  arSelectedAt!: Date | null;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    description:
+      "Curator's reason for the AR selection, shown to the developer",
+  })
+  arSelectionNote!: string | null;
+
   @ApiProperty({ type: ExhibitSpecimenSummary })
   specimen!: ExhibitSpecimenSummary;
 

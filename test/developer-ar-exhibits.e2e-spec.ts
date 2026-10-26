@@ -18,6 +18,9 @@ describe('Developer AR exhibits (e2e)', () => {
   const approvedExhibitId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
   const archivedExhibitId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
   const unapprovedExhibitId = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+  // Eligible, but the curator has not marked it for AR preparation.
+  const unselectedExhibitId = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
+  const arSelectedAt = new Date('2026-08-01T00:00:00.000Z');
   const assetId = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
   // An asset left on the archived exhibit: cleanup-only.
   const archivedAssetId = 'ffffffff-ffff-4fff-8fff-ffffffffffff';
@@ -61,6 +64,7 @@ describe('Developer AR exhibits (e2e)', () => {
   const exhibits: Record<
     string,
     {
+      ar_selected_at: Date | null;
       archived_at: Date | null;
       specimen: {
         status: string;
@@ -70,6 +74,7 @@ describe('Developer AR exhibits (e2e)', () => {
     }
   > = {
     [approvedExhibitId]: {
+      ar_selected_at: arSelectedAt,
       archived_at: null,
       specimen: {
         status: 'CATALOGED',
@@ -78,6 +83,7 @@ describe('Developer AR exhibits (e2e)', () => {
       },
     },
     [archivedExhibitId]: {
+      ar_selected_at: arSelectedAt,
       archived_at: new Date('2026-09-01T00:00:00.000Z'),
       specimen: {
         status: 'CATALOGED',
@@ -86,10 +92,20 @@ describe('Developer AR exhibits (e2e)', () => {
       },
     },
     [unapprovedExhibitId]: {
+      ar_selected_at: arSelectedAt,
       archived_at: null,
       specimen: {
         status: 'CATALOGED',
         public_display_allowed: false,
+        archived_at: null,
+      },
+    },
+    [unselectedExhibitId]: {
+      ar_selected_at: null,
+      archived_at: null,
+      specimen: {
+        status: 'CATALOGED',
+        public_display_allowed: true,
         archived_at: null,
       },
     },
@@ -102,6 +118,8 @@ describe('Developer AR exhibits (e2e)', () => {
         public_slug: 'giant-beetle',
         status: 'PUBLISHED',
         archived_at: null,
+        ar_selected_at: arSelectedAt,
+        ar_selection_note: 'Endemic; used in school tours',
         specimen: {
           common_name: 'Giant Beetle',
           scientific_name: 'Titanus giganteus',
@@ -116,6 +134,8 @@ describe('Developer AR exhibits (e2e)', () => {
         public_slug: 'old-moth',
         status: 'DISABLED',
         archived_at: exhibits[archivedExhibitId].archived_at,
+        ar_selected_at: arSelectedAt,
+        ar_selection_note: null,
         specimen: {
           common_name: 'Old Moth',
           scientific_name: 'Actias luna',
@@ -250,6 +270,7 @@ describe('Developer AR exhibits (e2e)', () => {
           where: {
             OR: [
               {
+                ar_selected_at: { not: null },
                 archived_at: null,
                 specimen: {
                   status: 'CATALOGED',
@@ -269,6 +290,8 @@ describe('Developer AR exhibits (e2e)', () => {
           status: 'PUBLISHED',
           archived: false,
           deployable: true,
+          arSelected: true,
+          arSelectionNote: 'Endemic; used in school tours',
           commonName: 'Giant Beetle',
           scientificName: 'Titanus giganteus',
           assets: [],
@@ -279,6 +302,8 @@ describe('Developer AR exhibits (e2e)', () => {
           status: 'DISABLED',
           archived: true,
           deployable: false,
+          arSelected: true,
+          arSelectionNote: null,
           commonName: 'Old Moth',
           scientificName: 'Actias luna',
           assets: [
@@ -320,6 +345,13 @@ describe('Developer AR exhibits (e2e)', () => {
       expect(storageMock.upload).not.toHaveBeenCalled();
       expect(arAssetCreate).not.toHaveBeenCalled();
       expectFailedAudit('CREATE_AR_ASSET', /approved for public display/);
+    });
+
+    it('rejects an exhibit the curator has not marked for AR (REQ-4.13-02)', async () => {
+      await upload(unselectedExhibitId).expect(400);
+      expect(storageMock.upload).not.toHaveBeenCalled();
+      expect(arAssetCreate).not.toHaveBeenCalled();
+      expectFailedAudit('CREATE_AR_ASSET', /marked for AR preparation/);
     });
 
     it('rejects an archived exhibit', async () => {

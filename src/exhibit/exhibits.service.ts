@@ -19,6 +19,7 @@ import { ExhibitQrQueryDto } from './dto/exhibit-qr-query.dto';
 import { ListExhibitsQueryDto } from './dto/list-exhibits-query.dto';
 import { ReplaceExhibitUrlDto } from './dto/replace-exhibit-url.dto';
 import { SetExhibitArDto } from './dto/set-exhibit-ar.dto';
+import { SetExhibitArSelectionDto } from './dto/set-exhibit-ar-selection.dto';
 import { UpdateExhibitMediaDto } from './dto/update-exhibit-media.dto';
 import { UpdateExhibitDto } from './dto/update-exhibit.dto';
 import {
@@ -544,6 +545,93 @@ export class ExhibitsService {
   }
 
   // ===========================================================
+  // AR selection — REQ-4.13-02/08
+  // ===========================================================
+
+  // The curator marks an approved exhibit for AR preparation here, at their
+  // own discretion; BioSphere never scores or ranks specimens for AR
+  // (REQ-4.13-08). Developers can deploy AR assets only to selected exhibits
+  // (SRS 4.2.2). Withdrawing the selection also turns off any enabled asset,
+  // so View in AR hides at once; the files are kept for the developer to
+  // remove or for a later re-selection.
+  async setArSelection(
+    id: string,
+    dto: SetExhibitArSelectionDto,
+    actingCuratorAccountId: string,
+  ): Promise<Exhibit> {
+    return this.prisma.$transaction(async (transaction) => {
+      const existing = await this.findOneOrThrow(transaction, id);
+      this.assertNotArchived(existing);
+      const wasSelected = Boolean(existing.ar_selected_at);
+
+      if (dto.selected) {
+        // Only an exhibit whose specimen may still be public can be
+        // approved for AR (BR-20, REQ-4.13-01).
+        const specimenRecord = await transaction.specimen.findUnique({
+          where: { id: existing.specimen_id },
+        });
+        this.assertSpecimenEligible(specimenRecord, existing.specimen_id);
+
+        const note = dto.note ?? null;
+        if (wasSelected && note === existing.ar_selection_note) {
+          return this.toEntity(existing);
+        }
+        const now = new Date();
+        const updated = await transaction.exhibit.update({
+          where: { id },
+          data: {
+            ar_selected_at: existing.ar_selected_at ?? now,
+            ar_selection_note: note,
+            updated_at: now,
+          },
+          include: CURATOR_INCLUDE,
+        });
+        await this.recordAudit(transaction, {
+          userId: actingCuratorAccountId,
+          exhibitId: id,
+          action: wasSelected
+            ? 'UPDATE_EXHIBIT_AR_SELECTION'
+            : 'SELECT_EXHIBIT_FOR_AR',
+          details: { note, previousNote: existing.ar_selection_note },
+        });
+        return this.toEntity(updated);
+      }
+
+      if (!wasSelected) {
+        return this.toEntity(existing);
+      }
+      const disabledAssetIds = existing.ar_asset
+        .filter((asset) => asset.is_enabled)
+        .map((asset) => asset.id);
+      if (disabledAssetIds.length > 0) {
+        await transaction.ar_asset.updateMany({
+          where: { exhibit_id: id, is_enabled: true },
+          data: { is_enabled: false },
+        });
+      }
+      const updated = await transaction.exhibit.update({
+        where: { id },
+        data: {
+          ar_selected_at: null,
+          ar_selection_note: null,
+          updated_at: new Date(),
+        },
+        include: CURATOR_INCLUDE,
+      });
+      await this.recordAudit(transaction, {
+        userId: actingCuratorAccountId,
+        exhibitId: id,
+        action: 'WITHDRAW_EXHIBIT_AR_SELECTION',
+        details: {
+          previousNote: existing.ar_selection_note,
+          disabledAssetIds,
+        },
+      });
+      return this.toEntity(updated);
+    });
+  }
+
+  // ===========================================================
   // AR on/off — REQ-4.13-02/04/06
   // ===========================================================
 
@@ -561,6 +649,11 @@ export class ExhibitsService {
       const existing = await this.findOneOrThrow(transaction, id);
       this.assertNotArchived(existing);
 
+      if (dto.enabled && !existing.ar_selected_at) {
+        throw new BadRequestException(
+          'Mark this exhibit for AR preparation before turning AR on.',
+        );
+      }
       if (dto.enabled && existing.ar_asset.length === 0) {
         throw new BadRequestException(
           'No AR asset has been uploaded for this exhibit yet. A developer must upload one first.',
@@ -1005,6 +1098,9 @@ export class ExhibitsService {
       status: item.status as ExhibitStatus,
       arEnabled: item.ar_asset.some((asset) => asset.is_enabled),
       arAssetCount,
+      arSelected: Boolean(item.ar_selected_at),
+      arSelectedAt: item.ar_selected_at,
+      arSelectionNote: item.ar_selection_note,
       specimen: {
         commonName: item.specimen.common_name,
         scientificName: item.specimen.scientific_name,
@@ -1029,9 +1125,13 @@ export class ExhibitsService {
       ).then((signed) =>
         signed.filter((entry): entry is PublicExhibitMedia => entry !== null),
       ),
-      // PUBLIC_INCLUDE selects only enabled assets.
+      // PUBLIC_INCLUDE selects only enabled assets. AR is offered only for a
+      // curator-selected exhibit (REQ-4.13-01); withdrawing the selection
+      // disables its assets too, and this keeps a stray enabled one hidden.
       Promise.all(
-        item.ar_asset.map((asset) => this.toPublicArModel(asset)),
+        (item.ar_selected_at ? item.ar_asset : []).map((asset) =>
+          this.toPublicArModel(asset),
+        ),
       ).then((signed) =>
         signed.filter((model): model is PublicArModel => model !== null),
       ),

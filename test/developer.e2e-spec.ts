@@ -99,8 +99,9 @@ describeLiveDeveloperE2e('Developer module (live e2e)', () => {
     fixtureCuratorAccountId = curatorAccount.id;
 
     // Minimal specimen + exhibit chain so the AR asset endpoints have a
-    // real exhibit to attach to. Nothing about this fixture is exercised
-    // by the Developer module itself — it only reads exhibit.archived_at.
+    // real exhibit to attach to. The Developer module only reads the
+    // exhibit's deployability: marked for AR by the curator (REQ-4.13-02),
+    // not archived, and its specimen Cataloged and public.
     const collection = await prisma.collection.create({
       data: { collection_name: `E2E Developer Suite ${randomUUID()}` },
     });
@@ -124,6 +125,7 @@ describeLiveDeveloperE2e('Developer module (live e2e)', () => {
         created_by: fixtureCuratorAccountId,
         public_slug: `e2e-developer-${randomUUID()}`,
         status: 'UNPUBLISHED',
+        ar_selected_at: new Date(),
       },
     });
     fixtureExhibitId = exhibit.id;

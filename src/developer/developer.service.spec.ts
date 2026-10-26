@@ -79,11 +79,14 @@ function fakeFile(
   };
 }
 
-// An exhibit row as the deploy checks select it: deployable (exhibit and
-// specimen active, specimen Cataloged and approved for public display) by
-// default.
+// An exhibit row as the deploy checks select it: deployable (marked for AR
+// by the curator, exhibit and specimen active, specimen Cataloged and
+// approved for public display) by default.
+const AR_SELECTED_AT = new Date('2026-10-20T00:00:00Z');
+
 function approvedExhibit(
   overrides: {
+    ar_selected_at?: Date | null;
     archived_at?: Date | null;
     specimen?: {
       status?: string;
@@ -93,6 +96,10 @@ function approvedExhibit(
   } = {},
 ) {
   return {
+    ar_selected_at:
+      overrides.ar_selected_at === undefined
+        ? AR_SELECTED_AT
+        : overrides.ar_selected_at,
     archived_at: overrides.archived_at ?? null,
     specimen: {
       status: 'CATALOGED',
@@ -446,6 +453,18 @@ describe('DeveloperService', () => {
         service.createArAsset(fakeFile(), dto, ACTING_DEVELOPER_AUTH_ID),
       ).rejects.toThrow(BadRequestException);
       expect(storageServiceMock.upload).not.toHaveBeenCalled();
+    });
+
+    it('throws BadRequestException when the curator has not marked the exhibit for AR', async () => {
+      prismaMock.exhibit.findUnique.mockResolvedValue(
+        approvedExhibit({ ar_selected_at: null }),
+      );
+
+      await expect(
+        service.createArAsset(fakeFile(), dto, ACTING_DEVELOPER_AUTH_ID),
+      ).rejects.toThrow(/marked for AR preparation/);
+      expect(storageServiceMock.upload).not.toHaveBeenCalled();
+      expect(prismaMock.ar_asset.create).not.toHaveBeenCalled();
     });
 
     it.each([
@@ -933,6 +952,7 @@ describe('DeveloperService', () => {
           where: {
             OR: [
               {
+                ar_selected_at: { not: null },
                 archived_at: null,
                 specimen: {
                   status: 'CATALOGED',
@@ -954,6 +974,8 @@ describe('DeveloperService', () => {
           public_slug: 'giant-beetle',
           status: 'PUBLISHED',
           archived_at: null,
+          ar_selected_at: AR_SELECTED_AT,
+          ar_selection_note: 'Endemic; used in school tours',
           specimen: {
             common_name: 'Giant Beetle',
             scientific_name: 'Titanus giganteus',
@@ -968,6 +990,8 @@ describe('DeveloperService', () => {
           public_slug: 'old-moth',
           status: 'DISABLED',
           archived_at: new Date(),
+          ar_selected_at: AR_SELECTED_AT,
+          ar_selection_note: null,
           specimen: {
             common_name: 'Old Moth',
             scientific_name: 'Actias luna',
@@ -982,6 +1006,8 @@ describe('DeveloperService', () => {
           public_slug: 'withdrawn-frog',
           status: 'UNPUBLISHED',
           archived_at: null,
+          ar_selected_at: AR_SELECTED_AT,
+          ar_selection_note: null,
           specimen: {
             common_name: 'Withdrawn Frog',
             scientific_name: 'Rana temporaria',
@@ -990,6 +1016,22 @@ describe('DeveloperService', () => {
             archived_at: null,
           },
           ar_asset: [{ ...asset, id: 'asset-3', exhibit_id: 'exhibit-3' }],
+        },
+        {
+          id: 'exhibit-4',
+          public_slug: 'unselected-owl',
+          status: 'PUBLISHED',
+          archived_at: null,
+          ar_selected_at: null,
+          ar_selection_note: null,
+          specimen: {
+            common_name: 'Unselected Owl',
+            scientific_name: 'Bubo bubo',
+            status: 'CATALOGED',
+            public_display_allowed: true,
+            archived_at: null,
+          },
+          ar_asset: [{ ...asset, id: 'asset-4', exhibit_id: 'exhibit-4' }],
         },
       ]);
 
@@ -1000,6 +1042,8 @@ describe('DeveloperService', () => {
           status: 'PUBLISHED',
           archived: false,
           deployable: true,
+          arSelected: true,
+          arSelectionNote: 'Endemic; used in school tours',
           commonName: 'Giant Beetle',
           scientificName: 'Titanus giganteus',
           assets: [],
@@ -1015,6 +1059,13 @@ describe('DeveloperService', () => {
           archived: false,
           deployable: false,
           assets: [expect.objectContaining({ id: 'asset-3' })],
+        }),
+        // AR selection withdrawn by the curator: cleanup-only.
+        expect.objectContaining({
+          id: 'exhibit-4',
+          deployable: false,
+          arSelected: false,
+          assets: [expect.objectContaining({ id: 'asset-4' })],
         }),
       ]);
     });
