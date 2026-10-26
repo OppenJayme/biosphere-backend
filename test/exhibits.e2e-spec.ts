@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment -- Supertest response bodies and Jest asymmetric matchers are typed as any. */
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import request from 'supertest';
@@ -85,6 +84,8 @@ describe('Exhibits (e2e)', () => {
       layout_type: null,
       public_specimen_fields: [...allPublicFields],
       status: 'UNPUBLISHED',
+      ar_selected_at: null,
+      ar_selection_note: null,
       published_at: null,
       archived_at: null,
       created_at: testDate,
@@ -761,7 +762,18 @@ describe('Exhibits (e2e)', () => {
       model_format: 'glb',
     };
 
+    it('cannot enable AR before the curator marks the exhibit for AR', async () => {
+      arAssets = [glb];
+      await request(app.getHttpServer())
+        .patch(`/exhibits/${exhibitId}/ar`)
+        .set('Authorization', `Bearer ${curatorToken}`)
+        .send({ enabled: true })
+        .expect(400);
+      expect(arAssets[0].is_enabled).toBe(false);
+    });
+
     it('cannot enable AR before a developer uploads an asset', async () => {
+      exhibitRecord.ar_selected_at = testDate;
       await request(app.getHttpServer())
         .patch(`/exhibits/${exhibitId}/ar`)
         .set('Authorization', `Bearer ${curatorToken}`)
@@ -771,6 +783,7 @@ describe('Exhibits (e2e)', () => {
 
     it('turns View in AR on and off on the public page', async () => {
       exhibitRecord.status = 'PUBLISHED';
+      exhibitRecord.ar_selected_at = testDate;
       arAssets = [glb];
 
       const hidden = await request(app.getHttpServer())
@@ -826,6 +839,69 @@ describe('Exhibits (e2e)', () => {
         .send({ enabled: true })
         .expect(403);
       expect(arAssets[0].is_enabled).toBe(false);
+    });
+  });
+
+  describe('curator AR selection (REQ-4.13-02)', () => {
+    const select = (body: object, token = curatorToken) =>
+      request(app.getHttpServer())
+        .patch(`/exhibits/${exhibitId}/ar-selection`)
+        .set('Authorization', `Bearer ${token}`)
+        .send(body);
+
+    it('marks and unmarks an exhibit for AR preparation, with a trimmed note', async () => {
+      const marked = await select({
+        selected: true,
+        note: '  Endemic; Grade 7 tour  ',
+      }).expect(200);
+      expect(marked.body).toMatchObject({
+        arSelected: true,
+        arSelectionNote: 'Endemic; Grade 7 tour',
+      });
+      expect(auditDelegate.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({ action: 'SELECT_EXHIBIT_FOR_AR' }),
+      });
+
+      const unmarked = await select({ selected: false }).expect(200);
+      expect(unmarked.body).toMatchObject({
+        arSelected: false,
+        arSelectionNote: null,
+      });
+    });
+
+    it('withdrawing the selection hides View in AR on the public page', async () => {
+      exhibitRecord.status = 'PUBLISHED';
+      exhibitRecord.ar_selected_at = testDate;
+      arAssets = [
+        {
+          id: 'asset-1',
+          is_enabled: true,
+          storage_path: `${exhibitId}/model.glb`,
+          model_format: 'glb',
+        },
+      ];
+      const shown = await request(app.getHttpServer())
+        .get('/exhibits/public/six-legged-carabao')
+        .expect(200);
+      expect(shown.body.ar.available).toBe(true);
+
+      await select({ selected: false }).expect(200);
+      expect(arAssets[0].is_enabled).toBe(false);
+      const hidden = await request(app.getHttpServer())
+        .get('/exhibits/public/six-legged-carabao')
+        .expect(200);
+      expect(hidden.body.ar).toEqual({ available: false, models: [] });
+    });
+
+    it('rejects an ineligible specimen, a bad body, and non-curators', async () => {
+      specimenRecord.public_display_allowed = false;
+      await select({ selected: true }).expect(400);
+      specimenRecord.public_display_allowed = true;
+
+      await select({ selected: 'yes' }).expect(400);
+      await select({ selected: true, note: 'x'.repeat(1001) }).expect(400);
+      await select({ selected: true }, developerToken).expect(403);
+      expect(exhibitRecord.ar_selected_at).toBeNull();
     });
   });
 

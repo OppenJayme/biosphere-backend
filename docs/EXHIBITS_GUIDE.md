@@ -2,15 +2,17 @@
 
 This module implements SRS Section 4.12 (QR Exhibit Management and Public QR
 Pages) and the curator side of Section 4.13 (Selected WebAR Experiences) using
-the existing `exhibit`, `exhibit_media`, and `ar_asset` tables, with no schema
-change. Developer AR deployment (Section 4.2) lives in `src/developer`.
+the `exhibit`, `exhibit_media`, and `ar_asset` tables. Two schema changes
+were added on top of the baseline: `exhibit.public_specimen_fields`
+(REQ-4.12-03) and `exhibit.ar_selected_at` / `ar_selection_note`
+(REQ-4.13-02). Developer AR deployment (Section 4.2) lives in `src/developer`.
 
 ## Roles
 
 | Actor | Can do | SRS |
 | --- | --- | --- |
-| Curator | Create, edit, publish, unpublish, disable, and archive exhibit pages; manage images; download the QR code and label; replace the URL; turn an exhibit's uploaded AR on or off | REQ-4.12-01..11, REQ-4.13-02 |
-| Developer | Upload, replace, activate, deactivate, and remove AR assets for an exhibit | REQ-4.13-03, REQ-4.2-04/05 |
+| Curator | Create, edit, publish, unpublish, disable, and archive exhibit pages; manage images; download the QR code and label; replace the URL; mark an exhibit for AR preparation; turn an exhibit's uploaded AR on or off | REQ-4.12-01..11, REQ-4.13-02 |
+| Developer | Upload, replace, activate, deactivate, and remove AR assets for an exhibit the curator marked for AR | REQ-4.13-03, REQ-4.2-04/05 |
 | Visitor | Open a published page by its URL or QR code, no account needed | REQ-4.12-12 |
 
 Developers cannot use any curator exhibit route (403), and curators cannot
@@ -37,6 +39,8 @@ upload AR assets.
   specimen; only the exhibit that retired it can take it back.
 - `PATCH /exhibits/:id/publish | unpublish | disable | archive`: see
   [Lifecycle](#lifecycle).
+- `PATCH /exhibits/:id/ar-selection` `{ selected, note? }`: mark or unmark the
+  exhibit for AR preparation (see [AR](#ar)).
 - `PATCH /exhibits/:id/ar` `{ enabled }`: turn AR on or off (see
   [AR](#ar)).
 - `GET /exhibits/:id/qr?format=png|svg&size=128..2048`: the QR code.
@@ -49,7 +53,9 @@ upload AR assets.
 Every change is written to the audit log in the same transaction
 (REQ-4.12-11), e.g. `CREATE_EXHIBIT`, `PUBLISH_EXHIBIT`, `UNPUBLISH_EXHIBIT`,
 `DISABLE_EXHIBIT`, `ARCHIVE_EXHIBIT`, `REPLACE_EXHIBIT_URL`,
-`ENABLE_EXHIBIT_AR`, `DISABLE_EXHIBIT_AR`, `ADD/UPDATE/REMOVE_EXHIBIT_MEDIA`.
+`SELECT_EXHIBIT_FOR_AR`, `UPDATE_EXHIBIT_AR_SELECTION`,
+`WITHDRAW_EXHIBIT_AR_SELECTION`, `ENABLE_EXHIBIT_AR`, `DISABLE_EXHIBIT_AR`,
+`ADD/UPDATE/REMOVE_EXHIBIT_MEDIA`.
 `CREATE_EXHIBIT` records the starting field selection. `UPDATE_EXHIBIT`
 records `changedFields` and, when the selection changed,
 `publicSpecimenFields: { previous, current }`. Content text is never copied
@@ -170,41 +176,53 @@ public as soon as the specimen changes.
 
 ## AR
 
-AR state lives in `ar_asset` (one row per model file, linked by `exhibit_id`,
-with `is_enabled`). No exhibit column is used.
+The curator's selection lives on `exhibit.ar_selected_at` (null when not
+selected) and the optional `exhibit.ar_selection_note`. The models live in
+`ar_asset` (one row per model file, linked by `exhibit_id`, with
+`is_enabled`).
 
-1. The developer uploads an exhibit's model (`.glb` or `.usdz`) through
-   `/developer/ar-assets` (REQ-4.13-03, REQ-4.2-04/05). `GET
-   /developer/ar-exhibits` lists active exhibits, plus archived ones that still
-   hold assets, so the developer can pick where to deploy and clean up.
-2. The curator turns AR on or off with `PATCH /exhibits/:id/ar { "enabled" }`
-   (REQ-4.13-02). This enables or disables all of the exhibit's uploaded
-   assets. Turning it on before any asset exists returns 400. Selection is the
-   curator's decision; BioSphere never scores or ranks specimens for AR
-   (REQ-4.13-08). Developers can still activate or deactivate individual
-   assets.
-3. The public page sets `ar.available = true`, with signed model URLs, while
-   at least one asset is enabled (REQ-4.13-01/04). A model whose file cannot
-   be signed is left out. The frontend still checks device support and asks
-   for camera permission only after the visitor taps View in AR
-   (REQ-4.13-05).
-4. Turning AR off hides it immediately and keeps the files, so it can be
+1. The curator marks an approved exhibit for AR preparation with `PATCH
+   /exhibits/:id/ar-selection { "selected": true, "note"? }` (REQ-4.13-02,
+   SRS 4.13.2). Only an exhibit whose specimen is Cataloged, approved for
+   public display, and not archived can be marked (BR-20). The note (up to
+   1000 characters, trimmed, blank = none) records the curator's reason, e.g.
+   the educational objective or conservation status. It is free text shown to
+   the developer; BioSphere never scores or ranks specimens for AR
+   (REQ-4.13-08). Sending `selected: true` again with a new note updates the
+   note and keeps the original date.
+2. The developer uploads the model (`.glb` or `.usdz`) through
+   `/developer/ar-assets` (REQ-4.13-03, REQ-4.2-04/05). Only marked exhibits
+   are deployable: uploading to, moving to, activating on, or replacing on an
+   unmarked exhibit returns 400 and a FAILED audit entry. `GET
+   /developer/ar-exhibits` lists marked exhibits with `arSelected` and
+   `arSelectionNote`, plus any exhibit that still holds assets, so assets can
+   be cleaned up.
+3. The curator turns AR on or off with `PATCH /exhibits/:id/ar { "enabled" }`.
+   This enables or disables all of the exhibit's uploaded assets. Turning it
+   on before the exhibit is marked, or before any asset exists, returns 400.
+   Developers can still activate or deactivate individual assets.
+4. The public page sets `ar.available = true`, with signed model URLs, only
+   while the exhibit is marked and at least one asset is enabled
+   (REQ-4.13-01/04). A model whose file cannot be signed is left out. The
+   frontend still checks device support and asks for camera permission only
+   after the visitor taps View in AR (REQ-4.13-05).
+5. Withdrawing the selection (`selected: false`) clears the date and note and
+   disables every enabled asset in the same transaction, so View in AR hides at
+   once. The files are kept; the exhibit becomes cleanup-only for the
+   developer until it is marked again.
+6. Turning AR off hides it immediately and keeps the files, so it can be
    turned back on without a new upload. The normal page stays available either
    way (REQ-4.13-06).
 
-Curator responses include `arEnabled` (at least one asset enabled) and
-`arAssetCount` (assets uploaded). `GET /exhibits?arEnabled=true|false` filters
-on the same rule.
+Curator responses include `arSelected`, `arSelectedAt`, `arSelectionNote`,
+`arEnabled` (at least one asset enabled), and `arAssetCount` (assets
+uploaded). `GET /exhibits?arEnabled=true|false` filters on the enabled rule.
 
-### AR preparation request (REQ-4.13-02)
-
-Marking an exhibit as requested for AR preparation is an operational handoff,
-not a stored state: the curator selects the exhibit and asks the developer
-outside BioSphere, the developer uploads the asset to that exhibit, and the
-curator then decides with the on/off switch whether it is shown. No schema
-field records the request. Being public-display approved makes an exhibit
-eligible to receive an AR asset; it does not mean the curator selected it for
-AR. REQ-4.13-02 should be updated in the SRS to describe this workflow.
+Migration `20261026000000_add_exhibit_ar_selection` adds the two columns and
+marks every exhibit that already held an AR asset as selected, so models
+deployed before this change keep working. Apply it through the approved
+migration workflow in [PRISMA_SCHEMA_GUIDE.md](PRISMA_SCHEMA_GUIDE.md) before
+deploying this backend: the code reads the new columns.
 
 ## Configuration
 

@@ -22,9 +22,14 @@ export class ArExhibitEntity {
   // Archived exhibits are listed only while they still hold assets.
   archived!: boolean;
   // false for an exhibit that is listed only so its assets can be cleaned
-  // up (archived, or its specimen is no longer approved for public display).
-  // New assets cannot be deployed or moved to it.
+  // up (archived, its AR selection was withdrawn, or its specimen is no
+  // longer approved for public display). New assets cannot be deployed or
+  // moved to it.
   deployable!: boolean;
+  // The curator marked this exhibit for AR preparation (REQ-4.13-02).
+  arSelected!: boolean;
+  // The curator's reason for the selection, for the developer.
+  arSelectionNote!: string | null;
   commonName!: string | null;
   scientificName!: string | null;
   assets!: ArAssetEntity[];

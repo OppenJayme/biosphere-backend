@@ -599,6 +599,10 @@ model exhibit {
   /// Specimen fields the curator shows on the public page (REQ-4.12-03).
   public_specimen_fields String[]          @default(["commonName", "scientificName", "collection", "kingdom", "phylum", "class", "order", "family", "genus", "species", "habitat", "ecologicalRole", "conservationStatus"])
   status                 qr_exhibit_status @default(UNPUBLISHED)
+  /// When the curator marked the exhibit for AR preparation (REQ-4.13-02); null when not selected.
+  ar_selected_at         DateTime?         @db.Timestamptz(6)
+  /// Curator's reason for the AR selection, shown to the developer. Free text, never scored (REQ-4.13-08).
+  ar_selection_note      String?
   published_at           DateTime?         @db.Timestamptz(6)
   archived_at            DateTime?         @db.Timestamptz(6)
   created_at             DateTime          @default(now()) @db.Timestamptz(6)
