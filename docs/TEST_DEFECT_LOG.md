@@ -2239,6 +2239,56 @@ choosing an optimization. Do not repeat these owner samples as if unmeasured or
 change authorization/caching based on a guessed cause. No application code was
 changed; documentation diff checks pass and source suites/build were not rerun.
 
+#### Partial upstream timing pilot - 2026-10-28
+
+A temporary second production instance used the same build
+`-7vcfapNQNgHNQsAN6WHj` on loopback port 3002. Its process-local API_URL pointed
+to an owned random-port loopback helper forwarding only GET `/auth/me`,
+`/specimens/search`, `/collections` and `/storage-locations/search` to the existing
+backend on 3001. The normal bearer header was forwarded only in memory; the
+helper persisted category, relative start, duration, outcome and HTTP status,
+never headers, query values, payloads or credentials. No auth guard was bypassed.
+
+Eight backend reads completed successfully in two observed waves:
+
+| Wave | Profile (ms) | Catalog (ms) | Collections (ms) | Storage (ms) |
+| --- | --- | --- | --- | --- |
+| 1 | 542 | 941 | 661 | 640 |
+| 2 | 199 | 711 | 339 | 355 |
+
+All eight returned 200; these durations run from the helper's outgoing backend
+request to complete response delivery. Data-branch requests started within
+21 ms of one another in each wave, supporting the inspected parallel loading.
+The catalog branch was longest in both waves. This includes backend guards,
+database/network and response work; it does not isolate SQL or prove a cause.
+
+**Pilot did not complete:** The browser scenario hit its 30-second readiness
+deadline before returning the requested three Apply/Clear pairs. No UI timing
+or full-flow pass is accepted from this pilot. The strict helper also rejected
+two other GET paths (purpose not established); zero non-GET requests reached
+the helper. Its restricted environment and extra proxy hop are not equivalent
+to the original frontend on 3000. The eight completed read timings remain
+partial diagnostic evidence only, not a production performance benchmark or
+an application timeout reproduction. The earlier six original-server samples
+remain separate and valid within their documented limits.
+
+The probe's finally block closed its tab. A local stop file shut down only the
+owned helper and child frontend; metadata reports stopped and neither temporary
+listener remains. Original frontend PID 16340 on 3000 and backend PID 13188 on
+3001 remained listening. The original signed-in browser context was not closed;
+no credentials were copied/extracted and no specimen, Inventory or backup
+operation was performed. Private helper scripts/logs/metrics remain under the
+owned local `.codex-tmp` directory and are excluded from commits.
+
+**Source-review lead, not proven bottleneck:** Catalog search waits for its
+paged items/count transaction and then resolves storage ancestry in batches,
+one query per hierarchy level. It already avoids per-specimen path queries.
+Future scoped server profiling should distinguish these stages and backend
+authorization before choosing an optimization. No counts, location detail,
+authorization or cache policy was changed based on this partial pilot. Keep
+DEF-011 In progress; no new application defect or speed improvement is claimed.
+Documentation diff checks pass; no source tests/build were rerun for these notes.
+
 #### Required investigation / remediation
 
 1. Measure frontend navigation and backend request duration; compare development
