@@ -6,6 +6,13 @@ defect entry.
 
 ## Start here
 
+2026-10-27 read-only media checkpoint: [keyboard/dialog evidence and diagnostic
+limits](./SPECIMEN_MEDIA_GUIDE.md#read-only-keyboard-and-dialog-checkpoint---2026-10-27).
+The first strict Tab-containment assertion failed; replay observed focus outside
+the document rather than on background page controls. Original evidence and
+the blocked background POST caveat are retained. No application defect was
+established, no existing defect promoted, and no media mutation was submitted.
+
 2026-10-25 follow-up: [13 disposable PostgreSQL SQL/HTTP/cleanup checks](./FAQ_REVIEW_QUEUE_GUIDE.md#disposable-postgresql-checkpoint---2026-10-25)
 passed. Migration/RLS, contention retries, actual rollback and expiry deletion
 now have local real-database evidence. Harness setup issues were corrected;

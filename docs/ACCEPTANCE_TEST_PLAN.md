@@ -7,6 +7,13 @@
 
 ## Start here
 
+2026-10-27 media follow-up: [read-only keyboard/dialog checks](./SPECIMEN_MEDIA_GUIDE.md#read-only-keyboard-and-dialog-checkpoint---2026-10-27)
+cover 11 visible controls, four Escape/Cancel checks and unchanged reload
+readback on the existing production build. An initial strict focus assertion
+and outside-document focus observations are preserved with their limits. The
+absent Set as cover control and full accessibility/independent sign-off remain
+unverified; CAT-011 and defect dispositions are unchanged.
+
 2026-10-27 Backup History follow-up: [14 populated disposable PostgreSQL/HTTP
 checks](./BACKUP_HISTORY_GUIDE.md#populated-disposable-postgresql-checkpoint---2026-10-27)
 pass with synthetic history only. BAK-001 remains In progress for populated

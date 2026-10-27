@@ -435,3 +435,69 @@ separate live-success/provider/concurrency checks remain pending. Do not repeat
 already-passing owner checks without a relevant change. CAT-011 stays In progress.
 Ignored diagnostic: `def022-metadata-recovery-merged-3000.txt`. No app code changed
 after merge; unchanged suites were not rerun. `git diff --check` passed.
+
+## Read-only keyboard and dialog checkpoint - 2026-10-27
+
+After user approval, started the local backend from source and the existing
+frontend production build without rebuilding it. Startup readiness succeeded
+and frontend `/login` / backend `/docs` returned 200. Frontend served build
+`LBh_6bSAbWnotNM8iR4sW` (the earlier recorded production build), not a rebuild
+of checkout `e2b13bc`. Backend startup checkout was `f99abd3`. No dependencies,
+application code, migrations, account settings or storage objects were changed.
+
+The user manually signed in as Curator in a fresh nonpersistent headed Edge
+session (`biosphere-media-readonly-20261027-045a5973`), version 156.0.4314.42.
+No credentials/cookies/headers/auth state were read, copied or exported. Selected
+existing TEST specimen `5b8e55d4-af0f-4263-9b0e-349b4b314f20`, with one existing
+cover image; no fixture or image was created. Signed URLs, captions and other
+field contents were not printed or copied into committed evidence.
+
+Scoped results:
+
+- Actual forward Tab navigation reached all 11 visible media controls: upload
+  file/caption/order/cover checkbox/submit, metadata caption/order/save and
+  replacement file/trigger plus Remove. Inspected inputs had associated names;
+  no unlabeled media input was found. Each sampled control matched
+  `:focus-visible` with a computed outline or box-shadow indicator. This is
+  computed-style presence, not visual contrast or full accessibility acceptance.
+- The existing image had a non-empty alt attribute. This does not certify the
+  description's quality or screen-reader output.
+- Remove and Replace file dialogs were opened by keyboard and each dismissed
+  using Escape and Cancel (four checks). Both had a resolvable title/description,
+  opened with focus inside (Cancel in these samples), and returned focus to
+  their trigger. No destructive/replacement confirmation was activated.
+- The initial assertion requiring DOM focus inside the dialog at EVERY Tab
+  stop failed on Remove/Escape. Diagnostic replay found BODY active with
+  `document.hasFocus() = false` at two of six Tab/Shift+Tab stops, returning to
+  dialog buttons on subsequent presses. No background page control received
+  focus. Later checks distinguished these outside-document stops from actual
+  background-control focus; each of the four dialog checks had two such stops.
+  The original failed assertion is retained, not relabelled as a strict focus-
+  trap pass. This establishes no application focus-escape defect; independent
+  browser/assistive-technology acceptance remains pending.
+- Media fields/card text/cover state matched the in-memory baseline after
+  traversal, cancellations and a fresh reload. No files were selected; no
+  save/upload/replacement/cover/remove confirmation was submitted.
+
+After manual login, a context request guard aborted non-GET/HEAD/OPTIONS
+requests as defense in depth. It recorded ONE background non-read request during
+catalog navigation before the interaction baseline. Its purpose was not
+established, it was not forwarded, and it is not reported as a failed mutation
+or an application defect. Such a guard can block read-only Server Action POSTs;
+no unrestricted-network or cover-preview acceptance is inferred. Tab traversal,
+the four dialog checks and final reload each added zero non-read attempts and
+zero observed page errors. This is not independent full-stack containment and
+does not close DEF-019 or prove unrelated server/provider activity was absent.
+
+Set as cover was absent because the sole image was already the cover, so its
+keyboard behavior was NOT tested. Native file chooser interaction, actual
+mutation success/failure, pending states, visual contrast, touch/LAN, full
+screen-reader behavior and independent review remain outside this slice.
+CAT-011 and related defect dispositions are unchanged; no new application defect
+was established. Diagnostic scripts are ignored under frontend
+`tools/browser/artifacts/media-readonly-*-20261027.js`. No unchanged application
+test suite/build was rerun for this read-only browser/documentation checkpoint.
+
+The user-requested signed-in window and both started servers were left running.
+The isolated session still has its read-only guard; it must not be mistaken for
+an unrestricted manual-edit session. No global browser/process cleanup ran.
