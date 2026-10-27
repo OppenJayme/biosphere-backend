@@ -16,6 +16,10 @@ const DATABASE_PROFILES = {
     database: 'biosphere_collections_disposable',
     optIn: 'RUN_COLLECTIONS_DISPOSABLE_DB',
   },
+  'backup-history': {
+    database: 'biosphere_backup_history_disposable',
+    optIn: 'RUN_BACKUP_HISTORY_DISPOSABLE_DB',
+  },
 } as const;
 type DatabaseScope = keyof typeof DATABASE_PROFILES;
 

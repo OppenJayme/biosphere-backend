@@ -7,6 +7,12 @@ status and does not authorize migrations, account changes or teammate-owned work
 
 ## Closeout queue - 2026-10-27
 
+Backup History follow-up (user approved proceeding after initially choosing to
+leave it pending): [14 populated disposable PostgreSQL/HTTP checks](./BACKUP_HISTORY_GUIDE.md#populated-disposable-postgresql-checkpoint---2026-10-27)
+pass. Real populated browser/provider evidence and independent acceptance remain;
+BAK-001 is In progress and BAK-002 real backup/restore remains Deferred. This is
+synthetic metadata read verification, not a backup job or restore implementation.
+
 This is the current task-selection summary. Older checkpoints below retain
 their historical context; they do not reopen completed implementation work.
 Backend PR #191 is confirmed merged and its PR CI succeeded. DEF-024 owner
