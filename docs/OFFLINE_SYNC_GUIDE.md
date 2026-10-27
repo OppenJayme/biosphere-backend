@@ -5,6 +5,37 @@ text-only `UNCATALOGED` specimen drafts. Browser caching, offline search, draft
 retention, connectivity detection, and the visible sync states remain frontend
 PWA responsibilities implemented with IndexedDB/Dexie and the service worker.
 
+## Isolated frontend route-adapter checks - 2026-10-28
+
+The agreed five-case adapter batch is implemented in frontend
+`src/app/api/offline/specimen-drafts/route.test.ts`, source `77a84f2`, published
+in [frontend PR #87](https://github.com/OppenJayme/biosphere-frontend/pull/87).
+Tests call the real POST handler with native Request/Response objects and run
+the real API client/ApiError and schemas. Session/config and backend HTTP
+responses are synthetic; fetch and environment overrides are restored afterward.
+No server, browser, real login/credential or shared record is used.
+
+| Case | Observed result |
+| --- | --- |
+| Valid success | One JSON POST to the expected backend path with a synthetic bearer header; validated 200 result and no-store response. |
+| Backend 401 | HTTP 401 and guidance preserved, no-store, unrelated backend fields omitted, no request replay. |
+| Backend 403 | HTTP 403 and array-form guidance preserved, no-store, unrelated fields omitted, no replay. |
+| Malformed backend 200 | Missing synchronized-specimen fields produce 502/no-store rather than a false success. |
+| Unsupported offline fields | Publishing/quantity fields produce 400/no-store before token lookup or any backend fetch. |
+
+Run from the frontend root:
+`npm test -- src/app/api/offline/specimen-drafts/route.test.ts` (5/5 passed).
+Full frontend suite: 419/419 in 70 files. TypeScript no-emit, full lint with
+zero warnings/errors and diff checks pass. Existing runtime code passed all
+five cases; no production fix or new application defect was established.
+
+Direct handler invocation does not test a running Next server/middleware/proxy,
+actual token expiry/re-login, backend authorization/receipt atomicity, database
+concurrency or complete browser/security behavior. The earlier store/queue
+checks remain a separate seam. OFF-003 stays In progress and DEF-019's shared
+interruption pilot remains stopped. This completes the agreed five-case batch;
+no runtime rebuild/browser rerun is needed for this test-only change.
+
 ## Isolated authorization recovery checks - 2026-10-28
 
 The approved frontend sync/store seam now has two additional tests in
@@ -27,13 +58,14 @@ No browser, live login, backend connection or shared record is used.
 Both tests passed against the existing implementation; no runtime fix or new
 application defect was established. Run from the frontend root:
 `npm test -- src/features/offline/offline-sync.test.ts` (9/9 focused checks).
-The current full frontend suite passes 414/414 in 69 files; TypeScript no-emit,
+That checkpoint's full frontend suite passed 414/414 in 69 files; TypeScript no-emit,
 full lint (zero warnings/errors) and diff checks pass. Two tests were added in
 this slice; the full count also includes previously merged work outside Offline.
 
-Test source `17c3c325eb74adeeeda417c7acdaea71e3c6c1c1` is published for review in
+Test source `17c3c325eb74adeeeda417c7acdaea71e3c6c1c1` was merged through
 [frontend PR #86](https://github.com/OppenJayme/biosphere-frontend/pull/86).
-Opening the PR does not establish merge or independent acceptance.
+Its PR CI and companion backend documentation PR #200 CI passed; both PRs are
+merged. Independent acceptance remains separate.
 
 This verifies local failure/recovery transitions using synthetic responses,
 not real token expiry, re-login, backend authorization/receipt atomicity,

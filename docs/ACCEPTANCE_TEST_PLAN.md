@@ -7,6 +7,14 @@
 
 ## Start here
 
+2026-10-28 offline adapter follow-up: [five direct-handler checks](./OFFLINE_SYNC_GUIDE.md#isolated-frontend-route-adapter-checks---2026-10-28)
+pass for validated success, preserved backend 401/403, malformed success rejected
+as 502, and unsupported publishing/quantity rejected before forwarding. Actual
+handler/API client/schemas run with synthetic session/config/HTTP. Focused 5/5;
+full frontend 419/419, lint/TypeScript/diff checks pass. No runtime/server/shared
+record changes. This completes the agreed adapter batch; live middleware,
+expiry/re-login, concurrency and independent acceptance remain separate.
+
 2026-10-28 offline follow-up: [two isolated 401/403 recovery checks](./OFFLINE_SYNC_GUIDE.md#isolated-authorization-recovery-checks---2026-10-28)
 pass using real frontend sync/store/queue functions, synthetic HTTP and uniquely
 named fake IndexedDB. They cover retained drafts, same-ID successful retry after
