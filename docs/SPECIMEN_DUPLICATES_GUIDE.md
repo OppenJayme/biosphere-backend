@@ -9,6 +9,27 @@ Duplicate detection is **warning-only**. It never blocks a save, merges
 records, or deletes or archives anything. The curator reviews the warning
 and decides what to do (edit, archive, or keep both records).
 
+## Duplicate-warning edit invalidation - 2026-10-27
+
+[DEF-026](./TEST_DEFECT_LOG.md#def-026---duplicate-result-remains-valid-after-typing-new-values)
+was reproduced in the real mounted client component: an old response could
+appear after typing a new value without leaving the input. The local frontend
+repair immediately invalidates prior evidence on edits to accession number,
+scientific name and common name. Lookup still starts on focus-out and remains
+warning-only. Unrelated remarks edits preserve existing evidence.
+Repair source `c55692e` is published for review in
+[frontend PR #85](https://github.com/OppenJayme/biosphere-frontend/pull/85);
+merge/deployment verification remains pending.
+
+From the frontend root, `npm run test:duplicates:browser` runs six synthetic
+headless Edge scenarios for pending edits, response ordering, all three fields'
+edit/failure/retry/clear flows and unrelated edits. Actual React/DOM and client
+code run with only the remote Server Action replaced; network requests are
+blocked and no app server, credentials or database is used. The first pending-edit
+assertion was observed failing before the repair, then all six scenarios pass.
+These are local component results, not release-build/backend/provider evidence
+or independent acceptance. See the frontend browser-tooling README for setup.
+
 ## Endpoints
 
 All routes are curator-only (unauthenticated → 401, Developer → 403).
