@@ -5,6 +5,42 @@ text-only `UNCATALOGED` specimen drafts. Browser caching, offline search, draft
 retention, connectivity detection, and the visible sync states remain frontend
 PWA responsibilities implemented with IndexedDB/Dexie and the service worker.
 
+## Isolated authorization recovery checks - 2026-10-28
+
+The approved frontend sync/store seam now has two additional tests in
+`src/features/offline/offline-sync.test.ts`. They use the real synchronization,
+queue eligibility and store code with a uniquely named fake IndexedDB and an
+injected synthetic HTTP responder. Each test deletes only its own fake database.
+No browser, live login, backend connection or shared record is used.
+
+- A synthetic 401 retains the same owner, client draft ID and text, records a
+  retryable AUTH failure, and adds no accepted specimen to the local cache.
+  A subsequent synthetic successful response through the eligible queue reuses
+  exactly the same draft ID/payload, marks the draft synchronized and caches the
+  Uncataloged/non-public result. Another owner's pending draft remains unchanged
+  and receives no cache entry from this synchronization.
+- A synthetic 403 retains the draft and permission guidance as a nonretryable
+  AUTH failure. Running the automatic queue again sends no further attempt for
+  that draft and leaves it and another owner's draft unchanged. No synchronized
+  specimen is cached for the denied request.
+
+Both tests passed against the existing implementation; no runtime fix or new
+application defect was established. Run from the frontend root:
+`npm test -- src/features/offline/offline-sync.test.ts` (9/9 focused checks).
+The current full frontend suite passes 414/414 in 69 files; TypeScript no-emit,
+full lint (zero warnings/errors) and diff checks pass. Two tests were added in
+this slice; the full count also includes previously merged work outside Offline.
+
+Test source `17c3c325eb74adeeeda417c7acdaea71e3c6c1c1` is published for review in
+[frontend PR #86](https://github.com/OppenJayme/biosphere-frontend/pull/86).
+Opening the PR does not establish merge or independent acceptance.
+
+This verifies local failure/recovery transitions using synthetic responses,
+not real token expiry, re-login, backend authorization/receipt atomicity,
+database concurrency, browser interruption or complete UI acceptance. OFF-003
+stays In progress and DEF-019's shared-backend interruption pilot stays stopped.
+Existing manual/browser evidence below is historical and remains separate.
+
 ## Supported boundary
 
 - `POST /offline-sync/specimen-drafts` accepts one draft at a time after stable
