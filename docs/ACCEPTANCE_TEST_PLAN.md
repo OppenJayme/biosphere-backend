@@ -10,7 +10,9 @@
 2026-10-27 Cataloging checkpoint: [16 disposable collection SQL/HTTP checks](./COLLECTION_DATABASE_VERIFICATION.md)
 pass with real PostgreSQL constraints, collection/audit APIs, concurrent requests
 and rollback evidence. CAT-001 remains In progress and DEF-001 Ready for retest:
-the shared target's index deployment and independent acceptance are not proven.
+independent acceptance remains pending. A later approved schema-only check
+confirmed the required valid unique index on the backend-configured target;
+see the verification guide's metadata checkpoint for exact scope/limits.
 This is not a full BioSphere/offline/backup sandbox.
 
 2026-10-25 FAQ scope update: the approved [opt-in review contract and evidence](./FAQ_REVIEW_QUEUE_GUIDE.md)
@@ -302,7 +304,7 @@ John/Voltaire test-fixture handoff, not permission to absorb Inventory work.
 
 | ID      | Test                                                                           | Expected result                                                                                            | Status                                                                |
 | ------- | ------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
-| CAT-001 | Create and rename a collection; retry the same normalized name                 | Valid unique names save; duplicates are rejected clearly                                                   | In progress; collision UI retest reported passed; [16 disposable SQL/HTTP cases](./COLLECTION_DATABASE_VERIFICATION.md) pass including concurrency/atomicity; shared-index deployment and independent acceptance pending (original Fail - DEF-001) |
+| CAT-001 | Create and rename a collection; retry the same normalized name                 | Valid unique names save; duplicates are rejected clearly                                                   | In progress; collision UI retest reported passed; [16 disposable SQL/HTTP cases and configured-target index metadata](./COLLECTION_DATABASE_VERIFICATION.md) pass; independent acceptance on an identified build/target pending (original Fail - DEF-001) |
 | CAT-002 | Create complete and incomplete specimen drafts                                 | Both start `UNCATALOGED`; public display is off                                                            | **Pass**                                                              |
 | CAT-003 | Edit specimen core fields and submit an unchanged form                         | Changes persist with revision history; no-change submission is rejected clearly                            | **Pass**                                                              |
 | CAT-004 | Create and edit taxonomy                                                       | One taxonomy record exists; draft values and revisions persist                                             | **Pass**; completion requirement remains under CAT-006                |

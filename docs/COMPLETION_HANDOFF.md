@@ -83,7 +83,8 @@ fixtures. [Sixteen SQL/HTTP checks passed](./COLLECTION_DATABASE_VERIFICATION.md
 including conflicts, concurrent writes, persisted audit readback, migration
 refusal on legacy duplicates and atomic rollback on audit failure. Production
 collection code and migration were unchanged. DEF-001 stays Ready for retest;
-shared-index deployment and independent acceptance remain pending. This does
+independent acceptance remains pending. The later metadata check below addresses
+index presence on the configured target only. This does
 not supply a full schema, browser/provider environment or OFF-003 containment.
 
 The [independent collection review checklist and report template](./COLLECTION_DATABASE_VERIFICATION.md#independent-review-handoff)
@@ -91,11 +92,22 @@ are ready for the first available teammate on `test/cataloging-disposable-collec
 Actual reviewer execution is pending; no independent result or shared deployment
 approval is inferred from publishing this handoff for review.
 
+### Configured collection index confirmed - 2026-10-27
+
+The user separately approved a read-only metadata check. The backend-configured
+`DATABASE_URL` target reports `uq_collection_name` unique, valid, ready and live,
+with one `lower(btrim(collection_name))` key and no partial predicate. Transaction
+read-only mode was confirmed; no collection/specimen records, migrations or
+writes were involved. See the [exact metadata evidence and limits](./COLLECTION_DATABASE_VERIFICATION.md#configured-database-metadata-checkpoint---2026-10-27).
+Independent acceptance, identification of the actual acceptance build/target and
+any other deployment's verification remain separate; do not repeat shared-data
+tests just because earlier dated notes still say index deployment was pending.
+
 No additional product decision was needed merely to prepare this checklist.
 Before executing any gated case, confirm its exact records, target, expected
 side effects and approvals. The initial checklist-only update ran no tests;
 the separately approved collection slice is recorded above. The next action is
-named independent review and the exact remaining deployment evidence, followed by
+named independent review and acceptance-target/build confirmation, followed by
 teammate acceptance; this is not authorization for another broad test loop.
 
 ## Current checkpoint
@@ -147,7 +159,7 @@ teammate acceptance; this is not authorization for another broad test loop.
 | Gate | Owner / coordination | Evidence needed to finish |
 | --- | --- | --- |
 | P1 CSV recovery: CAT-013 / DEF-021 | Independent reviewer, with Kyer supplying evidence | Frontend #79/backend #184 merged and CI passed; approved local production rebuild and two blocked-request retests passed on frontend `bf4e325`. Owner tests and deployment verification are complete. Obtain independent acceptance; do not repeat owner checks as if untested or infer real commit/concurrency proof. |
-| P1 collection integrity: CAT-001 / DEF-001 | Kyer/backend; database/deployment owner | Local real SQL/HTTP collision/concurrency/audit checks now pass 16/16; see the 2026-10-27 slice above. Confirm actual target index deployment, existing-reference disposition and independent acceptance. UI reports and a disposable migration do not establish shared deployment. No shared migration is authorized here. |
+| P1 collection integrity: CAT-001 / DEF-001 | Kyer/backend; database/deployment owner | Local real SQL/HTTP checks pass 16/16; the separately approved metadata check confirms the required index on the backend-configured target. Obtain independent acceptance on an identified build/target; do not extrapolate to other deployments or authorize duplicate/reference cleanup. No shared migration is authorized here. |
 | P1 browser behavior: CAT-014/015, DEF-020/003 | Kyer plus independent teammate / second-device tester | Teammate repeats the merged no-save duplicate failure/retry checklist; cover stale in-flight ordering separately. On an actual LAN client check selection, close, another row, direct details, reload and Back/Forward. Local browser checks do not substitute for LAN/touch evidence. |
 | P1 diagnostic isolation: OFF-003 / DEF-019 | Kyer/test isolation; deployment owner for disposable target | Approve a disposable full-stack target and independently establish containment before repeating interruption tests. Keep the shared-backend pilot disabled and its retained evidence intact. Credential-free canary non-reproduction did not close this defect. |
 | FAQ and duplicate business rules | Team/curator confirmation; Kyer implementation | The retained eight-decisions handoff already sets FAQ ambiguity/context/unanswered-review working directions; use the reconciled next-step plan rather than asking again. Algorithm/thresholds, language/context design, log retention, duplicate-question policy and isolated activation setup remain open. Archived specimen duplicate-match policy is separate. Do not activate arbitrary shared test answers. |

@@ -806,6 +806,20 @@ existing duplicate/reference disposition and independent acceptance separately.
 The scoped fixture is not full Supabase, a complete schema or exhaustive stress
 coverage. Do not interpret this checkpoint as closing DEF-019 or backup gates.
 
+#### Configured-target index metadata - 2026-10-27
+
+A separately user-approved schema-only check through backend `DATABASE_URL`
+confirmed `public.collection.uq_collection_name`: unique/valid/ready/live true,
+one `lower(btrim(collection_name))` key and no partial predicate. Read-only
+transaction mode was verified and ROLLBACK completed. No collection/specimen
+records, reference counts or migration-history records were read, and no writes
+or migrations ran. See [metadata evidence and limits](./COLLECTION_DATABASE_VERIFICATION.md#configured-database-metadata-checkpoint---2026-10-27).
+
+This supersedes the earlier absence of index-presence evidence for that
+configured target only. DEF-001 remains Ready for retest pending independent
+acceptance with an identified target/build. Other environments, running-process
+configuration and any historic duplicate/reference cleanup are not certified.
+
 ### DEF-002 - Future provenance collection dates are accepted
 
 **Related test:** CAT-005; affects CAT-006 and CAT-007

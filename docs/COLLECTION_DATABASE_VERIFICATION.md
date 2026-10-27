@@ -84,13 +84,42 @@ are not an exhaustive scheduler/interleaving or load test. They do not prove
 the serialization-retry branch was entered. Migration refusal/readback is not
 permission to reconcile existing shared duplicate records.
 
+## Configured-database metadata checkpoint - 2026-10-27
+
+The user separately approved a schema-only check against the backend-configured
+`DATABASE_URL`. A bounded connection queried PostgreSQL catalog metadata inside
+`BEGIN TRANSACTION READ ONLY`, confirmed `transaction_read_only = on`, and
+finished with ROLLBACK. Credentials, connection strings, host/project identifiers
+and driver error details were not printed. No collection/specimen rows, duplicate
+groups, reference counts or migration-history records were read.
+
+Observed on `public.collection`:
+
+| Property | Observed |
+| --- | --- |
+| Index | `uq_collection_name` |
+| Unique / valid / ready / live | All true |
+| Number of key expressions | 1 |
+| Expression | `lower(btrim(collection_name))` |
+| Partial-index predicate | None |
+| Definition | `CREATE UNIQUE INDEX uq_collection_name ON public.collection USING btree (lower(btrim(collection_name)))` |
+
+This confirms the required index is present and matches the reviewed expression
+on that configured target at check time. It is not merely a migration file or
+an empty collision report. No DDL, data mutation, migration or shared concurrency
+test was performed. This does not identify the configuration of an already-
+running server process, certify other environments, or provide independent
+reviewer acceptance. No application tests were rerun for this documentation update.
+
 ## Remaining acceptance gates
 
 DEF-001 remains **Ready for retest**, not Verified. This evidence supplies local
-real-database constraint/transaction checks, not deployment or independent
-acceptance. A deployment/database owner still needs to confirm the actual
-target's index and collision disposition through an approved procedure.
-No shared migration, reference reassignment or deletion was performed.
+real-database constraint/transaction checks. The separately approved metadata
+checkpoint above confirms index presence on the backend-configured target;
+independent acceptance and exact acceptance-target/build identification remain.
+Other deployments and any historical duplicate/reference disposition are not
+inferred from this target. No shared migration, reference reassignment or
+deletion was performed.
 
 Independent reviewer sign-off and exact target/build identification remain
 required. This fixture does not clear media/storage-provider, full restoration,
@@ -121,8 +150,9 @@ The author/automation owner results above are not independent acceptance.
    containers: `docker --host npipe:////./pipe/dockerDesktopLinuxEngine ps -a --filter name=biosphere-collections- --format "{{.ID}} {{.Names}} {{.Status}}"`.
    If a container remains, record its identity and stop; no broad Docker cleanup.
 6. Record the result below, including any deviations. Do not promote DEF-001 to
-   Verified solely from this fixture; shared-index deployment and any existing
-   duplicate/reference disposition remain a separate database-owner gate.
+   Verified solely from this fixture. Review the separate configured-target
+   metadata checkpoint without extrapolating to other deployments or authorizing
+   any existing duplicate/reference cleanup.
 
 Reviewer report (complete after actual review, not in advance):
 
