@@ -7,6 +7,14 @@ status and does not authorize migrations, account changes or teammate-owned work
 
 ## Closeout queue - 2026-10-27
 
+2026-10-28 offline follow-up: [two isolated authorization/recovery regressions](./OFFLINE_SYNC_GUIDE.md#isolated-authorization-recovery-checks---2026-10-28)
+pass with the existing sync/store code (focused 9/9, current frontend suite
+414/414). Synthetic 401 then success preserves the draft ID/content and another
+owner; synthetic 403 preserves the draft and excludes automatic retry. This is
+local-state coverage, not real expiry/re-login or backend concurrency evidence.
+No runtime/server/login change; OFF-003 remains In progress and DEF-019 stays
+stopped. Do not repeat these exact synthetic owner checks as if untested.
+
 2026-10-28 upstream follow-up: a [bounded loopback GET-only pilot](./TEST_DEFECT_LOG.md#partial-upstream-timing-pilot---2026-10-28)
 captured eight successful reads; catalog was the longest branch in both waves
 (711/941 ms). The browser pilot timed out and two other GET paths were excluded,

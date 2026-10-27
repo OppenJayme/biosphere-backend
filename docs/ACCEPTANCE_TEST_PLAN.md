@@ -7,6 +7,13 @@
 
 ## Start here
 
+2026-10-28 offline follow-up: [two isolated 401/403 recovery checks](./OFFLINE_SYNC_GUIDE.md#isolated-authorization-recovery-checks---2026-10-28)
+pass using real frontend sync/store/queue functions, synthetic HTTP and uniquely
+named fake IndexedDB. They cover retained drafts, same-ID successful retry after
+401, automatic-retry exclusion after 403 and other-owner preservation. Focused
+suite 9/9; full frontend suite 414/414. No runtime changes, real login/expiry,
+backend calls or shared records. OFF-003 and DEF-019 dispositions are unchanged.
+
 2026-10-27 filter follow-up: [nonblank Collection/Public eligibility reset](./TEST_DEFECT_LOG.md#nonblank-collection-and-eligibility-follow-up---2026-10-27)
 passed on production build `-7vcfapNQNgHNQsAN6WHj`, including Apply, Clear all,
 Back/Forward and reapply without reviving old basic filters/sort. No records
@@ -751,7 +758,7 @@ acceptance are not marked complete by this narrower evidence.
 | ------- | --------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- | ------- |
 | OFF-001 | Cache the allowed specimen list, disconnect, and check workspace/reload | Open workspace retains bounded cached viewing; fresh offline navigation/reload shows record-free fallback | In progress; manual workspace/fallback/recovery evidence recorded; independent retest pending |
 | OFF-002 | Create an offline text draft and synchronize after reconnecting | One attributed `UNCATALOGED` record is created                                                  | In progress; manual save/persistence/sync evidence recorded; independent sign-off pending |
-| OFF-003 | Retry the same synchronization and simulate temporary failure   | Retry is safe; no duplicate specimen is created; recoverable errors remain visible              | In progress; prior scoped pilots pass; new tab-interruption pilot failed its no-write guard (DEF-019), dependent interruption runs stopped pending isolation; actual session expiry/concurrency gaps remain |
+| OFF-003 | Retry the same synchronization and simulate temporary failure   | Retry is safe; no duplicate specimen is created; recoverable errors remain visible              | In progress; prior scoped pilots and [isolated 401/403 local recovery checks](./OFFLINE_SYNC_GUIDE.md#isolated-authorization-recovery-checks---2026-10-28) pass; DEF-019 interruption pilot remains stopped pending isolation; actual session expiry/re-login, live concurrency and independent acceptance remain |
 | OFF-004 | Inspect offline feature boundaries                              | Media, inventory movement, archive, and privileged operations are not falsely available offline | In progress; text-core boundary/account isolation reported and regression-covered; full negative matrix pending |
 
 ### FAQ knowledge management
