@@ -7,6 +7,12 @@ status and does not authorize migrations, account changes or teammate-owned work
 
 ## Closeout queue - 2026-10-27
 
+Filter follow-up: the [missing nonblank Collection/Public eligibility reset,
+history and reapply case](./TEST_DEFECT_LOG.md#nonblank-collection-and-eligibility-follow-up---2026-10-27)
+passed on production `b65c9dd` without record changes. Do not repeat that owner
+case as untested. Independent DEF-008 acceptance and DEF-011's controlled
+performance/disposition work remain separate; this run supplies no latency claim.
+
 DEF-026 follow-up: frontend #85 and backend #196 are merged with successful PR
 CI. The frontend-only production refresh from `b65c9dd` passed, serving build
 `-7vcfapNQNgHNQsAN6WHj`. The [no-save failure/invalidation/retry/clear retest](./TEST_DEFECT_LOG.md#merged-production-ui-checkpoint---2026-10-27)

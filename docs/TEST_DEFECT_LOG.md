@@ -1680,6 +1680,35 @@ Single-run observations were Apply 1120 ms and Clear 1526 ms, including browser
 automation/settling checks. These are not a performance benchmark or proof of
 improvement; DEF-011 remains unresolved. No latency target is signed off here.
 
+#### Nonblank collection and eligibility follow-up - 2026-10-27
+
+On frontend source `b65c9dd`, production build `-7vcfapNQNgHNQsAN6WHj`, the
+remaining owner control-reset case passed in a temporary signed-in Edge tab.
+Selected an existing collection (identity retained only in memory), public
+eligibility false, search TEST, Uncataloged status, Unknown gender, common-name
+sort and ascending direction. Apply put the values in the URL and visible
+controls. Clear all restored defaults; Back restored the applied form; Forward
+restored the cleared form. Reapplying collection plus eligibility true kept the
+previous search/status/gender and sort cleared, and a second Clear all passed.
+This closes the earlier explicitly untested nonblank Collection/Public
+eligibility control-reset and reapply cases; do not queue them again as untested.
+
+The original signed-in tab remained unchanged. The probe closed afterward;
+zero page errors and zero unexpected non-read requests occurred. Four catalog
+POST Server Actions were blocked locally; their selected-cover behavior is
+excluded, not verified or classified as a mutation defect. All filter submissions
+were GET navigation. No record form, Inventory operation or save was used.
+No metadata values, collection identities, cookies or response bodies were
+exported. The ignored script is
+`tools/browser/artifacts/catalog-filter-nonblank-closeout-20261027.js`.
+
+This is control/URL/history evidence, not an independent result-set comparison,
+advanced-filter/no-JavaScript/accessibility completion or a latency benchmark.
+DEF-008 remains Ready for retest for independent acceptance; DEF-011 remains In
+progress for its performance/disposition limits. No new application defect or
+source change was established. Documentation diff checks pass; completed source
+tests/build were not repeated for this browser/documentation check.
+
 #### Reproduction
 
 1. Select values such as Cataloged status, a collection, and a gender.
@@ -1716,8 +1745,8 @@ longer represents the active query.
 #### Retest
 
 - [ ] Clear all resets the URL and result set.
-- [ ] Search, filters, and sort controls visibly return to defaults.
-- [ ] Reapplying immediately after clearing does not restore stale filters.
+- [x] The seven modified search/basic-filter/sort controls visibly return to defaults (owner production check 2026-10-27; advanced controls not exercised).
+- [x] Reapplying immediately after clearing does not restore stale basic filters (owner production check 2026-10-27).
 - [ ] Browser Back/Forward keeps controls and results synchronized.
 - [ ] Pagination returns to page 1.
 
