@@ -7,6 +7,14 @@ status and does not authorize migrations, account changes or teammate-owned work
 
 ## Closeout queue - 2026-10-27
 
+2026-10-28 offline adapter follow-up: [the agreed five handler checks](./OFFLINE_SYNC_GUIDE.md#isolated-frontend-route-adapter-checks---2026-10-28)
+pass (full frontend 419/419, clean lint/TypeScript). Real handler/API client/schema
+code uses synthetic session/config/HTTP; no live backend, runtime or server
+change. Published in frontend #87. Earlier frontend #86/backend #200 are merged
+with successful PR CI. The local store/queue and adapter batches are complete;
+do not extend those batches automatically or represent them as real expiry,
+middleware, backend concurrency or independent acceptance evidence.
+
 2026-10-28 offline follow-up: [two isolated authorization/recovery regressions](./OFFLINE_SYNC_GUIDE.md#isolated-authorization-recovery-checks---2026-10-28)
 pass with the existing sync/store code (focused 9/9, current frontend suite
 414/414). Synthetic 401 then success preserves the draft ID/content and another
