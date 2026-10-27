@@ -7,9 +7,23 @@ status and does not authorize migrations, account changes or teammate-owned work
 
 ## Closeout queue - 2026-10-27
 
+Physical-phone follow-up: the user reported all six [LAN/touch selection,
+close, A/B switching, matching detail, Back and refresh checks](./TEST_DEFECT_LOG.md#user-reported-physical-phone-lan-check---2026-10-27)
+passed on temporary frontend development source `e2b13bc`. That owner functional
+gap is no longer untested. Browser is user-reported Google Chrome; phone OS,
+model and browser version are unspecified. Independent/release/full-accessibility
+acceptance remains. The task-owned LAN frontend was stopped,
+preserving localhost desktop servers and the signed-in Edge session.
+
 Backup History follow-up (user approved proceeding after initially choosing to
-leave it pending): [14 populated disposable PostgreSQL/HTTP checks](./BACKUP_HISTORY_GUIDE.md#populated-disposable-postgresql-checkpoint---2026-10-27)
-pass. Real populated browser/provider evidence and independent acceptance remain;
+leave it pending): the original [14 populated disposable PostgreSQL/HTTP checks](./BACKUP_HISTORY_GUIDE.md#populated-disposable-postgresql-checkpoint---2026-10-27)
+were extended to **16 passing checks** by the DEF-025 audit-timing repair.
+Backend [PR #195](https://github.com/OppenJayme/biosphere-backend/pull/195)
+is confirmed merged at `adb2404213a880c9c98c2bf7f7405bbcf23d41c9`.
+Collection database checks also pass 16/16; existing combined HTTP regressions
+pass 13/13. These are previously recorded owner results, not a new run or
+independent acceptance. Real populated browser/provider evidence and
+independent acceptance remain;
 BAK-001 is In progress and BAK-002 real backup/restore remains Deferred. This is
 synthetic metadata read verification, not a backup job or restore implementation.
 
@@ -28,7 +42,7 @@ live writes, migration, server restart or backup/restore operation.
 | Batch | Remaining work only | Owner / coordination | Exit condition |
 | --- | --- | --- | --- |
 | 1. Evidence and review baseline | Reconcile remaining register subcases against linked results; identify the build/revision actually tested. | Kyer; independent teammate to be named | A finite case list names exact gaps, reviewer and target; historical passes are not queued again without a relevant change. |
-| 2. Cataloging closeout | Independent DEF-020/021/022 acceptance; actual second-device LAN/touch/keyboard behavior; remaining media authorization/provider/failure cases, complete live restoration branch and stale duplicate-response ordering. Verify normalized collection uniqueness/index deployment and safe collision/data/audit evidence; resolve archived-duplicate policy. | Kyer; deployment/database owner; teammate; John supplies any Inventory-owned fixtures | Critical/major requirements and important recovery paths have matching evidence; no data-integrity/security blocker remains. Isolated tests are not substituted for live provider/concurrency checks. |
+| 2. Cataloging closeout | Independent DEF-020/021/022 acceptance; remaining release/console/accessibility checks after the six owner phone checks passed; remaining media provider/failure cases, complete live restoration branch and stale duplicate-response ordering. Collection SQL/HTTP and configured-index checks are already recorded; identify the acceptance build/target and obtain independent review. Resolve archived-duplicate policy. | Kyer; deployment/database owner; teammate; John supplies any Inventory-owned fixtures | Critical/major requirements and important recovery paths have matching evidence; no data-integrity/security blocker remains. Isolated tests are not substituted for live provider/concurrency checks. |
 | 3. Storage boundary | Independent hierarchy/archive/read-only acceptance; remaining placement/lot criteria coordinated with Inventory. | Kyer and John; Voltaire for shared access contracts | Storage-owned criteria pass; John supplies/accepts Inventory placement evidence. No lot/quantity/movement implementation absorbed into Cataloging. |
 | 4. FAQ local visitor flow | Independently retest DEF-024; obtain authoritative answers/sources; settle outstanding duplicate-knowledge policy; verify approved active/inactive lifecycle and visitor answer/clarification/fallback/follow-up flow. | Kyer; curator/content approver; teammate | Real content is approved and visitor flow accepted within the documented bounded English contract. Synthetic test facts are never published. Hosted review collection stays outside this demo gate and disabled. |
 | 5. Limited offline | Independent cache/draft/sync and negative-boundary acceptance; exact outstanding expiry/recovery/concurrency cases. Keep DEF-019 shared-backend interruption pilot stopped. | Kyer; independent reviewer; approved disposable-environment owner | Independent containment is established before interruption checks; required cases pass safely, or unsupported scope is explicitly decided without hiding a blocker. |
@@ -41,6 +55,47 @@ Execute only missing subcases. If a batch needs unavailable authority/data,
 record its owner and dependency and continue unrelated safe work. Helping
 teammates can proceed while external approvals are pending, but must not be
 described as completion of the waiting module.
+
+### Immediate sequence after the phone pass
+
+1. Hand the existing collection/Backup audit-timing evidence to the first
+   available independent reviewer. PR #195 being merged does not by itself
+   establish that the reviewer ran its opt-in Docker checks. Record the actual
+   commands/results and revision; do not rerun owner suites merely to fill time.
+2. Review the local DEF-026 duplicate-warning repair and its six mounted-component
+   scenarios, then verify the merged repair on an identified release build.
+   The pending-edit hypothesis below was reproduced and repaired; do not restart
+   that investigation as if untested. Independent acceptance and broader ordering
+   gaps remain separate. Keep browser failure checks isolated from shared writes.
+3. Keep curator FAQ answers and John's Inventory fixtures as external inputs.
+   When supplied, execute only their missing acceptance cases. Until then,
+   do not invent FAQ facts, activate synthetic answers, or absorb lot management.
+
+This sequence records priorities only. No new test result, independent sign-off,
+database change or release acceptance is claimed by this reconciliation.
+
+Source inspection for step 2 (frontend `e2b13bc`, no browser requests):
+`SpecimenDuplicateCheck.tsx` already ignores an older response after a newer
+focus-out check increments its request counter. The current transport tests
+exercise rejection/retry, but do not mount this component or prove response
+ordering. One narrower case still needs a deterministic regression: start a
+check for A, type B without leaving the input, then resolve A. The component
+listens to `focusout`, not `input`, so typing alone does not invalidate its
+counter. Verify whether A's outcome becomes visible for B and, if reproduced,
+repair invalidation on edits while preserving warning-only saving and explicit
+retry. This is a source-review hypothesis, not a reported browser reproduction
+or a new defect disposition. No shared records or running servers were changed.
+
+Subsequent approved component regression reproduced that hypothesis as
+[DEF-026](./TEST_DEFECT_LOG.md#def-026---duplicate-result-remains-valid-after-typing-new-values).
+The assertion failed before the production component was changed. Immediate
+input invalidation now passes six synthetic mounted-component scenarios, and
+the existing frontend Vitest suite passes 399/399. The repair is pushed in
+[frontend PR #85](https://github.com/OppenJayme/biosphere-frontend/pull/85)
+at `c55692e`; merge/deployment verification and independent acceptance remain
+pending. Source inspection above remains
+the historical hypothesis, not the current outcome. No app server or live data
+was used; fresh headless fixture sessions were closed after each run.
 
 ### Inputs needed before acceptance execution
 
@@ -166,7 +221,7 @@ teammate acceptance; this is not authorization for another broad test loop.
 | --- | --- | --- |
 | P1 CSV recovery: CAT-013 / DEF-021 | Independent reviewer, with Kyer supplying evidence | Frontend #79/backend #184 merged and CI passed; approved local production rebuild and two blocked-request retests passed on frontend `bf4e325`. Owner tests and deployment verification are complete. Obtain independent acceptance; do not repeat owner checks as if untested or infer real commit/concurrency proof. |
 | P1 collection integrity: CAT-001 / DEF-001 | Kyer/backend; database/deployment owner | Local real SQL/HTTP checks pass 16/16; the separately approved metadata check confirms the required index on the backend-configured target. Obtain independent acceptance on an identified build/target; do not extrapolate to other deployments or authorize duplicate/reference cleanup. No shared migration is authorized here. |
-| P1 browser behavior: CAT-014/015, DEF-020/003 | Kyer plus independent teammate / second-device tester | Teammate repeats the merged no-save duplicate failure/retry checklist; cover stale in-flight ordering separately. On an actual LAN client check selection, close, another row, direct details, reload and Back/Forward. Local browser checks do not substitute for LAN/touch evidence. |
+| P1 browser behavior: CAT-014/015, DEF-020/003 | Kyer plus independent teammate / second-device tester | User-reported physical-phone LAN/touch checklist now passes in Google Chrome; phone OS/model/version unspecified. Obtain independent/release/full-accessibility acceptance, not another identical owner phone run. Duplicate failure/retry independent acceptance and stale in-flight ordering remain separate. |
 | P1 diagnostic isolation: OFF-003 / DEF-019 | Kyer/test isolation; deployment owner for disposable target | Approve a disposable full-stack target and independently establish containment before repeating interruption tests. Keep the shared-backend pilot disabled and its retained evidence intact. Credential-free canary non-reproduction did not close this defect. |
 | FAQ and duplicate business rules | Team/curator confirmation; Kyer implementation | The retained eight-decisions handoff already sets FAQ ambiguity/context/unanswered-review working directions; use the reconciled next-step plan rather than asking again. Algorithm/thresholds, language/context design, log retention, duplicate-question policy and isolated activation setup remain open. Archived specimen duplicate-match policy is separate. Do not activate arbitrary shared test answers. |
 | Cross-module and live provider coverage | Kyer with John/Voltaire as appropriate | John supplies/approves Inventory/storage fixtures and placement evidence; Kyer tests Cataloging/Storage boundaries only. Complete the specified media role/wrong-pair/failure/accessibility and full restoration branches in an authorized setup. Isolated HTTP tests are supporting evidence, not provider/concurrency proof. |
@@ -196,8 +251,9 @@ may continue while other gates await decisions. Test only the missing subcase.
 
 **Independent reviewer:** Please review the merged frontend DEF-020 fix using
 the no-save duplicate checklist. Record commit/build, result and any remaining
-stale-response gap. We also need an actual second-device LAN check for DEF-003;
-local selection already has evidence. Please do not submit test specimen forms.
+stale-response gap. DEF-003 now has a reported owner phone/LAN checklist pass;
+please review its remaining independent/release/accessibility limits rather than
+calling the owner LAN actions untested. Please do not submit test specimen forms.
 
 **John / Voltaire:** Please review DEF-017's missing security-audit fixture
 adapter while preserving the real 403 guard and checking denial persistence.

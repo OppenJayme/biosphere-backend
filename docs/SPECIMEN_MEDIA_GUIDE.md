@@ -501,3 +501,12 @@ test suite/build was rerun for this read-only browser/documentation checkpoint.
 The user-requested signed-in window and both started servers were left running.
 The isolated session still has its read-only guard; it must not be mistaken for
 an unrestricted manual-edit session. No global browser/process cleanup ran.
+
+Follow-up availability check: inspected eight additional existing media pages
+(TEST-labelled candidates first) for a non-cover image with Set as cover. None
+exposed that control, so no focus check or action was performed on it. No media
+was created to manufacture the fixture. Returned to the original media page
+with the session/guard intact. The navigation added one blocked background
+non-read request (cumulative two); its purpose remains unestablished and no
+mutation/cover-focus pass is inferred. Set as cover remains untested pending an
+existing eligible fixture or separately approved fixture preparation.

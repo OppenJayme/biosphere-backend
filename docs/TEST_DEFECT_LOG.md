@@ -86,6 +86,7 @@ system is not a reason to postpone all fixes until the end.
 
 | ID      | Date       | Module                     | Summary                                                                 | Severity    | Priority | Status | Owner                   |
 | ------- | ---------- | -------------------------- | ----------------------------------------------------------------------- | ----------- | -------- | ------ | ----------------------- |
+| [DEF-026](#def-026---duplicate-result-remains-valid-after-typing-new-values) | 2026-10-27 | Cataloging / Duplicate warning UI | A response for the old name can show after typing a new value without leaving the field | S3 Moderate | P2 | Ready for retest | Kyer / Cataloging frontend |
 | [DEF-025](#def-025---denial-audit-tests-assume-immediate-background-persistence) | 2026-10-27 | Backup / Collections test harness | Immediate audit readback can fail before asynchronously recorded denial events become visible | S3 Moderate | P2 | Ready for retest | Kyer / test maintainers |
 | [DEF-024](#def-024---faq-matcher-answers-parking-questions-with-unrelated-fee-information) | 2026-10-25 | FAQ / Answer quality | Fee keyword overlap answers a parking question even when the fee topic is excluded or parking inclusion is unsupported | S3 Moderate | P1 | Ready for retest | Kyer / FAQ matching; independent abstention-policy review pending |
 | [DEF-023](#def-023---conflicting-faq-cleanup-modes-perform-deletion) | 2026-10-25 | FAQ / Cleanup operations | Combining --apply and --dry-run deletes expired rows instead of rejecting conflicting modes | S3 Moderate | P1 | Ready for retest | Kyer / FAQ backend |
@@ -113,6 +114,76 @@ system is not a reason to postpone all fixes until the end.
 | [DEF-015](#def-015---audit-http-fixture-omits-the-security-audit-create-method) | 2026-10-19 | Audit / HTTP test fixture | Missing security-audit create mock logs an error despite green denial test | S3 Moderate | P2 | Ready for retest | Audit tests / coordinate with Auth |
 
 ## 3. Defect details
+
+### DEF-026 - Duplicate result remains valid after typing new values
+
+**Found on:** 2026-10-27, frontend `e2b13bc` component mounted in an isolated
+headless Edge fixture. This is a component reproduction, not a live-server run.
+
+**Severity / priority:** S3 Moderate / P2. The warning can misdescribe the current
+candidate; leaving the edited field triggers another check. Duplicate warnings
+remain advisory and this reproduction establishes no invalid persistent write.
+
+**Status:** Ready for retest; local owner repair and component checks pass.
+Merge/deployment verification and independent acceptance remain pending.
+
+**Review:** Frontend repair `c55692e94fe2bebc7c6814891cbd618eb89a4a5c` is pushed
+in [frontend PR #85](https://github.com/OppenJayme/biosphere-frontend/pull/85)
+against develop. Local checks cover this branch's source; newer Exhibit work
+on develop is outside their claim. Opening a PR is not merge/deployment evidence.
+
+**Reproduction:** Enter synthetic common name A and leave the field to begin a
+duplicate lookup. While its response is delayed, type B and keep focus in the
+input. Resolve A's lookup as `clear`. The original component displays
+"No possible duplicates were found" while the input contains B. The browser
+assertion failed with `STALE_RESULT` before production code was edited.
+
+**Expected:** Editing accession number, scientific name or common name immediately
+invalidates evidence for the previous values. An earlier pending response must
+not restore that evidence. A new lookup still starts on leaving a matched field;
+transport failure stays unknown and explicit retry remains available.
+
+**Repair:** `SpecimenDuplicateCheck.tsx` now handles matched-field `input` events
+by invalidating the request generation, clearing prior evidence and resetting
+the checked candidate. Effect cleanup removes both listeners. Unrelated remarks
+edits do not invalidate the check.
+Backend matching, archive policy, accession uniqueness and save behavior are
+unchanged.
+
+**Owner verification:** `npm run test:duplicates:browser` mounts the actual
+component, React DOM, candidate validation, request wrapper and duplicate list.
+Only the remote Server Action is replaced by synthetic delayed results. Six
+scenarios pass: pending edit; reversed response completion; common-name,
+scientific-name and accession-number edit/failure/retry/clear flows; and an
+unrelated remarks edit. The three retry flows confirm matching evidence appears
+and the save control stays enabled. Empty candidates initiate no remote lookup.
+The existing frontend Vitest suite also passes **399/399** in 68 files.
+Final TypeScript no-emit, full frontend lint (zero warnings/errors) and both
+repositories' diff checks pass.
+
+Generated fixture bundles are excluded from ESLint because they contain bundled
+third-party code. The initial full lint run was cancelled while scanning generated
+artifacts; the ignore applies only to `tools/browser/artifacts/**`, not maintained
+source or the regression scripts. An unnecessary cleanup-time ref invalidation
+was removed after lint flagged it, keeping the fix limited to matched-field edits.
+
+**Harness corrections:** Initial sandbox subprocess startup returned EPERM;
+the approved isolated check ran with the required process permissions. Narrowing
+the synthetic-action resolver initially allowed the real server import graph
+to reach an unresolved `server-only` import; setting the test resolver to run
+before normal resolution corrected the fixture build. That build failed before
+any browser check or application request. Neither setup issue is an application
+defect or a successful acceptance result.
+
+**Limits / next:** The regression bundles current local source with Vite, not a
+deployed Next build. It loads no environment files, uses no application server,
+aborts page network requests and closes only its fresh isolated browser session.
+No live records, credentials or existing signed-in tabs were used. This does
+not prove backend/database matching, unmount behavior, broad stale-response
+coverage or independent acceptance. Rendering a newer outcome while an older
+transition is still pending is not asserted by these scenarios. Review the
+repair and retest the affected behavior on the identified release build; do not
+claim CAT-014 fully accepted from these owner checks.
 
 ### DEF-025 - Denial-audit tests assume immediate background persistence
 
@@ -1122,14 +1193,49 @@ earlier diagnostic, not DEF-003 itself. Full-page keyboard/accessibility,
 screen-reader, touch/mobile, LAN-origin and no-JavaScript checks remain pending;
 no application fix was needed for the behavior exercised here.
 
+#### User-reported physical-phone LAN check - 2026-10-27
+
+After confirming private Wi-Fi, the user manually logged in on a physical
+phone through a temporary frontend dev server on the computer's exact private
+LAN address, port 3002. Frontend checkout was `e2b13bc`; this is NOT a phone
+retest of the separate existing production build on localhost:3000. The same
+backend remained on 3001; no application/auth/firewall/router configuration or
+source files were changed. No public tunnel was opened and no credentials,
+session state, selected specimen names or screenshots were collected.
+
+The user explicitly reported **"1-6 passed"** for this checklist:
+
+| Step | Physical-phone action | Reported result |
+| --- | --- | --- |
+| 1 | Tap specimen A's row and see its preview | Pass |
+| 2 | Tap X and see the preview close | Pass |
+| 3 | Tap a different specimen B and verify B's name, not A's | Pass |
+| 4 | Open B's details and verify the matching record | Pass |
+| 5 | Browser Back, then select A again | Pass |
+| 6 | Refresh the list and repeat A/B selection | Pass |
+
+This supplies the missing owner-reported real LAN/touch functional evidence;
+do not continue describing those six actions as untested. It is not direct
+agent observation, an independent teammate run or full module/release sign-off.
+The user identified the phone browser as **Google Chrome**. Phone model, OS and
+Chrome version were not supplied; Android must not be inferred. Specimen IDs, mobile
+console/chunk responses, full keyboard/screen-reader/contrast and no-JavaScript
+behavior were not captured or inferred. DEF-003 remains Ready for retest for
+the remaining independent/release acceptance, not because this phone checklist
+failed. No edits/saves were requested or reported.
+
+After the checklist, the exact owned LAN frontend listener/launcher were
+verified and stopped. Desktop localhost:3000, backend:3001 and the signed-in
+isolated desktop Edge session were preserved. The temporary phone URL should
+no longer load; that cleanup is not a recurrence of the selection defect.
+
 #### Retest
 
-- [ ] Selection works through `localhost` and the LAN-IP origin.
-- [ ] The X button clears selection.
+- [x] Selection works through `localhost` and the LAN-IP origin (prior local evidence plus reported phone checklist).
+- [x] The X button clears selection (reported phone step 2).
 - [ ] Every result has a direct accessible detail link.
-- [ ] Keyboard link activation with Enter and touch selection work (Space is not
-      required to activate native links).
-- [ ] Mobile users can see which specimen was selected.
+- [x] Sampled keyboard link activation with Enter and touch selection work (prior local link checks plus phone steps 1/3/4; not full accessibility coverage).
+- [x] Mobile users can see which specimen was selected (reported phone step 3).
 - [ ] No hydration or client-chunk errors appear in the browser console.
 
 ### DEF-004 - Choose-file controls have no visible hover feedback

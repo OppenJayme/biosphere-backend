@@ -7,6 +7,21 @@
 
 ## Start here
 
+2026-10-27 duplicate-ordering follow-up: [DEF-026](./TEST_DEFECT_LOG.md#def-026---duplicate-result-remains-valid-after-typing-new-values)
+reproduced an old result appearing after typing a new value without leaving the
+field. Immediate input invalidation now passes six isolated mounted-component
+scenarios; existing frontend tests pass 399/399. No live specimen writes or
+server changes. Release-build verification, archived policy and independent
+CAT-014 acceptance remain pending.
+
+2026-10-27 phone follow-up: the user reports all six physical-phone LAN steps
+passed (selection, X, another record, matching details, Back and refresh).
+See [DEF-003 phone evidence and limits](./TEST_DEFECT_LOG.md#user-reported-physical-phone-lan-check---2026-10-27).
+This closes that owner-reported functional gap on the temporary development
+server using user-reported Google Chrome (phone OS/model/version unspecified);
+console/full accessibility and independent
+release acceptance remain pending. The temporary LAN server was then stopped.
+
 2026-10-27 reviewer follow-up: [DEF-025 audit readback timing](./TEST_DEFECT_LOG.md#def-025---denial-audit-tests-assume-immediate-background-persistence)
 is Ready for retest. Real delayed inserts reproduced both test failures; bounded
 authorized readback now passes Backup 16/16 and Collection 16/16, with 13/13
@@ -336,8 +351,8 @@ John/Voltaire test-fixture handoff, not permission to absorb Inventory work.
 | CAT-011 | Upload, edit, cover, replace, and remove supported media; reject invalid media | Private signed access, database/storage consistency, and usable interaction states are preserved           | In progress; [DEF-022 merged production recovery/retry passed; independent acceptance pending](./SPECIMEN_MEDIA_GUIDE.md#merged-metadata-repair-verification---2026-10-24). Prior [media/privacy batch](./SPECIMEN_MEDIA_GUIDE.md#cat-011-consolidated-media-batch---2026-10-22) and [wrong-pair HTTP regressions](./SPECIMEN_MEDIA_GUIDE.md#cat-011-wrong-pair-http-checkpoint---2026-10-23) pass; live role/wrong-pair access, failure/concurrency and full accessibility/sign-off gaps remain (original Fail - DEF-004/006/007) |
 | CAT-012 | Search, combine filters, sort, and paginate                                    | Results are bounded, stable, case-insensitive where approved, and archived records are excluded by default | **Pass**; Clear-all UI defect DEF-008                                 |
 | CAT-013 | Preview and commit mixed-validity CSV rows; retry commit                       | Preview is non-mutating; only reviewed valid rows import as `UNCATALOGED`; retries do not duplicate rows   | **In progress**; prior live core-only cases and DEF-009 remain passed/Verified; [merged production-build DEF-021 retest](./TEST_DEFECT_LOG.md#merged-production-build-import-retest---2026-10-24) passed twice with blocked synthetic commits; independent reviewer acceptance and stated live-provider/concurrency limits remain |
-| CAT-014 | Review possible duplicate warnings, including archived matches                 | Warnings show evidence and never auto-merge records                                                        | In progress; [merged browser retest](./SPECIMEN_DUPLICATES_GUIDE.md#merged-browser-retest-checkpoint---2026-10-24) passes owner warning/clear, transport failure/form retention/retry and final delayed-read result; full stale-response coverage, archived policy and independent acceptance pending |
-| CAT-015 | Select multiple specimens from the protected catalog on local and LAN clients  | Every row is keyboard/touch accessible and opens the matching preview/detail route                         | In progress; local preview/clear, reload/history, first-two-row Tab traversal with computed focus outlines and Enter opening the matching detail page pass (2026-10-22, DEF-003); LAN, touch and full keyboard/accessibility remain unverified |
+| CAT-014 | Review possible duplicate warnings, including archived matches                 | Warnings show evidence and never auto-merge records                                                        | In progress; [merged browser retest](./SPECIMEN_DUPLICATES_GUIDE.md#merged-browser-retest-checkpoint---2026-10-24) and [DEF-026 local component repair](./TEST_DEFECT_LOG.md#def-026---duplicate-result-remains-valid-after-typing-new-values) supply owner evidence; release verification of the new repair, full stale-response coverage, archived policy and independent acceptance pending |
+| CAT-015 | Select multiple specimens from the protected catalog on local and LAN clients  | Every row is keyboard/touch accessible and opens the matching preview/detail route                         | In progress; prior local keyboard/detail checks plus [six user-reported physical-phone LAN/touch checks in Google Chrome](./TEST_DEFECT_LOG.md#user-reported-physical-phone-lan-check---2026-10-27) pass; phone OS/model/version unspecified; console/full accessibility and independent release acceptance pending |
 | CAT-016 | Restore an archived specimen after current-requirement revalidation | Same record returns as Cataloged only when complete, otherwise Uncataloged; public display off; history preserved; inventory unchanged | **Partial pass** — live incomplete restore, cancel/error/reload and audit passed; complete branch covered by isolated HTTP tests; live concurrency unverified |
 
 CAT-016 evidence and limits are recorded in
