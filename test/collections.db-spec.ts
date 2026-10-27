@@ -3,6 +3,8 @@ import type { INestApplication } from '@nestjs/common';
 import type { App } from 'supertest/types';
 import request from 'supertest';
 import { DisposableFaqPostgres } from './support/disposable-faq-postgres';
+import { withDelayedDenialAudit } from './support/delayed-denial-audit';
+import { expectAuditReadback } from './support/expect-audit-readback';
 import {
   createCollectionsDatabaseApp,
   seedCollectionsDatabase,
@@ -219,34 +221,28 @@ describe('Collections on owned disposable PostgreSQL (DEF-001)', () => {
     { token: 'developer-fixture', status: 403 },
   ])(
     'blocks collection writes with caller $token ($status)',
-    async ({ token, status }) => {
-      const pending = request(app.getHttpServer())
-        .post('/collections')
-        .send({ collectionName: 'TEST - Unauthorized' });
-      if (token) pending.auth(token, { type: 'bearer' });
-      await pending.expect(status);
-      expect(await collections()).toMatchObject({ total: 0, items: [] });
-      expect((await audits()).total).toBe(0);
-      if (token) {
-        await request(app.getHttpServer())
-          .get('/audit-logs')
-          .query({ action: 'ACCESS_DENIED', result: 'DENIED' })
-          .auth('curator-fixture', { type: 'bearer' })
-          .expect(200)
-          .expect(({ body }) => {
-            expect(body).toMatchObject({
-              total: 1,
-              items: [
-                {
-                  action: 'ACCESS_DENIED',
-                  result: 'DENIED',
-                  actor: { id: '22222222-2222-4222-8222-222222222222' },
-                },
-              ],
-            });
+    ({ token, status }) =>
+      withDelayedDenialAudit(database.admin, async () => {
+        const pending = request(app.getHttpServer())
+          .post('/collections')
+          .send({ collectionName: 'TEST - Unauthorized' });
+        if (token) pending.auth(token, { type: 'bearer' });
+        await pending.expect(status);
+        expect(await collections()).toMatchObject({ total: 0, items: [] });
+        expect((await audits()).total).toBe(0);
+        if (token) {
+          await expectAuditReadback(app.getHttpServer(), {
+            total: 1,
+            items: [
+              {
+                action: 'ACCESS_DENIED',
+                result: 'DENIED',
+                actor: { id: '22222222-2222-4222-8222-222222222222' },
+              },
+            ],
           });
-      }
-    },
+        }
+      }),
   );
 
   it('rolls back the collection when its transactional success audit cannot be written', async () => {
