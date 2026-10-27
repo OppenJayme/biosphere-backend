@@ -5,6 +5,111 @@ change shared data, or whole-project completion percentage. The acceptance
 register and defect log remain authoritative. Reading this handoff promotes no
 status and does not authorize migrations, account changes or teammate-owned work.
 
+## Closeout queue - 2026-10-27
+
+This is the current task-selection summary. Older checkpoints below retain
+their historical context; they do not reopen completed implementation work.
+Backend PR #191 is confirmed merged and its PR CI succeeded. DEF-024 owner
+verification passed the unchanged 25-case evaluation, 15 ordinary scope HTTP
+regressions, 690 unit tests and 376 isolated HTTP tests. Independent acceptance
+is still pending; see [policy, evidence and limits](./FAQ_CONTENT_REVIEW.md).
+
+The agreed target remains a laptop-only demo, with no new paid service and
+optional FAQ question collection disabled. Do not re-ask those settled choices.
+This closeout section changes no acceptance/defect status and authorizes no
+live writes, migration, server restart or backup/restore operation.
+
+| Batch | Remaining work only | Owner / coordination | Exit condition |
+| --- | --- | --- | --- |
+| 1. Evidence and review baseline | Reconcile remaining register subcases against linked results; identify the build/revision actually tested. | Kyer; independent teammate to be named | A finite case list names exact gaps, reviewer and target; historical passes are not queued again without a relevant change. |
+| 2. Cataloging closeout | Independent DEF-020/021/022 acceptance; actual second-device LAN/touch/keyboard behavior; remaining media authorization/provider/failure cases, complete live restoration branch and stale duplicate-response ordering. Verify normalized collection uniqueness/index deployment and safe collision/data/audit evidence; resolve archived-duplicate policy. | Kyer; deployment/database owner; teammate; John supplies any Inventory-owned fixtures | Critical/major requirements and important recovery paths have matching evidence; no data-integrity/security blocker remains. Isolated tests are not substituted for live provider/concurrency checks. |
+| 3. Storage boundary | Independent hierarchy/archive/read-only acceptance; remaining placement/lot criteria coordinated with Inventory. | Kyer and John; Voltaire for shared access contracts | Storage-owned criteria pass; John supplies/accepts Inventory placement evidence. No lot/quantity/movement implementation absorbed into Cataloging. |
+| 4. FAQ local visitor flow | Independently retest DEF-024; obtain authoritative answers/sources; settle outstanding duplicate-knowledge policy; verify approved active/inactive lifecycle and visitor answer/clarification/fallback/follow-up flow. | Kyer; curator/content approver; teammate | Real content is approved and visitor flow accepted within the documented bounded English contract. Synthetic test facts are never published. Hosted review collection stays outside this demo gate and disabled. |
+| 5. Limited offline | Independent cache/draft/sync and negative-boundary acceptance; exact outstanding expiry/recovery/concurrency cases. Keep DEF-019 shared-backend interruption pilot stopped. | Kyer; independent reviewer; approved disposable-environment owner | Independent containment is established before interruption checks; required cases pass safely, or unsupported scope is explicitly decided without hiding a blocker. |
+| 6. Audit and backup | Remaining live access/correlation/failure cases, populated backup-history evidence, OBS-001 disposition and independent review of repaired owner fixtures. Coordinate DEF-017 with John/Voltaire. | Kyer; independent reviewer; database/deployment owner; John/Voltaire for their fixture | Audit criteria pass without treating missing-adapter errors as evidence of persistence. Real backup/restore remains Deferred unless its procedure and disposable target are approved; any limited-demo acceptance explicitly records that limitation, not full restore acceptance. |
+| 7. Defect disposition | Retest remaining exact UI defect checklists; agree performance/observation dispositions and identify accepted nonblocking deferrals. | Kyer and affected owner/reviewer | Each remaining item has evidence or an explicitly accepted disposition. No arbitrary latency promise or automatic promotion from Ready for retest to Verified. |
+| 8. Release checkpoint and handoff | One agreed scoped integration/regression checkpoint after relevant changes; record owner and teammate acceptance per module. | Kyer and named independent reviewer | Apply the existing acceptance criteria; blockers are resolved, deferrals are explicit, and sign-off records revision, environment, scope and limitations. Only then claim the corresponding module/scope accepted. |
+
+These are grouped batches, not eight tests or an estimate of eight sessions.
+Execute only missing subcases. If a batch needs unavailable authority/data,
+record its owner and dependency and continue unrelated safe work. Helping
+teammates can proceed while external approvals are pending, but must not be
+described as completion of the waiting module.
+
+### Inputs needed before acceptance execution
+
+1. Reviewer availability confirmed by the user: Charles, John or Voltaire,
+   depending on who replies first. Record the actual reviewer for each batch.
+   Kyer/automation owner checks already exist; do not label another owner run
+   as independent acceptance.
+2. User reports some FAQ answers already exist; more may need requesting.
+   Confirm their authoritative sources and approver before treating existing
+   entries as approved. Use the [content sheet](./FAQ_CONTENT_REVIEW.md#real-museum-content-review-sheet);
+   missing facts stay unapproved, never invented. The user plans to send the
+   question list to Sir Curator and will relay answers; content-dependent work
+   remains pending rather than inventing answers or activating test entries.
+3. Local disposable FAQ and collection infrastructure is available, as verified below. A
+   full-stack disposable BioSphere target for the remaining Cataloging/offline
+   cases is NOT thereby established. Confirm its scope/containment before
+   write/concurrency/interruption checks; never default to the shared database.
+   Real backup/restore remains under its existing separate approval gate.
+
+### Local database readiness - 2026-10-27
+
+Read-only Docker checks confirmed the local Linux engine is running (28.4.0)
+and the helper's pinned PostgreSQL image is cached. No download, database
+connection, container creation/removal or migration was performed. No completed
+FAQ SQL/HTTP/cleanup suite was rerun just to establish engine availability.
+
+`test/support/disposable-faq-postgres.ts` creates a fresh owned container with
+generated credentials, loopback-only random port, memory-backed storage and
+ownership-checked cleanup. It accepts no existing database connection URL and
+does not load the application `.env`. Its existing consumer covers FAQ review
+tables plus minimal synthetic account/audit fixtures, not the full BioSphere
+schema, Supabase providers or a copy of shared museum data.
+
+An existing local Supabase stack with a different project identifier was also
+visible. It was not inspected for credentials, connected to, modified or adopted
+as disposable BioSphere infrastructure. Its identity, data and ownership are
+not established by this check. Docker availability does not clear DEF-019's
+full-stack isolation gate or authorize real backup/restore.
+
+### Approved collection database slice - 2026-10-27
+
+Following explicit user approval for collection HTTP and PostgreSQL seams,
+the dedicated `collections` profile now supplies a fresh owned database for
+the actual collection DDL/uniqueness migration plus minimal synthetic auth/audit
+fixtures. [Sixteen SQL/HTTP checks passed](./COLLECTION_DATABASE_VERIFICATION.md),
+including conflicts, concurrent writes, persisted audit readback, migration
+refusal on legacy duplicates and atomic rollback on audit failure. Production
+collection code and migration were unchanged. DEF-001 stays Ready for retest;
+independent acceptance remains pending. The later metadata check below addresses
+index presence on the configured target only. This does
+not supply a full schema, browser/provider environment or OFF-003 containment.
+
+The [independent collection review checklist and report template](./COLLECTION_DATABASE_VERIFICATION.md#independent-review-handoff)
+are ready for the first available teammate on `test/cataloging-disposable-collections`.
+Actual reviewer execution is pending; no independent result or shared deployment
+approval is inferred from publishing this handoff for review.
+
+### Configured collection index confirmed - 2026-10-27
+
+The user separately approved a read-only metadata check. The backend-configured
+`DATABASE_URL` target reports `uq_collection_name` unique, valid, ready and live,
+with one `lower(btrim(collection_name))` key and no partial predicate. Transaction
+read-only mode was confirmed; no collection/specimen records, migrations or
+writes were involved. See the [exact metadata evidence and limits](./COLLECTION_DATABASE_VERIFICATION.md#configured-database-metadata-checkpoint---2026-10-27).
+Independent acceptance, identification of the actual acceptance build/target and
+any other deployment's verification remain separate; do not repeat shared-data
+tests just because earlier dated notes still say index deployment was pending.
+
+No additional product decision was needed merely to prepare this checklist.
+Before executing any gated case, confirm its exact records, target, expected
+side effects and approvals. The initial checklist-only update ran no tests;
+the separately approved collection slice is recorded above. The next action is
+named independent review and acceptance-target/build confirmation, followed by
+teammate acceptance; this is not authorization for another broad test loop.
+
 ## Current checkpoint
 
 - FAQ opt-in review is merged in backend #188/frontend #83 with successful PR
@@ -54,7 +159,7 @@ status and does not authorize migrations, account changes or teammate-owned work
 | Gate | Owner / coordination | Evidence needed to finish |
 | --- | --- | --- |
 | P1 CSV recovery: CAT-013 / DEF-021 | Independent reviewer, with Kyer supplying evidence | Frontend #79/backend #184 merged and CI passed; approved local production rebuild and two blocked-request retests passed on frontend `bf4e325`. Owner tests and deployment verification are complete. Obtain independent acceptance; do not repeat owner checks as if untested or infer real commit/concurrency proof. |
-| P1 collection integrity: CAT-001 / DEF-001 | Kyer/backend; database/deployment owner | Confirm actual normalized-uniqueness/index deployment, then approved isolated concurrent collision/data/audit checks. UI collision reports alone are insufficient. No migration is authorized here. |
+| P1 collection integrity: CAT-001 / DEF-001 | Kyer/backend; database/deployment owner | Local real SQL/HTTP checks pass 16/16; the separately approved metadata check confirms the required index on the backend-configured target. Obtain independent acceptance on an identified build/target; do not extrapolate to other deployments or authorize duplicate/reference cleanup. No shared migration is authorized here. |
 | P1 browser behavior: CAT-014/015, DEF-020/003 | Kyer plus independent teammate / second-device tester | Teammate repeats the merged no-save duplicate failure/retry checklist; cover stale in-flight ordering separately. On an actual LAN client check selection, close, another row, direct details, reload and Back/Forward. Local browser checks do not substitute for LAN/touch evidence. |
 | P1 diagnostic isolation: OFF-003 / DEF-019 | Kyer/test isolation; deployment owner for disposable target | Approve a disposable full-stack target and independently establish containment before repeating interruption tests. Keep the shared-backend pilot disabled and its retained evidence intact. Credential-free canary non-reproduction did not close this defect. |
 | FAQ and duplicate business rules | Team/curator confirmation; Kyer implementation | The retained eight-decisions handoff already sets FAQ ambiguity/context/unanswered-review working directions; use the reconciled next-step plan rather than asking again. Algorithm/thresholds, language/context design, log retention, duplicate-question policy and isolated activation setup remain open. Archived specimen duplicate-match policy is separate. Do not activate arbitrary shared test answers. |

@@ -6,7 +6,18 @@ import { Client } from 'pg';
 export const FAQ_DB_IMAGE =
   'postgres@sha256:eee6c6e1b0894fa4fe0075eb054af9fd1cf39a35321c2d4110626cfe506411fb';
 const LOCAL_DOCKER = 'npipe:////./pipe/dockerDesktopLinuxEngine';
-const DATABASE = 'biosphere_faq_review_disposable';
+// Historical class/file name retained for the existing FAQ suite.
+const DATABASE_PROFILES = {
+  'faq-review': {
+    database: 'biosphere_faq_review_disposable',
+    optIn: 'RUN_FAQ_REVIEW_DISPOSABLE_DB',
+  },
+  collections: {
+    database: 'biosphere_collections_disposable',
+    optIn: 'RUN_COLLECTIONS_DISPOSABLE_DB',
+  },
+} as const;
+type DatabaseScope = keyof typeof DATABASE_PROFILES;
 
 /** No inherited database, Supabase, Docker-host, proxy or application secrets. */
 export function isolatedProcessEnvironment(): NodeJS.ProcessEnv {
@@ -54,23 +65,27 @@ export class DisposableFaqPostgres {
   private clients: Client[] = [];
   admin!: Client;
 
-  static async start() {
+  private constructor(private readonly scope: DatabaseScope) {}
+
+  static async start(scope: DatabaseScope = 'faq-review') {
+    const profile = DATABASE_PROFILES[scope];
     if (
       process.platform !== 'win32' ||
-      process.env.RUN_FAQ_REVIEW_DISPOSABLE_DB !== 'true'
+      !profile ||
+      process.env[profile.optIn] !== 'true'
     )
       throw new Error(
-        'Use the explicit Windows local-Docker FAQ database test command. No external connection is accepted.',
+        'Use the explicit Windows local-Docker database test command. No external connection is accepted.',
       );
-    const database = new DisposableFaqPostgres();
+    const database = new DisposableFaqPostgres(scope);
     try {
       database.id = docker([
         'create',
         '--pull=never',
         '--name',
-        `biosphere-faq-review-${database.owner}`,
+        `biosphere-${scope}-${database.owner}`,
         '--label',
-        `biosphere.faq-review.owner=${database.owner}`,
+        `biosphere.${scope}.owner=${database.owner}`,
         '--memory',
         '384m',
         '--cpus',
@@ -82,7 +97,7 @@ export class DisposableFaqPostgres {
         '--publish',
         '127.0.0.1::5432',
         '--env',
-        `POSTGRES_DB=${DATABASE}`,
+        `POSTGRES_DB=${profile.database}`,
         '--env',
         'POSTGRES_USER=faq_fixture_admin',
         '--env',
@@ -155,7 +170,7 @@ export class DisposableFaqPostgres {
   url(role = 'faq_fixture_admin') {
     if (!this.id || this.port < 1 || !/^[a-z_]+$/.test(role))
       throw new Error('Disposable connection is unavailable.');
-    return `postgresql://${role}:${this.password}@127.0.0.1:${this.port}/${DATABASE}`;
+    return `postgresql://${role}:${this.password}@127.0.0.1:${this.port}/${DATABASE_PROFILES[this.scope].database}`;
   }
 
   async connect(role = 'faq_fixture_admin') {
@@ -191,7 +206,7 @@ export class DisposableFaqPostgres {
     const labels = JSON.parse(
       docker(['inspect', '--format', '{{json .Config.Labels}}', this.id]),
     ) as Record<string, string>;
-    if (labels['biosphere.faq-review.owner'] !== this.owner)
+    if (labels[`biosphere.${this.scope}.owner`] !== this.owner)
       throw new Error('Refusing to remove a container not owned by this run.');
     docker(['rm', '--force', this.id]);
     this.id = '';

@@ -788,6 +788,38 @@ Do not delete either existing row manually until references have been checked.
       cleanup.
 - [ ] Audit history contains only successful accepted mutations.
 
+#### Disposable PostgreSQL verification - 2026-10-27
+
+With user-approved HTTP and SQL seams, the real collection DDL and reviewed
+uniqueness migration were applied ONLY inside a fresh owned Docker database.
+[Sixteen checks passed](./COLLECTION_DATABASE_VERIFICATION.md): normalized
+create/rename conflicts, real concurrent HTTP/SQL writes, literal state/audit
+readback, safe migration refusal on legacy duplicates and transactional rollback
+when the synthetic role cannot insert an audit. Real guards/validation/services/
+Prisma execute; only provider identity and dependency rows are synthetic.
+
+The audit-failure test intentionally logs a permission-denied error and requires
+500 plus no partial collection/audit; this expected injection is not a new bug.
+No application code/migration was repaired here and no shared rows were read,
+merged or deleted. DEF-001 remains Ready for retest: confirm actual deployment,
+existing duplicate/reference disposition and independent acceptance separately.
+The scoped fixture is not full Supabase, a complete schema or exhaustive stress
+coverage. Do not interpret this checkpoint as closing DEF-019 or backup gates.
+
+#### Configured-target index metadata - 2026-10-27
+
+A separately user-approved schema-only check through backend `DATABASE_URL`
+confirmed `public.collection.uq_collection_name`: unique/valid/ready/live true,
+one `lower(btrim(collection_name))` key and no partial predicate. Read-only
+transaction mode was verified and ROLLBACK completed. No collection/specimen
+records, reference counts or migration-history records were read, and no writes
+or migrations ran. See [metadata evidence and limits](./COLLECTION_DATABASE_VERIFICATION.md#configured-database-metadata-checkpoint---2026-10-27).
+
+This supersedes the earlier absence of index-presence evidence for that
+configured target only. DEF-001 remains Ready for retest pending independent
+acceptance with an identified target/build. Other environments, running-process
+configuration and any historic duplicate/reference cleanup are not certified.
+
 ### DEF-002 - Future provenance collection dates are accepted
 
 **Related test:** CAT-005; affects CAT-006 and CAT-007
