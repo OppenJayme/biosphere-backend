@@ -19,7 +19,11 @@ scientific name and common name. Lookup still starts on focus-out and remains
 warning-only. Unrelated remarks edits preserve existing evidence.
 Repair source `c55692e` is published for review in
 [frontend PR #85](https://github.com/OppenJayme/biosphere-frontend/pull/85);
-merge/deployment verification remains pending.
+it is now merged at `b65c9dd` with successful PR CI. The frontend-only production
+build and [blocked-request retest](./TEST_DEFECT_LOG.md#merged-production-ui-checkpoint---2026-10-27)
+pass on build `-7vcfapNQNgHNQsAN6WHj`; all three synthetic POSTs were aborted
+locally and no form was submitted. Independent acceptance and successful real
+action/backend-result coverage remain separate.
 
 From the frontend root, `npm run test:duplicates:browser` runs six synthetic
 headless Edge scenarios for pending edits, response ordering, all three fields'
