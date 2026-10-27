@@ -124,13 +124,15 @@ headless Edge fixture. This is a component reproduction, not a live-server run.
 candidate; leaving the edited field triggers another check. Duplicate warnings
 remain advisory and this reproduction establishes no invalid persistent write.
 
-**Status:** Ready for retest; local owner repair and component checks pass.
-Merge/deployment verification and independent acceptance remain pending.
+**Status:** Ready for retest; owner component checks and merged production UI
+transport-failure retest pass. Independent acceptance and the stated live-result
+limits remain pending.
 
-**Review:** Frontend repair `c55692e94fe2bebc7c6814891cbd618eb89a4a5c` is pushed
+**Review:** Frontend repair `c55692e94fe2bebc7c6814891cbd618eb89a4a5c` is merged
 in [frontend PR #85](https://github.com/OppenJayme/biosphere-frontend/pull/85)
-against develop. Local checks cover this branch's source; newer Exhibit work
-on develop is outside their claim. Opening a PR is not merge/deployment evidence.
+at `b65c9ddaff7164b0102b5aaf4b1f797e7281cb69`. Its PR CI and companion backend
+documentation PR #196 CI passed; both PRs are merged. The original 399-test
+owner run covers the repair branch; it is not a test claim for newer Exhibit work.
 
 **Reproduction:** Enter synthetic common name A and leave the field to begin a
 duplicate lookup. While its response is delayed, type B and keep focus in the
@@ -184,6 +186,38 @@ coverage or independent acceptance. Rendering a newer outcome while an older
 transition is still pending is not asserted by these scenarios. Review the
 repair and retest the affected behavior on the identified release build; do not
 claim CAT-014 fully accepted from these owner checks.
+
+#### Merged production UI checkpoint - 2026-10-27
+
+The user continued with the frontend refresh/retest. Fast-forwarded only the
+frontend checkout to `b65c9dd`; backend source/process was left untouched. The
+lockfile install added missing packages with lifecycle scripts/audit/funding
+disabled and left package manifests/lockfile unchanged. Preserved the previous
+production build `LBh_6bSAbWnotNM8iR4sW` in the owned local recovery directory
+before building. `npm run build` passed and the new production build
+`-7vcfapNQNgHNQsAN6WHj` is serving on `127.0.0.1:3000`; `/login` returned 200.
+The original backend listener/process remained on 3001 throughout.
+
+Used a temporary tab in the retained signed-in Edge context, with its existing
+read-only guard still present. A page-local guard held the first synthetic
+duplicate-check POST until after the name was edited, then aborted it locally.
+The old failure was discarded; the edited input remained. Leaving the edited
+field triggered a new locally aborted check and displayed unknown/retry feedback.
+Explicit retry triggered exactly one further locally aborted request. Clearing
+the input removed the message without another lookup, and save stayed enabled.
+Exactly **3 synthetic action POSTs were aborted locally**, with **0 other
+non-read requests** and **0 page errors** in the probe. No POST was forwarded
+and the specimen form was never submitted. The probe tab was closed; the
+original signed-in tab, read-only guard and running servers were preserved.
+
+This closes the owner merged-build transport-failure retest gap for DEF-026.
+It does not exercise a real successful action/matcher result, backend writes,
+database concurrency, broad accessibility or the newer Exhibit workflows.
+The earlier six synthetic component scenarios remain the result-ordering
+evidence. Keep independent acceptance pending; do not repeat the same owner
+blocked-request check as though untested or promote CAT-014 to full acceptance.
+Private build/startup logs, recovery build and browser scripts stay local and
+are excluded from commits. No new application defect was established here.
 
 ### DEF-025 - Denial-audit tests assume immediate background persistence
 

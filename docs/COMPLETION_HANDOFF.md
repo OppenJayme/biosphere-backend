@@ -7,6 +7,15 @@ status and does not authorize migrations, account changes or teammate-owned work
 
 ## Closeout queue - 2026-10-27
 
+DEF-026 follow-up: frontend #85 and backend #196 are merged with successful PR
+CI. The frontend-only production refresh from `b65c9dd` passed, serving build
+`-7vcfapNQNgHNQsAN6WHj`. The [no-save failure/invalidation/retry/clear retest](./TEST_DEFECT_LOG.md#merged-production-ui-checkpoint---2026-10-27)
+passed with three synthetic POSTs aborted locally, zero other non-read requests
+and zero page errors. Backend and the original signed-in tab/guard were
+preserved; the old frontend build remains available for recovery. Independent
+acceptance and successful live-result limits remain; another identical owner
+transport-failure check is not the next task.
+
 Physical-phone follow-up: the user reported all six [LAN/touch selection,
 close, A/B switching, matching detail, Back and refresh checks](./TEST_DEFECT_LOG.md#user-reported-physical-phone-lan-check---2026-10-27)
 passed on temporary frontend development source `e2b13bc`. That owner functional
@@ -62,11 +71,12 @@ described as completion of the waiting module.
    available independent reviewer. PR #195 being merged does not by itself
    establish that the reviewer ran its opt-in Docker checks. Record the actual
    commands/results and revision; do not rerun owner suites merely to fill time.
-2. Review the local DEF-026 duplicate-warning repair and its six mounted-component
-   scenarios, then verify the merged repair on an identified release build.
-   The pending-edit hypothesis below was reproduced and repaired; do not restart
-   that investigation as if untested. Independent acceptance and broader ordering
-   gaps remain separate. Keep browser failure checks isolated from shared writes.
+2. Obtain independent review/acceptance for DEF-026 using its six component
+   scenarios and the merged production failure/retry evidence. Both PRs are
+   merged and the owner production retest is complete. The pending-edit
+   hypothesis below was reproduced and repaired; do not restart that investigation
+   as if untested. Successful live-result limits and broader ordering gaps remain
+   separate. Keep browser failure checks isolated from shared writes.
 3. Keep curator FAQ answers and John's Inventory fixtures as external inputs.
    When supplied, execute only their missing acceptance cases. Until then,
    do not invent FAQ facts, activate synthetic answers, or absorb lot management.
