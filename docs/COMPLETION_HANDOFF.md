@@ -7,6 +7,14 @@ status and does not authorize migrations, account changes or teammate-owned work
 
 ## Closeout queue - 2026-10-27
 
+2026-10-28 upstream follow-up: a [bounded loopback GET-only pilot](./TEST_DEFECT_LOG.md#partial-upstream-timing-pilot---2026-10-28)
+captured eight successful reads; catalog was the longest branch in both waves
+(711/941 ms). The browser pilot timed out and two other GET paths were excluded,
+so no full-flow pass, production benchmark or SQL cause is inferred. Temporary
+helper/frontend listeners were stopped; original servers stayed running. Source
+inspection identifies items/count and batched ancestor resolution as stages to
+profile, without changing their behavior or declaring either the bottleneck.
+
 2026-10-28 performance follow-up: [three production Apply/Clear request-timing
 pairs](./TEST_DEFECT_LOG.md#production-request-timing---2026-10-28) show checked
 UI readiness at 1149-1345 ms / 1062-1147 ms respectively on `b65c9dd`. Request
