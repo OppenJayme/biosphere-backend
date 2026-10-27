@@ -7,6 +7,14 @@ status and does not authorize migrations, account changes or teammate-owned work
 
 ## Closeout queue - 2026-10-27
 
+2026-10-28 performance follow-up: [three production Apply/Clear request-timing
+pairs](./TEST_DEFECT_LOG.md#production-request-timing---2026-10-28) show checked
+UI readiness at 1149-1345 ms / 1062-1147 ms respectively on `b65c9dd`. Request
+timing and service-worker differences are recorded, along with two rejected
+diagnostic attempts and owned-tab cleanup. No code optimization or SLA claim;
+DEF-011 remains In progress for upstream correlation/reviewer disposition.
+Do not repeat those owner samples as if unmeasured.
+
 Filter follow-up: the [missing nonblank Collection/Public eligibility reset,
 history and reapply case](./TEST_DEFECT_LOG.md#nonblank-collection-and-eligibility-follow-up---2026-10-27)
 passed on production `b65c9dd` without record changes. Do not repeat that owner

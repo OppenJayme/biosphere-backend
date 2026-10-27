@@ -2183,6 +2183,62 @@ development/production comparison and sanitized upstream timings are still
 needed before choosing an optimization. Documentation-only verification:
 `git diff --check`; application suites/build were not rerun for this update.
 
+#### Production request timing - 2026-10-28
+
+Measured three read-only Apply/Clear pairs on frontend `b65c9dd`, production
+build `-7vcfapNQNgHNQsAN6WHj`, in temporary tabs of the retained signed-in Edge
+context. Each probe started Cataloged/Unknown, applied Uncataloged/Unknown by
+GET form navigation, then cleared via the client link. Catalog prefetch was
+suppressed where routed. No application source, server, authentication or
+database configuration changed.
+
+| Sample | Operation | Checked UI ready (ms) | Request to headers (ms) | Request to response end (ms) | Response body (ms) |
+| --- | --- | --- | --- | --- | --- |
+| 1 | Apply | 1192 | 584 | 1006 | 422 |
+| 1 | Clear | 1147 | 150 | 984 | 834 |
+| 2 | Apply | 1149 | 472 | 933 | 461 |
+| 2 | Clear | 1066 | 131 | 967 | 836 |
+| 3 | Apply | 1345 | 456 | 1143 | 688 |
+| 3 | Clear | 1062 | 125 | 961 | 836 |
+
+UI-ready elapsed includes Playwright action/polling overhead and is not first
+paint or a backend timer. Request fields come from browser request timing;
+response-end timing was available for all six accepted samples. Apply was a
+document navigation served through the service worker; Clear was a client read
+without service-worker handling. These paths differ, so their header durations
+are not equivalent measurements of backend speed. Source review confirms the
+worker forwards navigations to the network and reserves its offline fallback
+for fetch failure; worker participation alone is not evidence of cached records.
+
+**Diagnostic failures retained:** The first harness expected the main request
+in a page route handler and failed with `No catalog navigation request observed`.
+That sample was rejected. A follow-up observer waited on response completion
+and stalled; only its verified temporary tab was closed, producing the expected
+closed-target error. The original signed-in tab/guard survived. A bounded
+navigation-only observer confirmed two page request events but one routed GET,
+both document responses marked service-worker-served; one lacked completed
+body timing at observation. This supports changing the observer, not the app.
+The corrected harness uses page request events and a three-second response-header
+observation bound; it does not wait indefinitely for streamed body completion.
+The final six accepted samples above completed with valid timings.
+
+The accepted run blocked nine catalog POST Server Actions, with zero other
+non-read requests and zero page errors. Cover-loading behavior remains excluded.
+No record form or save was used; filters submitted GET only. Probe tabs closed,
+original signed-in tab/guard and servers remained intact, and no credentials,
+headers, request/response bodies or record values were exported. Scripts stay
+in ignored `tools/browser/artifacts/def011-*-20261028.js`.
+
+**Disposition:** Most observed elapsed time overlaps catalog response delivery,
+but these timings cannot separate authorization, backend/database work, network
+or streamed rendering. No specific bottleneck, speed improvement, regression or
+response-time SLA is established by three local samples. The previous developer
+mode observations are not a controlled same-build comparison. Keep DEF-011 In
+progress; obtain scoped upstream correlation and reviewer disposition before
+choosing an optimization. Do not repeat these owner samples as if unmeasured or
+change authorization/caching based on a guessed cause. No application code was
+changed; documentation diff checks pass and source suites/build were not rerun.
+
 #### Required investigation / remediation
 
 1. Measure frontend navigation and backend request duration; compare development
