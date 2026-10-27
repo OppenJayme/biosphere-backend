@@ -128,6 +128,13 @@ gates. Do not rerun these cases repeatedly for documentation-only changes.
 
 ## Independent review handoff
 
+2026-10-27 audit-timing follow-up: [DEF-025](./TEST_DEFECT_LOG.md#def-025---denial-audit-tests-assume-immediate-background-persistence)
+reproduced the immediate denial-audit read failure using a 300-ms trigger in the
+owned database. Authorized bounded GET polling now passes the same case while
+preserving exact count/actor assertions. The full collection suite remains
+16/16; no production guard behavior or shared database changed. Missing-event
+and forbidden-read controls execute in the companion Backup database suite.
+
 Status: **Not run by an independent reviewer**. Charles, John or Voltaire may
 take this batch, depending on who replies first. This is acceptance of the
 disposable verification slice only, not all Cataloging or deployment sign-off.

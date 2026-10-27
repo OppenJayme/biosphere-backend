@@ -7,6 +7,12 @@
 
 ## Start here
 
+2026-10-27 reviewer follow-up: [DEF-025 audit readback timing](./TEST_DEFECT_LOG.md#def-025---denial-audit-tests-assume-immediate-background-persistence)
+is Ready for retest. Real delayed inserts reproduced both test failures; bounded
+authorized readback now passes Backup 16/16 and Collection 16/16, with 13/13
+existing HTTP regressions and explicit missing-event/403 controls. No production
+guard or shared database change; module acceptance statuses are unchanged.
+
 2026-10-27 media follow-up: [read-only keyboard/dialog checks](./SPECIMEN_MEDIA_GUIDE.md#read-only-keyboard-and-dialog-checkpoint---2026-10-27)
 cover 11 visible controls, four Escape/Cancel checks and unchanged reload
 readback on the existing production build. An initial strict focus assertion

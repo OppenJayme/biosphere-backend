@@ -69,7 +69,8 @@ hosted Supabase configuration or a production RLS certification.
 
 ### Results and limits
 
-**14/14** disposable PostgreSQL/HTTP cases pass:
+The original populated-history slice passed **14/14** disposable PostgreSQL/HTTP
+cases. The later audit-timing follow-up below expands the suite to 16 cases.
 
 | Check | Result |
 | --- | --- |
@@ -101,6 +102,22 @@ independent teammate acceptance are not established by this HTTP fixture.
 BAK-002 real backup/restore stays **Deferred** under its existing procedure,
 storage/retention and disposable-restore approval gates. No job, scheduler,
 real backup, restore or shared history mutation was authorized or performed.
-This branch builds on the collection isolation helper in PR #193; keep that
-dependency visible during review. Do not repeat these tests for documentation-
+The original slice used the isolation helper introduced by PR #193; both #193
+and #194 are now merged. Do not repeat these tests for documentation-
 only changes or present a synthetic COMPLETED row as a successful real backup.
+
+### Denial-audit timing repair - 2026-10-27
+
+Reviewer feedback on #194 led to [DEF-025](./TEST_DEFECT_LOG.md#def-025---denial-audit-tests-assume-immediate-background-persistence):
+an immediate audit read can precede the guard's asynchronous insert. A real
+300-ms PostgreSQL insert delay reproduced the failure before repair. The
+test-only `expectAuditReadback` helper now polls the authorized audit GET within
+a 2-second budget, preserving counts/actors/paths. It never retries the denied
+operation, ignores missing events or accepts a 403 read as delayed persistence.
+The helper's deadline is a test allowance, not a product performance promise.
+
+Backup database checks now pass **16/16**: delayed-denial tests plus negative
+controls for an absent event and forbidden readback. Collection database checks
+pass **16/16** with the same real delay; existing HTTP regressions pass **13/13**.
+No production Auth/Backup/Collection code, guards, logging policy or shared
+database changed. BAK-001 remains In progress and real backup/restore Deferred.

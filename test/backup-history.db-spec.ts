@@ -3,6 +3,8 @@ import type { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import type { App } from 'supertest/types';
 import { DisposableFaqPostgres } from './support/disposable-faq-postgres';
+import { withDelayedDenialAudit } from './support/delayed-denial-audit';
+import { expectAuditReadback } from './support/expect-audit-readback';
 import {
   createBackupHistoryDatabaseApp,
   seedBackupHistoryDatabase,
@@ -34,6 +36,10 @@ describe('Backup history on owned disposable PostgreSQL (BAK-001)', () => {
     } finally {
       await database?.close();
     }
+  });
+  beforeEach(async () => {
+    // Isolate audit expectations between denial/control cases in this owned DB.
+    await database.admin.query('TRUNCATE audit_log');
   });
 
   async function list(
@@ -197,9 +203,8 @@ describe('Backup history on owned disposable PostgreSQL (BAK-001)', () => {
   it.each([
     { token: null, status: 401 },
     { token: 'developer-fixture', status: 403 },
-  ])(
-    'denies list/detail access for $token with $status',
-    async ({ token, status }) => {
+  ])('denies list/detail access for $token with $status', ({ token, status }) =>
+    withDelayedDenialAudit(database.admin, async () => {
       for (const path of ['/backups/history', `/backups/history/${OLDEST}`]) {
         const pending = request(app.getHttpServer()).get(path);
         if (token) pending.auth(token, { type: 'bearer' });
@@ -212,34 +217,27 @@ describe('Backup history on owned disposable PostgreSQL (BAK-001)', () => {
         });
       }
       if (token)
-        await request(app.getHttpServer())
-          .get('/audit-logs')
-          .query({ action: 'ACCESS_DENIED', result: 'DENIED' })
-          .auth('curator-fixture', { type: 'bearer' })
-          .expect(200)
-          .expect(({ body }) => {
-            expect(body).toMatchObject({
-              total: 2,
-              items: expect.arrayContaining([
-                expect.objectContaining({
-                  result: 'DENIED',
-                  actor: expect.objectContaining({
-                    id: '22222222-2222-4222-8222-222222222222',
-                  }),
-                  details: expect.objectContaining({
-                    path: '/backups/history',
-                  }),
-                }),
-                expect.objectContaining({
-                  result: 'DENIED',
-                  details: expect.objectContaining({
-                    path: `/backups/history/${OLDEST}`,
-                  }),
-                }),
-              ]),
-            });
-          });
-    },
+        await expectAuditReadback(app.getHttpServer(), {
+          total: 2,
+          items: expect.arrayContaining([
+            expect.objectContaining({
+              result: 'DENIED',
+              actor: expect.objectContaining({
+                id: '22222222-2222-4222-8222-222222222222',
+              }),
+              details: expect.objectContaining({
+                path: '/backups/history',
+              }),
+            }),
+            expect.objectContaining({
+              result: 'DENIED',
+              details: expect.objectContaining({
+                path: `/backups/history/${OLDEST}`,
+              }),
+            }),
+          ]),
+        });
+    }),
   );
 
   it('returns 404 for an unknown history ID without substituting another entry', async () => {
@@ -247,6 +245,55 @@ describe('Backup history on owned disposable PostgreSQL (BAK-001)', () => {
       .get('/backups/history/99999999-9999-4999-8999-999999999999')
       .auth('curator-fixture', { type: 'bearer' })
       .expect(404);
+  });
+
+  it('fails bounded readback when the required audit event never appears', async () => {
+    await expect(
+      expectAuditReadback(
+        app.getHttpServer(),
+        { total: 1 },
+        {
+          timeoutMs: 200,
+          query: {
+            action: 'ACCESS_DENIED',
+            result: 'DENIED',
+            affectedRecordId: '99999999-9999-4999-8999-999999999999',
+          },
+        },
+      ),
+    ).rejects.toThrow('Audit readback did not match within 200ms.');
+  });
+
+  it('does not retry forbidden audit reads as if they were delayed persistence', async () => {
+    await expect(
+      expectAuditReadback(
+        app.getHttpServer(),
+        { total: 0 },
+        {
+          token: 'developer-fixture',
+        },
+      ),
+    ).rejects.toThrow(/expected 200/);
+    // Drain the guard's real async audit through the same authorized API seam.
+    await expectAuditReadback(app.getHttpServer(), {
+      items: expect.arrayContaining([
+        expect.objectContaining({
+          result: 'DENIED',
+          details: expect.objectContaining({ path: '/audit-logs' }),
+        }),
+      ]),
+    });
+    const response = await request(app.getHttpServer())
+      .get('/audit-logs')
+      .query({ action: 'ACCESS_DENIED', result: 'DENIED' })
+      .auth('curator-fixture', { type: 'bearer' })
+      .expect(200);
+    const body = response.body as {
+      items: Array<{ details: { path: string } }>;
+    };
+    expect(
+      body.items.filter((item) => item.details.path === '/audit-logs'),
+    ).toHaveLength(1);
   });
 
   it('exposes no ordinary history mutation routes and leaves stored metadata unchanged', async () => {

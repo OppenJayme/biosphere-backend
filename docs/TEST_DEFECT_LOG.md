@@ -86,6 +86,7 @@ system is not a reason to postpone all fixes until the end.
 
 | ID      | Date       | Module                     | Summary                                                                 | Severity    | Priority | Status | Owner                   |
 | ------- | ---------- | -------------------------- | ----------------------------------------------------------------------- | ----------- | -------- | ------ | ----------------------- |
+| [DEF-025](#def-025---denial-audit-tests-assume-immediate-background-persistence) | 2026-10-27 | Backup / Collections test harness | Immediate audit readback can fail before asynchronously recorded denial events become visible | S3 Moderate | P2 | Ready for retest | Kyer / test maintainers |
 | [DEF-024](#def-024---faq-matcher-answers-parking-questions-with-unrelated-fee-information) | 2026-10-25 | FAQ / Answer quality | Fee keyword overlap answers a parking question even when the fee topic is excluded or parking inclusion is unsupported | S3 Moderate | P1 | Ready for retest | Kyer / FAQ matching; independent abstention-policy review pending |
 | [DEF-023](#def-023---conflicting-faq-cleanup-modes-perform-deletion) | 2026-10-25 | FAQ / Cleanup operations | Combining --apply and --dry-run deletes expired rows instead of rejecting conflicting modes | S3 Moderate | P1 | Ready for retest | Kyer / FAQ backend |
 | [DEF-022](#def-022---interrupted-media-metadata-save-removes-the-edit-form) | 2026-10-24 | Cataloging / Media UI | Rejected metadata Server Action transport removes the edit form and local edits | S3 Moderate | P1 | Ready for retest | Kyer / Cataloging frontend |
@@ -112,6 +113,57 @@ system is not a reason to postpone all fixes until the end.
 | [DEF-015](#def-015---audit-http-fixture-omits-the-security-audit-create-method) | 2026-10-19 | Audit / HTTP test fixture | Missing security-audit create mock logs an error despite green denial test | S3 Moderate | P2 | Ready for retest | Audit tests / coordinate with Auth |
 
 ## 3. Defect details
+
+### DEF-025 - Denial-audit tests assume immediate background persistence
+
+**Found on:** 2026-10-27; review of merged PR #194, source baseline `da4a5e1`.
+Raidiniom identified a possible timing race in the [review comment](https://github.com/OppenJayme/biosphere-backend/pull/194#issuecomment-6442913860).
+Owner reproduction now confirms it in both disposable database suites.
+
+**Severity / priority:** S3 Moderate / P2, test reliability/acceptance evidence.
+**Owner:** Kyer / Backup and Cataloging test maintainers.
+**Status:** Ready for retest; owner repair verified, independent review pending.
+
+**Cause:** RolesGuard intentionally starts SecurityAuditService.record without
+awaiting it before returning 403. Both test suites immediately requested audit
+history and assumed the new records were already visible. This is a test-oracle
+timing error, not evidence of lost production audits or incorrect authorization.
+
+**Reproduction:** In each owned disposable database only, install a temporary
+BEFORE INSERT trigger delaying ACCESS_DENIED by 300 ms. Real HTTP requests still
+return 403. Backup's immediate read expected two events but saw zero; Collection's
+expected one but saw zero. Both original assertions were observed failing before
+their corresponding readback repair. The trigger/function are removed in finally;
+no shared schema, real account or authentication code was changed.
+
+**Repair:** Poll only authorized `/audit-logs` GET readback within a 2-second
+monotonic budget, pausing at most 25 ms between samples. Preserve exact expected
+counts, actors and request-path assertions. Never repeat denied requests or
+weaken/bypass guards. Each GET uses the remaining request budget. Unexpected
+HTTP/early transport errors propagate; only expiry of the helper's own deadline
+after a known mismatch is normalized to its bounded readback error.
+
+**Failure sensitivity:** A missing-event control uses an unseeded synthetic
+affected-record identity and must fail bounded readback (200 ms). A Developer
+audit read must fail on 403, not be retried as eventual consistency; authorized
+readback confirms exactly one corresponding denial event. The negative control
+initially exposed deadline expiry during its last GET; handling only that exact
+own-budget expiry made the expected failure deterministic without accepting
+missing data or swallowing HTTP authorization failures.
+
+**Results:** Backup disposable suite 16/16 (original 14 plus two controls),
+Collection disposable suite 16/16 and existing Backup/Collection HTTP regressions
+13/13 pass. These are local owner results, not deployed or independent acceptance.
+The collection suite's intentional permission-denied rollback injection remains
+expected. VM-module warnings are retained. No existing defect was promoted.
+Backup audit rows are reset between cases in its owned database so the new
+failure controls do not make exact counts depend on execution order. Type-check
+passes; full lint has zero errors and seven pre-existing unused-disable warnings.
+Post-run enumeration found no retained owned Backup/Collection containers.
+
+**Next:** Independently review the bounded read-only polling and controls. Do not
+change production guard timing merely to make a test synchronous. This does not
+close DEF-017's separate missing-adapter gap or certify backup/restore behavior.
 
 ### DEF-024 - FAQ matcher answers parking questions with unrelated fee information
 
