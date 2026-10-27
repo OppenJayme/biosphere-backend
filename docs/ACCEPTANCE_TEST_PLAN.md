@@ -7,6 +7,12 @@
 
 ## Start here
 
+2026-10-27 Backup History follow-up: [14 populated disposable PostgreSQL/HTTP
+checks](./BACKUP_HISTORY_GUIDE.md#populated-disposable-postgresql-checkpoint---2026-10-27)
+pass with synthetic history only. BAK-001 remains In progress for populated
+browser/provider evidence and independent acceptance; BAK-002 remains Deferred.
+No real backup, restore, artifact access or shared history write occurred.
+
 2026-10-27 Cataloging checkpoint: [16 disposable collection SQL/HTTP checks](./COLLECTION_DATABASE_VERIFICATION.md)
 pass with real PostgreSQL constraints, collection/audit APIs, concurrent requests
 and rollback evidence. CAT-001 remains In progress and DEF-001 Ready for retest:
@@ -940,7 +946,7 @@ approval is inferred. Earlier dated evidence remains historical.
 | ------- | -------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- | -------- |
 | AUD-001 | Filter audit logs by actor, module, action, result, record, and date | Results are protected, stable, bounded, and accurate                                                                   | In progress; live Developer exclusion and persisted denial evidence plus [direct-endpoint HTTP role-denial regressions](./AUDIT_LOG_GUIDE.md#direct-endpoint-role-denial-http-regressions---2026-10-24) pass; exact live request correlation, remaining access/failure/boundary cases and sign-off pending |
 | AUD-002 | Trace Cataloging actions to revision and audit entries               | Actor, affected record, action, outcome, and timestamp match                                                           | In progress; prior evidence plus [five live lifecycle transitions and matching history/audits](./AUDIT_LOG_GUIDE.md#aud-002-approved-lifecycle-traceability-batch---2026-10-23) pass; OBS-001 disposition and independent sign-off pending |
-| BAK-001 | Search and filter backup-history records                             | History loads with correct status/type/creator/date filters                                                            | In progress; empty-history UI checks pass, positive-data cases unavailable |
+| BAK-001 | Search and filter backup-history records                             | History loads with correct status/type/creator/date filters                                                            | In progress; empty-history UI plus [14 populated disposable PostgreSQL/HTTP checks](./BACKUP_HISTORY_GUIDE.md#populated-disposable-postgresql-checkpoint---2026-10-27) pass; populated browser/provider and independent acceptance pending |
 | BAK-002 | Execute and restore a real backup                                    | Deferred until deployment ownership, storage, retention, verification, and disposable restore environment are approved | Deferred |
 
 The [2026-10-23 lifecycle batch](./AUDIT_LOG_GUIDE.md#aud-002-approved-lifecycle-traceability-batch---2026-10-23)
