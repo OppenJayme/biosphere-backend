@@ -163,7 +163,7 @@ the unknown-outcome gate. Nothing is cached persistently or automatically
 replayed. Known validation/rate-limit feedback remains separate and confirmed
 Send another still clears the form.
 
-**Verification:** Frontend repair `3e4b261e905e8c731908123371f83c0ec068c356`.
+**Verification:** Frontend repair `ac8a3e7842b91d4c1fd4f904b75179f9b2e629c6`.
 13 synthetic-HTTP helper cases pass. Fourteen real-form browser scenarios pass
 (two forms across malformed receipt, transport loss, 503, 400, 429, success and
 pending response), including field/consent retention, focused feedback,
@@ -179,6 +179,18 @@ Sending label selector; using the public aria-busy state fixed the harness,
 and the complete fourteen-scenario run passed. Neither tooling failure is
 classified as a new application defect. The owned browser session was closed;
 existing signed-in sessions and running apps were untouched.
+
+**Review follow-up - 2026-10-28:** Charles independently reported the original
+13/13 helper and fourteen browser scenarios passing at frontend `3e4b261`, with
+cleanup and scoped approval. He reproduced a non-blocking focus drop to body
+when acknowledgement unmounted. The new owner assertion failed before repair;
+acknowledgement now focuses the retained warning. The fourteen-scenario batch
+passes with keyboard acknowledgement and a second-uncertain gate-rearm leg in
+both forms. Latest repair: `ac8a3e7842b91d4c1fd4f904b75179f9b2e629c6`. Earlier independent
+results are retained against their original SHA; this follow-up awaits review.
+The backend receipt fields are now explicitly documented, and optional retry
+identity, deadline/close and tooling work are tracked as PUB-F01/02/03 in the
+[guide backlog](./PUBLIC_SUBMISSIONS_GUIDE.md#follow-up-backlog-not-implemented-or-approved-for-deployment).
 
 **Limits:** No live stored/lost-response test, backend idempotency, concurrent
 commit proof, email delivery, proxy/CORS, modal close/reopen, process crash or

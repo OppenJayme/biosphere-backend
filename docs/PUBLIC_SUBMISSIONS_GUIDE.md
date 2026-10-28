@@ -291,7 +291,7 @@ that review is now implemented behind the default-off rollout flag; see the
 
 OBS-004 was reproduced as [DEF-027](./TEST_DEFECT_LOG.md#def-027---public-forms-misreport-uncertain-submission-outcomes).
 Frontend [repair PR #92](https://github.com/OppenJayme/biosphere-frontend/pull/92),
-commit `3e4b261e905e8c731908123371f83c0ec068c356`, is prepared; it has not been deployed
+commit `ac8a3e7842b91d4c1fd4f904b75179f9b2e629c6`, is prepared; it has not been deployed
 to the running site by this task. John/Charles retain module ownership.
 
 The direct browser-to-backend POST remains unchanged so public per-IP rate
@@ -300,6 +300,13 @@ reference, initial PENDING status and ISO timestamp) produces the success screen
 Malformed/unreadable success, transport loss and unexpected HTTP errors produce
 an uncertain outcome with no fabricated receipt or claim that nothing was saved.
 Known 400/429 rejections retain their separate validation/wait guidance.
+
+This is a cross-repository receipt contract: backend `InquirySubmissionReceipt`
+and `VisitRequestSubmissionReceipt` return `id`, `referenceCode`, `status` and
+`submittedAt`. Initial status is PENDING. Backend field/status changes must be
+coordinated with the frontend receipt validator and its tests; an incompatible
+receipt intentionally produces unknown-outcome feedback, not fabricated success.
+
 
 Both real forms retain their entries and consent, focus the uncertainty warning
 and disable sending, including requestSubmit, until the visitor explicitly
@@ -337,3 +344,41 @@ proxy behavior, server duplicate prevention, modal close/reopen or full
 accessibility. The task made no shared records, environment, server, migration,
 account or Inventory changes. Merge/CI, deployed-build verification and
 independent module-owner acceptance remain separate.
+
+### Independent review and acknowledgement focus follow-up - 2026-10-28
+
+Charles (WhiteBeardddd, via Claude Code) independently reviewed the original
+frontend `3e4b261e905e8c731908123371f83c0ec068c356` and reported 13/13 helper cases
+plus fourteen browser scenarios, exit 0, with owned-session cleanup. His
+[scoped approval/report](https://github.com/OppenJayme/biosphere-frontend/pull/92#pullrequestreview-5684949107)
+did not claim the full suite, lint or build as independent results.
+
+He additionally reproduced focus moving to body when the focused acknowledgement
+button unmounts. Owner regression reproduced that failure before the repair.
+The button now focuses the still-rendered warning after acknowledgement; the
+warning retains keyboard focus without sending a POST. Both forms' transport
+cases now include acknowledge -> 503 -> acknowledge -> success, verifying gate
+rearming, warning focus and explicit retained-payload retry. These assertions
+remain within the same fourteen scenario groups, not a new count of scenarios.
+The latest owner-verified repair is `ac8a3e7842b91d4c1fd4f904b75179f9b2e629c6`; his earlier
+approval/results refer to the original SHA, not automatic reapproval of this
+follow-up. Owner rechecks passed the fourteen browser groups, all 439 frontend
+tests (including the thirteen helper cases), full lint, TypeScript no-emit and
+an isolated synthetic-config production build. No running app was refreshed.
+
+### Follow-up backlog (not implemented or approved for deployment)
+
+| ID | Follow-up / owner | Scope and exit criteria |
+| --- | --- | --- |
+| PUB-F01 | Optional public-create idempotency; inquiry/visit backend owners, coordinate John/Charles and frontend | Design an opaque client retry key for both POST routes, same-key/same-payload original receipt, changed-content conflict and atomic concurrent behavior. Preserve per-IP abuse controls and avoid public personal-data lookup, duplicate emails or cross-visitor receipt disclosure. Agree key scope/expiry/privacy and migration/rollout before implementation. Explicit resend currently can create another record; no exactly-once claim. |
+| PUB-F02 | Pending-response deadline and close/backdrop policy; public-form owners | A hung fetch has no current deadline. Define bounded timeout, interruption/close behavior and truthful unknown-outcome recovery without automatic resend; abort does not prove database rollback. Investigate the source-inspected scrollbar/backdrop dismissal risk before claiming reproduction or a fix. Agree treatment of closed form contents; no persistent visitor drafts are authorized by this note. Configuration-related unexpected 4xx currently stays conservatively unknown. |
+| PUB-F03 | Browser-tooling maintenance; frontend/tooling owners | Assess shared fixture-runner/focus utilities and explicitly declaring the already-used Vite dependency against committed lockfiles and Node/tool versions. These are optional maintenance tasks; no dependency upgrade, installer or broad AR/dialog refactor is bundled into the public-form repair. Preserve default-deny fixtures and own-session cleanup. |
+
+The merged notification implementation has separate known production limits:
+`getFeed` and `updateState` scan all Pending source events before in-memory
+recipient filtering, and state rows have no automatic retention/cleanup. Feed
+polling cost scales with backlog and signed-in curators; leaving Pending hides
+a source alert but retains its state rows until account cascade or a future
+approved cleanup. Dashboard/feed owners should define profiling/bounding and
+retention policy before production. No cleanup, source deletion, scheduler or
+new migration is authorized here; see the [notification guide](./NOTIFICATION_STATE_GUIDE.md).
