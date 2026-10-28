@@ -114,6 +114,14 @@ The full HTTP suite still emits previously recorded missing-audit-adapter errors
 under OBS-003; it does not prove denial persistence for those older fixtures.
 The new SQL fixture has a real audit adapter.
 
+The first PR CI run stopped at two Prettier errors in API descriptions edited
+after the local lint run. The entity was formatted and full lint rerun; no
+behavior or test assertion changed for that correction. CI's existing lockfile
+installation also reported 23 dependency advisories (8 low, 4 moderate, 9 high,
+2 critical). Their applicability was not assessed in this feature; no dependency
+or lockfile was changed and no automatic audit fix was applied. Dependency
+remediation remains a separate review, not a security-clean claim.
+
 Work was isolated in separate checkouts using installed dependencies; no original
 server was manually stopped/restarted and no existing browser window was operated
 on. Generated clients/builds and browser artifacts stay ignored. Owned containers

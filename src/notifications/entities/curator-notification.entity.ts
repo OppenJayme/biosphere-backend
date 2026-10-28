@@ -26,7 +26,8 @@ export class CuratorNotification {
   readAt?: Date | null;
   @ApiProperty({
     example: 'NEW_INQUIRY:9a81836f-0000-4000-8000-000000000000',
-    description: 'Source-event key; enabled email-failure alerts use their unique audit event ID',
+    description:
+      'Source-event key; enabled email-failure alerts use their unique audit event ID',
   })
   id!: string;
 
@@ -64,7 +65,10 @@ export class CuratorNotificationFeed {
       'Unread, non-dismissed alerts for the acting curator, before limit; separate from unresolved work counts',
   })
   unreadTotal?: number;
-  @ApiProperty({ description: 'Visible alerts before limit; excludes this curator dismissed items when enabled' })
+  @ApiProperty({
+    description:
+      'Visible alerts before limit; excludes this curator dismissed items when enabled',
+  })
   total!: number;
 
   @ApiProperty()
