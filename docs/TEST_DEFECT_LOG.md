@@ -2724,6 +2724,38 @@ These are recorded signals, not confirmed application defects or closed issues.
 Promote an observation to a DEF entry when reproduction establishes an
 application failure; retain the original observation and cross-reference it.
 
+### OBS-004 - Public submission feedback can obscure an uncertain outcome
+
+**Observed:** 2026-10-28 source review; no browser/network-fault reproduction
+
+**Source baseline:** frontend `618d4380059d106ba820a36b20c4ce57c2069fbc`; backend
+`e6ae2a516ade4c33000344b18ca2016b8f8067b4` relevant submission code
+
+**Owner:** John/Charles public forms; coordinate backend submission ownership
+
+**Disposition:** Inspection risk awaiting a bounded regression; not a confirmed
+duplicate-write incident, tested failure or completed repair
+
+Frontend `src/features/public-submissions/submit.ts` maps malformed 2xx receipt
+bodies to success with empty identifiers/reference and a locally generated
+timestamp. Its transport/5xx messages encourage retry or claim the request was
+not sent. Both public forms consume this result. Backend create services commit
+their new record/audit transaction before returning a receipt, so loss of that
+response does not by itself prove the submission was never stored. The reviewed
+public create contracts contain no client idempotency/retry identity.
+
+An explicit same-payload submission can legitimately be a separate request;
+this review does not classify every repeat as a duplicate or require merging
+visitors' requests. The risk is certainty/next-step messaging after an ambiguous
+outcome. Verify confirmed receipt, malformed receipt, transport loss and server
+error through agreed isolated request/UI seams before promoting to a defect or
+claiming a fix. Do not create real visitor submissions, send email or inject
+faults against shared servers to reproduce it.
+
+See [the bounded public/visitor gap review](./PUBLIC_WEBSITE_GAP_REVIEW.md) for
+source coverage, scope and implementation recommendations. No code, records,
+application tests or existing defect/acceptance statuses changed in this review.
+
 ### OBS-001 - Local revision-history navigation exceeded the browser deadline
 
 **Observed:** 2026-10-21 during AUD-002 media replacement/removal testing
