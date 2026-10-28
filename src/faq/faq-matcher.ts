@@ -17,8 +17,9 @@
  *    ANSWER_THRESHOLD and at least MIN_EVIDENCE_TOKENS of the question's tokens
  *    (or all of them, for a one-token question) appear in the entry's approved
  *    vocabulary: question, alternative wording, and keywords.
- * 5. Among eligible entries the highest score wins; other entries at or above
- *    RELATED_THRESHOLD are offered as related approved questions.
+ * 5. A unique highest eligible score wins. Equal strongest eligible scores
+ *    require clarification with up to three approved question choices.
+ *    Otherwise other RELATED_THRESHOLD entries are related questions.
  * Otherwise the caller falls back to General Inquiry.
  */
 
@@ -132,6 +133,7 @@ export interface FaqMatchCandidate {
 export interface FaqMatchResult<T extends FaqMatchCandidate> {
   best: { entry: T; score: number } | null;
   related: Array<{ entry: T; score: number }>;
+  ambiguous?: true;
 }
 
 export function normalizeFaqText(text: string): string {
@@ -251,11 +253,59 @@ function isAnswerable(
   );
 }
 
+/** Preserve direction: "X includes Y" and "Y included in X" share roles. */
+function inclusionScope(normalized: string) {
+  const match =
+    /^(.*?)\b(included in|covered by|includes?|covers?)\b(.*)$/.exec(
+      normalized,
+    );
+  if (!match) return null;
+  const passive = match[2] === 'included in' || match[2] === 'covered by';
+  return {
+    source: tokenizeFaqText(passive ? match[3] : match[1]),
+    target: tokenizeFaqText(passive ? match[1] : match[3]),
+  };
+}
+
+/** Bounded English scope checks, not a general intent/negation interpreter. */
+function hasApprovedScope(
+  query: string,
+  candidate: FaqMatchCandidate,
+): boolean {
+  const normalizedQuery = normalizeFaqText(query);
+  const phrases = [candidate.question, ...candidate.alternativeWording];
+  if (phrases.some((phrase) => normalizeFaqText(phrase) === normalizedQuery)) {
+    return true;
+  }
+  if (
+    /\b(?:not asking (?:about|for)|not interested in|(?:do not|don t|did not|didn t) mean)\b/.test(
+      normalizedQuery,
+    )
+  ) {
+    return false;
+  }
+  const requested = inclusionScope(normalizedQuery);
+  if (!requested) return true;
+  if (!requested.source.length || !requested.target.length) return false;
+
+  // Keywords are ranking hints, not evidence of an approved relationship.
+  // Require both roles in ONE question/alias, never assemble scope across aliases.
+  return phrases.some((phrase) => {
+    const approved = inclusionScope(normalizeFaqText(phrase));
+    return (
+      approved !== null &&
+      requested.source.every((token) => approved.source.includes(token)) &&
+      requested.target.every((token) => approved.target.includes(token))
+    );
+  });
+}
+
 export function matchFaqEntries<T extends FaqMatchCandidate>(
   query: string,
   candidates: T[],
 ): FaqMatchResult<T> {
   const ranked = candidates
+    .filter((entry) => hasApprovedScope(query, entry))
     .map((entry) => ({ entry, score: scoreFaqCandidate(query, entry) }))
     .filter(({ score }) => score >= FAQ_MATCHING_RULES.RELATED_THRESHOLD)
     .sort(
@@ -266,6 +316,21 @@ export function matchFaqEntries<T extends FaqMatchCandidate>(
     );
 
   const best = ranked.find((candidate) => isAnswerable(query, candidate));
+  if (best) {
+    const tied = ranked.filter(
+      (candidate) =>
+        candidate.score === best.score && isAnswerable(query, candidate),
+    );
+    if (tied.length > 1) {
+      // Equal strongest eligible scores cannot establish visitor intent.
+      // Near-tie margins require separate evaluation; do not invent one here.
+      return {
+        best: null,
+        related: tied.slice(0, FAQ_MATCHING_RULES.MAX_RELATED),
+        ambiguous: true,
+      };
+    }
+  }
   return {
     best: best ?? null,
     related: ranked

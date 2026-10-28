@@ -5,6 +5,8 @@ import { AskFaqAssistantDto } from './dto/ask-faq-assistant.dto';
 import { ListFaqSuggestionsQueryDto } from './dto/list-faq-suggestions-query.dto';
 import {
   FAQ_ASSISTANT_NOTICE,
+  FAQ_CLARIFICATION_MESSAGE,
+  FAQ_CONTEXT_MESSAGE,
   FAQ_NO_MATCH_MESSAGE,
   FAQ_VISIT_REQUEST_MESSAGE,
   FaqAssistantOutcome,
@@ -13,7 +15,13 @@ import {
   FaqSuggestionList,
   PublicFaqQuestion,
 } from './entities/faq-assistant.entity';
-import { isVisitRequestTransaction, matchFaqEntries } from './faq-matcher';
+import {
+  isVisitRequestTransaction,
+  matchFaqEntries,
+  normalizeFaqText,
+  tokenizeFaqText,
+  type FaqMatchResult,
+} from './faq-matcher';
 
 const PUBLIC_QUESTION_SELECT = {
   id: true,
@@ -60,11 +68,68 @@ export class FaqAssistantService {
       alternativeWording: entry.alternative_wording,
     }));
 
-    const { best, related } = matchFaqEntries(dto.question, candidates);
+    // IDs are public references, not authorization: always recheck ACTIVE status.
+    // A stale/unknown choice must not silently answer from a different entry.
+    const selected = dto.selectedFaqId
+      ? candidates.find((entry) => entry.id === dto.selectedFaqId)
+      : undefined;
+    const followup = normalizeFaqText(dto.question).match(
+      /^(?:how|what) about(?: (.*))?$/,
+    );
+    let match: FaqMatchResult<(typeof candidates)[number]>;
+    if (dto.selectedFaqId) {
+      match = {
+        best: selected ? { entry: selected, score: 1 } : null,
+        related: [],
+      };
+    } else if (followup) {
+      const context = candidates.find((entry) => entry.id === dto.contextFaqId);
+      const qualifiers = tokenizeFaqText(followup[1] ?? '');
+      const topic = context ? tokenizeFaqText(context.question) : [];
+      // Context is a public hint, not authority. Require approved vocabulary
+      // for every meaningful qualifier and some evidence of the prior topic.
+      const contextualCandidates =
+        context && qualifiers.length && topic.length
+          ? candidates.filter((entry) => {
+              const vocabulary = new Set(
+                [
+                  entry.question,
+                  ...entry.alternativeWording,
+                  ...entry.keywords,
+                ].flatMap(tokenizeFaqText),
+              );
+              return (
+                qualifiers.every((token) => vocabulary.has(token)) &&
+                topic.some((token) => vocabulary.has(token))
+              );
+            })
+          : [];
+      match = context
+        ? matchFaqEntries(
+            `${context.question} ${followup[1] ?? ''}`,
+            contextualCandidates,
+          )
+        : { best: null, related: [] };
+    } else {
+      // A complete new question must not inherit a previous topic.
+      match = matchFaqEntries(dto.question, candidates);
+    }
+    const { best, related, ambiguous } = match;
     const visitTransaction = isVisitRequestTransaction(dto.question);
     const relatedQuestions = related.map(({ entry }) =>
       this.toPublicQuestion(entry),
     );
+
+    if (ambiguous) {
+      return {
+        outcome: FaqAssistantOutcome.CLARIFICATION_NEEDED,
+        answer: null,
+        related: relatedQuestions,
+        message: FAQ_CLARIFICATION_MESSAGE,
+        redirect: visitTransaction ? FaqAssistantRedirect.VISIT_REQUEST : null,
+        notice: FAQ_ASSISTANT_NOTICE,
+      };
+    }
 
     if (best) {
       return {
@@ -88,7 +153,9 @@ export class FaqAssistantService {
       related: relatedQuestions,
       message: visitTransaction
         ? FAQ_VISIT_REQUEST_MESSAGE
-        : FAQ_NO_MATCH_MESSAGE,
+        : followup && !dto.selectedFaqId
+          ? FAQ_CONTEXT_MESSAGE
+          : FAQ_NO_MATCH_MESSAGE,
       redirect: visitTransaction
         ? FaqAssistantRedirect.VISIT_REQUEST
         : FaqAssistantRedirect.GENERAL_INQUIRY,

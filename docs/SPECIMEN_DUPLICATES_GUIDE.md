@@ -9,6 +9,31 @@ Duplicate detection is **warning-only**. It never blocks a save, merges
 records, or deletes or archives anything. The curator reviews the warning
 and decides what to do (edit, archive, or keep both records).
 
+## Duplicate-warning edit invalidation - 2026-10-27
+
+[DEF-026](./TEST_DEFECT_LOG.md#def-026---duplicate-result-remains-valid-after-typing-new-values)
+was reproduced in the real mounted client component: an old response could
+appear after typing a new value without leaving the input. The local frontend
+repair immediately invalidates prior evidence on edits to accession number,
+scientific name and common name. Lookup still starts on focus-out and remains
+warning-only. Unrelated remarks edits preserve existing evidence.
+Repair source `c55692e` is published for review in
+[frontend PR #85](https://github.com/OppenJayme/biosphere-frontend/pull/85);
+it is now merged at `b65c9dd` with successful PR CI. The frontend-only production
+build and [blocked-request retest](./TEST_DEFECT_LOG.md#merged-production-ui-checkpoint---2026-10-27)
+pass on build `-7vcfapNQNgHNQsAN6WHj`; all three synthetic POSTs were aborted
+locally and no form was submitted. Independent acceptance and successful real
+action/backend-result coverage remain separate.
+
+From the frontend root, `npm run test:duplicates:browser` runs six synthetic
+headless Edge scenarios for pending edits, response ordering, all three fields'
+edit/failure/retry/clear flows and unrelated edits. Actual React/DOM and client
+code run with only the remote Server Action replaced; network requests are
+blocked and no app server, credentials or database is used. The first pending-edit
+assertion was observed failing before the repair, then all six scenarios pass.
+These are local component results, not release-build/backend/provider evidence
+or independent acceptance. See the frontend browser-tooling README for setup.
+
 ## Endpoints
 
 All routes are curator-only (unauthenticated → 401, Developer → 403).
@@ -185,3 +210,46 @@ No live data was changed and no running servers were stopped. Remaining items
 include browser pending/error/retry behavior, archived-record policy alignment,
 and the review/dashboard follow-ups above. CAT-014 is partially verified, not
 fully accepted.
+
+## CAT-014 duplicate-review batch - 2026-10-23
+
+Existing isolated regressions passed on backend `d04ede2` and frontend `d4d216b`:
+23 duplicate-service tests, 49 protected Cataloging HTTP tests and 15 frontend
+duplicate contracts (**87 total**, including broader HTTP workflows, not 87
+separate duplicate acceptance cases). Database/Supabase and frontend API/router
+boundaries are mocked; archive-policy approval and live concurrency are not implied.
+
+A signed-in read-only browser check used existing test specimen
+`79d5a204-c21d-4df6-b0bb-ebbfe1877975`, with its names copied into an unsaved
+new-specimen form. The live warning linked that record and left Save enabled;
+unrelated test values cleared the old warning/link. Holding a validated duplicate
+read showed pending feedback, but aborting it removed the form instead of offering
+unknown/Retry. This reproduced [DEF-020](./TEST_DEFECT_LOG.md#def-020---interrupted-duplicate-check-removes-the-unsaved-core-form),
+not an archived-policy or matcher defect. Earlier guard failures were fixture
+precondition problems; no form was submitted during any run.
+
+The approved frontend repair and red-to-green test evidence are recorded once
+in DEF-020. Its browser retest passed on a separately approved loopback dev
+server on port 3002, without replacing the older production build on port 3000.
+No specimen, lot, storage, publication or account records were changed.
+
+CAT-014 remains In progress: DEF-020 awaits merged/deployed independent retest;
+archived-match policy still conflicts with the active-only implementation and
+needs a team/curator decision. Discoverable saved-record review remains an
+explicit follow-up, while dashboard indication stays with John/Charles. This
+batch authorizes no archive-policy or dashboard implementation.
+
+## Merged browser retest checkpoint - 2026-10-24
+
+The [DEF-020 follow-up](./TEST_DEFECT_LOG.md#merged-production-mode-browser-follow-up---2026-10-24)
+now records successful warning/clear, interrupted lookup/form preservation and
+explicit retry on the rebuilt merged production-mode frontend, not just the
+earlier temporary dev server. A delayed lookup also ended with the correct
+newer values/result; fully reordered completion was not forced. An initial
+diagnostic scheduling assumption timed out and is documented as inconclusive,
+not a functional failure. No form was saved or museum data changed.
+
+DEF-020 remains Ready for retest for independent acceptance and complete stale
+in-flight coverage. CAT-014 stays In progress for those limits and the existing
+archived-match policy/saved-review decisions. Do not repeat the already passing
+owner failure/retry sequence merely because the overall row is not yet closed.

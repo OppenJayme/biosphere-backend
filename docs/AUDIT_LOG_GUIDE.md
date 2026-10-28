@@ -83,3 +83,158 @@ BioSphere account as both actor and affected record when it is known.
 - The database migration enables RLS. Production policies and database-role
   privileges must also preserve append-only access; this read API alone does
   not replace deployment-level hardening.
+
+## AUD-002 approved lifecycle traceability batch - 2026-10-23
+
+After explicit approval, used the existing signed-in Edge session and real
+curator UI on port 3000 with the prepared TEST specimen
+`85f158c6-a73b-41ae-aa5c-9cac347d79de` (`TEST - INV Acceptance Beetle`,
+accession `TEST-READY-20261023-A`). Its initial checklist was 8/8, status
+Uncataloged and public eligibility off. No pending offline draft was eligible
+to synchronize before the run, and the date/record-filtered audit baseline
+contained none of these lifecycle actions for this fixture that day.
+
+Exactly five approved form submissions were made, with state readback and
+reload after each:
+
+| Operation | Resulting status | Public eligibility | Successful audit action |
+| --- | --- | --- | --- |
+| Complete Cataloging | `CATALOGED` | Off | `COMPLETE_SPECIMEN_CATALOGING` |
+| Enable eligibility | `CATALOGED` | On | `SET_SPECIMEN_PUBLIC_DISPLAY` |
+| Disable eligibility | `CATALOGED` | Off | `SET_SPECIMEN_PUBLIC_DISPLAY` |
+| Reopen with test reason | `UNCATALOGED` | Off | `REOPEN_SPECIMEN_CATALOGING` |
+| Complete again | `CATALOGED` | Off | `COMPLETE_SPECIMEN_CATALOGING` |
+
+- History contained exactly five new revisions relative to the pre-run snapshot:
+  two Uncataloged-to-Cataloged, one Cataloged-to-Uncataloged, and the two
+  false/true public-eligibility transitions.
+- Exactly five successful lifecycle audits identified this specimen. Selected
+  details matched module `specimens`, record type `specimen` and role `CURATOR`.
+  Displayed actors matched across the revisions and audits. Audit metadata
+  recorded the expected prior status or eligibility boolean.
+- The reopening revision and audit both retained the exact reason:
+  `TEST acceptance 20261023 - verify reopening audit and re-completion; no specimen fields changed.`
+- A read-only follow-up matched all five audit timestamps to their corresponding
+  revision transitions at displayed-minute precision. Raw audit timestamp and
+  actor-UUID equality were not independently checked. Reload preserved the
+  audit evidence; reads did not add duplicate lifecycle events.
+- Non-lifecycle displayed core/taxonomy/provenance fields, collection and the
+  entire lot display stayed unchanged across each transition: two active lots,
+  total quantity 12. No Inventory, archive/restore or exhibit-publishing action
+  was invoked. Public eligibility is not exhibit publication.
+
+**Retained final state:** Cataloged, public eligibility off. The intended status,
+eligibility and normal history/audit effects are not reverted. No unexpected
+non-read request was forwarded or blocked, and the probe observed no page errors.
+Temporary tabs were closed; the original signed-in Audit tab remained unchanged.
+The write helper is disabled against accidental repetition; no credentials or
+browser auth state were exported.
+
+This closes the previously missing completion/reopening/public-eligibility
+traceability subcases, not all acceptance. AUD-002 remains In progress for
+OBS-001 disposition and independent sign-off; real concurrency, failed-write
+rollback, actual mutation retries, role-denial behavior and complete restoration
+are not proved here. OBS-001 is not closed by successful history navigation.
+No application code changed; actual served build hashes were not independently
+verified and no server was restarted. `git diff --check` passed; full
+lint/unit/build suites were not rerun for this browser-evidence update.
+
+## AUD-001 live Developer access checkpoint - 2026-10-24
+
+The user manually signed into an existing Developer test account in the
+separate headed session `biosphere-role-check-20261024`. A preflight verified
+the restricted workspace and displayed Developer role before any denial checks.
+An earlier login had been Curator, so that attempt stopped without running the
+tests; no account role or account record was changed.
+
+Read-only checks in a temporary tab passed:
+
+- Direct Audit and known TEST specimen media-page navigation redirected to
+  `/developer`. The final page showed no Audit/media workspace, retained test
+  caption or private signed image; no signed-image request was observed.
+- Same-origin `GET /api/offline/specimens` returned **403**, `Cache-Control:
+  no-store`, and a message-only JSON body, not specimen records. This handler
+  forwards the session to the backend specimen-list API; it is separate from
+  an independently issued Audit or signed-media API request.
+- No browser mutation request or probe page error occurred. The Developer
+  landing tab was preserved; temporary tabs were closed. Credentials, browser
+  auth state and account names were not exported.
+
+**Remaining:** Security-audit persistence/correlation is not verified by this
+checkpoint. The original curator tab still showed Audit, but a fresh read in
+that context redirected to `/login`. The baseline audit helper consequently
+timed out waiting for filters; a bounded login-state check identified the
+missing authenticated curator view. No expiry/sign-out root cause is assumed,
+no failed-audit defect is inferred, and no mutation was retried. Curator manual
+reauthentication is needed before reviewing the `ACCESS_DENIED` entries.
+
+These results establish live page-level Developer exclusion plus the specimen
+refresh API's 403, not direct Audit API or signed-URL API denial, inactive-account
+behavior, actual session-expiry policy or comprehensive authorization/security.
+Normal login/denial events may be appended by the security-audit mechanism;
+no museum data or account configuration was edited. AUD-001 remains In progress.
+No runtime code or servers changed; `git diff --check` passed. Full app suites
+were not rerun for these live checks against the existing served build.
+
+### Curator denial-audit follow-up - 2026-10-24
+
+After the user confirmed login, a fresh protected read identified the original
+`biosphere-aud002` context as authenticated; the newly opened follow-up context
+still redirected to login. Used only the authenticated original context. The
+separate Developer window and both existing Curator tabs were left open.
+
+Two independent GET/HEAD-only probe tabs queried `module=auth`,
+`action=ACCESS_DENIED`, `result=DENIED` and the museum date 2026-10-24.
+Both reads found the same six matching Developer GET-denial entries on the
+first filtered page:
+
+- Three for `/audit-logs`.
+- One for `/specimens`.
+- One each for the known TEST specimen detail and media paths.
+
+Every matching entry had `ROLE_NOT_PERMITTED`, required role `CURATOR`, a
+displayed actor, `user_account` attribution and a displayed timestamp. The
+counts remained unchanged on the repeated query. Both probes recorded zero
+non-read requests and closed only their temporary tabs. No account names,
+credentials, headers or raw audit payloads were exported.
+
+This verifies persisted denial evidence consistent with the earlier Developer
+checks, including the specimen-list API denial. It does not establish exact
+caller UUID, timestamp or request-ID correlation for each earlier browser
+request; page navigation can trigger backend reads, so these entries are not
+proof of independently issued direct Audit/media API tests. The previous
+reauthentication prerequisite is satisfied for this review, but AUD-001 stays
+In progress for remaining access/failure/boundary cases and independent sign-off.
+No new defect was reproduced. Documentation-only verification:
+`git diff --check`; application tests/build were not rerun.
+
+### Direct-endpoint role-denial HTTP regressions - 2026-10-24
+
+At the user-approved HTTP seams, added one Audit detail test and two private
+media tests in `test/audit.e2e-spec.ts` and `test/specimen-media.e2e-spec.ts`.
+Each establishes successful Curator access to an existing synthetic record,
+issues a Developer GET to the same endpoint, then confirms Curator access
+still succeeds with unchanged response data.
+
+- Audit detail returns 403 with only the standard error-envelope keys, without
+  entry details, actor data or the protected affected-record identifier.
+- Media metadata returns 403 without caption or storage-path data.
+- Media signed-URL access returns 403 without a signed URL or storage path and
+  does not invoke the mocked storage signer for the rejected request. Authorized
+  signing before and after denial succeeds, providing a positive control.
+
+All three new tests passed on their first runs against existing guards. No
+runtime repair or artificially failing implementation was introduced. The
+complete Audit/media HTTP suites passed **16/16** (Audit 7, media 9). Targeted
+ESLint passed with zero errors and one pre-existing unused-disable warning;
+initial formatting errors and new unsafe-argument warnings were corrected.
+`git diff --check` passed. Full unit/build suites were not rerun.
+
+These exercise real Nest authentication/role guards, validation, controllers
+and services, replacing external authentication, database and storage adapters.
+Only synthetic test credentials are used; no live browser, account, database or
+storage changes occur. This closes isolated direct-endpoint coverage gaps, not
+live bearer-authenticated denial, exact live audit correlation, inactive-account
+behavior, database concurrency or comprehensive security acceptance. AUD-001
+and CAT-011 remain In progress. The TDD skill kept the tests at the explicitly
+approved public seams and each test was executed before adding the next.

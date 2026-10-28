@@ -32,6 +32,7 @@ import { ExhibitQrQueryDto } from './dto/exhibit-qr-query.dto';
 import { ListExhibitsQueryDto } from './dto/list-exhibits-query.dto';
 import { ReplaceExhibitUrlDto } from './dto/replace-exhibit-url.dto';
 import { SetExhibitArDto } from './dto/set-exhibit-ar.dto';
+import { SetExhibitArSelectionDto } from './dto/set-exhibit-ar-selection.dto';
 import { UpdateExhibitMediaDto } from './dto/update-exhibit-media.dto';
 import { UpdateExhibitDto } from './dto/update-exhibit.dto';
 import { Exhibit, PublicExhibitResponse } from './entities/exhibit.entity';
@@ -44,7 +45,8 @@ import { ExhibitQrImage, ExhibitsService } from './exhibits.service';
 // a class-level @Roles('CURATOR') would still apply to the @Public() route
 // once SupabaseAuthGuard lets it through, blocking visitors. AR assets
 // themselves are uploaded and activated only through /developer (REQ-4.2-04);
-// curators enable or disable an exhibit's uploaded AR here (REQ-4.13-02).
+// curators mark exhibits for AR preparation and enable or disable their
+// uploaded AR here (REQ-4.13-02).
 @ApiTags('exhibits')
 @Controller('exhibits')
 export class ExhibitsController {
@@ -160,6 +162,21 @@ export class ExhibitsController {
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<Exhibit> {
     return this.exhibitsService.archive(id, user.accountId);
+  }
+
+  @Roles('CURATOR')
+  @Patch(':id/ar-selection')
+  @ApiOperation({
+    summary:
+      'Mark or unmark an exhibit for AR preparation (curator); developers deploy AR assets only to marked exhibits',
+  })
+  @ApiOkResponse({ type: Exhibit })
+  setArSelection(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: SetExhibitArSelectionDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<Exhibit> {
+    return this.exhibitsService.setArSelection(id, dto, user.accountId);
   }
 
   @Roles('CURATOR')

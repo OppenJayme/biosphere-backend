@@ -79,6 +79,8 @@ function exhibitRecord(overrides: Record<string, unknown> = {}) {
     layout_type: null,
     public_specimen_fields: [...PUBLIC_SPECIMEN_FIELDS],
     status: 'UNPUBLISHED',
+    ar_selected_at: null,
+    ar_selection_note: null,
     published_at: null,
     archived_at: null,
     created_at: TEST_DATE,
@@ -104,7 +106,7 @@ const FILLED_CONTENT = {
 // Shape returned with the public include.
 function publicRecord(overrides: Record<string, unknown> = {}) {
   return {
-    ...exhibitRecord({ status: 'PUBLISHED' }),
+    ...exhibitRecord({ status: 'PUBLISHED', ar_selected_at: TEST_DATE }),
     public_description: 'A rare specimen.',
     specimen: {
       id: SPECIMEN_ID,
@@ -926,8 +928,18 @@ describe('ExhibitsService', () => {
 
     it('enables the uploaded AR assets and audits which ones changed', async () => {
       exhibitDelegate.findUnique
-        .mockResolvedValueOnce(exhibitRecord({ ar_asset: assets(false, true) }))
-        .mockResolvedValueOnce(exhibitRecord({ ar_asset: assets(true, true) }));
+        .mockResolvedValueOnce(
+          exhibitRecord({
+            ar_selected_at: TEST_DATE,
+            ar_asset: assets(false, true),
+          }),
+        )
+        .mockResolvedValueOnce(
+          exhibitRecord({
+            ar_selected_at: TEST_DATE,
+            ar_asset: assets(true, true),
+          }),
+        );
 
       const result = await service.setAr(
         EXHIBIT_ID,
@@ -969,8 +981,21 @@ describe('ExhibitsService', () => {
       expect(arAssetDelegate.updateMany).toHaveBeenCalledTimes(1);
     });
 
+    it('cannot enable AR before the curator marks the exhibit for AR', async () => {
+      exhibitDelegate.findUnique.mockResolvedValue(
+        exhibitRecord({ ar_asset: assets(false) }),
+      );
+
+      await expect(
+        service.setAr(EXHIBIT_ID, { enabled: true }, ACCOUNT_ID),
+      ).rejects.toThrow('Mark this exhibit for AR preparation');
+      expect(arAssetDelegate.updateMany).not.toHaveBeenCalled();
+    });
+
     it('cannot enable AR before a developer uploads an asset', async () => {
-      exhibitDelegate.findUnique.mockResolvedValue(exhibitRecord());
+      exhibitDelegate.findUnique.mockResolvedValue(
+        exhibitRecord({ ar_selected_at: TEST_DATE }),
+      );
 
       await expect(
         service.setAr(EXHIBIT_ID, { enabled: true }, ACCOUNT_ID),
@@ -985,6 +1010,167 @@ describe('ExhibitsService', () => {
 
       await expect(
         service.setAr(EXHIBIT_ID, { enabled: true }, ACCOUNT_ID),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+  });
+
+  describe('setArSelection', () => {
+    const NOTE = 'Endemic species used in the Grade 7 biodiversity tour.';
+
+    beforeEach(() => {
+      specimenDelegate.findUnique.mockResolvedValue(specimenRecord());
+      exhibitDelegate.update.mockImplementation(
+        ({ data }: { data: Record<string, unknown> }) =>
+          Promise.resolve(exhibitRecord(data)),
+      );
+    });
+
+    it('marks an exhibit for AR preparation with the curator note and audits it', async () => {
+      exhibitDelegate.findUnique.mockResolvedValue(exhibitRecord());
+
+      const result = await service.setArSelection(
+        EXHIBIT_ID,
+        { selected: true, note: NOTE },
+        ACCOUNT_ID,
+      );
+
+      expect(exhibitDelegate.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: EXHIBIT_ID },
+          data: expect.objectContaining({
+            ar_selected_at: expect.any(Date) as unknown,
+            ar_selection_note: NOTE,
+          }) as unknown,
+        }),
+      );
+      expect(result).toMatchObject({
+        arSelected: true,
+        arSelectionNote: NOTE,
+        arEnabled: false,
+      });
+      expect(auditDelegate.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          action: 'SELECT_EXHIBIT_FOR_AR',
+          affected_record_id: EXHIBIT_ID,
+          details: { note: NOTE, previousNote: null },
+        }) as unknown,
+      });
+    });
+
+    it('keeps the original selection date when only the note changes', async () => {
+      exhibitDelegate.findUnique.mockResolvedValue(
+        exhibitRecord({ ar_selected_at: TEST_DATE, ar_selection_note: 'Old' }),
+      );
+
+      await service.setArSelection(
+        EXHIBIT_ID,
+        { selected: true, note: NOTE },
+        ACCOUNT_ID,
+      );
+
+      expect(exhibitDelegate.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            ar_selected_at: TEST_DATE,
+            ar_selection_note: NOTE,
+          }) as unknown,
+        }),
+      );
+      expect(auditDelegate.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          action: 'UPDATE_EXHIBIT_AR_SELECTION',
+        }) as unknown,
+      });
+    });
+
+    it('changes and audits nothing when the selection is unchanged', async () => {
+      exhibitDelegate.findUnique.mockResolvedValue(
+        exhibitRecord({ ar_selected_at: TEST_DATE, ar_selection_note: NOTE }),
+      );
+      await service.setArSelection(
+        EXHIBIT_ID,
+        { selected: true, note: NOTE },
+        ACCOUNT_ID,
+      );
+
+      exhibitDelegate.findUnique.mockResolvedValue(exhibitRecord());
+      await service.setArSelection(EXHIBIT_ID, { selected: false }, ACCOUNT_ID);
+
+      expect(exhibitDelegate.update).not.toHaveBeenCalled();
+      expect(auditDelegate.create).not.toHaveBeenCalled();
+    });
+
+    it('withdrawing the selection turns off enabled AR assets and audits which ones', async () => {
+      exhibitDelegate.findUnique.mockResolvedValue(
+        exhibitRecord({
+          ar_selected_at: TEST_DATE,
+          ar_selection_note: NOTE,
+          ar_asset: [
+            { id: 'asset-1', is_enabled: true },
+            { id: 'asset-2', is_enabled: false },
+          ],
+        }),
+      );
+      exhibitDelegate.update.mockResolvedValue(
+        exhibitRecord({
+          ar_asset: [
+            { id: 'asset-1', is_enabled: false },
+            { id: 'asset-2', is_enabled: false },
+          ],
+        }),
+      );
+
+      const result = await service.setArSelection(
+        EXHIBIT_ID,
+        { selected: false },
+        ACCOUNT_ID,
+      );
+
+      expect(arAssetDelegate.updateMany).toHaveBeenCalledWith({
+        where: { exhibit_id: EXHIBIT_ID, is_enabled: true },
+        data: { is_enabled: false },
+      });
+      expect(exhibitDelegate.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            ar_selected_at: null,
+            ar_selection_note: null,
+          }) as unknown,
+        }),
+      );
+      expect(result).toMatchObject({ arSelected: false, arEnabled: false });
+      expect(auditDelegate.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          action: 'WITHDRAW_EXHIBIT_AR_SELECTION',
+          details: { previousNote: NOTE, disabledAssetIds: ['asset-1'] },
+        }) as unknown,
+      });
+    });
+
+    it.each([
+      ['not approved for public display', { public_display_allowed: false }],
+      ['Uncataloged', { status: 'UNCATALOGED' }],
+      ['archived', { status: 'ARCHIVED', archived_at: TEST_DATE }],
+    ])(
+      'rejects marking an exhibit whose specimen is %s (BR-20)',
+      async (_label, specimen) => {
+        exhibitDelegate.findUnique.mockResolvedValue(exhibitRecord());
+        specimenDelegate.findUnique.mockResolvedValue(specimenRecord(specimen));
+
+        await expect(
+          service.setArSelection(EXHIBIT_ID, { selected: true }, ACCOUNT_ID),
+        ).rejects.toBeInstanceOf(BadRequestException);
+        expect(exhibitDelegate.update).not.toHaveBeenCalled();
+      },
+    );
+
+    it('rejects AR selection changes on an archived exhibit', async () => {
+      exhibitDelegate.findUnique.mockResolvedValue(
+        exhibitRecord({ archived_at: TEST_DATE }),
+      );
+
+      await expect(
+        service.setArSelection(EXHIBIT_ID, { selected: true }, ACCOUNT_ID),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
   });
@@ -1163,6 +1349,26 @@ describe('ExhibitsService', () => {
       await expect(
         service.findPublishedBySlug('six-legged-carabao'),
       ).resolves.toMatchObject({ ar: { available: false, models: [] } });
+    });
+
+    it('never offers AR for an exhibit that is not marked for AR (REQ-4.13-01)', async () => {
+      exhibitDelegate.findUnique.mockResolvedValue(
+        publicRecord({
+          ar_selected_at: null,
+          ar_asset: [
+            { storage_path: `${EXHIBIT_ID}/model.glb`, model_format: 'glb' },
+          ],
+        }),
+      );
+
+      await expect(
+        service.findPublishedBySlug('six-legged-carabao'),
+      ).resolves.toMatchObject({ ar: { available: false, models: [] } });
+      expect(storageServiceMock.createSignedUrl).not.toHaveBeenCalledWith(
+        'ar-assets',
+        expect.anything(),
+        expect.anything(),
+      );
     });
 
     it.each([

@@ -36,13 +36,13 @@ import {
 
 type AuditStatus = 'SUCCESS' | 'FAILED' | 'DENIED';
 
-// An AR-deployable exhibit: it is not archived and its specimen is not
-// archived, still Cataloged and approved for public display, the same rule
-// the curator's exhibit module applies to an exhibit's specimen (BR-20).
-// This is eligibility only, not AR selection: which deployable exhibits get
-// AR is the curator's decision, handed to the developer outside BioSphere
-// (REQ-4.13-02). The curator then turns AR on or off for the exhibit.
+// An AR-deployable exhibit: the curator has marked it for AR preparation in
+// the exhibit module (REQ-4.13-02, SRS 4.2.2), it is not archived, and its
+// specimen is not archived, still Cataloged and approved for public display,
+// the same rule the curator's exhibit module applies to an exhibit's
+// specimen (BR-20). The curator then turns AR on or off for the exhibit.
 const DEPLOYABLE_EXHIBIT: Prisma.exhibitWhereInput = {
+  ar_selected_at: { not: null },
   archived_at: null,
   specimen: {
     status: 'CATALOGED',
@@ -53,6 +53,7 @@ const DEPLOYABLE_EXHIBIT: Prisma.exhibitWhereInput = {
 
 // The exhibit fields isDeployable needs.
 const DEPLOYABILITY_SELECT = {
+  ar_selected_at: true,
   archived_at: true,
   specimen: {
     select: { status: true, public_display_allowed: true, archived_at: true },
@@ -250,6 +251,8 @@ export class DeveloperService {
         public_slug: true,
         status: true,
         archived_at: true,
+        ar_selected_at: true,
+        ar_selection_note: true,
         specimen: {
           select: {
             common_name: true,
@@ -270,6 +273,8 @@ export class DeveloperService {
       status: item.status,
       archived: item.archived_at !== null,
       deployable: this.isDeployable(item),
+      arSelected: Boolean(item.ar_selected_at),
+      arSelectionNote: item.ar_selection_note,
       commonName: item.specimen.common_name,
       scientificName: item.specimen.scientific_name,
       assets: item.ar_asset.map((asset) => this.toArAssetEntity(asset)),
@@ -681,6 +686,13 @@ export class DeveloperService {
       );
     }
 
+    if (!exhibit.ar_selected_at) {
+      throw new BadRequestException(
+        'AR assets can only be deployed to an exhibit the curator has ' +
+          'marked for AR preparation.',
+      );
+    }
+
     if (!this.isDeployable(exhibit)) {
       throw new BadRequestException(
         'AR assets can only be deployed to an exhibit whose specimen is ' +
@@ -712,6 +724,7 @@ export class DeveloperService {
 
   // Mirrors DEPLOYABLE_EXHIBIT for an exhibit that is already loaded.
   private isDeployable(exhibit: {
+    ar_selected_at: Date | null;
     archived_at: Date | null;
     specimen: {
       status: string;
@@ -720,6 +733,7 @@ export class DeveloperService {
     };
   }): boolean {
     return (
+      Boolean(exhibit.ar_selected_at) &&
       exhibit.archived_at === null &&
       exhibit.specimen.archived_at === null &&
       exhibit.specimen.status === 'CATALOGED' &&

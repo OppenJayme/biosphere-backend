@@ -5,6 +5,258 @@ text-only `UNCATALOGED` specimen drafts. Browser caching, offline search, draft
 retention, connectivity detection, and the visible sync states remain frontend
 PWA responsibilities implemented with IndexedDB/Dexie and the service worker.
 
+## Owned accepted-write tab recovery - 2026-10-28
+
+The explicitly approved real-UI/Nest/PostgreSQL case passes **1/1** in two
+consecutive complete runs (25.7s and 26.8s). The first Nest transaction commits
+one synthetic specimen while its HTTP adapter deliberately withholds the
+successful response. Closing only that fixture tab leaves its draft in local
+storage. A new tab on the same isolated origin/context recovers it as retryable
+interrupted work. All entered fields remain unchanged; Retry is disabled while
+offline. Reconnecting runs the real hook's automatic eligible-draft retry,
+which returns the same draft/specimen IDs with `alreadySynchronized: true`.
+The UI displays Synchronized and its Uncataloged cached record, with no Retry.
+
+Final independent SQL postconditions are exactly **1 specimen, 1 receipt,
+1 total audit and 1 successful sync audit**, correct curator attribution and
+unchanged synthetic names/remarks. Public eligibility remains false. Adapter
+observations require exactly two same-ID forwards, the first connection closed
+before its 30-second hold deadline, and no hold expiry. A malformed POST is
+rejected directly before any browser work/forwarding as a denial control.
+
+Run `npm run test:offline:recovery` from the backend root with matching recovery
+code in the sibling frontend checkout. Prerequisites match the containment
+preflight: installed dependencies/pinned optional browser tools, Windows local
+Docker, cached pinned image and Edge. This opt-in test does not run in ordinary
+CI or accept an external database/application target. It creates its own tmpfs
+database and minimal real Nest/auth/schema fixture, using synthetic identities.
+
+The existing permanently read-only preflight adapter is unchanged. A separate
+recovery adapter binds loopback, accepts only the exact expected synthetic core
+payload and one draft UUID, permits at most two forwards, and uses a fixed owned
+Nest destination/route/identity with redirect rejection. Cookies, authorization,
+foreign origins/hosts and unknown routes are denied; browser interception adds
+an exact-origin/method/path allowlist. Cache-list GET deliberately returns 503,
+so the final cached card comes from the real successful sync path, not a fake
+list response. No page-route teardown handler decides where a write goes.
+
+Harness corrections are retained as evidence: initial local-save attempts were
+blocked by the fixture CSP's prohibition of Zod's runtime schema compiler; the
+disposable script policy now allows that compiler without changing production
+CSP or network destinations. One early synchronization wait timed out without
+adequate state diagnostics; its cause remains unestablished. Bounded synthetic
+UI/state failure reporting was added; two complete runs then passed. A SQL
+postcondition initially used nonexistent `public_display`; corrected to actual
+`public_display_allowed` before accepting the pass. No application defect or
+production fix is inferred from these harness failures; no assertion is skipped.
+
+Both repositories' no-emit and touched-file lint checks pass. Owned containers
+were absent after cleanup; original public login/root returned HTTP 200. No
+manual application-server control or signed-in-window operation occurred.
+The original backend listener's child changed during file activity (observed
+41556 versus earlier 33092); frontend PID 16340 remained. Uninterrupted backend
+process continuity is not claimed. No runtime, migration, Inventory, dependency
+or shared-database changes; app suites/builds were not repeated for test tooling.
+
+This closes the **bounded owned accepted-write/tab-retry evidence gap**, not
+whole-module acceptance. DEF-019 stays Open because the historical shared-target
+leak's cause and full Next/PWA containment remain unestablished; its old pilot
+stays disabled. This facade replaces Next session/route middleware and does not
+register the real service worker. Actual process death, provider expiry/re-login,
+production deployment and independent acceptance remain separate. Normal
+finally cleanup is not a process-crash guarantee. Next is review/merge and
+independent acceptance of the agreed scope, not automatic expansion of tests.
+
+## Offline UI containment preflight - 2026-10-28
+
+The approved preflight passes **3/3** checks: adapter write denial without browser
+interception; credential/origin/query-override rejection with independent backend
+arrival counters; and a real offline-panel mount against an owned SQL/Nest
+fixture. A protected audit GET provides a real backend positive control. The
+browser canary records one allowed synthetic POST and zero blocked arrivals
+over five samples/one second after its probe tab closes. The owned database
+ends with **0 specimens, 0 sync receipts, 0 audits**. No draft is saved or
+interrupted; no successful synchronization is claimed.
+
+Run `npm run test:offline:containment` from the backend root with the matching
+frontend checkout at `../biosphere-frontend`. This opt-in suite reuses the
+offline-sync Docker profile and minimal Nest/auth/schema fixture described
+below; it is excluded from normal unit/e2e discovery. The frontend root and
+optional pinned browser dependencies must already be installed, along with
+local Docker/cached image and Edge. See the frontend `tools/browser/README.md`
+for the complete fixture/containment contract. No dependencies are installed by
+this command; no application environment/credentials are copied.
+
+The adapter has no write-forwarding branch. Only a fixed audit GET reaches the
+owned backend; HTTP redirects are errors. Cache GET returns an explicit 503,
+so no false cache-readback pass follows. Real React/hook/Dexie/sync modules run
+in a new origin/context without Next authentication or PWA registration. The
+synthetic identity provider and minimal auth/audit tables are not deployed
+provider/RLS certification. Normal cleanup closes the owned browser session,
+servers and exact-labelled tmpfs container; it is not a process-crash guarantee.
+
+The first test initially failed because the adapter did not exist, then passed
+after implementation. No application defect or production fix was introduced.
+A later no-emit check caught a fixture header-array typing issue; its explicit
+record type was corrected. Original application servers were not manually
+restarted, but the existing Nest watcher again replaced its child during source
+file activity (observed 33092 versus earlier 20060). Frontend PID 16340 remained;
+uninterrupted backend process continuity is not claimed.
+
+Validation: final preflight 3/3 (19.7 seconds); both repositories' no-emit and
+touched-file lint checks pass. No owned offline container remained afterward;
+public frontend login/backend root returned HTTP 200. Application suites/builds
+were not repeated because production source and dependencies were unchanged.
+
+**DEF-019 remains Open and OFF-003 In progress.** This establishes bounded
+containment for this read-only fixture, not the historical leak's cause or
+recovery from interrupted/accepted writes. The old shared-backend pilot stays
+disabled. Agree a separate owned write/recovery slice before enabling writes;
+real provider expiry/re-login, full Next/PWA behavior and independent acceptance
+remain separate gates.
+
+## Disposable PostgreSQL and HTTP verification - 2026-10-28
+
+The approved backend slice passes **8/8** checks using real Nest controllers,
+guards, services, Prisma and PostgreSQL. Only external identity-provider
+responses are synthetic; account/role lookup and all mutation transactions use
+the owned database. No AppModule, application dotenv configuration or existing
+connection URL is loaded by this fixture.
+
+Run explicitly on Windows with the documented local Docker Desktop Linux engine
+and the helper's pinned PostgreSQL image already cached:
+
+```powershell
+npm run test:offline-sync:db
+```
+
+The helper's new `offline-sync` profile requires its own opt-in flag and creates
+`biosphere_offline_sync_disposable` in a fresh randomly named/labelled container.
+It retains generated credentials, loopback-only random ports, 384 MB/one CPU,
+tmpfs storage/no host or persistent mounts, `--pull=never` and exact-owner
+cleanup. The Nest test server also binds a random loopback port. This opt-in
+suite is outside ordinary unit/HTTP/CI discovery; CI does not implicitly run Docker.
+
+Setup applies the actual collection/specimen DDL, accession uniqueness migration
+and offline-receipt migration. Shared minimal synthetic account/audit fixtures
+supply dependencies, including two active curators.
+Their synthetic provider UUIDs differ from their BioSphere account UUIDs, so
+the attribution assertions also check the identity-to-account boundary.
+The fixture role models
+server-side Prisma access with BYPASSRLS; this is not deployed RLS certification
+or a replay of the full historical schema.
+
+| Case | Observed result |
+| --- | --- |
+| First acceptance | Trimmed, attributed Uncataloged/non-public specimen, matching durable receipt and readable success audit persist together. |
+| Normalized same-ID retry | Original specimen returned; receipt identity/timestamp and success-audit count unchanged. |
+| Changed-content conflict | 409; original specimen/receipt preserved and original-content retry remains valid. |
+| Concurrent identical requests | An owned advisory-lock trigger confirms two transactions reached insertion before release; responses converge on one specimen/receipt/audit, with one first acceptance and one retry. |
+| Owner separation | Two curators reuse the same draft UUID and receive distinct, correctly attributed specimens and receipts. |
+| Audit failure | Actual INSERT permission denial rolls back specimen/receipt/audit; restoring the grant permits a safe first-acceptance retry. |
+| Receipt failure | A trigger fault after audit insertion rolls back the prior specimen and audit too; removing it permits a safe retry. |
+| SQL uniqueness | Duplicate owner/draft receipt rejected with 23505 even for a separate unreceipted SQL specimen fixture; original receipt unchanged. |
+
+The concurrency barrier has a three-second observation deadline and is released
+in finally; the trigger/function are removed after both requests settle. Failure
+grants/triggers are restored/removed in finally. Expected PostgreSQL 42501 and
+23514 Nest/Prisma error stacks remain visible, along with the VM-module warning;
+they are intentional owned-fixture faults, not suppressed production failures.
+The first fixture assertion used database field `status` for the public audit
+response; it failed and was corrected to the API's `result` field. No production
+bug or runtime change was needed to pass the slice.
+
+This closes the bounded owner SQL/HTTP receipt-uniqueness, two-request concurrency
+and rollback verification gap. It does not establish real Supabase sessions,
+production migration/RLS/scale, full browser recovery, independent acceptance
+or a full-stack disposable environment. OFF-003 stays In progress; DEF-019's
+shared-backend tab-interruption pilot remains stopped. Shared records, Inventory,
+ports 3000/3001 and signed-in browser windows are outside this fixture.
+
+Validation: final offline database suite 8/8; existing offline service 8/8 and
+isolated HTTP 4/4; existing collection database compatibility 16/16. TypeScript
+no-emit and diff checks pass. Full lint has zero errors and seven pre-existing
+unused-disable warnings; touched test files lint clean. Owned-container readback
+found no retained offline-sync or collection test containers. Frontend PID
+16340 remained on 3000. The existing Nest watcher logged file-change recompiles
+and its backend child was PID 20060 on 3001 at the final check, rather than the
+earlier PID 13188. Parent metadata traces it to the original watcher PID 20792.
+No manual restart/stop command was issued for that backend; the exact triggering
+file is unestablished. Do not claim uninterrupted backend process continuity.
+No runtime source, authentication settings or application environment file was
+edited. Public backend root and frontend login readiness both returned 200
+after the observed watch restart; this is not a protected workflow retest.
+No frontend suite/build or full backend campaign was repeated for this bounded
+test-only change.
+
+## Isolated frontend route-adapter checks - 2026-10-28
+
+The agreed five-case adapter batch is implemented in frontend
+`src/app/api/offline/specimen-drafts/route.test.ts`, source `77a84f2`, published
+in [frontend PR #87](https://github.com/OppenJayme/biosphere-frontend/pull/87).
+Tests call the real POST handler with native Request/Response objects and run
+the real API client/ApiError and schemas. Session/config and backend HTTP
+responses are synthetic; fetch and environment overrides are restored afterward.
+No server, browser, real login/credential or shared record is used.
+
+| Case | Observed result |
+| --- | --- |
+| Valid success | One JSON POST to the expected backend path with a synthetic bearer header; validated 200 result and no-store response. |
+| Backend 401 | HTTP 401 and guidance preserved, no-store, unrelated backend fields omitted, no request replay. |
+| Backend 403 | HTTP 403 and array-form guidance preserved, no-store, unrelated fields omitted, no replay. |
+| Malformed backend 200 | Missing synchronized-specimen fields produce 502/no-store rather than a false success. |
+| Unsupported offline fields | Publishing/quantity fields produce 400/no-store before token lookup or any backend fetch. |
+
+Run from the frontend root:
+`npm test -- src/app/api/offline/specimen-drafts/route.test.ts` (5/5 passed).
+Full frontend suite: 419/419 in 70 files. TypeScript no-emit, full lint with
+zero warnings/errors and diff checks pass. Existing runtime code passed all
+five cases; no production fix or new application defect was established.
+
+Direct handler invocation does not test a running Next server/middleware/proxy,
+actual token expiry/re-login, backend authorization/receipt atomicity, database
+concurrency or complete browser/security behavior. The earlier store/queue
+checks remain a separate seam. OFF-003 stays In progress and DEF-019's shared
+interruption pilot remains stopped. This completes the agreed five-case batch;
+no runtime rebuild/browser rerun is needed for this test-only change.
+
+## Isolated authorization recovery checks - 2026-10-28
+
+The approved frontend sync/store seam now has two additional tests in
+`src/features/offline/offline-sync.test.ts`. They use the real synchronization,
+queue eligibility and store code with a uniquely named fake IndexedDB and an
+injected synthetic HTTP responder. Each test deletes only its own fake database.
+No browser, live login, backend connection or shared record is used.
+
+- A synthetic 401 retains the same owner, client draft ID and text, records a
+  retryable AUTH failure, and adds no accepted specimen to the local cache.
+  A subsequent synthetic successful response through the eligible queue reuses
+  exactly the same draft ID/payload, marks the draft synchronized and caches the
+  Uncataloged/non-public result. Another owner's pending draft remains unchanged
+  and receives no cache entry from this synchronization.
+- A synthetic 403 retains the draft and permission guidance as a nonretryable
+  AUTH failure. Running the automatic queue again sends no further attempt for
+  that draft and leaves it and another owner's draft unchanged. No synchronized
+  specimen is cached for the denied request.
+
+Both tests passed against the existing implementation; no runtime fix or new
+application defect was established. Run from the frontend root:
+`npm test -- src/features/offline/offline-sync.test.ts` (9/9 focused checks).
+That checkpoint's full frontend suite passed 414/414 in 69 files; TypeScript no-emit,
+full lint (zero warnings/errors) and diff checks pass. Two tests were added in
+this slice; the full count also includes previously merged work outside Offline.
+
+Test source `17c3c325eb74adeeeda417c7acdaea71e3c6c1c1` was merged through
+[frontend PR #86](https://github.com/OppenJayme/biosphere-frontend/pull/86).
+Its PR CI and companion backend documentation PR #200 CI passed; both PRs are
+merged. Independent acceptance remains separate.
+
+This verifies local failure/recovery transitions using synthetic responses,
+not real token expiry, re-login, backend authorization/receipt atomicity,
+database concurrency, browser interruption or complete UI acceptance. OFF-003
+stays In progress and DEF-019's shared-backend interruption pilot stays stopped.
+Existing manual/browser evidence below is historical and remains separate.
+
 ## Supported boundary
 
 - `POST /offline-sync/specimen-drafts` accepts one draft at a time after stable
@@ -160,3 +412,137 @@ This covers a real accepted-write/lost-response/retry chain, not process death,
 browser closure during the write, live concurrent contention, session-expiry
 recovery, or the full HTTP error matrix. It does not close all OFF-003 cases or
 constitute full module/security acceptance.
+
+## Browser simulated-401 retention check - 2026-10-22
+
+**Result:** Passed for the tested frontend transport-error handling, supplementing
+OFF-003. PR #171 was confirmed merged with successful CI. Checkout references:
+backend `9e42a6c`, frontend `bc55ce7`; exact running build hashes were not checked.
+This did not repeat the accepted-write/lost-response pilot above.
+
+Used a temporary tab in the existing signed-in Edge context `biosphere-aud002`.
+A read-only IndexedDB preflight found no pending, synchronizing or retryable
+failed drafts that opening the workspace could accidentally synchronize. Created
+one uniquely labelled text-only local draft through the actual form:
+`TEST Offline AUTH 20261022 1a163b6bbd4`.
+
+The probe tab intercepted only its offline-draft endpoint requests. For the
+labelled draft, it returned a synthetic HTTP 401 without forwarding the request
+to the application/backend. An unrelated draft request would have aborted the
+diagnostic rather than been submitted. Real cookies/session remained intact;
+the test did not sign out, expire a token, impersonate an account or fake success.
+
+Observed through the real UI and read-only local draft inspection:
+
+- The rejected draft showed **Sync Failed** and the fixed session-expired
+  guidance, retained its common name/remarks, had failure kind `AUTH`, remained
+  retryable and had no server specimen identifier.
+- Reload retained its client draft ID and complete text payload. Opening Edit
+  showed the saved name/remarks; Cancel left them unchanged.
+- Once synchronization/cache refresh finished, Retry was enabled. Retrying
+  produced an identical draft ID/payload; both observed attempts were answered
+  with simulated 401, not delivered to the backend.
+- A real protected specimen-list read found no record with the unique test
+  name. This supplements the transport guard, not a direct database inspection.
+- Removed only this disposable local fixture using **Remove locally → Yes,
+  discard**, then verified its absence from IndexedDB. The removed synthetic
+  text is not recoverable through that local queue; no museum/server record was
+  deleted. Normal workspace reads could refresh the device-local read-only cache.
+
+An initial diagnostic asserted Retry availability too early: the failure badge
+had rendered while the normal cache-refresh operation guard was still active.
+Its own fixture was cleaned up through the UI; a fresh preflight confirmed no
+eligible draft remained. The helper was corrected to await the enabled control,
+then the complete pilot passed. No application defect was established by that
+diagnostic timing error, and no runtime code was changed.
+
+Closed only the temporary tab, which removed its page-scoped interception. The
+original signed-in audit tab/URL remained intact. Final preflight again found
+no eligible drafts. No credentials, auth state, request headers or private museum
+contents were exported. Local scripts remain ignored under frontend
+`tools/browser/artifacts/offline-auth-preflight.txt` and
+`tools/browser/artifacts/offline-auth-401-pilot.txt`.
+
+**Limits:** This verifies browser/local-storage handling of a simulated 401 and
+same-payload retry, not real token expiry, refresh/re-login, inactive accounts,
+successful post-login sync, process death or live concurrency. There was no
+server commit or backend idempotency exercise in this run. OFF-003 stays
+**In progress**; real session-expiry/re-login and interruption cases still need
+an approved disposable setup. Documentation-only verification: `git diff
+--check`; application suites/build were not rerun for this evidence update.
+
+## Browser simulated error-state matrix - 2026-10-22
+
+**Result:** Six scoped cases passed, supplementing OFF-003 and the simulated-401
+check above. PR #172 was confirmed merged with green CI. Checkout references
+were backend `e40056d`, frontend `bc55ce7`; served hashes were not independently
+verified. Existing Playwright session `biosphere-aud002` remained signed in.
+
+Read-only preflight found no existing pending/synchronizing/retryable failed
+drafts. A temporary tab awaited the normal mount-time auto-sync/cache refresh
+before creating each of six disposable text-only drafts through the real UI.
+Names used prefix `TEST Offline ERR 20261022 1a163c7cf5a`, suffixed by the status
+below. Each draft request received its page-scoped synthetic response; none
+was forwarded to the application/backend. Unexpected draft requests would
+abort the diagnostic instead of being submitted.
+
+| Simulated response | Retained failure kind | Retry enabled | Edit offered | Result |
+| --- | --- | --- | --- | --- |
+| 400, validation-message array | VALIDATION | No | Yes | Pass |
+| 403, permission denied | AUTH | No | Yes | Pass |
+| 409, conflict without a supplied message | CONFLICT | No | No | Pass |
+| 429, rate limited | SERVER | Yes | Yes | Pass |
+| 503, server unavailable | SERVER | Yes | Yes | Pass |
+| 200, invalid success-response schema | UNKNOWN | No | Yes | Pass |
+
+For each case, the visible **Sync Failed** message, persisted failure kind,
+retry flag and actual Retry/Edit controls matched the expected behavior after
+the operation/cache refresh finished. Client draft ID and complete text payload
+remained unchanged; no server specimen ID was assigned. The 400 message array
+displayed joined validation guidance; 409 displayed the fallback conflict
+message. Internal diagnostic markers supplied in 403/429/503/invalid-response
+bodies were not displayed. Invalid 200 data did not produce false synchronization.
+There was exactly one intercepted request per case, six total, with no unexpected
+draft requests. This checks control state, not a successful later retry.
+
+Each labelled fixture was removed through **Remove locally → Yes, discard**;
+read-only IndexedDB checks confirmed removal. These six synthetic local drafts
+are no longer recoverable through their queues. No museum/server specimen was
+deleted. A real protected specimen-list read found no matching test prefix;
+final preflight found no eligible local drafts. Normal workspace reads could
+refresh the device-local read-only cache. The temporary tab and its interception
+were closed; the original curator audit tab/URL remained untouched. No credentials,
+auth exports, headers or private museum data were included in shared evidence.
+Ignored diagnostic: frontend `tools/browser/artifacts/offline-error-matrix.txt`.
+
+No application defect was reproduced or runtime code changed. This is a real
+browser/UI/local-storage exercise with **simulated HTTP outcomes**, not backend
+validation, role denial, live throttling/outage, genuine server conflict or real
+session expiry. It does not prove re-login/successful retry, process interruption,
+database concurrency, full error/pending behavior or complete offline acceptance.
+OFF-003 remains **In progress** for those gaps. Documentation-only verification:
+`git diff --check`; no application suites/build were rerun for this evidence.
+
+## Tab-interruption pilot stopped: test-isolation failure - 2026-10-22
+
+The next OFF-003 diagnostic attempted to close a temporary tab while its draft
+request was held locally, then reopen the workspace and retry against a
+synthetic 503. Earlier local assertions observed retained `SYNCHRONIZING` state
+after closure, recovery to retryable `NETWORK` failure, and unchanged retry
+payload. **The final server-absence guard failed:** a disposable server specimen
+had been created despite the intended page-scoped request interception.
+
+See **DEF-019** in `TEST_DEFECT_LOG.md` for the full sequence and retained fixture
+`99782144-b9cf-4dd0-ad7b-1d5ec0f18f17`. It remains Uncataloged with public display
+off and a successful sync audit. Only its local draft was discarded; the server
+record was not automatically deleted or archived. Original sign-in/tab remains
+intact; no eligible local drafts remain. The precise transport path causing the
+write has not been established, and no app authorization defect is inferred.
+
+This run is **not an acceptance pass**. Do not repeat the ignored interruption
+script against the shared running backend. Further interruption tests require
+an explicitly confirmed disposable target and containment independent of the
+tab being destroyed. The earlier 401/matrix fixture names were still absent
+on readback, but that does not excuse or close the new isolation defect.
+Actual browser/process death, accepted-write interruption, re-login and live
+concurrency remain unverified. No runtime code was changed in this checkpoint.

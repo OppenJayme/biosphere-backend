@@ -5,6 +5,129 @@
 **Started:** 2026-09-29  
 **Defects:** [TEST_DEFECT_LOG.md](./TEST_DEFECT_LOG.md)
 
+## Start here
+
+2026-10-28 integration/reviewer follow-up: backend #205 and frontend #90 are
+merged into develop with passing integration PR CI. The [current handoff](./COMPLETION_HANDOFF.md#current-independent-review-checkpoint---2026-10-28)
+records the verified revisions and Voltaire's completed independent report:
+Collection database 16/16, Backup History database 16/16 and duplicate-browser
+6/6, all exit 0, with clean worktrees and fixture cleanup. This completes that
+three-suite batch, verifies DEF-025, and adds independent component evidence for
+DEF-026; it does not establish whole-module sign-off. The owned accepted-write/tab-recovery case also passes
+twice as [recorded](./OFFLINE_SYNC_GUIDE.md#owned-accepted-write-tab-recovery---2026-10-28);
+full Next/PWA/provider and independent acceptance limits remain. No suites were
+rerun for this documentation reconciliation.
+
+2026-10-28 offline database follow-up: [8 disposable SQL/HTTP checks](./OFFLINE_SYNC_GUIDE.md#disposable-postgresql-and-http-verification---2026-10-28)
+pass with real controllers/guards/services/Prisma/PostgreSQL and synthetic
+identity responses. They cover durable receipts, same-ID retry, conflicts,
+two proven-overlapping identical requests, owner separation, audit/receipt
+rollback and SQL uniqueness. This supplies bounded backend database evidence;
+it does not clear DEF-019's browser/full-stack containment gate or independent
+acceptance. No shared migration, record or Inventory changes; no manual backend
+restart, but watcher-driven child recompilation was observed and is recorded
+in the guide. Backend process continuity is not claimed.
+
+2026-10-28 offline adapter follow-up: [five direct-handler checks](./OFFLINE_SYNC_GUIDE.md#isolated-frontend-route-adapter-checks---2026-10-28)
+pass for validated success, preserved backend 401/403, malformed success rejected
+as 502, and unsupported publishing/quantity rejected before forwarding. Actual
+handler/API client/schemas run with synthetic session/config/HTTP. Focused 5/5;
+full frontend 419/419, lint/TypeScript/diff checks pass. No runtime/server/shared
+record changes. This completes the agreed adapter batch; live middleware,
+expiry/re-login, concurrency and independent acceptance remain separate.
+
+2026-10-28 offline follow-up: [two isolated 401/403 recovery checks](./OFFLINE_SYNC_GUIDE.md#isolated-authorization-recovery-checks---2026-10-28)
+pass using real frontend sync/store/queue functions, synthetic HTTP and uniquely
+named fake IndexedDB. They cover retained drafts, same-ID successful retry after
+401, automatic-retry exclusion after 403 and other-owner preservation. Focused
+suite 9/9; full frontend suite 414/414. No runtime changes, real login/expiry,
+backend calls or shared records. OFF-003 and DEF-019 dispositions are unchanged.
+
+2026-10-27 filter follow-up: [nonblank Collection/Public eligibility reset](./TEST_DEFECT_LOG.md#nonblank-collection-and-eligibility-follow-up---2026-10-27)
+passed on production build `-7vcfapNQNgHNQsAN6WHj`, including Apply, Clear all,
+Back/Forward and reapply without reviving old basic filters/sort. No records
+changed. This supplies previously missing owner control evidence; it does not
+close DEF-011 performance or independent acceptance. Four catalog POST actions
+were blocked, excluding selected-cover behavior from this filter-only check.
+
+2026-10-27 duplicate-ordering follow-up: [DEF-026](./TEST_DEFECT_LOG.md#def-026---duplicate-result-remains-valid-after-typing-new-values)
+reproduced an old result appearing after typing a new value without leaving the
+field. Immediate input invalidation now passes six isolated mounted-component
+scenarios; existing frontend tests pass 399/399. Subsequent merged production
+build/retest on `b65c9dd`, build `-7vcfapNQNgHNQsAN6WHj`, passed the no-save
+failure/invalidation/retry/clear flow with all three synthetic POSTs aborted
+locally. Only the frontend was refreshed; no live specimen writes. Archived
+policy, successful live-result limits and independent CAT-014 acceptance remain.
+
+2026-10-27 phone follow-up: the user reports all six physical-phone LAN steps
+passed (selection, X, another record, matching details, Back and refresh).
+See [DEF-003 phone evidence and limits](./TEST_DEFECT_LOG.md#user-reported-physical-phone-lan-check---2026-10-27).
+This closes that owner-reported functional gap on the temporary development
+server using user-reported Google Chrome (phone OS/model/version unspecified);
+console/full accessibility and independent
+release acceptance remain pending. The temporary LAN server was then stopped.
+
+2026-10-27 reviewer follow-up: [DEF-025 audit readback timing](./TEST_DEFECT_LOG.md#def-025---denial-audit-tests-assume-immediate-background-persistence)
+is Ready for retest. Real delayed inserts reproduced both test failures; bounded
+authorized readback now passes Backup 16/16 and Collection 16/16, with 13/13
+existing HTTP regressions and explicit missing-event/403 controls. No production
+guard or shared database change; module acceptance statuses are unchanged.
+
+2026-10-27 media follow-up: [read-only keyboard/dialog checks](./SPECIMEN_MEDIA_GUIDE.md#read-only-keyboard-and-dialog-checkpoint---2026-10-27)
+cover 11 visible controls, four Escape/Cancel checks and unchanged reload
+readback on the existing production build. An initial strict focus assertion
+and outside-document focus observations are preserved with their limits. The
+absent Set as cover control and full accessibility/independent sign-off remain
+unverified; CAT-011 and defect dispositions are unchanged.
+
+2026-10-27 Backup History follow-up: [14 populated disposable PostgreSQL/HTTP
+checks](./BACKUP_HISTORY_GUIDE.md#populated-disposable-postgresql-checkpoint---2026-10-27)
+pass with synthetic history only. BAK-001 remains In progress for populated
+browser/provider evidence and independent acceptance; BAK-002 remains Deferred.
+No real backup, restore, artifact access or shared history write occurred.
+
+2026-10-27 Cataloging checkpoint: [16 disposable collection SQL/HTTP checks](./COLLECTION_DATABASE_VERIFICATION.md)
+pass with real PostgreSQL constraints, collection/audit APIs, concurrent requests
+and rollback evidence. CAT-001 remains In progress and DEF-001 Ready for retest:
+independent acceptance remains pending. A later approved schema-only check
+confirmed the required valid unique index on the backend-configured target;
+see the verification guide's metadata checkpoint for exact scope/limits.
+This is not a full BioSphere/offline/backup sandbox.
+
+2026-10-25 FAQ scope update: the approved [opt-in review contract and evidence](./FAQ_REVIEW_QUEUE_GUIDE.md)
+adds consented question submission and curator review to the remaining FAQ
+acceptance scope. The approved [disposable database follow-up](./FAQ_REVIEW_QUEUE_GUIDE.md#disposable-postgresql-checkpoint---2026-10-25)
+passed 13 real SQL/HTTP/cleanup checks; deployed database/RLS and scheduler
+verification remain separate gates. Test default-off/no implicit collection, explicit consent,
+same-token retry, Curator-only queue access, review/dismiss/removal confirmation,
+expiry and safe failures. Isolated support checks passed; live curator browser,
+deployed database/RLS, scheduled purge and independent sign-off remain pending. Do not
+enable collection or apply the prepared migration as an incidental test step.
+
+For the current grouped queue, owners and ready-to-send teammate messages, use
+the [2026-10-24 completion handoff](./COMPLETION_HANDOFF.md). It supersedes stale
+task-selection instructions below, not historical evidence or acceptance statuses.
+
+Use this page as a checklist, not a requirement to repeat every historical run.
+This navigation checkpoint summarizes recorded evidence as of **2026-10-22**;
+the linked register rows and dated notes retain the exact results and limits.
+It changes no acceptance or defect status.
+
+| What you need | Where to go / current checkpoint |
+| --- | --- |
+| What already passed? | [Cataloging register](#cataloging-management): draft/core/taxonomy, provenance dates, completion/reopening, public eligibility, tags, filtering and core-only CSV have recorded passing coverage. Some rows retain explicit subcase or independent-sign-off gaps; this is not whole-module acceptance. |
+| What is still pending? | [Remaining completion queue](#remaining-completion-queue-owner-scope-only), then the relevant [Storage](#storage-location-management), [Offline](#limited-offline-and-synchronization), [FAQ](#faq-knowledge-management) or [Audit/backup](#audit-and-backup-history) row. Choose an uncovered requirement, not an optional enhancement. |
+| What must not be rerun yet? | [DEF-019 containment gate](./TEST_DEFECT_LOG.md#def-019---tab-interruption-diagnostic-failed-its-no-backend-write-guard): shared-backend tab-interruption diagnostics remain stopped until an isolated target and independent containment are approved. Earlier offline subcase passes do not clear this gate. |
+| What needs another person or a safe environment? | [Ownership](#3-module-ownership): John prepares Inventory-owned lot/placement evidence; FAQ activation/public tests need approved policy and an isolated setup; real [backup/restore](./BACKUP_HISTORY_GUIDE.md) stays Deferred until its procedure and disposable environment are approved. Do not manufacture fixtures in another owner's module. |
+| How do we find or report a bug? | [Defect summary](./TEST_DEFECT_LOG.md#2-summary) has current statuses; its linked IDs open the detailed evidence. Use the [defect template](./TEST_DEFECT_LOG.md#4-new-defect-template) for a reproducible issue, or [observations](./TEST_DEFECT_LOG.md#5-observations-awaiting-reproduction) for an unconfirmed symptom. |
+| When do we finish? | Apply the existing [completion criteria](#12-completion-criteria), then [sign-off](#13-sign-off): critical/major cases and important failure/retry paths pass, blocking defects are resolved, regressions are green, deferrals are explicit, and owner plus teammate acceptance is recorded. |
+
+Before the next session, check [entry criteria](#6-entry-criteria) and select
+one safe outstanding case. Record its result once at the relevant evidence
+location, update its register row if warranted, and link rather than copying
+the same run into multiple guides. Historical failures are not new failures;
+`Ready for retest` is not `Verified`, and a passing mock is not live acceptance.
+
 ## 1. Purpose
 
 This document is the shared guide for validating BioSphere after initial
@@ -88,6 +211,68 @@ Before starting a test session:
 - [ ] A valid active curator test account is available.
 - [ ] The tester knows which records are disposable.
 
+### Consolidated automated regression checkpoint - 2026-10-24
+
+Executed against backend `44b661d` and frontend `417b0c6`, without runtime
+source changes, dependency installation, builds, server restarts or browser
+interaction:
+
+| Check | Command | Result |
+| --- | --- | --- |
+| Backend unit | `npm test -- --runInBand` | 53 suites, 690 tests passed |
+| Backend isolated HTTP | `npm run test:e2e -- --runInBand --testPathIgnorePatterns=developer.e2e-spec.ts` | 26 suites, 337 tests passed; live Developer file explicitly excluded |
+| Frontend | `npm test -- --maxWorkers=2` | 62 files, 366 tests passed |
+
+The frontend's first attempt failed before executing tests with a Windows
+sandbox `spawn EPERM`; the approved retry outside that restriction passed.
+This is not an application regression. Backend unit output includes deliberate
+failure-path diagnostics; the HTTP run also exposed incomplete security-audit
+mock adapters, tracked as [OBS-003](./TEST_DEFECT_LOG.md#obs-003---isolated-http-tests-log-missing-security-audit-mock-adapters).
+Green request assertions do not establish audit persistence in those fixtures.
+
+This checkpoint verifies the existing automated suites together, not live
+database/provider behavior, builds, CI, merged deployment, concurrency or final
+module acceptance. Lint was not rerun in this checkpoint (the preceding focused
+test change had targeted lint evidence). No acceptance row or defect is promoted
+solely from these results. Before further live acceptance, merge the pending
+work through PR/CI and confirm the running build, then choose an uncovered case
+from the owner queue; independent sign-off and explicit safety/policy gates remain.
+
+### Merged frontend runtime refresh - 2026-10-24
+
+Verified frontend PR #78 and backend PRs #181/#182 merged. Post-merge frontend
+CI run `40077400871` and backend CI run `40077423810` completed successfully.
+Both local repositories were fast-forwarded to clean `develop`: frontend
+`d38476b`, backend `735d4d1`. This does not establish the backend process's
+served source revision; it was deliberately not rebuilt or restarted.
+
+After explicit approval for a frontend-only outage, verified and stopped the
+old port-3000 Next production process (PID 3588). Preserved its `.next` build
+for recovery. The initial placement under the ignored browser-artifact folder
+was picked up by the project's broad TypeScript include before relocation;
+that build failed with generated-validator import errors. This was an operator
+backup-placement error, not a source regression. The recovery copy now lives
+outside both repositories at workspace sibling
+`biosphere-frontend-build-recovery-20261024`; it may contain private generated
+artifacts and must not be committed, uploaded or served. No recovery files were
+deleted, and no application or TypeScript configuration was changed.
+
+A second `npm run build`, with the recovery copy outside the source tree,
+passed compilation, TypeScript and page generation. Started `next start` on
+port 3000 as a hidden background process, PID 21052. Build ID:
+`l4aSSUwwq2D41IdpX_t9G`. Fresh `/login` GET returned 200 with the expected sign-in
+page. Listener checks confirmed port 3000 belonged to PID 21052 and backend
+3001 retained PID 36052. Frontend worktree remained clean. Browser windows,
+credentials, account configuration and museum records were not manipulated.
+
+The refreshed frontend is ready for post-merge live testing. This operational
+smoke check does not itself verify DEF-020, authenticated page recovery,
+service-worker freshness or other acceptance cases. Existing tabs may retain
+older client assets until refreshed; no automatic browser reload or offline
+draft synchronization was initiated. Startup logs remain local under ignored
+`tools/browser/artifacts/frontend-refresh-20261024.*.log`. The previous build
+remains available for a separately scoped recovery operation if needed.
+
 ## 7. Recommended execution order
 
 Run tests in this order because later workflows depend on earlier records:
@@ -161,6 +346,13 @@ Evidence reconciled:
 
 #### Remaining completion queue (owner scope only)
 
+**2026-10-24 update:** Read the [completion handoff](./COMPLETION_HANDOFF.md)
+before selecting work from this older queue. Date/import/readiness and the
+approved completion/reopening/eligibility audit batch below now have evidence;
+do not repeat them as though untested. Owner merged-build duplicate failure/retry
+also passed, and DEF-018's declaration mismatch is Verified. Independent review,
+explicit policy/environment gates and the remaining precise subcases still apply.
+
 1. Close the identified Cataloging gaps, not every previously passed happy path:
    date/API/import/readiness cases, reviewed CSV commit/retry evidence, remote
    LAN interaction and relevant media/error/privacy checks. Verify collection
@@ -191,21 +383,21 @@ John/Voltaire test-fixture handoff, not permission to absorb Inventory work.
 
 | ID      | Test                                                                           | Expected result                                                                                            | Status                                                                |
 | ------- | ------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
-| CAT-001 | Create and rename a collection; retry the same normalized name                 | Valid unique names save; duplicates are rejected clearly                                                   | In progress; collision UI retest reported passed; database/concurrency evidence pending (original Fail - DEF-001) |
+| CAT-001 | Create and rename a collection; retry the same normalized name                 | Valid unique names save; duplicates are rejected clearly                                                   | In progress; collision UI retest reported passed; [16 disposable SQL/HTTP cases and configured-target index metadata](./COLLECTION_DATABASE_VERIFICATION.md) pass; independent disposable SQL slice 16/16 reported passed; browser/release acceptance on an identified target pending (original Fail - DEF-001) |
 | CAT-002 | Create complete and incomplete specimen drafts                                 | Both start `UNCATALOGED`; public display is off                                                            | **Pass**                                                              |
 | CAT-003 | Edit specimen core fields and submit an unchanged form                         | Changes persist with revision history; no-change submission is rejected clearly                            | **Pass**                                                              |
 | CAT-004 | Create and edit taxonomy                                                       | One taxonomy record exists; draft values and revisions persist                                             | **Pass**; completion requirement remains under CAT-006                |
 | CAT-005 | Create and edit provenance; reject invalid dates                               | Values and revisions persist; empty values normalize; future collection dates are rejected                 | **Pass** for live date create/update/readback/rejection/history plus earlier recorded provenance checks; DEF-002 Verified; independent module sign-off pending |
-| CAT-006 | View readiness with missing and complete requirements                          | Every approved rule reports the correct pass/fail state and fix location                                   | In progress; valid-date readiness passes live, legacy future-date rejection passes isolated HTTP; full independent acceptance pending |
+| CAT-006 | View readiness with missing and complete requirements                          | Every approved rule reports the correct pass/fail state and fix location                                   | **Pass** for recorded incomplete and [fully-ready live UI](./CATALOG_COMPLETION_GUIDE.md#approved-fully-ready-fixture-and-history-check---2026-10-23), Fix links/button/reload behavior plus 22 existing regressions; independent module sign-off pending |
 | CAT-007 | Complete Cataloging with one prepared valid active lot                         | Status becomes `CATALOGED`; public display remains off; history/audit are written                          | **Pass** for recorded lifecycle behavior; DEF-002 date regression Verified; independent module sign-off pending |
 | CAT-008 | Remove required data while Cataloged, then reopen with a reason                | Removal is blocked until reopening; reopening returns to `UNCATALOGED` and disables public display         | **Pass**                                                              |
 | CAT-009 | Enable and disable public eligibility                                          | Only Cataloged specimens qualify; no exhibit is published automatically                                    | **Pass**                                                              |
 | CAT-010 | Attach, change, repeat, and detach tags                                        | Relationships remain unique and retry-safe                                                                 | **Pass**; usability issue DEF-005                                     |
-| CAT-011 | Upload, edit, cover, replace, and remove supported media; reject invalid media | Private signed access, database/storage consistency, and usable interaction states are preserved           | In progress; core/media traceability and reported preview retests pass; privacy/error/accessibility gaps remain (original Fail - DEF-004/006/007) |
-| CAT-012 | Search, combine filters, sort, and paginate                                    | Results are bounded, stable, case-insensitive where approved, and archived records are excluded by default | **Pass**; Clear-all UI defect DEF-008                                 |
-| CAT-013 | Preview and commit mixed-validity CSV rows; retry commit                       | Preview is non-mutating; only reviewed valid rows import as `UNCATALOGED`; retries do not duplicate rows   | **Pass** for core-only live UI preview/selection/readback/retry and valid-only preview; DEF-009 Verified; extended imports and module sign-off not implied |
-| CAT-014 | Review possible duplicate warnings, including archived matches                 | Warnings show evidence and never auto-merge records                                                        | In progress; manual/isolated regression evidence in duplicate guide; archived policy and browser failure/retry pending |
-| CAT-015 | Select multiple specimens from the protected catalog on local and LAN clients  | Every row is keyboard/touch accessible and opens the matching preview/detail route                         | In progress; repair ready; complete remote-LAN/keyboard/touch checklist unverified (original Fail - DEF-003) |
+| CAT-011 | Upload, edit, cover, replace, and remove supported media; reject invalid media | Private signed access, database/storage consistency, and usable interaction states are preserved           | In progress; [DEF-022 merged production recovery/retry passed; independent acceptance pending](./SPECIMEN_MEDIA_GUIDE.md#merged-metadata-repair-verification---2026-10-24). Prior [media/privacy batch](./SPECIMEN_MEDIA_GUIDE.md#cat-011-consolidated-media-batch---2026-10-22) and [wrong-pair HTTP regressions](./SPECIMEN_MEDIA_GUIDE.md#cat-011-wrong-pair-http-checkpoint---2026-10-23) pass; live role/wrong-pair access, failure/concurrency and full accessibility/sign-off gaps remain (original Fail - DEF-004/006/007) |
+| CAT-012 | Search, combine filters, sort, and paginate                                    | Results are bounded, stable, case-insensitive where approved, and archived records are excluded by default | **Pass** for prior search mechanics; [nonblank basic-filter reset/history/reapply owner check](./TEST_DEFECT_LOG.md#nonblank-collection-and-eligibility-follow-up---2026-10-27) passes; DEF-008 independent acceptance and DEF-011 performance disposition remain separate |
+| CAT-013 | Preview and commit mixed-validity CSV rows; retry commit                       | Preview is non-mutating; only reviewed valid rows import as `UNCATALOGED`; retries do not duplicate rows   | **In progress**; prior live core-only cases and DEF-009 remain passed/Verified; [merged production-build DEF-021 retest](./TEST_DEFECT_LOG.md#merged-production-build-import-retest---2026-10-24) passed twice with blocked synthetic commits; independent reviewer acceptance and stated live-provider/concurrency limits remain |
+| CAT-014 | Review possible duplicate warnings, including archived matches                 | Warnings show evidence and never auto-merge records                                                        | In progress; prior [merged browser retest](./SPECIMEN_DUPLICATES_GUIDE.md#merged-browser-retest-checkpoint---2026-10-24), six independently reported passing DEF-026 component scenarios and [merged production failure/retry checkpoint](./TEST_DEFECT_LOG.md#merged-production-ui-checkpoint---2026-10-27) pass; successful live-result limits, full stale-response coverage, archived policy and independent acceptance remain |
+| CAT-015 | Select multiple specimens from the protected catalog on local and LAN clients  | Every row is keyboard/touch accessible and opens the matching preview/detail route                         | In progress; prior local keyboard/detail checks plus [six user-reported physical-phone LAN/touch checks in Google Chrome](./TEST_DEFECT_LOG.md#user-reported-physical-phone-lan-check---2026-10-27) pass; phone OS/model/version unspecified; console/full accessibility and independent release acceptance pending |
 | CAT-016 | Restore an archived specimen after current-requirement revalidation | Same record returns as Cataloged only when complete, otherwise Uncataloged; public display off; history preserved; inventory unchanged | **Partial pass** — live incomplete restore, cancel/error/reload and audit passed; complete branch covered by isolated HTTP tests; live concurrency unverified |
 
 CAT-016 evidence and limits are recorded in
@@ -330,6 +522,12 @@ Ready for retest, not Verified. DEF-018 records a nonblocking Swagger status
 documentation mismatch observed during these tests.
 
 #### CAT-013 live core-only CSV acceptance - 2026-10-22
+
+Later contract-only follow-up: [DEF-018 running Swagger verification](./TEST_DEFECT_LOG.md#running-swagger-verification---2026-10-24)
+passed on two reads on 2026-10-24. The declaration now lists 201 and the correct
+commit response DTO; DEF-018 is Verified for that mismatch only. Earlier dated
+pending statements remain historical; no new CSV mutation or module sign-off
+is implied.
 
 After confirming backend PR #166 merged, used the existing signed-in headed
 Edge session `biosphere-aud002` and real local frontend/backend. Checkout
@@ -589,7 +787,7 @@ acceptance are not marked complete by this narrower evidence.
 | ------- | --------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- | ------- |
 | OFF-001 | Cache the allowed specimen list, disconnect, and check workspace/reload | Open workspace retains bounded cached viewing; fresh offline navigation/reload shows record-free fallback | In progress; manual workspace/fallback/recovery evidence recorded; independent retest pending |
 | OFF-002 | Create an offline text draft and synchronize after reconnecting | One attributed `UNCATALOGED` record is created                                                  | In progress; manual save/persistence/sync evidence recorded; independent sign-off pending |
-| OFF-003 | Retry the same synchronization and simulate temporary failure   | Retry is safe; no duplicate specimen is created; recoverable errors remain visible              | In progress; live lost-response/retry pilot passed; process interruption/session expiry/concurrency gaps remain |
+| OFF-003 | Retry the same synchronization and simulate temporary failure   | Retry is safe; no duplicate specimen is created; recoverable errors remain visible              | In progress; prior client evidence and [8 real disposable SQL/HTTP checks](./OFFLINE_SYNC_GUIDE.md#disposable-postgresql-and-http-verification---2026-10-28) pass; [owned accepted-write/tab recovery](./OFFLINE_SYNC_GUIDE.md#owned-accepted-write-tab-recovery---2026-10-28) passes twice with one specimen/receipt/success audit. DEF-019 shared pilot stays stopped; full Next/PWA, actual expiry/re-login, historical cause and independent acceptance remain |
 | OFF-004 | Inspect offline feature boundaries                              | Media, inventory movement, archive, and privileged operations are not falsely available offline | In progress; text-core boundary/account isolation reported and regression-covered; full negative matrix pending |
 
 ### FAQ knowledge management
@@ -597,9 +795,9 @@ acceptance are not marked complete by this narrower evidence.
 | ID      | Test                                      | Expected result                                                                              | Status   |
 | ------- | ----------------------------------------- | -------------------------------------------------------------------------------------------- | -------- |
 | FAQ-001 | Create and edit a knowledge entry         | Valid question, answer, category, and keywords persist                                       | Pass     |
-| FAQ-002 | Search/filter and change lifecycle status | Active, inactive, and archived behavior matches the API and UI                               | In progress; filter/archive UI and archive audit checks pass; activation/deactivation pending |
-| FAQ-003 | Attempt invalid or duplicate operations   | Clear validation is shown and no unintended record is created                                | In progress; UI validation passes, duplicate policy pending |
-| FAQ-004 | Test public assistant matching            | Approved match, alternative wording, inactive ignored, no-match fallback, prohibited general answer (e.g. species identification) refused, and inquiry/visit-request redirection | Not run  |
+| FAQ-002 | Search/filter and change lifecycle status | Active, inactive, and archived behavior matches the API and UI                               | In progress; filter/archive UI, archive audit and [activation cancellation checks](./FAQ_KNOWLEDGE_GUIDE.md#faq-002-activation-cancellation-checkpoint---2026-10-23) pass; actual activation/deactivation pending |
+| FAQ-003 | Attempt invalid or duplicate operations   | Clear validation is shown and no unintended record is created                                | In progress; UI validation and [category HTTP boundary regressions](./FAQ_KNOWLEDGE_GUIDE.md#faq-003-category-http-boundary-checkpoint---2026-10-23) pass; duplicate policy pending |
+| FAQ-004 | Test public assistant matching            | Approved match, alternative wording, inactive ignored, no-match fallback, prohibited general answer (e.g. species identification) refused, and inquiry/visit-request redirection | In progress; clarification and [bounded context slice](./FAQ_KNOWLEDGE_GUIDE.md#bounded-topic-follow-ups-checkpoint---2026-10-25) pass isolated HTTP/request/UI checks; live approved-knowledge lifecycle, broader language/context/near-tie evaluation, deployment and independent acceptance pending |
 
 #### FAQ-001 supervised browser evidence - 2026-10-19
 
@@ -806,14 +1004,51 @@ matching behavior do not approve that behavior. Both focused suites passed;
 full lint/build and the rest of the test suites were not rerun for this
 documentation-only update.
 
+#### FAQ-003 category boundary follow-up - 2026-10-23
+
+The [category HTTP checkpoint](./FAQ_KNOWLEDGE_GUIDE.md#faq-003-category-http-boundary-checkpoint---2026-10-23)
+supersedes only the earlier untested overlength-category API statement:
+100-character create/edit acceptance and 101-character rejection with unchanged
+HTTP readback now pass in isolation (four new tests; complete FAQ HTTP suite
+17/17). FAQ-003 remains In progress; no duplicate policy or public matching
+approval is inferred. Earlier dated evidence remains historical.
+
 ### Audit and backup history
 
 | ID      | Test                                                                 | Expected result                                                                                                        | Status   |
 | ------- | -------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- | -------- |
-| AUD-001 | Filter audit logs by actor, module, action, result, record, and date | Results are protected, stable, bounded, and accurate                                                                   | In progress; browser filters and isolated denial-audit regressions pass; remaining live access/failure/boundary cases pending |
-| AUD-002 | Trace Cataloging actions to revision and audit entries               | Actor, affected record, action, outcome, and timestamp match                                                           | In progress; core/taxonomy/provenance/tags/media/archive and scoped restoration evidence recorded; completion/reopening/public eligibility and OBS-001 pending |
-| BAK-001 | Search and filter backup-history records                             | History loads with correct status/type/creator/date filters                                                            | In progress; empty-history UI checks pass, positive-data cases unavailable |
+| AUD-001 | Filter audit logs by actor, module, action, result, record, and date | Results are protected, stable, bounded, and accurate                                                                   | In progress; live Developer exclusion and persisted denial evidence plus [direct-endpoint HTTP role-denial regressions](./AUDIT_LOG_GUIDE.md#direct-endpoint-role-denial-http-regressions---2026-10-24) pass; exact live request correlation, remaining access/failure/boundary cases and sign-off pending |
+| AUD-002 | Trace Cataloging actions to revision and audit entries               | Actor, affected record, action, outcome, and timestamp match                                                           | In progress; prior evidence plus [five live lifecycle transitions and matching history/audits](./AUDIT_LOG_GUIDE.md#aud-002-approved-lifecycle-traceability-batch---2026-10-23) pass; OBS-001 disposition and independent sign-off pending |
+| BAK-001 | Search and filter backup-history records                             | History loads with correct status/type/creator/date filters                                                            | In progress; empty-history UI plus [16 populated disposable PostgreSQL/HTTP checks including the DEF-025 extension](./BACKUP_HISTORY_GUIDE.md#populated-disposable-postgresql-checkpoint---2026-10-27) pass owner-side and independently reported 16/16; earlier existing HTTP 13/13 also reported; populated browser/provider and full acceptance pending |
 | BAK-002 | Execute and restore a real backup                                    | Deferred until deployment ownership, storage, retention, verification, and disposable restore environment are approved | Deferred |
+
+The [2026-10-23 lifecycle batch](./AUDIT_LOG_GUIDE.md#aud-002-approved-lifecycle-traceability-batch---2026-10-23)
+supersedes the older pending-completion/reopening/public-eligibility statements
+below. Historical checkpoints and OBS-001's separate limits are retained.
+
+OBS-001's [2026-10-24 local mode comparison](./TEST_DEFECT_LOG.md#approved-development-mode-comparison---2026-10-24)
+did not reproduce the timeout: history readiness was 796-1306 ms on the existing
+production-mode server and 1379-1439 ms on the temporary warm dev server, with
+the same 22 revisions. That temporary server was stopped. This completes the
+bounded local comparison, not backend timing correlation or final disposition.
+
+#### Current scoped follow-ups - 2026-10-22
+
+Frontend PR #76 was confirmed merged with successful CI. Its nine isolated
+Audit page/rendering regressions cover connection/HTTP failures, 401 redirect,
+403 guidance, invalid/non-JSON responses and independent request recovery.
+They run the real audit client/schema/static UI with synthetic session/fetch
+boundaries, not Next RSC, browser hydration or live authorization/outages.
+See frontend `docs/audit-page-verification.md` at commit `bc55ce7` for the
+340-test full-suite, lint/TypeScript evidence and exact limits.
+
+OBS-001 history navigation was separately retried read-only in three local
+browser samples: rendered-history readiness was observed at 1477, 1599 and
+945 ms, with identical 21-entry history. The old 30-second delay did not recur;
+this is not a fix or production-performance sign-off. OBS-001 remains open for
+production comparison/timing correlation. A separate transient notification
+polling observation, OBS-002, is recorded for the dashboard/feed owners; their
+code was not changed. See `TEST_DEFECT_LOG.md` for measurements and limitations.
 
 #### AUD-002 archive checkpoint and blocked restoration - 2026-10-21
 
@@ -1019,6 +1254,65 @@ earlier day is not full boundary coverage. Failed-result exclusion is not
 positive coverage of failed/denied fixtures. This does not sign off AUD-002's
 Cataloging revision/audit traceability or backup/restore. No app code changed;
 full lint/unit/build suites were not rerun for this documentation-only update.
+
+#### AUD-001 read-only museum-date browser check - 2026-10-22
+
+Confirmed PR #168 merged with successful CI; backend checkout base `eb661a4`,
+frontend `0ffa81f`. Exact running build hashes were not independently inspected.
+Used existing signed-in Edge session `biosphere-aud002` and retained disposable
+specimen `3e7a3ca2-bf8f-45c9-98d3-94b8bcf31419`; no new events were generated.
+
+Protected specimen read provided the fixture's creation timestamp, whose UTC
+date is `2026-10-21` and independently formatted Asia/Manila date is
+`2026-10-22`. Through the actual Audit Logs page, filtered by that specimen
+UUID, module `specimens` and action `IMPORT_SPECIMEN`:
+
+- From/To both `2026-10-22` returned exactly its one import event. Controls
+  matched the applied range, and reload retained the same result.
+- From/To both `2026-10-21` showed the empty state with no stale import row.
+- From `2026-10-23`, To `2026-10-22` showed the start/end validation message,
+  with no stale import row. Returning to the valid museum-day range restored
+  exactly one matching event.
+
+Browser request listener observed zero POST/PUT/PATCH/DELETE requests. No
+records, backups, Inventory data, auth state or server processes were changed;
+no API response was mocked. Browser stays open and signed in on the valid audit
+range. Local diagnostic remains ignored at frontend
+`tools/browser/artifacts/aud001-museum-date-boundary.txt`.
+
+This passes the tested live date-membership/reload/recovery case, not exact
+midnight/subsecond edges, raw audit timestamp verification, live authorization,
+outage handling, concurrency or independent full AUD-001 acceptance. AUD-001
+remains In progress; no new defect was reproduced. Documentation-only checks:
+`git diff --check`; full local application suites/build not rerun. Session ends
+here as requested; remaining access/failure cases are future scoped work.
+
+#### AUD-001 signed-out live access check - 2026-10-22
+
+Used a new empty browser context inside existing Edge session
+`biosphere-aud002`, without copying cookies or exporting authentication state.
+The curator's existing audit tab was left unchanged. Backend checkout was
+`ad0711c`, frontend `0ffa81f`; exact running build hashes were not inspected.
+
+- Anonymous navigation to `/audit-logs` redirected to `/login` with
+  `from=/audit-logs` and a visible password field, not the Audit Logs heading.
+- A direct filtered audit bookmark for disposable specimen
+  `3e7a3ca2-bf8f-45c9-98d3-94b8bcf31419` also redirected to login; the rendered
+  login body did not contain that specimen UUID or an Audit Logs heading.
+- A separate anonymous GET to `http://localhost:3001/audit-logs` returned HTTP
+  `401` with `statusCode: 401`, not an array or an `items`/`data` response.
+- The temporary anonymous context was closed. The original curator tab kept
+  its URL and visible Audit Logs heading; no sign-out or sign-in was performed.
+
+No mutation requests were submitted by this diagnostic, API responses were
+not mocked, and no museum records, Inventory data or server processes were
+changed. Local diagnostic remains ignored at frontend
+`tools/browser/artifacts/aud001-signed-out-access.txt`. No new defect was
+reproduced. This establishes the tested anonymous denial paths, not a full
+security review: wrong-role/deactivated accounts, expired sessions, backend
+outages, exact boundary cases and full AUD-001 acceptance remain pending.
+Documentation-only verification: `git diff --check`; application suites/build
+were not rerun for this evidence update.
 
 #### Audit backend isolated-suite evidence - 2026-10-19
 
@@ -1521,7 +1815,7 @@ disposable `TEST -` specimen and storage units that hold specimens.
 | DASH-004 | Check the category donut, 12-month trend, queue, recent records, and QR readiness            | Values match the underlying records; recent rows show the largest active lot's path and condition                                       | Not run  |
 | DASH-005 | Create an offline draft, go offline, reconnect, and force a sync failure                     | The Offline Drafts panel shows Online/Offline and Pending Sync, Synchronizing, Synchronized, and Sync Failed counts (REQ-4.3-03)        | Not run  |
 | DASH-006 | Submit a public inquiry and a visit request                                                  | The notification bell lists both and opens the related record; the authorized curator receives the alert email (REQ-4.3-05/06/09)     | Not run  |
-| DASH-007 | Mark a notification read or dismissed                                                        | Deferred: notification state needs a notification table (REQ-4.3-07); on hold by owner decision                                         | Deferred |
+| DASH-007 | Mark a notification read or dismissed                                                        | State affects the acting curator only; unread counts change without resolving source work (REQ-4.3-07) | In progress; user's 2026-10-28 implementation authorization supersedes earlier hold; [8 owned SQL/API checks and 7 real-bell synthetic HTTP scenarios](./NOTIFICATION_STATE_GUIDE.md) pass. Migration prepared, disabled by default; deployed and independent acceptance pending |
 | DASH-008 | Load the dashboard as a developer, signed out, and with one backend endpoint failing         | Developer and signed-out access are refused; a failing section shows its own error while the others still render                        | Not run  |
 
 ### Reports and Data Export

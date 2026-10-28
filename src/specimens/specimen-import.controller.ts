@@ -10,7 +10,6 @@ import {
   ApiBody,
   ApiConsumes,
   ApiCreatedResponse,
-  ApiOkResponse,
   ApiOperation,
   ApiTags,
 } from '@nestjs/swagger';
@@ -62,7 +61,7 @@ export class SpecimenImportController {
     summary:
       'Create Uncataloged specimen records from a reviewed import preview',
   })
-  @ApiOkResponse({ type: SpecimenImportCommitResult })
+  @ApiCreatedResponse({ type: SpecimenImportCommitResult })
   commit(
     @Body() dto: CommitSpecimenImportDto,
     @CurrentUser() user: AuthenticatedUser,
