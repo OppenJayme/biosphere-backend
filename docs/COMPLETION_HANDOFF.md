@@ -7,6 +7,14 @@ status and does not authorize migrations, account changes or teammate-owned work
 
 ## Closeout queue - 2026-10-27
 
+2026-10-28 containment follow-up: [the approved offline UI preflight](./OFFLINE_SYNC_GUIDE.md#offline-ui-containment-preflight---2026-10-28)
+passes 3/3 using a fresh browser origin/context, real panel, owned SQL/Nest read,
+permanently read-only adapter and independent arrival counters. No draft write
+or interruption occurred; SQL specimen/receipt/audit counts remain zero. This
+provides bounded fixture containment, not full Next/PWA or interrupted-write
+acceptance. DEF-019 stays Open; the shared-backend pilot stays disabled. Next is
+a separately agreed owned write/recovery slice, alongside independent review.
+
 2026-10-28 offline database follow-up: [8 owned disposable PostgreSQL/HTTP
 checks](./OFFLINE_SYNC_GUIDE.md#disposable-postgresql-and-http-verification---2026-10-28)
 pass, including proven-overlapping same-ID transactions, owner separation,

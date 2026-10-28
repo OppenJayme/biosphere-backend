@@ -5,6 +5,54 @@ text-only `UNCATALOGED` specimen drafts. Browser caching, offline search, draft
 retention, connectivity detection, and the visible sync states remain frontend
 PWA responsibilities implemented with IndexedDB/Dexie and the service worker.
 
+## Offline UI containment preflight - 2026-10-28
+
+The approved preflight passes **3/3** checks: adapter write denial without browser
+interception; credential/origin/query-override rejection with independent backend
+arrival counters; and a real offline-panel mount against an owned SQL/Nest
+fixture. A protected audit GET provides a real backend positive control. The
+browser canary records one allowed synthetic POST and zero blocked arrivals
+over five samples/one second after its probe tab closes. The owned database
+ends with **0 specimens, 0 sync receipts, 0 audits**. No draft is saved or
+interrupted; no successful synchronization is claimed.
+
+Run `npm run test:offline:containment` from the backend root with the matching
+frontend checkout at `../biosphere-frontend`. This opt-in suite reuses the
+offline-sync Docker profile and minimal Nest/auth/schema fixture described
+below; it is excluded from normal unit/e2e discovery. The frontend root and
+optional pinned browser dependencies must already be installed, along with
+local Docker/cached image and Edge. See the frontend `tools/browser/README.md`
+for the complete fixture/containment contract. No dependencies are installed by
+this command; no application environment/credentials are copied.
+
+The adapter has no write-forwarding branch. Only a fixed audit GET reaches the
+owned backend; HTTP redirects are errors. Cache GET returns an explicit 503,
+so no false cache-readback pass follows. Real React/hook/Dexie/sync modules run
+in a new origin/context without Next authentication or PWA registration. The
+synthetic identity provider and minimal auth/audit tables are not deployed
+provider/RLS certification. Normal cleanup closes the owned browser session,
+servers and exact-labelled tmpfs container; it is not a process-crash guarantee.
+
+The first test initially failed because the adapter did not exist, then passed
+after implementation. No application defect or production fix was introduced.
+A later no-emit check caught a fixture header-array typing issue; its explicit
+record type was corrected. Original application servers were not manually
+restarted, but the existing Nest watcher again replaced its child during source
+file activity (observed 33092 versus earlier 20060). Frontend PID 16340 remained;
+uninterrupted backend process continuity is not claimed.
+
+Validation: final preflight 3/3 (19.7 seconds); both repositories' no-emit and
+touched-file lint checks pass. No owned offline container remained afterward;
+public frontend login/backend root returned HTTP 200. Application suites/builds
+were not repeated because production source and dependencies were unchanged.
+
+**DEF-019 remains Open and OFF-003 In progress.** This establishes bounded
+containment for this read-only fixture, not the historical leak's cause or
+recovery from interrupted/accepted writes. The old shared-backend pilot stays
+disabled. Agree a separate owned write/recovery slice before enabling writes;
+real provider expiry/re-login, full Next/PWA behavior and independent acceptance
+remain separate gates.
+
 ## Disposable PostgreSQL and HTTP verification - 2026-10-28
 
 The approved backend slice passes **8/8** checks using real Nest controllers,

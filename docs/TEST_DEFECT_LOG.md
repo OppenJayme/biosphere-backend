@@ -806,6 +806,14 @@ idempotency defect has been established. Do not blindly rerun the pilot.
 
 #### Containment and follow-up
 
+2026-10-28: the [approved owned offline-UI preflight](./OFFLINE_SYNC_GUIDE.md#offline-ui-containment-preflight---2026-10-28)
+passes 3/3, including independent server counters and zero owned SQL specimen,
+receipt and audit rows. The adapter permanently denies writes; no interrupted
+draft was attempted. This is bounded fixture containment, not historical leak
+reproduction, full Next/PWA acceptance or closure. **DEF-019 remains Open** and
+the disabled shared-backend pilot must not be repeated. A write/recovery slice
+requires its own agreed owned target and boundary.
+
 Both temporary tabs were closed; the original signed-in audit tab/URL stayed
 open. Final read-only checks found zero matching local fixtures and no eligible
 unfinished drafts. Earlier successful simulated-401 and six-case matrix fixture
