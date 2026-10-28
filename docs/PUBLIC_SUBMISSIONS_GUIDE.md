@@ -168,11 +168,11 @@ curators in two ways (REQ-4.8-08, REQ-4.9-07, REQ-4.3-09):
 surfaced to an authorized user in-system. Curator-initiated emails already
 show their delivery result in the record's timeline.
 
-There is no notification table, so the feed is built from submissions that
-are still `PENDING` and their failed email audit entries. An alert clears once
-a curator reviews, refers, approves, declines, or cancels the record. It
-cannot be marked read or dismissed on its own (REQ-4.3-07); that needs a
-notification table.
+The source feed is built from submissions still `PENDING` and their failed
+email audit entries; source alerts disappear when a curator resolves the work.
+Optional [per-curator read/dismiss state](./NOTIFICATION_STATE_GUIDE.md) now
+implements REQ-4.3-07 without changing that work. It stays disabled until its
+prepared migration and deployment checks are separately completed.
 
 ## Visitor emails (Brevo)
 
@@ -271,14 +271,16 @@ visitor personal data or note text. Public submissions have a null `user_id`.
 
 ## Not yet implemented
 
-The [2026-10-28 SRS/source gap review](./PUBLIC_WEBSITE_GAP_REVIEW.md) separates
-confirmed missing notification features from content/policy dependencies and
-unreproduced visitor-form risks. Static public pages are required by section
-4.10; their static implementation is not a missing CMS.
+The [2026-10-28 SRS/source gap review](./PUBLIC_WEBSITE_GAP_REVIEW.md) records
+its earlier source baseline, content/policy dependencies and unreproduced
+visitor-form risks. Static public pages are required by section 4.10; their
+static implementation is not a missing CMS. The read/dismiss gap identified in
+that review is now implemented behind the default-off rollout flag; see the
+[notification state guide](./NOTIFICATION_STATE_GUIDE.md) for activation and limits.
 
-- Marking a curator alert as read or dismissed (REQ-4.3-07), and alerts for
-  anything other than new submissions (REQ-4.3-05). Both need a notification
-  table.
+- General operational alert integration beyond submissions/email failures
+  (REQ-4.3-05/10). The optional recipient-state slice does not implement every
+  sync/backup/specimen/storage/QR/AR event source.
 - Bounce and delivery-status tracking after Brevo accepts an email (would need
   a Brevo webhook).
 - Visitor-list file upload on the visit form.

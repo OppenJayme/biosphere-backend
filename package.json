@@ -5,6 +5,7 @@
   "private": true,
   "license": "UNLICENSED",
   "scripts": {
+    "test:notifications:db": "cross-env RUN_NOTIFICATIONS_DISPOSABLE_DB=true node --experimental-vm-modules node_modules/jest/bin/jest.js --config ./test/jest-notifications-db.json --runInBand",
     "postinstall": "prisma generate",
     "prisma:generate": "prisma generate",
     "build": "nest build",

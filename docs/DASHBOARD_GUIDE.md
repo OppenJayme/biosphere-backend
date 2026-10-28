@@ -39,5 +39,7 @@ when it has no active lot.
   endpoints (`/storage-locations/search`, `/audit-logs`).
 - Offline draft sync state lives in the curator's browser (IndexedDB), so the
   frontend reads it there, not from this endpoint.
-- Notification read/dismiss state (REQ-4.3-07) needs a notification table and
-  is not part of this endpoint.
+- [Optional per-curator read/dismiss state](./NOTIFICATION_STATE_GUIDE.md)
+  (REQ-4.3-07) lives on the notification API, not this summary endpoint.
+  Its migration/feature activation remains separate; pending-work counts do
+  not decrease merely because a notification is read or dismissed.

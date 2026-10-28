@@ -961,6 +961,7 @@ model tag {
 
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
 model user_account {
+  user_notification_state                            user_notification_state[]
   id                                                 String                      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   auth_user_id                                       String                      @unique @db.Uuid
   full_name                                          String
@@ -988,6 +989,18 @@ model user_account {
   users                                              users                       @relation(fields: [auth_user_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   visit_request                                      visit_request[]
 
+  @@schema("public")
+}
+
+/// Recipient-only state. SQL migration owns check constraints and forced RLS.
+model user_notification_state {
+  user_account_id String       @db.Uuid
+  notification_id String       @db.VarChar(180)
+  read_at         DateTime     @default(now()) @db.Timestamptz(6)
+  dismissed_at    DateTime?    @db.Timestamptz(6)
+  user_account    user_account @relation(fields: [user_account_id], references: [id], onDelete: Cascade)
+
+  @@id([user_account_id, notification_id])
   @@schema("public")
 }
 
