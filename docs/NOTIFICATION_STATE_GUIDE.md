@@ -3,7 +3,9 @@
 Implemented for REQ-4.3-07 under the user's 2026-10-28 authorization to help the
 notification module. Coordinate review with John/Charles and authorization
 contracts with Voltaire. The earlier implementation hold is superseded for this
-bounded slice; shared migration/deployment is still **not performed**.
+bounded slice. The subsequently authorized **local development activation** is
+recorded in the [deployment checkpoint](./NOTIFICATION_ACTIVATION_CHECKPOINT.md);
+production and full live acceptance are not implied.
 
 ## Behavior and API
 
@@ -50,7 +52,9 @@ responses are discarded after a newer action.
 Prepared migration:
 `prisma/migrations/20261028000000_add_user_notification_state/migration.sql`.
 Prisma client generation/build needs the updated schema; generate does not apply
-the migration. Shared schema/environment has not been changed.
+the migration. The initial implementation did not change shared schema or
+environment; the later explicitly authorized development migration/activation
+is recorded in the checkpoint linked above.
 
 The migration is transactional. The table has an account/event composite primary key, account foreign key,
 bounded event keys and timestamp constraints. Read/dismiss uses one atomic
