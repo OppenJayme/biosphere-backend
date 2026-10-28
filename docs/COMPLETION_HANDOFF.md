@@ -52,7 +52,11 @@ and restore. Approved FAQ/public content and Inventory-owned fixtures remain
 separate inputs. New notification PRs were not part of the reviewed revisions
 and do not reopen this completed batch. See the
 [notification activation checkpoint](./NOTIFICATION_ACTIVATION_CHECKPOINT.md)
-for the next finite integration steps. No suites were rerun for this docs update.
+for the authorized local rollout: exact migration/protections, rebuilt apps and
+signed-in feed/control smoke checks now pass. The subsequently authorized live
+two-curator read/dismiss, reload, count and source-preservation check also passes
+(six assertion groups). Independent notification sign-off remains pending; no
+earlier suites were rerun for this documentation update.
 
 2026-10-28 owned recovery follow-up: [the accepted-write/tab-close slice](./OFFLINE_SYNC_GUIDE.md#owned-accepted-write-tab-recovery---2026-10-28)
 passes 1/1 in two consecutive complete runs. Real UI draft recovery and automatic
