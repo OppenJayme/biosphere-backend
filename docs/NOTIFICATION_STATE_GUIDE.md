@@ -148,6 +148,6 @@ its own reload. Counts and hashes of the source visit and communication history
 are unchanged; one valid A recipient-state row remains. No new submission,
 email, account, Inventory edit or server restart was needed. This completes the
 agreed live slice, while independent notification sign-off and stated broader
-release/provider/accessibility limits remain separate. The older owner-only
-verification section above describes its earlier checkpoint, not the current
-absence of live evidence.
+release/provider/accessibility limits remain separate. The owner-only
+verification section above is historical; live evidence is now recorded in the
+linked deployment checkpoint.

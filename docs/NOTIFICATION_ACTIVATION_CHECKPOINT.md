@@ -110,6 +110,17 @@ Inventory change, new migration or server restart occurred in this test.
 No unexpected failures were observed. Helpers and private results stay ignored;
 both signed-in browser windows remain open.
 
+### Identifying the retained test state for a later run
+
+Prefer a fresh agreed TEST alert so the recorded evidence stays intact. Ivan's
+private local `.codex-tmp/notification-activation-20261028/test-target.private.json`
+records the source type/id; its key format is `NEW_VISIT_REQUEST:<TEST visit UUID>`.
+Coordinate the key and acting Curator A identity privately; publish neither ID
+nor credentials. A later reset requires separate explicit owner authorization
+and must target only that exact account/key pair, preserving B and the source
+visit/history. No reset/delete is authorized or performed by this documentation
+update. Recheck the chosen run's unread/no-prior-state preconditions before use.
+
 ## Remaining acceptance and recovery
 
 Local development activation and the agreed live two-curator read/dismiss,
@@ -119,6 +130,15 @@ owned 8/8 SQL/API checks and seven synthetic bell scenarios were not rerun or
 relabelled as live results. Real provider/proxy outages, full accessibility,
 dependency-advisory review and broader event types remain separate. This does
 not establish production readiness or reopen Voltaire's completed earlier batch.
+
+Known production limits: enabled feed/state requests call
+`sourceFeed(Number.MAX_SAFE_INTEGER)` and load all Pending inquiry/visit and
+matching failure events before recipient filtering. Poll cost scales with backlog
+and signed-in curators; no production capacity bound is claimed. State rows have
+no source FK or automatic retention: leaving Pending hides the alert but retains
+its state until account cascade or a future approved cleanup policy. Feed owners
+must profile/bound retrieval and agree retention before production; this note
+implements no cleanup, source deletion or new scheduler/migration.
 
 If a problem occurs, disable the backend flag and restart that app to recover
 legacy feed behavior. Keep the table/state and source records. Previous source
