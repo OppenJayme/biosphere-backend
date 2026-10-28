@@ -7,6 +7,16 @@
 
 ## Start here
 
+2026-10-28 integration/reviewer follow-up: backend #205 and frontend #90 are
+merged into develop with passing integration PR CI. The [current handoff](./COMPLETION_HANDOFF.md#current-independent-review-checkpoint---2026-10-28)
+records the verified revisions and Raidiniom's independent #195 review:
+TypeScript/lint pass and existing HTTP 13/13; Docker suites explicitly not run,
+duplicate-browser results not supplied. This is partial independent evidence,
+not module sign-off. The owned accepted-write/tab-recovery case also passes
+twice as [recorded](./OFFLINE_SYNC_GUIDE.md#owned-accepted-write-tab-recovery---2026-10-28);
+full Next/PWA/provider and independent acceptance limits remain. No suites were
+rerun for this documentation reconciliation.
+
 2026-10-28 offline database follow-up: [8 disposable SQL/HTTP checks](./OFFLINE_SYNC_GUIDE.md#disposable-postgresql-and-http-verification---2026-10-28)
 pass with real controllers/guards/services/Prisma/PostgreSQL and synthetic
 identity responses. They cover durable receipts, same-ID retry, conflicts,
@@ -776,7 +786,7 @@ acceptance are not marked complete by this narrower evidence.
 | ------- | --------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- | ------- |
 | OFF-001 | Cache the allowed specimen list, disconnect, and check workspace/reload | Open workspace retains bounded cached viewing; fresh offline navigation/reload shows record-free fallback | In progress; manual workspace/fallback/recovery evidence recorded; independent retest pending |
 | OFF-002 | Create an offline text draft and synchronize after reconnecting | One attributed `UNCATALOGED` record is created                                                  | In progress; manual save/persistence/sync evidence recorded; independent sign-off pending |
-| OFF-003 | Retry the same synchronization and simulate temporary failure   | Retry is safe; no duplicate specimen is created; recoverable errors remain visible              | In progress; prior client evidence plus [8 real disposable SQL/HTTP receipt/concurrency/rollback checks](./OFFLINE_SYNC_GUIDE.md#disposable-postgresql-and-http-verification---2026-10-28) pass; DEF-019 interruption stays stopped pending full-stack containment; actual expiry/re-login, browser recovery and independent acceptance remain |
+| OFF-003 | Retry the same synchronization and simulate temporary failure   | Retry is safe; no duplicate specimen is created; recoverable errors remain visible              | In progress; prior client evidence and [8 real disposable SQL/HTTP checks](./OFFLINE_SYNC_GUIDE.md#disposable-postgresql-and-http-verification---2026-10-28) pass; [owned accepted-write/tab recovery](./OFFLINE_SYNC_GUIDE.md#owned-accepted-write-tab-recovery---2026-10-28) passes twice with one specimen/receipt/success audit. DEF-019 shared pilot stays stopped; full Next/PWA, actual expiry/re-login, historical cause and independent acceptance remain |
 | OFF-004 | Inspect offline feature boundaries                              | Media, inventory movement, archive, and privileged operations are not falsely available offline | In progress; text-core boundary/account isolation reported and regression-covered; full negative matrix pending |
 
 ### FAQ knowledge management
@@ -1008,7 +1018,7 @@ approval is inferred. Earlier dated evidence remains historical.
 | ------- | -------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- | -------- |
 | AUD-001 | Filter audit logs by actor, module, action, result, record, and date | Results are protected, stable, bounded, and accurate                                                                   | In progress; live Developer exclusion and persisted denial evidence plus [direct-endpoint HTTP role-denial regressions](./AUDIT_LOG_GUIDE.md#direct-endpoint-role-denial-http-regressions---2026-10-24) pass; exact live request correlation, remaining access/failure/boundary cases and sign-off pending |
 | AUD-002 | Trace Cataloging actions to revision and audit entries               | Actor, affected record, action, outcome, and timestamp match                                                           | In progress; prior evidence plus [five live lifecycle transitions and matching history/audits](./AUDIT_LOG_GUIDE.md#aud-002-approved-lifecycle-traceability-batch---2026-10-23) pass; OBS-001 disposition and independent sign-off pending |
-| BAK-001 | Search and filter backup-history records                             | History loads with correct status/type/creator/date filters                                                            | In progress; empty-history UI plus [14 populated disposable PostgreSQL/HTTP checks](./BACKUP_HISTORY_GUIDE.md#populated-disposable-postgresql-checkpoint---2026-10-27) pass; populated browser/provider and independent acceptance pending |
+| BAK-001 | Search and filter backup-history records                             | History loads with correct status/type/creator/date filters                                                            | In progress; empty-history UI plus [16 populated disposable PostgreSQL/HTTP checks including the DEF-025 extension](./BACKUP_HISTORY_GUIDE.md#populated-disposable-postgresql-checkpoint---2026-10-27) pass owner-side; independent existing HTTP 13/13 reported, Docker suites explicitly not run; populated browser/provider and independent acceptance pending |
 | BAK-002 | Execute and restore a real backup                                    | Deferred until deployment ownership, storage, retention, verification, and disposable restore environment are approved | Deferred |
 
 The [2026-10-23 lifecycle batch](./AUDIT_LOG_GUIDE.md#aud-002-approved-lifecycle-traceability-batch---2026-10-23)
