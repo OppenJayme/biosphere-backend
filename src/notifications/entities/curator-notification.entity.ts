@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export enum CuratorNotificationType {
   NEW_INQUIRY = 'NEW_INQUIRY',
@@ -18,9 +18,15 @@ export enum NotificationRecordType {
 // One in-system alert. It carries no visitor personal data (REQ-4.3-08):
 // the curator opens the record to see who submitted it.
 export class CuratorNotification {
+  @ApiPropertyOptional({
+    nullable: true,
+    description:
+      'First read time for the acting curator; present when state management is enabled',
+  })
+  readAt?: Date | null;
   @ApiProperty({
     example: 'NEW_INQUIRY:9a81836f-0000-4000-8000-000000000000',
-    description: 'Stable key built from the type and the record id',
+    description: 'Source-event key; enabled email-failure alerts use their unique audit event ID',
   })
   id!: string;
 
@@ -47,7 +53,18 @@ export class CuratorNotification {
 }
 
 export class CuratorNotificationFeed {
-  @ApiProperty({ description: 'Every alert in the feed, before `limit`' })
+  @ApiPropertyOptional({
+    description:
+      'True only after the state migration is deployed and feature enabled',
+  })
+  stateManagementEnabled?: boolean;
+
+  @ApiPropertyOptional({
+    description:
+      'Unread, non-dismissed alerts for the acting curator, before limit; separate from unresolved work counts',
+  })
+  unreadTotal?: number;
+  @ApiProperty({ description: 'Visible alerts before limit; excludes this curator dismissed items when enabled' })
   total!: number;
 
   @ApiProperty()
