@@ -256,6 +256,55 @@ Visit-request specific rules:
 - Vehicle details (`plateNumber`, `carBrand`, `carType`) require
   `bringingVehicle: true`, and `plateNumber` is then required.
 
+## Public dialog keyboard recovery - 2026-10-28
+
+The earlier modal keyboard inspection candidate was reproduced as
+[DEF-028](./TEST_DEFECT_LOG.md#def-028---public-dialog-focus-escapes-and-is-not-restored-on-close).
+The prepared [frontend repair #93](https://github.com/OppenJayme/biosphere-frontend/pull/93),
+commit `da83f5a9d865387c6247b3ab46d10740dbfef366`, is not deployed
+by this task. It touches the public Modal, not the submission helper/form changes
+in separate frontend #92. John/Charles retain module ownership.
+
+The native dialog supplies background isolation; scoped first/last-control
+handling keeps Tab and Shift+Tab within the current enabled/visible controls.
+Escape uses the dialog cancel event. Closing restores the initiating element
+when still connected, plus the exact previous body scroll style. Initial focus
+is inside the dialog. No document-wide Escape listener or new dependency is
+needed. Native semantics were checked against the
+[dialog reference](https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/dialog)
+and [showModal reference](https://developer.mozilla.org/en-US/docs/Web/API/HTMLDialogElement/showModal).
+Actual supported-browser behavior is bounded by the checks below.
+
+The user agreed real-dialog keyboard checks in a fresh isolated Edge fixture,
+with no submissions, login, backend or email. The fixture mounts actual
+VisitOptionsSection, Modal and inquiry/visit forms using synthetic public env,
+no .env/assets and default-deny interception. It permits only its synthetic
+fixture GET. All other requests are counted and aborted. The runner accepts
+no application URL and closes only its unique session; artifacts stay ignored.
+
+Verification:
+
+- `npm run test:public-dialogs:browser`: six passing scenarios (two forms times
+  Escape/Close/Cancel), zero non-read/unexpected requests and zero runtime errors.
+- Actual keyboard checks cover initial focus, both Tab boundaries, blocked
+  background focus, normal input traversal, opener return and empty/nonempty
+  body overflow restoration.
+- `npm test`: existing 426/426 in 71 files. This branch is independent of #92;
+  its thirteen new helper tests are not present and have not been removed.
+- Full frontend lint, Next type generation and TypeScript no-emit pass. The
+  isolated production webpack build passes with synthetic public configuration.
+
+Use lockfile-installed application dependencies, optional pinned tools/browser
+dependencies and the supported installed Edge channel. See the tooling README;
+missing prerequisites are Blocked, not justification to use the running app or
+weaken assertions. The production fixture's StrictMode wrapper does not establish
+development Strict Effects behavior. Full CSS/visual, screen-reader, mobile and
+cross-browser acceptance remain separate. The existing backdrop-close handler
+is retained; this batch does not establish pointer hit testing or pending-submit
+close/retention policy. No real public POST, email, server, configuration,
+migration, account or Inventory operation was performed. Merge/deployed-build
+verification and independent module-owner acceptance remain pending.
+
 ## Consistency and audit
 
 Status changes, approvals, and referrals run as serializable transactions and

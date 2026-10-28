@@ -112,6 +112,7 @@ system is not a reason to postpone all fixes until the end.
 | [DEF-013](#def-013---csv-choose-file-control-lacks-visible-hover-feedback) | 2026-10-07 | Cataloging / Import UI     | CSV Choose file control lacks visible hover feedback                    | S4 Minor    | P2       | Ready for retest | Cataloging / Frontend   |
 | [DEF-014](#def-014---already-attached-tag-notice-resembles-successful-new-attachment) | 2026-10-07 | Cataloging / Tags UI       | Already-attached tag notice resembles successful new attachment         | S4 Minor    | P2       | Ready for retest | Cataloging / Frontend   |
 | [DEF-015](#def-015---audit-http-fixture-omits-the-security-audit-create-method) | 2026-10-19 | Audit / HTTP test fixture | Missing security-audit create mock logs an error despite green denial test | S3 Moderate | P2 | Ready for retest | Audit tests / coordinate with Auth |
+| [DEF-028](#def-028---public-dialog-focus-escapes-and-is-not-restored-on-close) | 2026-10-28 | Public Website / Inquiry and visit dialog | Keyboard focus leaves the open dialog and closing fails to return focus to its opening button | S3 Moderate | P2 | Ready for retest | John/Charles public forms; Kyer assisted repair |
 
 ## 3. Defect details
 
@@ -2687,6 +2688,63 @@ was not independently established. No claim about public
 Swagger access policy, durable preview storage, concurrency or whole-module
 acceptance follows. Documentation verification: `git diff --check`; no automated
 suite was rerun for these read-only contract checks.
+
+### DEF-028 - Public dialog focus escapes and is not restored on close
+
+**Found on:** 2026-10-28, through the user-agreed real public-dialog keyboard
+seam in a fresh isolated Edge context. Frontend baseline
+`f3f38b281d3b475ccef3ef3c996e044706039de3`.
+**Owner:** John/Charles public forms; Kyer assisted under the user's explicit scope.
+**Severity / priority:** S3 Moderate / P2, keyboard navigation/accessibility.
+**Status:** Ready for retest; bounded owner repair verified, merge/deployed-build
+and independent owner acceptance pending. No full accessibility certification.
+
+**Expected:** Opening inquiry/visit moves focus into the dialog. Forward/backward
+Tab stays inside; background elements cannot take focus. Escape, Close and
+Cancel return focus to the initiating button and restore the previous body
+scroll setting. No form submission is needed to exercise these interactions.
+
+**Red evidence and cause:** The original component focuses a div, sets
+aria-modal and handles Escape on document, but does not constrain focus or
+remember the opening element. An actual keyboard Shift+Tab regression left the
+inquiry dialog before the fix. The first native-modal attempt still failed the
+explicit boundary-wrap assertion, so native modality alone was not accepted as
+a passing repair. After boundary wrapping passed, Escape exposed the next
+failure: focus did not return to the opener. Existing cleanup also overwrote
+body overflow with an empty string instead of preserving its prior value.
+
+**Repair:** Replace the custom wrapper with a native dialog opened via
+showModal, with native background isolation and a scoped cancel handler.
+Explicitly wrap Tab at current first/last visible enabled controls. Capture the
+opening element and previous body overflow once, then close/restore on cleanup;
+only focus an opener still connected to the document. The effect no longer
+restarts when an inline onClose callback changes. No new dependency is added.
+The existing backdrop-close handler remains, but pointer hit testing and
+pending-submit close policy are not certified by the keyboard batch.
+
+**Verification:** Frontend repair `da83f5a9d865387c6247b3ab46d10740dbfef366`.
+`npm run test:public-dialogs:browser` passes six scenarios: inquiry/visit crossed
+with Escape, keyboard Close and keyboard Cancel. Each checks initial focus,
+forward/backward wrapping, refused background focus, normal field navigation,
+opener return and exact empty/nonempty scroll restoration. Zero non-read or
+unexpected fixture requests and zero browser runtime errors were observed;
+only the owned temporary browser session was closed. The fixture uses the real
+VisitOptionsSection, Modal and both forms, fixed synthetic public env and no
+.env/public assets. It uses production React, so its StrictMode wrapper is not
+proof of development Strict Effects execution.
+
+The existing frontend baseline suite passes 426/426 (71 files); it does not
+include the separate unmerged #92 branch's thirteen additional helper cases.
+Final static/build results and prerequisites are recorded in the
+[public submissions guide](./PUBLIC_SUBMISSIONS_GUIDE.md#public-dialog-keyboard-recovery---2026-10-28).
+
+**Limits:** No deployed CSS/visual, physical mobile, screen-reader, cross-browser
+or full accessibility claim. No submission, email, backend/database, account,
+Inventory, approved content or privacy-policy change. Closing during a pending
+submission and durable recovery of closed form contents remain separate. This
+repair changes only the public Modal and isolated tooling; it does not modify
+#92's helper/forms/feedback components or reopen notification review #210.
+Original apps, builds, configuration and signed-in sessions were untouched.
 
 ## 4. New defect template
 
