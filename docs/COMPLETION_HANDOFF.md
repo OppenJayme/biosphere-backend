@@ -7,6 +7,51 @@ status and does not authorize migrations, account changes or teammate-owned work
 
 ## Closeout queue - 2026-10-27
 
+### Current independent-review checkpoint - 2026-10-28
+
+Recovery/containment integration is complete: backend [#205](https://github.com/OppenJayme/biosphere-backend/pull/205)
+merged into `develop` at `e6ae2a516ade4c33000344b18ca2016b8f8067b4`,
+frontend [#90](https://github.com/OppenJayme/biosphere-frontend/pull/90) at
+`618d4380059d106ba820a36b20c4ce57c2069fbc`. Both integration PR CI runs passed;
+fetched develop trees contain the intended fixtures. The earlier feature-branch
+merges alone had not integrated all changes. This is source/CI verification,
+not a rebuild or acceptance test of the running application.
+
+Raidiniom's [independent review of #195](https://github.com/OppenJayme/biosphere-backend/pull/195#issuecomment-6461153540)
+reports approval with no follow-up fix needed, TypeScript passing, clean lint
+on all four changed test files and **13/13 existing HTTP tests passing** in a
+temporary worktree that was subsequently deleted. Record this as positive code
+review and reported independent HTTP/static verification. Do not repeat those
+owner checks to manufacture independent evidence.
+
+The reviewer explicitly did **not** run the two Docker database suites because
+Docker Desktop was off. The comment does not report the duplicate-browser run,
+full tested frontend/backend SHAs or the complete environment/cleanup report.
+Do not attribute the current merge SHAs above to the reviewer's test run.
+DEF-025 and module acceptance statuses are unchanged.
+
+The next finite reviewer batch remains:
+
+| Repository | Reviewer command | Expected owner baseline |
+| --- | --- | --- |
+| Backend | `npm run test:collections:db` | 16/16 |
+| Backend | `npm run test:backup-history:db` | 16/16 |
+| Frontend | `npm run test:duplicates:browser` | 6 scenarios |
+
+Use the prerequisites and report template in the [existing review request](https://github.com/OppenJayme/biosphere-backend/pull/195#issuecomment-6447958653).
+The reviewer should use their own clean committed checkout, turn on their local
+Docker Desktop Linux engine if available, and record actual SHAs, environment,
+exit codes, cleanup and unexpected output. No `.env` edits, shared database,
+guard changes or live museum records. Missing prerequisites are **Blocked**,
+not a failed application or a passing suite. No further teammate message has
+been sent as part of this checkpoint.
+
+After this batch, collect its actual report before recording independent
+regression acceptance. This does not replace the remaining approved FAQ content,
+live integration/provider/PWA cases, defect dispositions and scoped release
+sign-off. Sir Curator's answers and Inventory-owned fixtures remain external
+inputs; no new testing batch is opened merely while waiting for them.
+
 2026-10-28 owned recovery follow-up: [the accepted-write/tab-close slice](./OFFLINE_SYNC_GUIDE.md#owned-accepted-write-tab-recovery---2026-10-28)
 passes 1/1 in two consecutive complete runs. Real UI draft recovery and automatic
 same-ID retry return the original specimen; owned SQL has one specimen, receipt
