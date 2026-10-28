@@ -86,6 +86,7 @@ system is not a reason to postpone all fixes until the end.
 
 | ID      | Date       | Module                     | Summary                                                                 | Severity    | Priority | Status | Owner                   |
 | ------- | ---------- | -------------------------- | ----------------------------------------------------------------------- | ----------- | -------- | ------ | ----------------------- |
+| [DEF-027](#def-027---public-forms-misreport-uncertain-submission-outcomes) | 2026-10-28 | Public Website / Inquiry and visit forms | Malformed receipts fabricate success; transport/5xx feedback encourages a potentially duplicate resend | S3 Moderate | P1 | Ready for retest | John/Charles public forms; Kyer assisted repair |
 | [DEF-026](#def-026---duplicate-result-remains-valid-after-typing-new-values) | 2026-10-27 | Cataloging / Duplicate warning UI | A response for the old name can show after typing a new value without leaving the field | S3 Moderate | P2 | Ready for retest | Kyer / Cataloging frontend |
 | [DEF-025](#def-025---denial-audit-tests-assume-immediate-background-persistence) | 2026-10-27 | Backup / Collections test harness | Immediate audit readback can fail before asynchronously recorded denial events become visible | S3 Moderate | P2 | Verified | Kyer / test maintainers |
 | [DEF-024](#def-024---faq-matcher-answers-parking-questions-with-unrelated-fee-information) | 2026-10-25 | FAQ / Answer quality | Fee keyword overlap answers a parking question even when the fee topic is excluded or parking inclusion is unsupported | S3 Moderate | P1 | Ready for retest | Kyer / FAQ matching; independent abstention-policy review pending |
@@ -115,6 +116,88 @@ system is not a reason to postpone all fixes until the end.
 | [DEF-028](#def-028---public-dialog-focus-escapes-and-is-not-restored-on-close) | 2026-10-28 | Public Website / Inquiry and visit dialog | Keyboard focus leaves the open dialog and closing fails to return focus to its opening button | S3 Moderate | P2 | Ready for retest | John/Charles public forms; Kyer assisted repair |
 
 ## 3. Defect details
+
+### DEF-027 - Public forms misreport uncertain submission outcomes
+
+**Found on:** 2026-10-28; OBS-004 reproduced using the user-agreed isolated
+submission-helper and real public-form seams. Frontend baseline
+`f3f38b281d3b475ccef3ef3c996e044706039de3`.
+
+**Owner:** John/Charles public forms; Kyer assisted under the user's explicit
+scope. Backend submission ownership is unchanged.
+**Severity / priority:** S3 Moderate / P1, confirmation and retry reliability.
+**Status:** Ready for retest; isolated owner repair verified, merge/deployment
+and independent acceptance pending. No live duplicate-write incident is claimed.
+
+**Expected:** Show a confirmation only for a valid server receipt. If a response
+is unavailable or cannot establish confirmation, retain entries and explain
+that the museum may already have received the submission. Do not fabricate a
+reference/time, claim non-delivery or automatically replay a POST. Keep known
+400 validation and 429 rate-limit rejection distinct.
+
+**Reproduction and red evidence:**
+
+1. Resolve the real helper's external fetch with HTTP 201 and `{}`. The first
+   regression expected an unknown outcome but observed `ok: true` with blank
+   receipt identifiers and an invented local timestamp.
+2. Reject fetch or return HTTP 503. Regressions observed the old immediate-retry
+   / "not sent" messaging instead of the expected uncertain outcome.
+3. Supply whitespace reference, invalid initial status or invalid timestamp in
+   a receipt; four regressions showed these were wrongly accepted as confirmation.
+4. Mount the real inquiry form with intercepted malformed HTTP 201. Its fields
+   remained present after the helper repair, but the Send button was enabled,
+   allowing immediate resend without acknowledgement. The browser assertion
+   failed before the form recovery change.
+
+Only the remote HTTP boundary is synthetic. No helper, form validator, feedback
+component or React state is mocked. The browser has a fresh isolated context,
+fixed synthetic public configuration and default-deny routing. No shared app,
+database, credentials, submissions or email were involved.
+
+**Repair:** The helper distinguishes confirmed receipt, known rejection and
+unknown outcome. Confirmation requires UUID, nonblank reference, PENDING and
+an ISO timestamp. Both forms retain entries/consent and focus an amber
+"Submission not confirmed" warning. Sending is blocked until the visitor
+chooses "I checked; allow another submission". That acknowledgement sends
+nothing; the visitor must explicitly submit again. Repeated failure returns to
+the unknown-outcome gate. Nothing is cached persistently or automatically
+replayed. Known validation/rate-limit feedback remains separate and confirmed
+Send another still clears the form.
+
+**Verification:** Frontend repair `ac8a3e7842b91d4c1fd4f904b75179f9b2e629c6`.
+13 synthetic-HTTP helper cases pass. Fourteen real-form browser scenarios pass
+(two forms across malformed receipt, transport loss, 503, 400, 429, success and
+pending response), including field/consent retention, focused feedback,
+requestSubmit guard, acknowledgement without POST, explicit retry with retained
+payload, real reference display, Send another reset and pending protection.
+Full frontend 439/439 (72 files) passes. Final static/build results and commands
+are recorded in the [public submissions guide](./PUBLIC_SUBMISSIONS_GUIDE.md#uncertain-public-submission-feedback---2026-10-28).
+
+The first local Vitest start was blocked by the sandbox's Vite Windows helper
+EPERM; normal child-process access allowed the intended assertions to run. The
+first expanded browser run had a harness-only ellipsis encoding mismatch in a
+Sending label selector; using the public aria-busy state fixed the harness,
+and the complete fourteen-scenario run passed. Neither tooling failure is
+classified as a new application defect. The owned browser session was closed;
+existing signed-in sessions and running apps were untouched.
+
+**Review follow-up - 2026-10-28:** Charles independently reported the original
+13/13 helper and fourteen browser scenarios passing at frontend `3e4b261`, with
+cleanup and scoped approval. He reproduced a non-blocking focus drop to body
+when acknowledgement unmounted. The new owner assertion failed before repair;
+acknowledgement now focuses the retained warning. The fourteen-scenario batch
+passes with keyboard acknowledgement and a second-uncertain gate-rearm leg in
+both forms. Latest repair: `ac8a3e7842b91d4c1fd4f904b75179f9b2e629c6`. Earlier independent
+results are retained against their original SHA; this follow-up awaits review.
+The backend receipt fields are now explicitly documented, and optional retry
+identity, deadline/close and tooling work are tracked as PUB-F01/02/03 in the
+[guide backlog](./PUBLIC_SUBMISSIONS_GUIDE.md#follow-up-backlog-not-implemented-or-approved-for-deployment).
+
+**Limits:** No live stored/lost-response test, backend idempotency, concurrent
+commit proof, email delivery, proxy/CORS, modal close/reopen, process crash or
+full accessibility claim. Explicit retry can still create a second legitimate
+record; server-side duplicate prevention is not implemented by this UI repair.
+No backend API, migration, role, Inventory or factual museum content change.
 
 ### DEF-026 - Duplicate result remains valid after typing new values
 
@@ -2794,15 +2877,17 @@ application failure; retain the original observation and cross-reference it.
 
 ### OBS-004 - Public submission feedback can obscure an uncertain outcome
 
-**Observed:** 2026-10-28 source review; no browser/network-fault reproduction
+**Observed:** 2026-10-28 source review, followed by isolated helper/UI reproduction
+under DEF-027. The original review below is retained as historical evidence.
 
 **Source baseline:** frontend `618d4380059d106ba820a36b20c4ce57c2069fbc`; backend
 `e6ae2a516ade4c33000344b18ca2016b8f8067b4` relevant submission code
 
 **Owner:** John/Charles public forms; coordinate backend submission ownership
 
-**Disposition:** Inspection risk awaiting a bounded regression; not a confirmed
-duplicate-write incident, tested failure or completed repair
+**Disposition:** Promoted to [DEF-027](#def-027---public-forms-misreport-uncertain-submission-outcomes) after isolated helper/UI reproduction on 2026-10-28.
+Owner repair passes the agreed isolated checks; merge/deployment and independent
+acceptance remain pending. No live duplicate-write incident was established.
 
 Frontend `src/features/public-submissions/submit.ts` maps malformed 2xx receipt
 bodies to success with empty identifiers/reference and a locally generated
