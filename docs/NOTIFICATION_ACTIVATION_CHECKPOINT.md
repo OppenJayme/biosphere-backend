@@ -74,16 +74,51 @@ name and reserved example-domain email; no real alert was selected for mutation.
 No test inquiry, account or email was created. Browser windows remain open.
 Recovery builds, startup logs and helpers remain private/ignored locally.
 
+## Live two-curator acceptance - 2026-10-28
+
+The user confirmed a second Curator account was available and manually signed
+it in through a separate isolated Edge context. Curator A remained signed in.
+A read-only lookup found an existing Pending visit request explicitly labelled
+TEST/acceptance by its contact or organization. Both real authenticated feeds
+contained its same alert as unread, and it had no prior recipient-state row.
+No source fixture, visitor submission, account or email was created.
+
+All six live assertion groups passed on the deployed revisions above:
+
+1. Both Curator feeds returned 200, enabled state management and the same unread
+   test alert before mutation.
+2. A clicked Mark as read in the real bell. PATCH returned 200, the Read label
+   appeared and only A's unread count fell by one. A's visible total stayed
+   unchanged; B's target stayed unread and its counts stayed unchanged.
+3. A reloaded the page and reopened the bell; the Read label persisted.
+4. A clicked Dismiss in the real bell. PATCH returned 200, the row disappeared,
+   its visible total fell by one and its unread count did not fall again. After
+   a real reload, that alert remained absent for A.
+5. B reloaded and reopened its bell. The same alert remained visible with Mark
+   as read, its API readAt remained null and its visible/unread counts were
+   unchanged. These fresh authenticated responses demonstrate recipient isolation
+   for these two sessions; no tokens or cookies were exported.
+6. Source pending inquiry/visit/email-failure counts stayed unchanged for both
+   accounts. SQL hashes of the source visit row and its communication history
+   matched before/after. Exactly one recipient-state row exists for this test
+   alert, with valid read/dismiss timestamps.
+
+The only persistent test change is A's read/dismiss state for that existing
+TEST-labelled visit alert. It is intentionally retained as evidence; B's state
+and the source workflow are unchanged. No reset/delete, source-status edit,
+Inventory change, new migration or server restart occurred in this test.
+No unexpected failures were observed. Helpers and private results stay ignored;
+both signed-in browser windows remain open.
+
 ## Remaining acceptance and recovery
 
-Activation and authenticated feed/control rendering are verified for this local
-development deployment. The prior owned 8/8 SQL/API tests and seven synthetic
-bell scenarios remain valid; they were not rerun merely to document deployment.
-A live agreed test-alert/two-curator read/dismiss, reload and unchanged-source
-check remains pending, as do independent notification acceptance, provider/proxy
-behavior, full accessibility, dependency-advisory review and broader event types.
-DASH-007 stays In progress; this does not establish production readiness or reopen
-Voltaire's completed earlier three-suite batch.
+Local development activation and the agreed live two-curator read/dismiss,
+reload, count and source-preservation check now pass. DASH-007 records this scoped
+live pass; independent notification review/sign-off remains pending. The prior
+owned 8/8 SQL/API checks and seven synthetic bell scenarios were not rerun or
+relabelled as live results. Real provider/proxy outages, full accessibility,
+dependency-advisory review and broader event types remain separate. This does
+not establish production readiness or reopen Voltaire's completed earlier batch.
 
 If a problem occurs, disable the backend flag and restart that app to recover
 legacy feed behavior. Keep the table/state and source records. Previous source

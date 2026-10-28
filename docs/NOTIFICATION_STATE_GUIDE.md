@@ -137,3 +137,17 @@ This is a reviewed implementation candidate with owner verification, not
 deployment or independent acceptance. Broader sync/backup/specimen/storage/QR/AR
 event integration under REQ-4.3-05/10 is still separate, as are OBS-002 polling
 diagnostics, approved public content and the unreproduced public-form OBS-004.
+
+## Authorized live two-curator checkpoint - 2026-10-28
+
+The [development deployment record](./NOTIFICATION_ACTIVATION_CHECKPOINT.md#live-two-curator-acceptance---2026-10-28)
+now includes six passing live assertion groups using the actual deployed app,
+two manually authenticated Curator sessions and one existing TEST-labelled visit
+alert. A read/dismiss persists through reload; B remains unread/visible after
+its own reload. Counts and hashes of the source visit and communication history
+are unchanged; one valid A recipient-state row remains. No new submission,
+email, account, Inventory edit or server restart was needed. This completes the
+agreed live slice, while independent notification sign-off and stated broader
+release/provider/accessibility limits remain separate. The older owner-only
+verification section above describes its earlier checkpoint, not the current
+absence of live evidence.
