@@ -9,15 +9,8 @@ export const FAQ_NO_MATCH_MESSAGE =
 export const FAQ_VISIT_REQUEST_MESSAGE =
   'The assistant cannot submit, approve, change, or cancel Visit Requests. Please use the Visit Request form or contact the curator.';
 
-export const FAQ_CLARIFY_MESSAGE =
-  'Your question matches more than one approved answer. Which of these did you mean? If none of them fit, you can send a General Inquiry.';
-
-export const FAQ_CLOSE_MATCH_MESSAGE =
-  'No approved answer matches that question exactly. Did you mean one of these? Otherwise, please send it through the General Inquiry form.';
-
 export enum FaqAssistantOutcome {
   ANSWERED = 'ANSWERED',
-  CLARIFY = 'CLARIFY',
   NO_MATCH = 'NO_MATCH',
   VISIT_REQUEST_REDIRECT = 'VISIT_REQUEST_REDIRECT',
 }

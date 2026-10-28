@@ -56,9 +56,8 @@ visitors. Both routes are throttled at 30 requests per minute per IP.
 - `POST /faq/assistant/ask` with `{ "question": "..." }` (1–500 chars). No other
   field is accepted, so no personal information is collected.
 
-The assistant only reads `ACTIVE` entries. Answered questions and visit-request
-redirects are not stored and no audit row is created. Questions it could not
-answer are logged for curator review (see below). Responses contain only stored curator text
+The assistant only reads `ACTIVE` entries. It never writes: the question is not
+stored, and no audit row is created. Responses contain only stored curator text
 and a narrow public projection (no status, attribution, keywords, or alternative
 wording).
 
@@ -117,32 +116,11 @@ Visit-request detection (SRS 4.11.2) triggers only on the verbs `submit`,
 questions such as "What is the visit schedule?" get the normal answer or the
 General Inquiry fallback.
 
-### Clarification and unanswered questions (proposal §7)
-
-Per the client proposals of 2026-10-22, applied for the presentation and pending museum confirmation:
-
-- **Clarify.** When two or more answerable, non-exact entries score within
-  `AMBIGUITY_MARGIN` (0.05) of the best one, the assistant answers neither and
-  returns `outcome: CLARIFY` with those entries in `related`, so the visitor
-  picks one. It still offers the General Inquiry redirect.
-- **Unanswered log.** `CLARIFY` and `NO_MATCH` questions are written to
-  `faq_unanswered_question` (migration
-  `20261022000000_add_faq_unanswered_question`): question text, normalized
-  text, outcome, and time only — no IP, identity, or session. Logging never
-  fails the public response. Rows older than 90 days are deleted on each write
-  and hidden from reads.
-- **Curator review.** `GET /faq/unanswered?review=OPEN|REVIEWED|ALL` groups
-  rows by normalized wording with counts and first/last ask times;
-  `PATCH /faq/unanswered/:id/review` (optional `faqEntryId`) marks every open
-  ask of that wording reviewed. The FAQ Knowledge page lists open questions.
-- Scope stays English only.
-
 ### Response outcomes
 
 | `outcome`                | When                                                    | `redirect`        |
 | ------------------------ | ------------------------------------------------------- | ----------------- |
 | `ANSWERED`               | An active entry met the threshold                       | `null`, or `VISIT_REQUEST` if the visitor asked for a visit transaction |
-| `CLARIFY`                | Two or more approved answers fit about equally          | `GENERAL_INQUIRY` |
 | `NO_MATCH`               | Nothing met the threshold                               | `GENERAL_INQUIRY` |
 | `VISIT_REQUEST_REDIRECT` | No match, and the visitor asked to submit, approve, cancel, modify, book, or reschedule a visit | `VISIT_REQUEST` |
 

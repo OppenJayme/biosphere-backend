@@ -5,7 +5,6 @@ import { AskFaqAssistantDto } from './dto/ask-faq-assistant.dto';
 import { ListFaqSuggestionsQueryDto } from './dto/list-faq-suggestions-query.dto';
 import {
   FAQ_ASSISTANT_NOTICE,
-  FAQ_CLARIFY_MESSAGE,
   FAQ_NO_MATCH_MESSAGE,
   FAQ_VISIT_REQUEST_MESSAGE,
   FaqAssistantOutcome,
@@ -15,7 +14,6 @@ import {
   PublicFaqQuestion,
 } from './entities/faq-assistant.entity';
 import { isVisitRequestTransaction, matchFaqEntries } from './faq-matcher';
-import { FaqUnansweredService } from './faq-unanswered.service';
 
 const PUBLIC_QUESTION_SELECT = {
   id: true,
@@ -24,17 +22,13 @@ const PUBLIC_QUESTION_SELECT = {
 } as const;
 
 /**
- * Public FAQ Assistant. It reads only ACTIVE entries and returns only stored
- * curator text. Ambiguous questions get a clarification prompt; unmatched
- * questions fall back to General Inquiry (BR-18). The text of a question it
- * could not answer is logged for curator review (no IP or identity).
+ * Public, read-only FAQ Assistant. It reads only ACTIVE entries, never writes
+ * (no question, IP, or audit row is stored), and returns only stored curator
+ * text — unmatched questions fall back to General Inquiry (BR-18).
  */
 @Injectable()
 export class FaqAssistantService {
-  constructor(
-    private readonly prisma: PrismaService,
-    private readonly unanswered: FaqUnansweredService,
-  ) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   async suggestions(
     query: ListFaqSuggestionsQueryDto,
@@ -66,26 +60,11 @@ export class FaqAssistantService {
       alternativeWording: entry.alternative_wording,
     }));
 
-    const { best, related, ambiguous } = matchFaqEntries(
-      dto.question,
-      candidates,
-    );
+    const { best, related } = matchFaqEntries(dto.question, candidates);
     const visitTransaction = isVisitRequestTransaction(dto.question);
     const relatedQuestions = related.map(({ entry }) =>
       this.toPublicQuestion(entry),
     );
-
-    if (ambiguous.length > 1 && !visitTransaction) {
-      await this.unanswered.record(dto.question, FaqAssistantOutcome.CLARIFY);
-      return {
-        outcome: FaqAssistantOutcome.CLARIFY,
-        answer: null,
-        related: ambiguous.map(({ entry }) => this.toPublicQuestion(entry)),
-        message: FAQ_CLARIFY_MESSAGE,
-        redirect: FaqAssistantRedirect.GENERAL_INQUIRY,
-        notice: FAQ_ASSISTANT_NOTICE,
-      };
-    }
 
     if (best) {
       return {
@@ -101,9 +80,6 @@ export class FaqAssistantService {
       };
     }
 
-    if (!visitTransaction) {
-      await this.unanswered.record(dto.question, FaqAssistantOutcome.NO_MATCH);
-    }
     return {
       outcome: visitTransaction
         ? FaqAssistantOutcome.VISIT_REQUEST_REDIRECT

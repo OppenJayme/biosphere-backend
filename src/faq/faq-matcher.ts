@@ -29,8 +29,6 @@ export const FAQ_MATCHING_RULES = {
   KEYWORD_BONUS: 0.15,
   MAX_KEYWORD_HITS: 3,
   MAX_RELATED: 3,
-  // Two non-exact answerable entries this close are too ambiguous to pick.
-  AMBIGUITY_MARGIN: 0.05,
 } as const;
 
 const STOPWORDS = new Set([
@@ -134,8 +132,6 @@ export interface FaqMatchCandidate {
 export interface FaqMatchResult<T extends FaqMatchCandidate> {
   best: { entry: T; score: number } | null;
   related: Array<{ entry: T; score: number }>;
-  /** Answerable entries scoring within AMBIGUITY_MARGIN of the best one. */
-  ambiguous: Array<{ entry: T; score: number }>;
 }
 
 export function normalizeFaqText(text: string): string {
@@ -270,21 +266,11 @@ export function matchFaqEntries<T extends FaqMatchCandidate>(
     );
 
   const best = ranked.find((candidate) => isAnswerable(query, candidate));
-  const ambiguous =
-    best && best.score < 1
-      ? ranked.filter(
-          (candidate) =>
-            candidate.score >=
-              best.score - FAQ_MATCHING_RULES.AMBIGUITY_MARGIN &&
-            isAnswerable(query, candidate),
-        )
-      : [];
   return {
     best: best ?? null,
     related: ranked
       .filter((candidate) => candidate !== best)
       .slice(0, FAQ_MATCHING_RULES.MAX_RELATED),
-    ambiguous: ambiguous.length > 1 ? ambiguous : [],
   };
 }
 

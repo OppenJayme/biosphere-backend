@@ -67,7 +67,6 @@ describe('faq-matcher', () => {
     expect(matchFaqEntries('what is the', entries)).toEqual({
       best: null,
       related: [],
-      ambiguous: [],
     });
   });
 
