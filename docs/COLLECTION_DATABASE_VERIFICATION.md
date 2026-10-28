@@ -135,10 +135,13 @@ preserving exact count/actor assertions. The full collection suite remains
 16/16; no production guard behavior or shared database changed. Missing-event
 and forbidden-read controls execute in the companion Backup database suite.
 
-Status: **Not run by an independent reviewer**. Charles, John or Voltaire may
-take this batch, depending on who replies first. This is acceptance of the
-disposable verification slice only, not all Cataloging or deployment sign-off.
-The author/automation owner results above are not independent acceptance.
+Status: **Independent disposable slice passed - 2026-10-28**.
+Voltaire's [report](https://github.com/OppenJayme/biosphere-backend/pull/206#issuecomment-6462407880) records 16/16, exit 0, on clean backend
+`e6ae2a516ade4c33000344b18ca2016b8f8067b4`, with owned-container cleanup passing.
+Full environment/provenance is in the [current handoff](./COMPLETION_HANDOFF.md#current-independent-review-checkpoint---2026-10-28).
+This completes the requested independent database batch; shared deployment,
+browser/release acceptance and legacy duplicate disposition remain separate.
+The checklist below is retained for future relevant changes, not a repeat request.
 
 1. Review the published branch/PR on an identified committed revision with a
    clean worktree; record the full SHA rather than reviewing an untracked local

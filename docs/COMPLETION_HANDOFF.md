@@ -17,40 +17,42 @@ fetched develop trees contain the intended fixtures. The earlier feature-branch
 merges alone had not integrated all changes. This is source/CI verification,
 not a rebuild or acceptance test of the running application.
 
-Raidiniom's [independent review of #195](https://github.com/OppenJayme/biosphere-backend/pull/195#issuecomment-6461153540)
-reports approval with no follow-up fix needed, TypeScript passing, clean lint
-on all four changed test files and **13/13 existing HTTP tests passing** in a
-temporary worktree that was subsequently deleted. Record this as positive code
-review and reported independent HTTP/static verification. Do not repeat those
-owner checks to manufacture independent evidence.
+Voltaire (GitHub Raidiniom, executed via Claude Code on his machine) supplied
+[the completed independent report](https://github.com/OppenJayme/biosphere-backend/pull/206#issuecomment-6462407880)
+on 2026-10-28. Both tested worktrees were clean:
 
-The reviewer explicitly did **not** run the two Docker database suites because
-Docker Desktop was off. The comment does not report the duplicate-browser run,
-full tested frontend/backend SHAs or the complete environment/cleanup report.
-Do not attribute the current merge SHAs above to the reviewer's test run.
-DEF-025 and module acceptance statuses are unchanged.
+- Backend: `e6ae2a516ade4c33000344b18ca2016b8f8067b4`.
+- Frontend: `618d4380059d106ba820a36b20c4ce57c2069fbc`.
+- Windows 11 Pro 10.0.26300; Node v22.14.0; Docker engine 29.8.2;
+  Edge 156.0.4314.42. Dependencies installed from committed lockfiles.
 
-The next finite reviewer batch remains:
-
-| Repository | Reviewer command | Expected owner baseline |
+| Independent command | Reported result | Exit |
 | --- | --- | --- |
-| Backend | `npm run test:collections:db` | 16/16 |
-| Backend | `npm run test:backup-history:db` | 16/16 |
-| Frontend | `npm run test:duplicates:browser` | 6 scenarios |
+| `npm run test:collections:db` | 16/16 Pass | 0 |
+| `npm run test:backup-history:db` | 16/16 Pass | 0 |
+| `npm run test:duplicates:browser` | 6/6 Pass | 0 |
 
-Use the prerequisites and report template in the [existing review request](https://github.com/OppenJayme/biosphere-backend/pull/195#issuecomment-6447958653).
-The reviewer should use their own clean committed checkout, turn on their local
-Docker Desktop Linux engine if available, and record actual SHAs, environment,
-exit codes, cleanup and unexpected output. No `.env` edits, shared database,
-guard changes or live museum records. Missing prerequisites are **Blocked**,
-not a failed application or a passing suite. No further teammate message has
-been sent as part of this checkpoint.
+Both owned database containers and the temporary browser session were cleaned
+up. No unexpected errors were reported. The intentional SQL 42501 rollback
+injection and Node VM warning were expected. The initially missing PostgreSQL
+image was pulled by the exact pinned digest, without substitution:
+`postgres@sha256:eee6c6e1b0894fa4fe0075eb054af9fd1cf39a35321c2d4110626cfe506411fb`.
 
-After this batch, collect its actual report before recording independent
-regression acceptance. This does not replace the remaining approved FAQ content,
-live integration/provider/PWA cases, defect dispositions and scoped release
-sign-off. Sir Curator's answers and Inventory-owned fixtures remain external
-inputs; no new testing batch is opened merely while waiting for them.
+This completes the requested three-suite independent batch. No further answers
+or repeated runs are required for that batch. DEF-025 is Verified for its narrow
+test-harness repair. DEF-026 has independent six-scenario component evidence;
+its separate live-result/release limits and CAT-014 acceptance remain explicit.
+The earlier [#195 review](https://github.com/OppenJayme/biosphere-backend/pull/195#issuecomment-6461153540)
+reported 13/13 existing HTTP checks and static review, with Docker not run at
+that earlier checkpoint; do not retroactively assign the later SHAs to it.
+
+This is acceptance of these isolated regressions, not whole-module sign-off,
+shared database migration, production/provider/PWA verification or real backup
+and restore. Approved FAQ/public content and Inventory-owned fixtures remain
+separate inputs. New notification PRs were not part of the reviewed revisions
+and do not reopen this completed batch. See the
+[notification activation checkpoint](./NOTIFICATION_ACTIVATION_CHECKPOINT.md)
+for the next finite integration steps. No suites were rerun for this docs update.
 
 2026-10-28 owned recovery follow-up: [the accepted-write/tab-close slice](./OFFLINE_SYNC_GUIDE.md#owned-accepted-write-tab-recovery---2026-10-28)
 passes 1/1 in two consecutive complete runs. Real UI draft recovery and automatic
