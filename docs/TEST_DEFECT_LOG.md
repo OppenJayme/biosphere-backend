@@ -87,7 +87,7 @@ system is not a reason to postpone all fixes until the end.
 | ID      | Date       | Module                     | Summary                                                                 | Severity    | Priority | Status | Owner                   |
 | ------- | ---------- | -------------------------- | ----------------------------------------------------------------------- | ----------- | -------- | ------ | ----------------------- |
 | [DEF-026](#def-026---duplicate-result-remains-valid-after-typing-new-values) | 2026-10-27 | Cataloging / Duplicate warning UI | A response for the old name can show after typing a new value without leaving the field | S3 Moderate | P2 | Ready for retest | Kyer / Cataloging frontend |
-| [DEF-025](#def-025---denial-audit-tests-assume-immediate-background-persistence) | 2026-10-27 | Backup / Collections test harness | Immediate audit readback can fail before asynchronously recorded denial events become visible | S3 Moderate | P2 | Ready for retest | Kyer / test maintainers |
+| [DEF-025](#def-025---denial-audit-tests-assume-immediate-background-persistence) | 2026-10-27 | Backup / Collections test harness | Immediate audit readback can fail before asynchronously recorded denial events become visible | S3 Moderate | P2 | Verified | Kyer / test maintainers |
 | [DEF-024](#def-024---faq-matcher-answers-parking-questions-with-unrelated-fee-information) | 2026-10-25 | FAQ / Answer quality | Fee keyword overlap answers a parking question even when the fee topic is excluded or parking inclusion is unsupported | S3 Moderate | P1 | Ready for retest | Kyer / FAQ matching; independent abstention-policy review pending |
 | [DEF-023](#def-023---conflicting-faq-cleanup-modes-perform-deletion) | 2026-10-25 | FAQ / Cleanup operations | Combining --apply and --dry-run deletes expired rows instead of rejecting conflicting modes | S3 Moderate | P1 | Ready for retest | Kyer / FAQ backend |
 | [DEF-022](#def-022---interrupted-media-metadata-save-removes-the-edit-form) | 2026-10-24 | Cataloging / Media UI | Rejected metadata Server Action transport removes the edit form and local edits | S3 Moderate | P1 | Ready for retest | Kyer / Cataloging frontend |
@@ -219,6 +219,13 @@ blocked-request check as though untested or promote CAT-014 to full acceptance.
 Private build/startup logs, recovery build and browser scripts stay local and
 are excluded from commits. No new application defect was established here.
 
+Independent component follow-up - 2026-10-28: Voltaire's [report](https://github.com/OppenJayme/biosphere-backend/pull/206#issuecomment-6462407880)
+records all six duplicate-browser scenarios passing, exit 0, on clean frontend
+`618d4380059d106ba820a36b20c4ce57c2069fbc`; temporary session cleanup passed.
+The requested component batch is independently complete and needs no repeat.
+DEF-026 retains its separate live-result/release limits above; CAT-014 is not
+promoted to whole-workflow acceptance by synthetic component responses.
+
 ### DEF-025 - Denial-audit tests assume immediate background persistence
 
 **Found on:** 2026-10-27; review of merged PR #194, source baseline `da4a5e1`.
@@ -227,7 +234,7 @@ Owner reproduction now confirms it in both disposable database suites.
 
 **Severity / priority:** S3 Moderate / P2, test reliability/acceptance evidence.
 **Owner:** Kyer / Backup and Cataloging test maintainers.
-**Status:** Ready for retest; owner repair verified, independent review pending.
+**Status:** Verified - independent disposable regression report accepted 2026-10-28.
 
 **Cause:** RolesGuard intentionally starts SecurityAuditService.record without
 awaiting it before returning 403. Both test suites immediately requested audit
@@ -266,9 +273,12 @@ failure controls do not make exact counts depend on execution order. Type-check
 passes; full lint has zero errors and seven pre-existing unused-disable warnings.
 Post-run enumeration found no retained owned Backup/Collection containers.
 
-**Next:** Independently review the bounded read-only polling and controls. Do not
-change production guard timing merely to make a test synchronous. This does not
-close DEF-017's separate missing-adapter gap or certify backup/restore behavior.
+**Independent verification - 2026-10-28:** Voltaire's [report](https://github.com/OppenJayme/biosphere-backend/pull/206#issuecomment-6462407880)
+records Collection 16/16 and Backup 16/16, both exit 0, on clean backend
+`e6ae2a516ade4c33000344b18ca2016b8f8067b4`, with owned-container cleanup passing
+and no unexpected errors. This verifies the bounded polling repair and controls.
+Production guard timing is unchanged. DEF-017's separate missing-adapter gap,
+shared deployment and real backup/restore acceptance remain outside this closure.
 
 ### DEF-024 - FAQ matcher answers parking questions with unrelated fee information
 

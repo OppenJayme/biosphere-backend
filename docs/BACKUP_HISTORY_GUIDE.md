@@ -121,3 +121,14 @@ controls for an absent event and forbidden readback. Collection database checks
 pass **16/16** with the same real delay; existing HTTP regressions pass **13/13**.
 No production Auth/Backup/Collection code, guards, logging policy or shared
 database changed. BAK-001 remains In progress and real backup/restore Deferred.
+
+### Independent disposable checkpoint - 2026-10-28
+
+Voltaire's [report](https://github.com/OppenJayme/biosphere-backend/pull/206#issuecomment-6462407880) records 16/16 Backup History database/HTTP checks,
+exit 0, on clean backend `e6ae2a516ade4c33000344b18ca2016b8f8067b4`.
+Owned-container cleanup passed; no unexpected errors were reported. See the
+[current handoff](./COMPLETION_HANDOFF.md#current-independent-review-checkpoint---2026-10-28)
+for environment and exact pinned image. The requested independent batch is
+complete. BAK-001 remains In progress for populated real-browser/provider
+acceptance; BAK-002 real backup/restore stays Deferred. Synthetic history does
+not establish real backup creation, artifact access or restoration.
