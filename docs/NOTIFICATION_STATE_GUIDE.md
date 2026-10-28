@@ -3,7 +3,9 @@
 Implemented for REQ-4.3-07 under the user's 2026-10-28 authorization to help the
 notification module. Coordinate review with John/Charles and authorization
 contracts with Voltaire. The earlier implementation hold is superseded for this
-bounded slice; shared migration/deployment is still **not performed**.
+bounded slice. The subsequently authorized **local development activation** is
+recorded in the [deployment checkpoint](./NOTIFICATION_ACTIVATION_CHECKPOINT.md);
+production and full live acceptance are not implied.
 
 ## Behavior and API
 
@@ -50,7 +52,9 @@ responses are discarded after a newer action.
 Prepared migration:
 `prisma/migrations/20261028000000_add_user_notification_state/migration.sql`.
 Prisma client generation/build needs the updated schema; generate does not apply
-the migration. Shared schema/environment has not been changed.
+the migration. The initial implementation did not change shared schema or
+environment; the later explicitly authorized development migration/activation
+is recorded in the checkpoint linked above.
 
 The migration is transactional. The table has an account/event composite primary key, account foreign key,
 bounded event keys and timestamp constraints. Read/dismiss uses one atomic
@@ -133,3 +137,17 @@ This is a reviewed implementation candidate with owner verification, not
 deployment or independent acceptance. Broader sync/backup/specimen/storage/QR/AR
 event integration under REQ-4.3-05/10 is still separate, as are OBS-002 polling
 diagnostics, approved public content and the unreproduced public-form OBS-004.
+
+## Authorized live two-curator checkpoint - 2026-10-28
+
+The [development deployment record](./NOTIFICATION_ACTIVATION_CHECKPOINT.md#live-two-curator-acceptance---2026-10-28)
+now includes six passing live assertion groups using the actual deployed app,
+two manually authenticated Curator sessions and one existing TEST-labelled visit
+alert. A read/dismiss persists through reload; B remains unread/visible after
+its own reload. Counts and hashes of the source visit and communication history
+are unchanged; one valid A recipient-state row remains. No new submission,
+email, account, Inventory edit or server restart was needed. This completes the
+agreed live slice, while independent notification sign-off and stated broader
+release/provider/accessibility limits remain separate. The older owner-only
+verification section above describes its earlier checkpoint, not the current
+absence of live evidence.
