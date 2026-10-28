@@ -7,13 +7,21 @@ status and does not authorize migrations, account changes or teammate-owned work
 
 ## Closeout queue - 2026-10-27
 
+2026-10-28 owned recovery follow-up: [the accepted-write/tab-close slice](./OFFLINE_SYNC_GUIDE.md#owned-accepted-write-tab-recovery---2026-10-28)
+passes 1/1 in two consecutive complete runs. Real UI draft recovery and automatic
+same-ID retry return the original specimen; owned SQL has one specimen, receipt
+and success audit. This bounded evidence gap is closed owner-side. Harness
+corrections and one earlier unestablished timeout are recorded in the guide.
+DEF-019 remains Open for historical/full Next/PWA/independent limits; its shared
+pilot stays stopped. Next is review/merge and agreed independent acceptance.
+
 2026-10-28 containment follow-up: [the approved offline UI preflight](./OFFLINE_SYNC_GUIDE.md#offline-ui-containment-preflight---2026-10-28)
 passes 3/3 using a fresh browser origin/context, real panel, owned SQL/Nest read,
 permanently read-only adapter and independent arrival counters. No draft write
 or interruption occurred; SQL specimen/receipt/audit counts remain zero. This
 provides bounded fixture containment, not full Next/PWA or interrupted-write
-acceptance. DEF-019 stays Open; the shared-backend pilot stays disabled. Next is
-a separately agreed owned write/recovery slice, alongside independent review.
+acceptance. DEF-019 stays Open; the shared-backend pilot stays disabled. The
+subsequent agreed owned write/recovery evidence is linked immediately above.
 
 2026-10-28 offline database follow-up: [8 owned disposable PostgreSQL/HTTP
 checks](./OFFLINE_SYNC_GUIDE.md#disposable-postgresql-and-http-verification---2026-10-28)

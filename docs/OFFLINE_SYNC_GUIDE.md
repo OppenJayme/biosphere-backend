@@ -5,6 +5,68 @@ text-only `UNCATALOGED` specimen drafts. Browser caching, offline search, draft
 retention, connectivity detection, and the visible sync states remain frontend
 PWA responsibilities implemented with IndexedDB/Dexie and the service worker.
 
+## Owned accepted-write tab recovery - 2026-10-28
+
+The explicitly approved real-UI/Nest/PostgreSQL case passes **1/1** in two
+consecutive complete runs (25.7s and 26.8s). The first Nest transaction commits
+one synthetic specimen while its HTTP adapter deliberately withholds the
+successful response. Closing only that fixture tab leaves its draft in local
+storage. A new tab on the same isolated origin/context recovers it as retryable
+interrupted work. All entered fields remain unchanged; Retry is disabled while
+offline. Reconnecting runs the real hook's automatic eligible-draft retry,
+which returns the same draft/specimen IDs with `alreadySynchronized: true`.
+The UI displays Synchronized and its Uncataloged cached record, with no Retry.
+
+Final independent SQL postconditions are exactly **1 specimen, 1 receipt,
+1 total audit and 1 successful sync audit**, correct curator attribution and
+unchanged synthetic names/remarks. Public eligibility remains false. Adapter
+observations require exactly two same-ID forwards, the first connection closed
+before its 30-second hold deadline, and no hold expiry. A malformed POST is
+rejected directly before any browser work/forwarding as a denial control.
+
+Run `npm run test:offline:recovery` from the backend root with matching recovery
+code in the sibling frontend checkout. Prerequisites match the containment
+preflight: installed dependencies/pinned optional browser tools, Windows local
+Docker, cached pinned image and Edge. This opt-in test does not run in ordinary
+CI or accept an external database/application target. It creates its own tmpfs
+database and minimal real Nest/auth/schema fixture, using synthetic identities.
+
+The existing permanently read-only preflight adapter is unchanged. A separate
+recovery adapter binds loopback, accepts only the exact expected synthetic core
+payload and one draft UUID, permits at most two forwards, and uses a fixed owned
+Nest destination/route/identity with redirect rejection. Cookies, authorization,
+foreign origins/hosts and unknown routes are denied; browser interception adds
+an exact-origin/method/path allowlist. Cache-list GET deliberately returns 503,
+so the final cached card comes from the real successful sync path, not a fake
+list response. No page-route teardown handler decides where a write goes.
+
+Harness corrections are retained as evidence: initial local-save attempts were
+blocked by the fixture CSP's prohibition of Zod's runtime schema compiler; the
+disposable script policy now allows that compiler without changing production
+CSP or network destinations. One early synchronization wait timed out without
+adequate state diagnostics; its cause remains unestablished. Bounded synthetic
+UI/state failure reporting was added; two complete runs then passed. A SQL
+postcondition initially used nonexistent `public_display`; corrected to actual
+`public_display_allowed` before accepting the pass. No application defect or
+production fix is inferred from these harness failures; no assertion is skipped.
+
+Both repositories' no-emit and touched-file lint checks pass. Owned containers
+were absent after cleanup; original public login/root returned HTTP 200. No
+manual application-server control or signed-in-window operation occurred.
+The original backend listener's child changed during file activity (observed
+41556 versus earlier 33092); frontend PID 16340 remained. Uninterrupted backend
+process continuity is not claimed. No runtime, migration, Inventory, dependency
+or shared-database changes; app suites/builds were not repeated for test tooling.
+
+This closes the **bounded owned accepted-write/tab-retry evidence gap**, not
+whole-module acceptance. DEF-019 stays Open because the historical shared-target
+leak's cause and full Next/PWA containment remain unestablished; its old pilot
+stays disabled. This facade replaces Next session/route middleware and does not
+register the real service worker. Actual process death, provider expiry/re-login,
+production deployment and independent acceptance remain separate. Normal
+finally cleanup is not a process-crash guarantee. Next is review/merge and
+independent acceptance of the agreed scope, not automatic expansion of tests.
+
 ## Offline UI containment preflight - 2026-10-28
 
 The approved preflight passes **3/3** checks: adapter write denial without browser
