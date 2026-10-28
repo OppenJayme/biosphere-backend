@@ -25,6 +25,7 @@
     "test:collections:db": "cross-env RUN_COLLECTIONS_DISPOSABLE_DB=true node --experimental-vm-modules node_modules/jest/bin/jest.js --config ./test/jest-collections-db.json --runInBand",
     "test:backup-history:db": "cross-env RUN_BACKUP_HISTORY_DISPOSABLE_DB=true node --experimental-vm-modules node_modules/jest/bin/jest.js --config ./test/jest-backup-history-db.json --runInBand",
     "test:offline-sync:db": "cross-env RUN_OFFLINE_SYNC_DISPOSABLE_DB=true node --experimental-vm-modules node_modules/jest/bin/jest.js --config ./test/jest-offline-sync-db.json --runInBand",
+    "test:offline:containment": "cross-env RUN_OFFLINE_SYNC_DISPOSABLE_DB=true node --experimental-vm-modules node_modules/jest/bin/jest.js --config ./test/jest-offline-containment.json --runInBand",
     "test:e2e:live:developer": "cross-env RUN_LIVE_DEVELOPER_E2E=true NODE_OPTIONS=--experimental-vm-modules jest --config ./test/jest-e2e.json test/developer.e2e-spec.ts --runInBand",
     "benchmark:specimen-import": "ts-node --transpile-only scripts/benchmark-specimen-import.ts",
     "db:check-accession-collisions": "ts-node --transpile-only scripts/check-accession-collisions.ts",
