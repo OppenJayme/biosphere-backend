@@ -5,6 +5,80 @@ text-only `UNCATALOGED` specimen drafts. Browser caching, offline search, draft
 retention, connectivity detection, and the visible sync states remain frontend
 PWA responsibilities implemented with IndexedDB/Dexie and the service worker.
 
+## Disposable PostgreSQL and HTTP verification - 2026-10-28
+
+The approved backend slice passes **8/8** checks using real Nest controllers,
+guards, services, Prisma and PostgreSQL. Only external identity-provider
+responses are synthetic; account/role lookup and all mutation transactions use
+the owned database. No AppModule, application dotenv configuration or existing
+connection URL is loaded by this fixture.
+
+Run explicitly on Windows with the documented local Docker Desktop Linux engine
+and the helper's pinned PostgreSQL image already cached:
+
+```powershell
+npm run test:offline-sync:db
+```
+
+The helper's new `offline-sync` profile requires its own opt-in flag and creates
+`biosphere_offline_sync_disposable` in a fresh randomly named/labelled container.
+It retains generated credentials, loopback-only random ports, 384 MB/one CPU,
+tmpfs storage/no host or persistent mounts, `--pull=never` and exact-owner
+cleanup. The Nest test server also binds a random loopback port. This opt-in
+suite is outside ordinary unit/HTTP/CI discovery; CI does not implicitly run Docker.
+
+Setup applies the actual collection/specimen DDL, accession uniqueness migration
+and offline-receipt migration. Shared minimal synthetic account/audit fixtures
+supply dependencies, including two active curators.
+Their synthetic provider UUIDs differ from their BioSphere account UUIDs, so
+the attribution assertions also check the identity-to-account boundary.
+The fixture role models
+server-side Prisma access with BYPASSRLS; this is not deployed RLS certification
+or a replay of the full historical schema.
+
+| Case | Observed result |
+| --- | --- |
+| First acceptance | Trimmed, attributed Uncataloged/non-public specimen, matching durable receipt and readable success audit persist together. |
+| Normalized same-ID retry | Original specimen returned; receipt identity/timestamp and success-audit count unchanged. |
+| Changed-content conflict | 409; original specimen/receipt preserved and original-content retry remains valid. |
+| Concurrent identical requests | An owned advisory-lock trigger confirms two transactions reached insertion before release; responses converge on one specimen/receipt/audit, with one first acceptance and one retry. |
+| Owner separation | Two curators reuse the same draft UUID and receive distinct, correctly attributed specimens and receipts. |
+| Audit failure | Actual INSERT permission denial rolls back specimen/receipt/audit; restoring the grant permits a safe first-acceptance retry. |
+| Receipt failure | A trigger fault after audit insertion rolls back the prior specimen and audit too; removing it permits a safe retry. |
+| SQL uniqueness | Duplicate owner/draft receipt rejected with 23505 even for a separate unreceipted SQL specimen fixture; original receipt unchanged. |
+
+The concurrency barrier has a three-second observation deadline and is released
+in finally; the trigger/function are removed after both requests settle. Failure
+grants/triggers are restored/removed in finally. Expected PostgreSQL 42501 and
+23514 Nest/Prisma error stacks remain visible, along with the VM-module warning;
+they are intentional owned-fixture faults, not suppressed production failures.
+The first fixture assertion used database field `status` for the public audit
+response; it failed and was corrected to the API's `result` field. No production
+bug or runtime change was needed to pass the slice.
+
+This closes the bounded owner SQL/HTTP receipt-uniqueness, two-request concurrency
+and rollback verification gap. It does not establish real Supabase sessions,
+production migration/RLS/scale, full browser recovery, independent acceptance
+or a full-stack disposable environment. OFF-003 stays In progress; DEF-019's
+shared-backend tab-interruption pilot remains stopped. Shared records, Inventory,
+ports 3000/3001 and signed-in browser windows are outside this fixture.
+
+Validation: final offline database suite 8/8; existing offline service 8/8 and
+isolated HTTP 4/4; existing collection database compatibility 16/16. TypeScript
+no-emit and diff checks pass. Full lint has zero errors and seven pre-existing
+unused-disable warnings; touched test files lint clean. Owned-container readback
+found no retained offline-sync or collection test containers. Frontend PID
+16340 remained on 3000. The existing Nest watcher logged file-change recompiles
+and its backend child was PID 20060 on 3001 at the final check, rather than the
+earlier PID 13188. Parent metadata traces it to the original watcher PID 20792.
+No manual restart/stop command was issued for that backend; the exact triggering
+file is unestablished. Do not claim uninterrupted backend process continuity.
+No runtime source, authentication settings or application environment file was
+edited. Public backend root and frontend login readiness both returned 200
+after the observed watch restart; this is not a protected workflow retest.
+No frontend suite/build or full backend campaign was repeated for this bounded
+test-only change.
+
 ## Isolated frontend route-adapter checks - 2026-10-28
 
 The agreed five-case adapter batch is implemented in frontend

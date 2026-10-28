@@ -7,6 +7,16 @@
 
 ## Start here
 
+2026-10-28 offline database follow-up: [8 disposable SQL/HTTP checks](./OFFLINE_SYNC_GUIDE.md#disposable-postgresql-and-http-verification---2026-10-28)
+pass with real controllers/guards/services/Prisma/PostgreSQL and synthetic
+identity responses. They cover durable receipts, same-ID retry, conflicts,
+two proven-overlapping identical requests, owner separation, audit/receipt
+rollback and SQL uniqueness. This supplies bounded backend database evidence;
+it does not clear DEF-019's browser/full-stack containment gate or independent
+acceptance. No shared migration, record or Inventory changes; no manual backend
+restart, but watcher-driven child recompilation was observed and is recorded
+in the guide. Backend process continuity is not claimed.
+
 2026-10-28 offline adapter follow-up: [five direct-handler checks](./OFFLINE_SYNC_GUIDE.md#isolated-frontend-route-adapter-checks---2026-10-28)
 pass for validated success, preserved backend 401/403, malformed success rejected
 as 502, and unsupported publishing/quantity rejected before forwarding. Actual
@@ -766,7 +776,7 @@ acceptance are not marked complete by this narrower evidence.
 | ------- | --------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- | ------- |
 | OFF-001 | Cache the allowed specimen list, disconnect, and check workspace/reload | Open workspace retains bounded cached viewing; fresh offline navigation/reload shows record-free fallback | In progress; manual workspace/fallback/recovery evidence recorded; independent retest pending |
 | OFF-002 | Create an offline text draft and synchronize after reconnecting | One attributed `UNCATALOGED` record is created                                                  | In progress; manual save/persistence/sync evidence recorded; independent sign-off pending |
-| OFF-003 | Retry the same synchronization and simulate temporary failure   | Retry is safe; no duplicate specimen is created; recoverable errors remain visible              | In progress; prior scoped pilots and [isolated 401/403 local recovery checks](./OFFLINE_SYNC_GUIDE.md#isolated-authorization-recovery-checks---2026-10-28) pass; DEF-019 interruption pilot remains stopped pending isolation; actual session expiry/re-login, live concurrency and independent acceptance remain |
+| OFF-003 | Retry the same synchronization and simulate temporary failure   | Retry is safe; no duplicate specimen is created; recoverable errors remain visible              | In progress; prior client evidence plus [8 real disposable SQL/HTTP receipt/concurrency/rollback checks](./OFFLINE_SYNC_GUIDE.md#disposable-postgresql-and-http-verification---2026-10-28) pass; DEF-019 interruption stays stopped pending full-stack containment; actual expiry/re-login, browser recovery and independent acceptance remain |
 | OFF-004 | Inspect offline feature boundaries                              | Media, inventory movement, archive, and privileged operations are not falsely available offline | In progress; text-core boundary/account isolation reported and regression-covered; full negative matrix pending |
 
 ### FAQ knowledge management
