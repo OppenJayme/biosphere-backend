@@ -286,3 +286,54 @@ that review is now implemented behind the default-off rollout flag; see the
 - Visitor-list file upload on the visit form.
 - Deleting or anonymizing finished records. The SRS leaves the visitor-data
   retention period and deletion procedure for USC-BM/university approval.
+
+## Uncertain public submission feedback - 2026-10-28
+
+OBS-004 was reproduced as [DEF-027](./TEST_DEFECT_LOG.md#def-027---public-forms-misreport-uncertain-submission-outcomes).
+Frontend [repair PR #92](https://github.com/OppenJayme/biosphere-frontend/pull/92),
+commit `3e4b261e905e8c731908123371f83c0ec068c356`, is prepared; it has not been deployed
+to the running site by this task. John/Charles retain module ownership.
+
+The direct browser-to-backend POST remains unchanged so public per-IP rate
+limits still apply to the visitor. Only a valid server receipt (UUID, nonblank
+reference, initial PENDING status and ISO timestamp) produces the success screen.
+Malformed/unreadable success, transport loss and unexpected HTTP errors produce
+an uncertain outcome with no fabricated receipt or claim that nothing was saved.
+Known 400/429 rejections retain their separate validation/wait guidance.
+
+Both real forms retain their entries and consent, focus the uncertainty warning
+and disable sending, including requestSubmit, until the visitor explicitly
+acknowledges the risk. "I checked; allow another submission" enables sending
+without sending a request itself. A later explicit Submit performs the POST;
+there is no background replay or automatic retry. This is acknowledgement, not
+proof the visitor checked and not a server-side idempotency guarantee. The
+visitor can still deliberately send another request. Values stay only in the
+open form; closing/reloading is not a durable draft/receipt recovery mechanism.
+No visitor data is added to persistent browser storage by this repair.
+
+User-agreed seams are the real helper with synthetic external fetch, plus both
+real forms/helper/validators/components in isolated Edge with synthetic HTTP.
+No private collaborator is replaced. Browser fixtures use fixed synthetic env,
+no .env/public assets, default-deny requests and a unique nonpersistent session.
+
+Verification:
+
+- `npm test -- src/features/public-submissions/submit.test.ts`: 13/13.
+- `npm run test:public-submissions:browser`: 14 scenarios; owned session closed.
+- `npm test`: 439/439 in 72 files.
+- Full frontend lint, Next type generation and TypeScript no-emit pass. An
+  isolated production webpack build passes with synthetic public configuration.
+
+Prerequisites: existing lockfile-installed frontend dependencies, separately
+installed pinned tools/browser dependencies and the supported installed Edge
+channel. No live application URL is accepted by the browser runner. Its README
+describes setup/containment. No actual API/database or email command should be
+substituted for a missing tooling prerequisite.
+
+The owner observed red before green for malformed receipt, transport/server
+feedback, invalid receipt fields and immediate UI resend. These results verify
+bounded client behavior, not actual database commits, email, deployed CORS or
+proxy behavior, server duplicate prevention, modal close/reopen or full
+accessibility. The task made no shared records, environment, server, migration,
+account or Inventory changes. Merge/CI, deployed-build verification and
+independent module-owner acceptance remain separate.
