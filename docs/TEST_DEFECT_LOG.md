@@ -806,6 +806,23 @@ idempotency defect has been established. Do not blindly rerun the pilot.
 
 #### Containment and follow-up
 
+2026-10-28 subsequent approved [owned accepted-write recovery](./OFFLINE_SYNC_GUIDE.md#owned-accepted-write-tab-recovery---2026-10-28)
+passes 1/1 twice consecutively: lost first response, tab close, retained fields,
+recovered interrupted state and automatic same-ID retry; independent owned SQL
+ends with one specimen/receipt/success audit. A separate exact-payload/two-forward
+adapter is used; the read-only preflight adapter and disabled shared pilot are
+unchanged. Fixture CSP/SQL corrections and one earlier synchronization timeout
+of unestablished cause are recorded, not hidden. **DEF-019 stays Open**; this
+bounded pass is not historical root cause, full Next/PWA or independent signoff.
+
+2026-10-28: the [approved owned offline-UI preflight](./OFFLINE_SYNC_GUIDE.md#offline-ui-containment-preflight---2026-10-28)
+passes 3/3, including independent server counters and zero owned SQL specimen,
+receipt and audit rows. The adapter permanently denies writes; no interrupted
+draft was attempted. This is bounded fixture containment, not historical leak
+reproduction, full Next/PWA acceptance or closure. **DEF-019 remains Open** and
+the disabled shared-backend pilot must not be repeated. A write/recovery slice
+requires its own agreed owned target and boundary.
+
 Both temporary tabs were closed; the original signed-in audit tab/URL stayed
 open. Final read-only checks found zero matching local fixtures and no eligible
 unfinished drafts. Earlier successful simulated-401 and six-case matrix fixture
