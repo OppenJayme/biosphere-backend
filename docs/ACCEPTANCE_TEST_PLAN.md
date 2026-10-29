@@ -1835,6 +1835,20 @@ disposable `TEST -` specimen and storage units that hold specimens.
 | SRCH-002 | Filter by a storage location with and without its sub-locations                                                                                   | "Include units inside it" returns specimens in child units; "only directly in it" excludes them                                                        | Not run |
 | SRCH-003 | Sort by category and family; check the Family, Active Qty, Condition, and Storage Location columns                                               | Sorting is stable with blanks last; the columns match each specimen's active lots (REQ-4.7-03)                                                         | Not run |
 
+### Public-form submission recovery checkpoint - 2026-10-28
+
+[DEF-027 / OBS-004](./TEST_DEFECT_LOG.md#def-027---public-forms-misreport-uncertain-submission-outcomes)
+is reproduced and repaired owner-side: 13 helper cases and fourteen isolated
+real-form/synthetic-HTTP scenarios pass, with 439/439 full frontend tests,
+clean lint/TypeScript and an isolated synthetic-config production build.
+Confirmed receipt, known rejection, unknown outcome, retained entries and explicit
+retry behavior are covered. No real submission, email or database was used;
+there is no backend duplicate-prevention claim. INQ-001/002 and the visit rows
+retain their live persistence/provider/owner-acceptance requirements; this
+bounded client result does not mark the public module accepted. Merge/deployed
+build verification and independent acceptance remain pending. Commands and
+limits are in the [public submissions guide](./PUBLIC_SUBMISSIONS_GUIDE.md#uncertain-public-submission-feedback---2026-10-28).
+
 ### General Inquiry Management
 
 | ID      | Test                                                                                   | Expected result                                                                                                                                          | Status  |

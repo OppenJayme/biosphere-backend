@@ -4,6 +4,10 @@ Reviewed 2026-10-28. This is source/requirements analysis, not browser execution
 an acceptance pass, approval of museum facts, or authorization to change another
 owner's module or the shared database. No application code changed.
 
+The original review is retained at its source baseline. A subsequent authorized
+OBS-004 investigation is [recorded below](#subsequent-obs-004-investigation---2026-10-28)
+and in DEF-027; its prepared frontend repair is not yet deployed.
+
 ## Baseline and method
 
 - Backend integration baseline: `e6ae2a516ade4c33000344b18ca2016b8f8067b4`.
@@ -49,7 +53,7 @@ Do not promote their statuses from this review or create duplicates of WEB-003.
 | Internal operational alerts, REQ-4.3-05/10 | **Partial feature.** Current feed covers new inquiries, visits and failed submission emails. Its types/service do not cover sync failures and the other listed internal operational events. The separate offline workspace is not evidence these events appear in the notification feed. | Dashboard/feed owners plus affected module owners. Define event sources and privacy-safe links incrementally. Internal alerts must not become new operational emails contrary to 4.3-10. |
 | Approved public content, REQ-4.10-04/06 | **Known content dependency, WEB-003.** About contains a sample staff profile/placeholder phone; image module calls its assets stock placeholders. Visit/footer code contains different contact channels and hours/rules lack an approval source in the reviewed files. Different channels are not automatically wrong, but must be labelled/approved rather than guessed. | Public website owners John/Charles/Voltaire and Sir Curator. Obtain approved staff/contact/hours/history/rules and images, or explicit approval for clearly illustrative assets. Update static source; retain no sample role/contact as an approved museum fact. |
 | Privacy notice and retention | **Approval/operational dependency.** `PrivacyConsent` has an explicit TODO for approved wording. Footer Privacy Policy/Terms are text spans, not an accessible notice destination. Consent timestamps exist; that does not establish approved notice or legal compliance. Retention/deletion policy is separately unresolved. | Museum/university approver with public-form owners. Obtain wording, notice destination and retention instructions. Do not invent policy, enable deletion/anonymization or claim compliance from a checked box. |
-| Submission outcome/retry feedback | **Source-review risk, OBS-004; no runtime reproduction.** `submit.ts` turns malformed 2xx receipts into success with empty IDs/reference and a local timestamp; transport/5xx copy invites retry or says not sent. A response can be lost after a commit. No client retry identity is present in the reviewed create contract. | John/Charles, coordinate backend owner. Reproduce isolated request/UI cases before changing behavior; distinguish confirmed receipt, unavailable receipt and uncertain outcome, retaining fields and avoiding automatic replay. No public personal-data lookup should be added. |
+| Submission outcome/retry feedback | **Original source-review risk OBS-004; subsequently reproduced as [DEF-027](./TEST_DEFECT_LOG.md#def-027---public-forms-misreport-uncertain-submission-outcomes).** `submit.ts` turns malformed 2xx receipts into success with empty IDs/reference and a local timestamp; transport/5xx copy invites retry or says not sent. A response can be lost after a commit. No client retry identity is present in the reviewed create contract. | John/Charles, coordinate backend owner. Reproduce isolated request/UI cases before changing behavior; distinguish confirmed receipt, unavailable receipt and uncertain outcome, retaining fields and avoiding automatic replay. No public personal-data lookup should be added. |
 | Modal pending/keyboard behavior | **Inspection candidate, not confirmed defect.** `visit/Modal.tsx` focuses its container and handles Escape/backdrop close, but no focus-containment/restoration mechanism is visible. Cancel/close paths are not tied to form submission state. | Public-form frontend owners. Bounded keyboard/pending-close reproduction can establish actual impact before a fix. Do not infer a WCAG or live data-loss result from this inspection. |
 | Email/provider readiness | **Configuration and acceptance gap, not absent code.** Receipt/curator alerts/outbound replies and recorded delivery results exist. Guides say unset mail configuration skips sending; NODE_ENV=test prevents real mail. Provider acceptance is not proof of eventual inbox delivery. | Mail/deployment owner and curator. Check only with an agreed non-public fixture/recipient setup; no live email or secret access was authorized by this review. |
 
@@ -95,3 +99,16 @@ table ends at 4.8-11, schedule selection is **REQ-4.9.16**, and Appendix B.3 doe
 not add a Confirmed visit status. This is a documentation correction, not a
 workflow change. Existing user-approved decisions still take precedence if a
 later documented change explicitly supersedes the PDF.
+
+## Subsequent OBS-004 investigation - 2026-10-28
+
+The original source-only review above is historical. The user subsequently
+authorized isolated helper/real-form regressions and repair. DEF-027 now records
+red/green reproduction, 13 passing helper cases and fourteen real-form synthetic
+HTTP scenarios, plus explicit remaining limits. The frontend distinguishes
+confirmed/rejected/unknown outcomes, retains entries and requires an explicit
+acknowledgement before another send. It does not add server idempotency or claim
+that a response error proves the submission was never stored. See the
+[repair checkpoint](./PUBLIC_SUBMISSIONS_GUIDE.md#uncertain-public-submission-feedback---2026-10-28).
+Merge/deployment and independent owner acceptance remain pending; these tests
+do not close unrelated public content/privacy/provider requirements.
