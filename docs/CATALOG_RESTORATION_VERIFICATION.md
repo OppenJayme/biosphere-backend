@@ -1,5 +1,35 @@
 # Cataloging restoration verification
 
+## Live-fixture constraint reconciled - 2026-10-29
+
+A read-only preflight on the retained TEST Inventory Acceptance Beetle
+(`85f158c6-a73b-41ae-aa5c-9cac347d79de`) found the expected active-lot archive
+block and no Archive specimen or Restore specimen button. Frontend source was
+`06d929e`, local build `5goHqxvW38dPzuTeCRyHt`. The retained test context
+recorded zero non-read attempts and page errors. No lot or lifecycle change
+was attempted. An initial wait for a guessed `Catalog readiness` heading timed
+out; inspection of the actual controls corrected that selector assumption.
+
+Source inspection at backend `09c6696` explains why this fixture cannot supply
+the complete-archive case through an ordinary sequential workflow:
+
+- Archive rejects any active lot (`SpecimensService.archive`).
+- Catalog readiness requires a qualifying active lot
+  (`SpecimenCatalogingService.getReadinessWith`).
+- Lot creation/changes reject archived specimens
+  (`SpecimenLotsService.assertSpecimenEditable`).
+
+The existing isolated HTTP test explicitly supplies a complete archived record
+and verifies restoration to Cataloged with public eligibility off. The user's
+Oct 5 restoration decision retains that conditional rule and forbids automatic
+lot reactivation. Keep this as defensive/legacy-state coverage; do not mutate
+John's lots or weaken archive rules to manufacture a live fixture. This source
+reasoning is not proof against races, legacy data or direct database changes.
+
+CAT-016 remains Partial pass. Next owner/reviewer decision is the appropriate
+owned legacy/disposable fixture and evidence needed for that conditional branch;
+no live-case waiver, policy change or full restoration acceptance is inferred.
+
 ## Scope and decision
 
 Implemented the approved Q3 restore decision from the team's 2026-10-05
