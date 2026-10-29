@@ -33,3 +33,57 @@ and forwarded IP headers together. Do not blindly trust client-supplied
 Keep limits centralized in `src/config/rate-limit.config.ts`. Add stricter
 method-level limits to future public or sensitive routes such as password
 recovery when those endpoints are introduced.
+
+## Proxy address dependency repair - 2026-10-29
+
+The lockfile updates only `proxy-addr` from 2.0.7 to 2.0.8, within Express
+5.2.1's existing `^2.0.7` requirement. No direct dependency, override, trust
+policy, authentication, throttle limit or application source was changed.
+This addresses [GHSA-jqcg-44mw-7w3h / CVE-2026-90711](https://github.com/advisories/GHSA-jqcg-44mw-7w3h),
+which affects request-IP trust when an IPv4-mapped IPv6 trust subnet has an
+incorrect short prefix. Source inspection found no explicit `trust proxy`
+enablement in this backend; the advisory is not evidence of exploitation or
+verification of deployed proxy configuration. The dependency finding was
+originally recorded as OBS-005 in the pending XLSX PR #216; this patch is
+independent of that feature and its parser review.
+
+### Isolated HTTP evidence
+
+`test/proxy-trust.e2e-spec.ts` creates fresh Express HTTP fixtures on ephemeral
+`127.0.0.1` ports and closes them after each request. The real Express/request-IP
+stack processes synthetic forwarded headers; no internal dependency function
+is mocked. On 2.0.7, three controls pass but the malformed-subnet case fails:
+the unrelated loopback peer can supply the forged `198.51.100.66` client IP.
+On 2.0.8, all four cases pass:
+
+- Default proxy distrust ignores the forwarded address.
+- Explicit IPv4 loopback trust retains forwarded-address behavior.
+- Correct full-prefix mapped-IPv6 loopback trust retains that behavior.
+- `::ffff:10.0.0.0/8` does not trust an unrelated IPv4 loopback peer.
+
+The unchanged real Nest Storage Inventory HTTP fixture also passes 5/5,
+including protected access/validation and denial-audit readback using synthetic
+auth/database adapters. Combined 9/9; changed-file ESLint, TypeScript and diff
+checks pass. Run the same checks after clean dependency/client setup:
+
+```sh
+node --experimental-vm-modules node_modules/jest/bin/jest.js --config ./test/jest-e2e.json --runInBand proxy-trust.e2e-spec.ts storage-inventory.e2e-spec.ts
+```
+
+`npm audit --omit=dev --json` changes from 13 advisories (4 moderate, 8 high,
+1 critical) to 12 (4 moderate, 8 high, **0 critical**), with `proxy-addr` absent
+and no newly affected packages. These counts are the Oct 29 registry snapshot,
+not a clean audit or proof that all security exposure is resolved. Remaining
+advisories need separate compatible updates/applicability review.
+
+### Release limits and review
+
+Voltaire/backend dependency review should verify the lockfile's limited diff,
+rerun the nine tests and audit, and confirm the real deployment's proxy policy.
+Synthetic fixture trust settings are not application configuration changes.
+No credentials, live login, shared record, email, server or proxy settings were
+used or changed. The running app's installed dependency was not updated.
+Reinstall from the merged lockfile and perform the normal controlled release
+before claiming the deployed critical dependency has been remediated. Preserve
+the existing default distrust unless the deployment owner explicitly defines
+trusted hops/subnets; a dependency patch does not configure them.
