@@ -86,6 +86,7 @@ system is not a reason to postpone all fixes until the end.
 
 | ID      | Date       | Module                     | Summary                                                                 | Severity    | Priority | Status | Owner                   |
 | ------- | ---------- | -------------------------- | ----------------------------------------------------------------------- | ----------- | -------- | ------ | ----------------------- |
+| [DEF-029](#def-029---xlsx-xml-guard-rescans-unclosed-tags-quadratically) | 2026-10-29 | Cataloging / XLSX parser | Malformed unclosed XML tags trigger excessive synchronous regex rescanning | S2 Major | P1 | Ready for retest | Kyer; Voltaire independent retest |
 | [DEF-028](#def-028---public-dialog-focus-escapes-and-is-not-restored-on-close) | 2026-10-28 | Public Website / Inquiry and visit dialog | Keyboard focus leaves the open dialog and closing fails to return focus to its opening button | S3 Moderate | P2 | Verified | John/Charles public forms; Kyer assisted repair |
 | [DEF-027](#def-027---public-forms-misreport-uncertain-submission-outcomes) | 2026-10-28 | Public Website / Inquiry and visit forms | Malformed receipts fabricate success; transport/5xx feedback encourages a potentially duplicate resend | S3 Moderate | P1 | Ready for retest | John/Charles public forms; Kyer assisted repair |
 | [DEF-026](#def-026---duplicate-result-remains-valid-after-typing-new-values) | 2026-10-27 | Cataloging / Duplicate warning UI | A response for the old name can show after typing a new value without leaving the field | S3 Moderate | P2 | Ready for retest | Kyer / Cataloging frontend |
@@ -116,6 +117,48 @@ system is not a reason to postpone all fixes until the end.
 | [DEF-015](#def-015---audit-http-fixture-omits-the-security-audit-create-method) | 2026-10-19 | Audit / HTTP test fixture | Missing security-audit create mock logs an error despite green denial test | S3 Moderate | P2 | Ready for retest | Audit tests / coordinate with Auth |
 
 ## 3. Defect details
+
+### DEF-029 - XLSX XML guard rescans unclosed tags quadratically
+
+**Found:** 2026-10-29 in [Voltaire's #216 review](https://github.com/OppenJayme/biosphere-backend/pull/216#issuecomment-6497720771)
+of backend `ac4cc6e`.
+**Severity / priority:** S2 Major / P1, authenticated import denial-of-service.
+**Status:** Ready for retest; owner fix and isolated checks pass, independent
+reviewer acceptance pending. Hold backend #216 and frontend #96 until resolved.
+
+The regex in `checkWorksheet` repeatedly rescanned unclosed `<c ` sequences
+in every XML part. Voltaire reported about 0.4s at 25 KB, 1.7s at 50 KB, 6.9s
+at 100 KB and 27.8s at 200 KB; these are his measurements, not ours. An active
+Curator could submit a small compressed workbook containing such data and
+block the synchronous server thread. No production exploit was attempted.
+
+Owner red reproduction: the real import HTTP route received an OOXML fixture
+with 34,000 repeated unclosed tags in an additional XML part. It returned 201
+instead of the expected 400 after prolonged processing. The focused Jest run
+took 27.5 seconds including application/test setup; that is not an isolated
+parser latency measurement. Synthetic auth/database adapters were used; no
+live database or records were involved.
+
+Repair: remove the tag/attribute regex scan and use pinned `saxes@6.0.0` for a
+strict XML event pass, preserving archive/size/range/literal-cell restrictions.
+Reject malformed XML, DOCTYPE, duplicate attributes and excessive depth,
+element/attribute counts. Check worksheet coordinates at every ZIP path while
+other XML parts receive well-formedness validation. Charts/hyperlinks have clear
+unsupported-feature messages. No authentication, Inventory or commit rule changes.
+
+Owner results: malformed-tag HTTP response is 400 within the regression's
+2,000ms budget, the following protected GET succeeds and fixture writes remain
+zero. Full affected HTTP suite 72/72, import units 40/40, TypeScript and changed
+file ESLint pass. No live records, credentials, migrations or server restart.
+The timing budget covers this bounded input/environment, not all hostile files
+or a production SLA. Existing dependency advisories remain under OBS-005.
+
+Retest the updated backend PR head using the affected `specimens.e2e-spec.ts`
+suite, including `-t 'repeated unclosed'` for the focused case, and the existing
+import-service unit suite. Confirm malformed XML rejects promptly, normal
+CSV/XLSX preview/selected commit/retry still work, no fixture writes occur on
+rejection, and record the exact SHA/commands/results. Independent review of
+the parser replacement remains required; earlier approval does not cover it.
 
 ### DEF-028 - Public dialog focus escapes and is not restored on close
 
@@ -2934,6 +2977,33 @@ records the tested commit and changes it to `Verified`; do not erase the entry.
 These are recorded signals, not confirmed application defects or closed issues.
 Promote an observation to a DEF entry when reproduction establishes an
 application failure; retain the original observation and cross-reference it.
+
+### OBS-005 - Existing production dependency security advisories
+
+**Observed:** 2026-10-29 during XLSX dependency review.
+**Status:** Open security triage; advisory evidence, no exploitation reproduced.
+**Coordination:** Backend/dependency owner with Voltaire for request IP/auth/rate
+limiting and deployment proxy configuration. Prioritize before release sign-off.
+
+`npm audit --omit=dev --json` reports the same 13 advisories on the unchanged
+backend dependency baseline and the isolated XLSX branch: 4 moderate, 8 high,
+1 critical. No newly affected package is reported after adding the pinned XLSX
+reader and fflate. This comparison is not a clean audit or security approval.
+
+The critical dependency is `proxy-addr` in the reported affected range
+`>=1.1.0 <2.0.8`; upstream advisory
+[GHSA-jqcg-44mw-7w3h](https://github.com/advisories/GHSA-jqcg-44mw-7w3h)
+concerns IPv4-mapped IPv6 trust-subnet IP spoofing. Actual applicability depends
+on resolved dependencies and proxy configuration and was not exploited here.
+Other affected package names are `@nestjs/platform-express`, `@nestjs/swagger`,
+`@prisma/config`, `body-parser`, `csv-parse`, `deepmerge-ts`, `fast-uri`,
+`js-yaml`, `multer`, `mysql2`, `prisma` and `qs`.
+
+Owner follow-up: review full current advisory details, map applicability,
+prepare the smallest compatible dependency updates with affected regressions,
+and rerun the audit. Do not run `npm audit fix --force`, silently dismiss the
+critical report, or claim deployment is secure from the XLSX tests. No shared
+dependency tree, running server, proxy setting or account changed in this check.
 
 ### OBS-004 - Public submission feedback can obscure an uncertain outcome
 

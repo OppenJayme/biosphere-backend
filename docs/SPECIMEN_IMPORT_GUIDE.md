@@ -2,6 +2,10 @@
 
 ## Required-format gap confirmed - 2026-10-29
 
+Historical pre-implementation checkpoint: the reviewed XLSX implementation and
+subsequent XML repair are recorded under Scope below. This retained finding
+does not mean the implementation is still absent from this feature branch.
+
 The user's retained eight-decisions handoff (Oct 5, question 4) specifies CSV
 and XLSX for the first release through the same preview/validation/commit
 pipeline. Source inspection at backend `09c6696` confirms
@@ -18,13 +22,75 @@ implementation; no package was installed or runtime changed in this check.
 Actual museum-template validation remains separate from synthetic format tests.
 This records a required feature gap, not a regression of the working CSV preview.
 
-This module implements the CSV import slice of Cataloging Management (SRS
+This module implements the CSV/XLSX import slice of Cataloging Management (SRS
 REQ-4.4-18 through REQ-4.4-23). It reuses the existing specimen-core creation
 path (`public.specimen`, `public.specimen_revision_history`,
 `public.audit_log`, `public.collection`) through Prisma and introduces no
 database structures.
 
 ## Scope
+
+### XML review repair - 2026-10-29
+
+Voltaire independently reproduced the original 67 HTTP / 40 unit results, but
+identified a blocking quadratic regex scan in `checkWorksheet` on malformed
+unclosed tags. See [DEF-029](./TEST_DEFECT_LOG.md#def-029---xlsx-xml-guard-rescans-unclosed-tags-quadratically).
+That regex scan has been removed. Pinned `saxes@6.0.0` (ISC, CommonJS and typed)
+now performs strict event-based XML validation before the workbook reader.
+Malformed XML and duplicate attributes reject immediately; worksheet range
+checks follow parser events, even for nonstandard ZIP paths. Other XML parts
+are validated without interpreting chart namespace prefixes as worksheet cells.
+Additional limits are depth 64, 250,000 elements per XML part and 64 attributes
+per element. Charts and external hyperlinks remain unsupported, with explicit
+removal instructions instead of a misleading missing-cell-reference message.
+
+The public HTTP malformed-tag regression failed before the repair and now
+rejects within its two-second response budget, followed by a successful
+protected specimen GET and no fixture writes. The affected HTTP suite passes
+72/72 and import-service units 40/40; TypeScript/changed-file lint pass. This is
+bounded synthetic HTTP evidence, not a universal latency guarantee or
+independent acceptance of the fix. Voltaire must retest the updated PR head.
+Frontend #96 remains unchanged and waits for the repaired backend. Dependency
+audit remains the recorded 13 existing advisories; no saxes/xmlchars advisory
+is reported. OBS-005's separate security triage remains open.
+
+### XLSX support checkpoint - 2026-10-29
+
+XLSX rows now enter the existing preview/validation/commit pipeline; commit,
+lot handling and duplicate rules are unchanged. Use a worksheet named exactly
+`Specimens`, with text headers in its first row. Other sheets are not imported.
+The existing CSV template supplies the same supported headers; it can be opened
+in Excel, the sheet renamed and saved as `.xlsx`. No museum template or sample
+facts are declared approved by this change.
+
+Format accession numbers as **Text** before entry. Numeric accession cells are
+rejected rather than reconstructing lost leading zeros or number formats.
+Collection dates may be ISO `YYYY-MM-DD` text or date-only Excel cells, which
+are normalized to ISO dates. Date/time cells and dates in other fields are
+rejected. The normal future-date and row validation rules still apply.
+
+Workbook limits: 5 MB uploaded, 20 MB total expanded ZIP entries, 128 archive
+entries, and sheets within 501 rows (header plus 500 data rows) and 100 columns.
+Remove unused formatted rows/columns if Excel's stored range exceeds these
+bounds. Range checks apply to XML at arbitrary relationship target paths.
+Formula cells (including cached results), spreadsheet error cells, XML
+DOCTYPE/entities, external relationships, macro/embedded-object entries,
+duplicate headers and unsafe/duplicate archive names are rejected. Only
+literal input is accepted; spreadsheet formulas are never evaluated.
+
+Dependencies are pinned to `read-excel-file@9.3.13` and `fflate@0.8.3` (MIT).
+The reader's [documented named-sheet and numeric parsing API](https://gitlab.com/catamphetamine/read-excel-file/-/blob/master/README.md)
+is used after bounded archive extraction and repackaging. This is resource
+limiting, not an OS/process sandbox or unlimited hostile-file guarantee.
+
+Verification: first XLSX HTTP workflow failed with 400 before implementation;
+the affected Nest HTTP suite now passes 67/67 and existing import-service units
+40/40. These use real services/controllers with synthetic auth/database
+adapters and literal OOXML fixtures. Frontend format/rendered-form/handler and
+transport checks pass 16/16; full frontend suite 445/445. Local TypeScript and
+changed-file lint pass. No live import, shared record, migration, running-server
+restart or actual museum-workbook acceptance is claimed. Deployment must pair
+the backend support before exposing the frontend XLSX option.
 
 Import creates the same core `UNCATALOGED` specimen record as
 `POST /specimens`, plus, when the row supplies them, its taxonomy, provenance,
@@ -40,7 +106,7 @@ commit provably operates on what was actually previewed rather than on
 arbitrary rows a client happens to send:
 
 1. `POST /specimens/import/preview` — `multipart/form-data` upload with a
-   `.csv` file field named `file`. Parses and validates every row, flags
+   `.csv` or `.xlsx` file field named `file`. Parses and validates every row, flags
    possible duplicates, and returns the results plus a `previewId`. Nothing
    is persisted and no audit event is written.
 2. `POST /specimens/import/commit` — JSON body of `{ previewId, rowNumbers?
@@ -314,7 +380,7 @@ needs no special flag outside Jest's sandboxed module loader.
 ## Deferred boundaries
 
 This slice reports catalog completeness in the preview but does not change a
-record's status, does not support spreadsheet formats other than CSV, and
+record's status, does not support legacy XLS or macro-enabled XLSM files, and
 does not auto-merge possible duplicates. The column mappings are not final
 until the museum approves the CSV template and they are validated against
 representative museum data. Those remain governed by the same boundaries documented

@@ -47,6 +47,7 @@ import { SpecimensService } from './specimens.service';
 import { ImportStorageUnitResolver } from './import-storage-unit.resolver';
 import { SpecimenProvenanceService } from './specimen-provenance.service';
 import { SpecimenTaxonomyService } from './specimen-taxonomy.service';
+import { parseXlsxImport } from './xlsx-import';
 
 export const MAX_IMPORT_FILE_BYTES = 5 * 1024 * 1024;
 
@@ -232,7 +233,7 @@ export class SpecimenImportService {
   ): Promise<SpecimenImportPreviewResult> {
     this.sweepExpiredPreviews();
 
-    const rawRecords = this.parseCsv(file);
+    const rawRecords = await this.parseFile(file);
     if (rawRecords.length === 0) {
       throw new BadRequestException('The uploaded file has no data rows.');
     }
@@ -507,15 +508,28 @@ export class SpecimenImportService {
     }
   }
 
-  private parseCsv(
+  private async parseFile(
     file: Express.Multer.File | undefined,
-  ): Record<string, string>[] {
+  ): Promise<Record<string, string>[]> {
     if (!file) {
-      throw new BadRequestException('A CSV file is required.');
+      throw new BadRequestException('A CSV or XLSX file is required.');
+    }
+    if (!file.buffer.length || file.buffer.length > MAX_IMPORT_FILE_BYTES) {
+      throw new BadRequestException(
+        'Import files must be non-empty and no larger than 5 MB.',
+      );
+    }
+    if (file.originalname.toLowerCase().endsWith('.xlsx')) {
+      return parseXlsxImport(
+        file.buffer,
+        MAX_IMPORT_ROWS,
+        (header) =>
+          CANONICAL_FIELDS[this.normalizeHeader(header)] === 'accessionNumber',
+      );
     }
     if (!file.originalname.toLowerCase().endsWith('.csv')) {
       throw new BadRequestException(
-        'Only .csv files are supported for import.',
+        'Only .csv and .xlsx files are supported for import.',
       );
     }
 
