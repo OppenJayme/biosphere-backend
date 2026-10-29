@@ -124,8 +124,9 @@ seam in a fresh isolated Edge context. Frontend baseline
 `f3f38b281d3b475ccef3ef3c996e044706039de3`.
 **Owner:** John/Charles public forms; Kyer assisted under the user's explicit scope.
 **Severity / priority:** S3 Moderate / P2, keyboard navigation/accessibility.
-**Status:** Ready for retest; bounded owner repair verified, merge/deployed-build
-and independent owner acceptance pending. No full accessibility certification.
+**Status:** Ready for retest for deployed/release acceptance. Repair and
+integration regressions are merged; scoped independent review and owner
+follow-up evidence are recorded below. No full accessibility certification.
 
 **Expected:** Opening inquiry/visit moves focus into the dialog. Forward/backward
 Tab stays inside; background elements cannot take focus. Escape, Close and
@@ -170,10 +171,18 @@ below belong to the original implementation checkpoint. No broad refactor,
 pointer policy or dependency upgrade is included. The gap-review row now points
 to this confirmed keyboard defect while leaving pending-submit close unconfirmed.
 
-The existing frontend baseline suite passes 426/426 (71 files); it does not
-include the separate unmerged #92 branch's thirteen additional helper cases.
+The original independent-branch baseline passed 426/426 (71 files) before #92
+was included. Both fixes are now merged; the combined tree's CI passes 439/439.
+The sixteen-group real-form/dialog fixture also passes. See the merged 2026-10-29
+checkpoint; historical counts have not been relabelled as later runs.
 Final static/build results and prerequisites are recorded in the
 [public submissions guide](./PUBLIC_SUBMISSIONS_GUIDE.md#public-dialog-keyboard-recovery---2026-10-28).
+
+**Merged checkpoint - 2026-10-29:** #92/#93 and the #94 integration tests are
+merged. [The combined evidence](./PUBLIC_SUBMISSIONS_GUIDE.md#merged-public-form-integration-checkpoint---2026-10-29)
+records exact merge/CI identities, CI 439/439 and sixteen owner synthetic-HTTP
+browser groups. This closes implementation/integration work, not every deployed
+or institutional acceptance limit. No shared record or app restart was needed.
 
 **Limits:** No deployed CSS/visual, physical mobile, screen-reader, cross-browser
 or full accessibility claim. No submission, email, backend/database, account,
@@ -192,8 +201,9 @@ submission-helper and real public-form seams. Frontend baseline
 **Owner:** John/Charles public forms; Kyer assisted under the user's explicit
 scope. Backend submission ownership is unchanged.
 **Severity / priority:** S3 Moderate / P1, confirmation and retry reliability.
-**Status:** Ready for retest; isolated owner repair verified, merge/deployment
-and independent acceptance pending. No live duplicate-write incident is claimed.
+**Status:** Ready for retest for deployed/release acceptance. Repair and
+integration regressions are merged; scoped independent review and owner
+follow-up evidence are recorded below. No live duplicate-write incident claimed.
 
 **Expected:** Show a confirmation only for a valid server receipt. If a response
 is unavailable or cannot establish confirmation, retain entries and explain
@@ -258,6 +268,12 @@ results are retained against their original SHA; this follow-up awaits review.
 The backend receipt fields are now explicitly documented, and optional retry
 identity, deadline/close and tooling work are tracked as PUB-F01/02/03 in the
 [guide backlog](./PUBLIC_SUBMISSIONS_GUIDE.md#follow-up-backlog-not-implemented-or-approved-for-deployment).
+
+**Merged checkpoint - 2026-10-29:** #92/#93 and the #94 integration tests are
+merged. [The combined evidence](./PUBLIC_SUBMISSIONS_GUIDE.md#merged-public-form-integration-checkpoint---2026-10-29)
+records exact merge/CI identities, CI 439/439 and sixteen owner synthetic-HTTP
+browser groups. This closes implementation/integration work, not every deployed
+or institutional acceptance limit. No shared record or app restart was needed.
 
 **Limits:** No live stored/lost-response test, backend idempotency, concurrent
 commit proof, email delivery, proxy/CORS, modal close/reopen, process crash or

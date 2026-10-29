@@ -5,6 +5,22 @@ change shared data, or whole-project completion percentage. The acceptance
 register and defect log remain authoritative. Reading this handoff promotes no
 status and does not authorize migrations, account changes or teammate-owned work.
 
+## Current public review closeout - 2026-10-29
+
+Frontend #92/#93/#94 and backend #211/#212 are merged. Charles's corrected #212
+review is Approved. The [combined checkpoint](./PUBLIC_SUBMISSIONS_GUIDE.md#merged-public-form-integration-checkpoint---2026-10-29)
+records exact merge/CI identities, a CI-tested tree identical to merged frontend,
+439 passing unit/regression cases, two canary contract checks and lint/build,
+plus sixteen owner real-form/dialog groups using synthetic HTTP. These are
+bounded implementation/integration results; the review batch is complete.
+
+The next practical local step is an explicitly authorized frontend-only refresh
+and read-only check of the merged public dialogs. The existing backend/database,
+notification migration/flag and signed-in windows need no change. Sir Curator's
+approved FAQ/public facts and the existing release/provider/accessibility gates
+remain separate inputs. Do not restart the completed owner test batches while
+waiting, invent facts or introduce a new feature merely to keep the queue busy.
+
 ## Closeout queue - 2026-10-27
 
 ### Current independent-review checkpoint - 2026-10-28

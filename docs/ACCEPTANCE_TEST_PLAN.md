@@ -128,6 +128,16 @@ location, update its register row if warranted, and link rather than copying
 the same run into multiple guides. Historical failures are not new failures;
 `Ready for retest` is not `Verified`, and a passing mock is not live acceptance.
 
+### Public review batch closeout - 2026-10-29
+
+Frontend #92/#93/#94 and backend #211/#212 are merged. The
+[combined checkpoint](./PUBLIC_SUBMISSIONS_GUIDE.md#merged-public-form-integration-checkpoint---2026-10-29)
+records CI 439/439 in 72 files, two passing canary contract checks and lint/build,
+plus sixteen owner real-form/dialog groups with synthetic HTTP. Exact source,
+merge and CI identities distinguish these from earlier independent 13/14/6
+reports. No prior passing batch is reopened. DEF-027/028 retain explicit deployed/
+release limits; WEB-005 and overall public-module sign-off are not promoted.
+
 ## 1. Purpose
 
 This document is the shared guide for validating BioSphere after initial
@@ -1845,8 +1855,8 @@ Confirmed receipt, known rejection, unknown outcome, retained entries and explic
 retry behavior are covered. No real submission, email or database was used;
 there is no backend duplicate-prevention claim. INQ-001/002 and the visit rows
 retain their live persistence/provider/owner-acceptance requirements; this
-bounded client result does not mark the public module accepted. Merge/deployed
-build verification and independent acceptance remain pending. Commands and
+bounded client result does not mark the public module accepted. Implementation merge and combined CI are complete; remaining deployed/release
+acceptance is tracked in the 2026-10-29 combined checkpoint. Commands and
 limits are in the [public submissions guide](./PUBLIC_SUBMISSIONS_GUIDE.md#uncertain-public-submission-feedback---2026-10-28).
 
 ### General Inquiry Management
@@ -1879,13 +1889,14 @@ records real-dialog red/green reproduction and six passing isolated keyboard
 scenarios across both inquiry/visit dialogs, with zero submission/non-fixture
 requests. Initial focus, Tab boundaries, background focus denial, Escape/Close/
 Cancel, opener return and scroll restoration are covered. The existing frontend
-426/426 baseline suite also passes; this independent branch does not contain
-#92's thirteen new helper tests. The prepared repair is not a deployed-build,
+original 426/426 baseline predates #92. Both repairs are now merged; combined
+CI passes 439/439 and the integrated fixture passes sixteen groups. This is not a deployed-build,
 screen-reader, physical-mobile, full visual or whole WEB-005 accessibility pass.
 Pending-submit close policy and closed-form retention remain separate and
 unchanged. Commands and limits are in the
 [public submissions guide](./PUBLIC_SUBMISSIONS_GUIDE.md#public-dialog-keyboard-recovery---2026-10-28).
-Merge/deployment verification and independent owner acceptance remain pending;
+Implementation merge and bounded review/integration are complete; deployed/release
+acceptance remains separate;
 no unrelated acceptance row is promoted from these bounded results.
 
 ## 10. Cross-cutting negative tests
