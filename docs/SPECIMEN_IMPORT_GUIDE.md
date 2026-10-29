@@ -1,5 +1,42 @@
 # BioSphere Specimen Bulk Import Guide
 
+## Merged local XLSX preview checkpoint - 2026-10-29
+
+Backend #216/#217 and frontend #96 are merged. The controlled local refresh
+serves backend `f4df1761b6326f282f865c7749093d2f0a338749` (PID 26116),
+frontend `60ab28b98a2759d951ca4e716ebd359b6bc0f47f` (PID 39028), and frontend
+production build `KjnKPLGaaPM_cm9tgFdJ_`. Exact merged lockfile installation,
+Prisma client generation without migration and both production builds completed.
+The installed backend `proxy-addr` is 2.0.8. Both app health/login checks returned
+200; runtime Swagger describes CSV/XLSX preview support. Previous builds/source
+references and private recovery logs remain outside Git.
+
+After manual Curator sign-in, the actual merged UI/API previewed a synthetic
+XLSX with a `Specimens` sheet and two rows. The real preview POST returned 201,
+with **2 total / 1 valid / 1 invalid**. The valid row was selected, the invalid
+gender and name remained visible, and its checkbox was disabled. Catalog search
+for the unique synthetic prefix showed the no-matching-records state before
+and after preview. This is UI readback, not a direct SQL postcondition.
+
+The fresh browser guard allowed one same-origin preview POST and rejected other
+non-read methods; observations were one preview, zero other non-read attempts
+and zero page errors. No import commit, migration, lot/Inventory or public-
+eligibility action was issued. This guard is defense in depth, not independent
+full-stack containment. The temporary readback tab closed; the Curator preview
+session remains open in read-only test mode. No cookies, tokens or signed URLs
+were exported. Native OS chooser behavior was not evaluated by file selection.
+
+Operational probe notes: the first backend readiness window expired;
+subsequent independent HTTP checks returned 200. The frontend's first immediate
+post-stop check still reported a listener; the next check confirmed release
+before its build was moved. No application defect or particular root cause was
+established from these probe events. The refreshed apps are healthy.
+
+This completes the local rollout/preview checkpoint. Live XLSX commit/retry,
+actual museum-template suitability, concurrency and whole-module acceptance
+are not claimed. The already passing isolated/reviewer suites were not rerun
+merely for this documentation update.
+
 ## Required-format gap confirmed - 2026-10-29
 
 Historical pre-implementation checkpoint: the reviewed XLSX implementation and
@@ -49,8 +86,10 @@ rejects within its two-second response budget, followed by a successful
 protected specimen GET and no fixture writes. The affected HTTP suite passes
 72/72 and import-service units 40/40; TypeScript/changed-file lint pass. This is
 bounded synthetic HTTP evidence, not a universal latency guarantee or
-independent acceptance of the fix. Voltaire must retest the updated PR head.
-Frontend #96 remains unchanged and waits for the repaired backend. Dependency
+independent acceptance of the fix. Voltaire subsequently approved `842f558` in
+[his retest](https://github.com/OppenJayme/biosphere-backend/pull/216#issuecomment-6499454194),
+reporting combined specimen/storage HTTP 77/77 and import units 40/40; see
+DEF-029 for the bounded result. Frontend #96 then merged. Dependency
 audit remains the recorded 13 existing advisories; no saxes/xmlchars advisory
 is reported. OBS-005's separate security triage remains open.
 

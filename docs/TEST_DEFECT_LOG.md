@@ -86,7 +86,7 @@ system is not a reason to postpone all fixes until the end.
 
 | ID      | Date       | Module                     | Summary                                                                 | Severity    | Priority | Status | Owner                   |
 | ------- | ---------- | -------------------------- | ----------------------------------------------------------------------- | ----------- | -------- | ------ | ----------------------- |
-| [DEF-029](#def-029---xlsx-xml-guard-rescans-unclosed-tags-quadratically) | 2026-10-29 | Cataloging / XLSX parser | Malformed unclosed XML tags trigger excessive synchronous regex rescanning | S2 Major | P1 | Ready for retest | Kyer; Voltaire independent retest |
+| [DEF-029](#def-029---xlsx-xml-guard-rescans-unclosed-tags-quadratically) | 2026-10-29 | Cataloging / XLSX parser | Malformed unclosed XML tags trigger excessive synchronous regex rescanning | S2 Major | P1 | Verified (bounded independent retest) | Kyer; Voltaire independent retest |
 | [DEF-028](#def-028---public-dialog-focus-escapes-and-is-not-restored-on-close) | 2026-10-28 | Public Website / Inquiry and visit dialog | Keyboard focus leaves the open dialog and closing fails to return focus to its opening button | S3 Moderate | P2 | Verified | John/Charles public forms; Kyer assisted repair |
 | [DEF-027](#def-027---public-forms-misreport-uncertain-submission-outcomes) | 2026-10-28 | Public Website / Inquiry and visit forms | Malformed receipts fabricate success; transport/5xx feedback encourages a potentially duplicate resend | S3 Moderate | P1 | Ready for retest | John/Charles public forms; Kyer assisted repair |
 | [DEF-026](#def-026---duplicate-result-remains-valid-after-typing-new-values) | 2026-10-27 | Cataloging / Duplicate warning UI | A response for the old name can show after typing a new value without leaving the field | S3 Moderate | P2 | Ready for retest | Kyer / Cataloging frontend |
@@ -97,7 +97,7 @@ system is not a reason to postpone all fixes until the end.
 | [DEF-021](#def-021---interrupted-csv-commit-request-removes-the-reviewed-preview) | 2026-10-24 | Cataloging / CSV import UI | Rejected client commit transport removes the reviewed preview and recovery controls | S3 Moderate | P1 | Ready for retest | Kyer / Cataloging frontend |
 | [DEF-020](#def-020---interrupted-duplicate-check-removes-the-unsaved-core-form) | 2026-10-23 | Cataloging / Duplicate warning | Rejected client request escapes the warning check and removes the unsaved form | S3 Moderate | P1 | Ready for retest | Kyer / Cataloging frontend |
 | [DEF-016](#def-016---backup-http-fixture-omits-the-security-audit-delegate) | 2026-10-19 | Backup / HTTP test fixture | Missing audit delegate logs an error despite green denial test | S3 Moderate | P2 | Ready for retest | Backup tests / coordinate with Auth |
-| [DEF-017](#def-017---storage-inventory-denial-fixture-omits-security-audit-persistence) | 2026-10-21 | Inventory / HTTP test fixture | Storage-inventory denial passes despite missing security-audit delegate | S3 Moderate | P2 | Ready for retest | John / coordinate with Voltaire |
+| [DEF-017](#def-017---storage-inventory-denial-fixture-omits-security-audit-persistence) | 2026-10-21 | Inventory / HTTP test fixture | Storage-inventory denial passes despite missing security-audit delegate | S3 Moderate | P2 | Verified (isolated fixture) | John / coordinate with Voltaire |
 | [DEF-018](#def-018---csv-commit-success-status-differs-from-swagger-declaration) | 2026-10-22 | Cataloging / Import API docs | Commit Swagger success status differs from actual POST response | S4 Minor | P3 | Verified | Kyer / Cataloging |
 | [DEF-019](#def-019---tab-interruption-diagnostic-failed-its-no-backend-write-guard) | 2026-10-22 | Offline / Browser diagnostic | Tab-interruption pilot created a server fixture despite its intended interception | S3 Moderate | P1 | Open | Kyer / test isolation |
 | [DEF-001](#def-001---duplicate-normalized-collection-names-are-accepted) | 2026-09-29 | Cataloging / Collections   | Duplicate normalized collection names are accepted                      | S2 Major    | P1       | Ready for retest | Cataloging / Backend    |
@@ -123,8 +123,19 @@ system is not a reason to postpone all fixes until the end.
 **Found:** 2026-10-29 in [Voltaire's #216 review](https://github.com/OppenJayme/biosphere-backend/pull/216#issuecomment-6497720771)
 of backend `ac4cc6e`.
 **Severity / priority:** S2 Major / P1, authenticated import denial-of-service.
-**Status:** Ready for retest; owner fix and isolated checks pass, independent
-reviewer acceptance pending. Hold backend #216 and frontend #96 until resolved.
+**Status:** Verified for the bounded parser repair after Voltaire's independent
+retest on `842f558`; backend #216 and frontend #96 subsequently merged.
+
+Voltaire's [approval/retest](https://github.com/OppenJayme/biosphere-backend/pull/216#issuecomment-6499454194)
+reported the former 200 KB input rejected in 13ms and a 19 MB variant in 164ms,
+plus prompt rejection of excessive nesting/elements, size-lying ZIP input,
+DOCTYPE, undeclared entity, UTF-16 and namespaced formulas. He reported combined
+specimen/storage HTTP **77/77**, import units **40/40**, lint and TypeScript
+clean. These are his measurements, not owner reruns or universal latency bounds.
+The merged backend's `src` tree matches that reviewed head. The subsequent
+[local merged preview](./SPECIMEN_IMPORT_GUIDE.md#merged-local-xlsx-preview-checkpoint---2026-10-29)
+adds normal-workbook UI/API evidence, not hostile-input testing against shared
+data or live concurrency/museum-template acceptance.
 
 The regex in `checkWorksheet` repeatedly rescanned unclosed `<c ` sequences
 in every XML part. Voltaire reported about 0.4s at 25 KB, 1.7s at 50 KB, 6.9s
@@ -158,7 +169,8 @@ suite, including `-t 'repeated unclosed'` for the focused case, and the existing
 import-service unit suite. Confirm malformed XML rejects promptly, normal
 CSV/XLSX preview/selected commit/retry still work, no fixture writes occur on
 rejection, and record the exact SHA/commands/results. Independent review of
-the parser replacement remains required; earlier approval does not cover it.
+the parser replacement was required and is now recorded above; these retained
+instructions are not a request to repeat the completed reviewer batch.
 
 ### DEF-028 - Public dialog focus escapes and is not restored on close
 
@@ -2800,8 +2812,18 @@ Independent reviewer retest remains pending; this is not live persistence proof.
 **Found on:** backend base `27db649`, 2026-10-21
 **Severity:** S3 Moderate (test-harness/coverage defect; no proven production failure)
 **Priority:** P2
-**Status:** Ready for retest (isolated fixture repair, 2026-10-29)
+**Status:** Verified for the isolated fixture repair (independent retest, 2026-10-29)
 **Owner:** John / Inventory test fixture; coordinate with Voltaire for auth audit
+
+#### Independent fixture retest - 2026-10-29
+
+Voltaire [independently confirmed #214](https://github.com/OppenJayme/biosphere-backend/pull/214#issuecomment-6496206565)
+on clean `ce5932edcadf05486b773439ac0b688a5d299511`, with Node 22.14.0,
+Windows and dependencies installed from the committed lockfile. The affected
+HTTP suite passed 5/5, exit 0, without missing-audit delegate errors. He also
+reproduced the old green-403/error behavior on `09c6696` and verified no guard,
+SecurityAuditService or Inventory source change. This verifies only the
+synthetic HTTP fixture, not live audit persistence or Inventory acceptance.
 
 #### Reproduction and evidence
 
@@ -2979,6 +3001,16 @@ Promote an observation to a DEF entry when reproduction establishes an
 application failure; retain the original observation and cross-reference it.
 
 ### OBS-005 - Existing production dependency security advisories
+
+**Current component disposition - 2026-10-29:** backend #217 is merged, and the
+controlled local backend refresh installed `proxy-addr@2.0.8` and restarted the
+app from merged `f4df176` (PID 26116). Voltaire independently approved `64c4829`,
+reporting the four request-IP tests pass on 2.0.8 and the advisory test fails on
+2.0.7, with audit 12 remaining / zero critical. See [his report](https://github.com/OppenJayme/biosphere-backend/pull/217#issuecomment-6499447844)
+and [the local release note](./RATE_LIMITING_GUIDE.md#merged-local-dependency-refresh---2026-10-29).
+The critical component is patched in this local install. OBS-005 remains open
+for the other 12 advisories; deployed proxy-policy review and other environments
+are not established. The original discovery below remains historical evidence.
 
 **Observed:** 2026-10-29 during XLSX dependency review.
 **Status:** Open security triage; advisory evidence, no exploitation reproduced.

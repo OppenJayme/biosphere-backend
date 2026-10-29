@@ -1,5 +1,28 @@
 # BioSphere API Rate-Limiting Guide
 
+## Merged local dependency refresh - 2026-10-29
+
+Backend #217 merged at `f4df1761b6326f282f865c7749093d2f0a338749`. Voltaire
+[independently approved the patch](https://github.com/OppenJayme/biosphere-backend/pull/217#issuecomment-6499447844)
+on `64c4829`: request-IP tests 4/4 on 2.0.8, the advisory case failing on 2.0.7,
+lint clean and audit 12 remaining / zero critical. Deployed proxy configuration
+was not verified by his synthetic fixture.
+
+The normal local backend was subsequently stopped, its previous compiled build
+and source/lockfile references preserved privately, and dependencies installed
+from the exact merged lockfile with scripts disabled. Client generation and
+production compilation completed without migration. The rebuilt app started
+on port 3001 as PID 26116; health and runtime Swagger returned 200. Installed
+`proxy-addr` is 2.0.8. No trust-proxy setting, throttle limit, account, Inventory
+record or database schema was changed by the refresh. The inspected app source
+still contains no explicit trust-proxy enablement.
+
+This is a local dependency deployment checkpoint, not a clean security audit,
+production proxy-policy validation or remediation of the remaining 8 high /
+4 moderate advisories. OBS-005 remains open for those findings. Earlier
+statements below that the runtime was not updated describe the pre-rollout
+isolated patch checkpoint.
+
 BioSphere uses NestJS Throttler as a defense-in-depth per-IP request limiter.
 Rate limiting supplements authentication, authorization, validation, and any
 production reverse-proxy controls; it does not replace them.
