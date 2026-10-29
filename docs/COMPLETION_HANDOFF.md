@@ -5,6 +5,18 @@ change shared data, or whole-project completion percentage. The acceptance
 register and defect log remain authoritative. Reading this handoff promotes no
 status and does not authorize migrations, account changes or teammate-owned work.
 
+The [November 18 delivery plan](DELIVERY_PLAN_2026-11-18.md) sets the remaining
+milestones, priorities and release completion criteria. Use its grouped queue
+to schedule this handoff; historical passing checks do not become new work.
+
+2026-10-29 owner update: DEF-017's isolated Inventory fixture now passes 5/5,
+including Developer 403 and authorized denial-audit readback, without the
+missing-audit adapter error. It is Ready for retest by John/Voltaire; this is
+test-support evidence, not live audit persistence or full Inventory acceptance.
+See the [defect entry](TEST_DEFECT_LOG.md#def-017---storage-inventory-denial-fixture-omits-security-audit-persistence)
+for the exact scope and retest command. Earlier checkpoints below retain their
+historical status.
+
 ## Closeout queue - 2026-10-27
 
 ### Current independent-review checkpoint - 2026-10-28

@@ -96,7 +96,7 @@ system is not a reason to postpone all fixes until the end.
 | [DEF-021](#def-021---interrupted-csv-commit-request-removes-the-reviewed-preview) | 2026-10-24 | Cataloging / CSV import UI | Rejected client commit transport removes the reviewed preview and recovery controls | S3 Moderate | P1 | Ready for retest | Kyer / Cataloging frontend |
 | [DEF-020](#def-020---interrupted-duplicate-check-removes-the-unsaved-core-form) | 2026-10-23 | Cataloging / Duplicate warning | Rejected client request escapes the warning check and removes the unsaved form | S3 Moderate | P1 | Ready for retest | Kyer / Cataloging frontend |
 | [DEF-016](#def-016---backup-http-fixture-omits-the-security-audit-delegate) | 2026-10-19 | Backup / HTTP test fixture | Missing audit delegate logs an error despite green denial test | S3 Moderate | P2 | Ready for retest | Backup tests / coordinate with Auth |
-| [DEF-017](#def-017---storage-inventory-denial-fixture-omits-security-audit-persistence) | 2026-10-21 | Inventory / HTTP test fixture | Storage-inventory denial passes despite missing security-audit delegate | S3 Moderate | P2 | Open | John / coordinate with Voltaire |
+| [DEF-017](#def-017---storage-inventory-denial-fixture-omits-security-audit-persistence) | 2026-10-21 | Inventory / HTTP test fixture | Storage-inventory denial passes despite missing security-audit delegate | S3 Moderate | P2 | Ready for retest | John / coordinate with Voltaire |
 | [DEF-018](#def-018---csv-commit-success-status-differs-from-swagger-declaration) | 2026-10-22 | Cataloging / Import API docs | Commit Swagger success status differs from actual POST response | S4 Minor | P3 | Verified | Kyer / Cataloging |
 | [DEF-019](#def-019---tab-interruption-diagnostic-failed-its-no-backend-write-guard) | 2026-10-22 | Offline / Browser diagnostic | Tab-interruption pilot created a server fixture despite its intended interception | S3 Moderate | P1 | Open | Kyer / test isolation |
 | [DEF-001](#def-001---duplicate-normalized-collection-names-are-accepted) | 2026-09-29 | Cataloging / Collections   | Duplicate normalized collection names are accepted                      | S2 Major    | P1       | Ready for retest | Cataloging / Backend    |
@@ -2729,7 +2729,7 @@ Independent reviewer retest remains pending; this is not live persistence proof.
 **Found on:** backend base `27db649`, 2026-10-21
 **Severity:** S3 Moderate (test-harness/coverage defect; no proven production failure)
 **Priority:** P2
-**Status:** Open
+**Status:** Ready for retest (isolated fixture repair, 2026-10-29)
 **Owner:** John / Inventory test fixture; coordinate with Voltaire for auth audit
 
 #### Reproduction and evidence
@@ -2759,9 +2759,32 @@ Provide the missing database-boundary audit delegate and assert the expected
 developer denial event, actor, result and request metadata. Preserve the real
 guards and existing 401/403 behavior; do not silence the error or bypass auth.
 
-- [ ] Focused developer denial still returns 403 and observes the denial audit.
-- [ ] Full storage-inventory HTTP suite passes without missing-mock audit errors.
-- [ ] No live providers, data writes or authorization weakening introduced.
+- [x] Focused developer denial still returns 403 and observes the denial audit.
+- [x] Full storage-inventory HTTP suite passes without missing-mock audit errors.
+- [x] No live providers, data writes or authorization weakening introduced.
+
+#### Isolated repair and owner evidence - 2026-10-29
+
+On backend base `09c6696`, the existing focused test reproduced the green 403
+with a missing audit-create adapter error. Adding the authorized `/audit-logs`
+readback assertion first made the test fail: the real audit route returned 500.
+The repair adds only per-test in-memory audit create/list/count adapters to
+`test/storage-inventory.e2e-spec.ts`. The real Nest controllers, guards,
+SecurityAuditService and audit mapping remain in use. Bounded readback uses the
+existing helper; it never repeats the denied request or changes guard timing.
+
+The complete affected HTTP suite passed **5/5**, including Developer 403 and
+Curator readback of exactly one denial with the expected actor, action, result,
+method and Inventory path. The run emitted no missing-audit adapter error.
+Authentication and database identities are synthetic. No production source,
+Inventory business rule, shared record, credential or running server changed.
+This does not prove live database persistence or database concurrency.
+
+Independent owner retest: run
+`node --experimental-vm-modules node_modules/jest/bin/jest.js --config ./test/jest-e2e.json --runInBand storage-inventory.e2e-spec.ts`
+from the repaired backend branch after dependency/client setup. Confirm 5/5
+and no missing audit delegate errors. Record the tested SHA and actual result;
+do not promote this to live Inventory acceptance.
 
 ### DEF-018 - CSV commit success status differs from Swagger declaration
 
