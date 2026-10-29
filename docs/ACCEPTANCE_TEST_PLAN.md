@@ -1815,7 +1815,7 @@ disposable `TEST -` specimen and storage units that hold specimens.
 | DASH-004 | Check the category donut, 12-month trend, queue, recent records, and QR readiness            | Values match the underlying records; recent rows show the largest active lot's path and condition                                       | Not run  |
 | DASH-005 | Create an offline draft, go offline, reconnect, and force a sync failure                     | The Offline Drafts panel shows Online/Offline and Pending Sync, Synchronizing, Synchronized, and Sync Failed counts (REQ-4.3-03)        | Not run  |
 | DASH-006 | Submit a public inquiry and a visit request                                                  | The notification bell lists both and opens the related record; the authorized curator receives the alert email (REQ-4.3-05/06/09)     | Not run  |
-| DASH-007 | Mark a notification read or dismissed                                                        | State affects the acting curator only; unread counts change without resolving source work (REQ-4.3-07) | **Pass for agreed local deployment slice**: [six live two-curator assertion groups](./NOTIFICATION_ACTIVATION_CHECKPOINT.md#live-two-curator-acceptance---2026-10-28) cover real UI read/dismiss, reload, B isolation, counts and unchanged source/history; [8 owned SQL/API checks and 7 synthetic bell scenarios](./NOTIFICATION_STATE_GUIDE.md) also pass. Disabled by default for new environments; independent notification sign-off and broader release limits remain pending |
+| DASH-007 | Mark a notification read or dismissed                                                        | State affects the acting curator only; unread counts change without resolving source work (REQ-4.3-07) | **Pass (local slice)** - [checkpoint](./NOTIFICATION_ACTIVATION_CHECKPOINT.md#live-two-curator-acceptance---2026-10-28); independent release sign-off pending |
 | DASH-008 | Load the dashboard as a developer, signed out, and with one backend endpoint failing         | Developer and signed-out access are refused; a failing section shows its own error while the others still render                        | Not run  |
 
 ### Reports and Data Export
@@ -1871,6 +1871,22 @@ limits are in the [public submissions guide](./PUBLIC_SUBMISSIONS_GUIDE.md#uncer
 | WEB-004 | Inspect public pages and their network responses                                       | No storage locations, internal remarks, audit data, account data, or private visitor information appear (REQ-4.10-08)                                 | Not run |
 | WEB-005 | Check desktop, tablet, and mobile widths with keyboard-only navigation                 | No horizontal scrolling; every control is reachable with visible focus; images have alt text (REQ-4.10-09)                                            | Not run |
 | WEB-006 | Confirm the static pages have no editing route in the curator or developer interfaces  | Content changes require a source update and redeploy (REQ-4.10-07/10)                                                                                 | Not run |
+
+### Public dialog keyboard checkpoint - 2026-10-28
+
+[DEF-028](./TEST_DEFECT_LOG.md#def-028---public-dialog-focus-escapes-and-is-not-restored-on-close)
+records real-dialog red/green reproduction and six passing isolated keyboard
+scenarios across both inquiry/visit dialogs, with zero submission/non-fixture
+requests. Initial focus, Tab boundaries, background focus denial, Escape/Close/
+Cancel, opener return and scroll restoration are covered. The existing frontend
+426/426 baseline suite also passes; this independent branch does not contain
+#92's thirteen new helper tests. The prepared repair is not a deployed-build,
+screen-reader, physical-mobile, full visual or whole WEB-005 accessibility pass.
+Pending-submit close policy and closed-form retention remain separate and
+unchanged. Commands and limits are in the
+[public submissions guide](./PUBLIC_SUBMISSIONS_GUIDE.md#public-dialog-keyboard-recovery---2026-10-28).
+Merge/deployment verification and independent owner acceptance remain pending;
+no unrelated acceptance row is promoted from these bounded results.
 
 ## 10. Cross-cutting negative tests
 
