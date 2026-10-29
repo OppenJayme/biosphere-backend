@@ -1,5 +1,23 @@
 # BioSphere Specimen Bulk Import Guide
 
+## Required-format gap confirmed - 2026-10-29
+
+The user's retained eight-decisions handoff (Oct 5, question 4) specifies CSV
+and XLSX for the first release through the same preview/validation/commit
+pipeline. Source inspection at backend `09c6696` confirms
+`SpecimenImportService` still rejects filenames not ending in `.csv` with
+`Only .csv files are supported for import.` The current CSV slice therefore
+does not establish completion of that approved import scope.
+
+Next implementation priority: bounded XLSX parsing into the existing row
+pipeline, an explicitly selected data worksheet, literal/unambiguous values,
+and the existing authorization, preview ownership, selected-row commit and
+Uncataloged creation behavior. Do not add a second save path or execute workbook
+formulas. Parser/dependency selection and resource limits require review before
+implementation; no package was installed or runtime changed in this check.
+Actual museum-template validation remains separate from synthetic format tests.
+This records a required feature gap, not a regression of the working CSV preview.
+
 This module implements the CSV import slice of Cataloging Management (SRS
 REQ-4.4-18 through REQ-4.4-23). It reuses the existing specimen-core creation
 path (`public.specimen`, `public.specimen_revision_history`,
