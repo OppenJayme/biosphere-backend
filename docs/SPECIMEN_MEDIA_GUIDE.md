@@ -1,5 +1,38 @@
 # BioSphere Specimen Media Guide
 
+## Read-only release closeout - 2026-10-29
+
+Owner-assisted Edge checks used the existing TEST media fixture
+`5b8e55d4-af0f-4263-9b0e-349b4b314f20` after manual Curator login in a fresh
+session. Frontend checkout `06d929e8a23133bbb4db954a6b52bfd9aa40b1be`
+and local production build `5goHqxvW38dPzuTeCRyHt` were identified. Backend
+served revision was not independently pinned by this browser check.
+
+- Both upload and replacement file controls changed their computed native
+  file-button background on hover. Save metadata also changed background.
+- An in-memory comparison of form values and cover indicators matched before
+  interaction and after a fresh reload. No file, caption or signed URL was
+  exported in the committed evidence.
+- The sole image was already the cover, so Set as cover was absent and was
+  **not tested**. Computed color changes are not visual-contrast certification.
+- No upload, save, replacement, cover or removal command was submitted.
+  A context guard rejected non-GET/HEAD/OPTIONS requests; the observations
+  recorded zero non-read attempts and zero observed page errors. This browser
+  guard is defense in depth, not full-stack containment or provider evidence.
+
+The initial file-chooser cancellation probe was **incomplete**: the CLI paused
+on chooser state, and its upload command did not accept an omitted file
+argument. Only the newly owned tab was replaced to clear that state, retaining
+the signed-in context. The subsequent hover/reload check completed. This is
+recorded as a tooling limitation, not a successful native-cancellation test or
+an application defect. Physical OS chooser behavior remains unverified.
+
+This supplies scoped owner evidence for DEF-004 and part of DEF-012. Their
+statuses and CAT-011 remain unchanged; independent acceptance, Set as cover
+coverage and the previously listed live-provider/ownership/failure boundaries
+are not implied. The existing signed-in session remains open in read-only test
+mode for the next agreed check; no application server was restarted.
+
 This module connects curator-managed specimen images to the existing private
 Supabase Storage bucket and `public.specimen_media` metadata table. PostgreSQL
 stores only object paths; image bytes never enter database rows.

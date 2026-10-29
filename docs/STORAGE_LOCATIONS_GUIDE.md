@@ -1,5 +1,35 @@
 # BioSphere Storage Locations Guide
 
+## Read-only release closeout - 2026-10-29
+
+Owner-assisted Curator browser checks reused archived TEST CABINET A
+(`4fa17866-6e90-4020-a909-63f8163f33bc`) on frontend checkout
+`06d929e8a23133bbb4db954a6b52bfd9aa40b1be`, production build
+`5goHqxvW38dPzuTeCRyHt`. This is a bounded current-build checkpoint, not a
+new claim that the earlier archive-display repair had been untested.
+
+1. Default `/storage` had Show archived locations unchecked; searching for the
+   archived fixture returned the no-matching-locations state.
+2. A legacy direct selection link without an archive query revealed the
+   existing archived cabinet, checked the archive toggle and displayed the
+   read-only notice. The Archive location button was absent.
+3. Reload preserved the selected historical record and read-only notice.
+4. Focusing the toggle and pressing Space produced `archived=0`, the active-only
+   notice and an active fallback rather than retaining the archived selection.
+
+The fresh manually authenticated session had a context guard rejecting browser
+non-GET/HEAD/OPTIONS requests. Across this storage batch and its preceding
+media check, zero non-read attempts and zero page errors were observed. No
+location, lot, quantity, account or audit record was intentionally mutated;
+no credentials/auth state were exported and no server was restarted. The guard
+does not establish independent full-stack containment or backend authorization.
+The backend served revision was not independently pinned by these checks.
+
+DEF-010 and STO-004 statuses remain unchanged. Independent module acceptance,
+Inventory-owned placement/lot evidence and backend write/concurrency criteria
+remain separate. Do not queue the same owner display checks again absent a
+relevant change or a specific release/independent-review need.
+
 This document records the backend contract for museum storage locations. The
 implementation uses the existing `public.storage_unit` and
 `public.storage_movement_history` tables through Prisma; it does not introduce
