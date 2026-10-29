@@ -8,6 +8,30 @@ database structures.
 
 ## Scope
 
+### XML review repair - 2026-10-29
+
+Voltaire independently reproduced the original 67 HTTP / 40 unit results, but
+identified a blocking quadratic regex scan in `checkWorksheet` on malformed
+unclosed tags. See [DEF-029](./TEST_DEFECT_LOG.md#def-029---xlsx-xml-guard-rescans-unclosed-tags-quadratically).
+That regex scan has been removed. Pinned `saxes@6.0.0` (ISC, CommonJS and typed)
+now performs strict event-based XML validation before the workbook reader.
+Malformed XML and duplicate attributes reject immediately; worksheet range
+checks follow parser events, even for nonstandard ZIP paths. Other XML parts
+are validated without interpreting chart namespace prefixes as worksheet cells.
+Additional limits are depth 64, 250,000 elements per XML part and 64 attributes
+per element. Charts and external hyperlinks remain unsupported, with explicit
+removal instructions instead of a misleading missing-cell-reference message.
+
+The public HTTP malformed-tag regression failed before the repair and now
+rejects within its two-second response budget, followed by a successful
+protected specimen GET and no fixture writes. The affected HTTP suite passes
+72/72 and import-service units 40/40; TypeScript/changed-file lint pass. This is
+bounded synthetic HTTP evidence, not a universal latency guarantee or
+independent acceptance of the fix. Voltaire must retest the updated PR head.
+Frontend #96 remains unchanged and waits for the repaired backend. Dependency
+audit remains the recorded 13 existing advisories; no saxes/xmlchars advisory
+is reported. OBS-005's separate security triage remains open.
+
 ### XLSX support checkpoint - 2026-10-29
 
 XLSX rows now enter the existing preview/validation/commit pipeline; commit,

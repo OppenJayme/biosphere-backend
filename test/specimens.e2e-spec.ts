@@ -355,6 +355,28 @@ describe('Specimens (e2e)', () => {
   });
 
   describe('reviewed CSV HTTP workflow', () => {
+    it('rejects repeated unclosed XML tags within a bounded HTTP response time', async () => {
+      const malformed = xlsxFixture(
+        { Specimens: [['commonName'], ['Test']] },
+        {
+          'xl/padding.xml': strToU8('<c '.repeat(34_000)),
+        },
+      );
+      const started = performance.now();
+      await request(app.getHttpServer())
+        .post('/specimens/import/preview')
+        .set('Authorization', `Bearer ${curatorToken}`)
+        .attach('file', malformed, 'malformed.xlsx')
+        .expect(400);
+      expect(performance.now() - started).toBeLessThan(2000);
+      await request(app.getHttpServer())
+        .get('/specimens')
+        .set('Authorization', `Bearer ${curatorToken}`)
+        .expect(200);
+      expect(specimenDelegate.create).not.toHaveBeenCalled();
+      expect(auditDelegate.create).not.toHaveBeenCalled();
+    }, 20_000);
+
     const workbookPreview = (buffer: Buffer) =>
       request(app.getHttpServer())
         .post('/specimens/import/preview')
@@ -415,6 +437,58 @@ describe('Specimens (e2e)', () => {
         'missing named sheet',
         () => xlsxFixture({ Sheet1: [['commonName'], ['Test']] }),
         /Specimens/,
+      ],
+      [
+        'excess XML nesting',
+        () =>
+          xlsxFixture(
+            { Specimens: [['commonName'], ['Test']] },
+            {
+              'xl/padding.xml': strToU8('<n>'.repeat(65) + '</n>'.repeat(65)),
+            },
+          ),
+        /nesting/,
+      ],
+      [
+        'excess attributes on one XML element',
+        () =>
+          xlsxFixture(
+            { Specimens: [['commonName'], ['Test']] },
+            {
+              'xl/padding.xml': strToU8(
+                '<n ' +
+                  Array.from({ length: 65 }, (_, i) => `a${i}="1"`).join(' ') +
+                  '/>',
+              ),
+            },
+          ),
+        /too many attributes/,
+      ],
+      [
+        'chart workbook with a clear unsupported-feature message',
+        () =>
+          xlsxFixture(
+            { Specimens: [['commonName'], ['Test']] },
+            {
+              'xl/charts/chart1.xml': strToU8(
+                '<c:chartSpace xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart"><c:chart/></c:chartSpace>',
+              ),
+            },
+          ),
+        /without charts/,
+      ],
+      [
+        'external hyperlink with a clear removal instruction',
+        () =>
+          xlsxFixture(
+            { Specimens: [['commonName'], ['Test']] },
+            {
+              'xl/worksheets/_rels/sheet1.xml.rels': strToU8(
+                '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="link1" Target="https://example.test" TargetMode="External" Type="hyperlink"/></Relationships>',
+              ),
+            },
+          ),
+        /Remove external hyperlinks/,
       ],
       [
         'oversized coordinates outside the conventional worksheet path',

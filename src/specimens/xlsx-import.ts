@@ -1,6 +1,7 @@
 import { BadRequestException } from '@nestjs/common';
 import { strFromU8, unzipSync, zipSync } from 'fflate';
 import { readSheet } from 'read-excel-file/node';
+import { SaxesParser } from 'saxes';
 
 const MAX_EXPANDED_BYTES = 20 * 1024 * 1024;
 const MAX_ENTRIES = 128;
@@ -10,7 +11,7 @@ const fail = (message: string): never => {
 };
 
 /** Restrict sparse coordinates before the reader can allocate padded arrays. */
-function checkWorksheet(xml: string, maxRows: number): void {
+function checkXmlPart(xml: string, maxRows: number): void {
   const address = (value: string) => {
     const match = /^([A-Z]{1,3})([1-9]\d*)$/.exec(value);
     if (!match) fail('The XLSX contains an invalid cell reference.');
@@ -24,20 +25,53 @@ function checkWorksheet(xml: string, maxRows: number): void {
       );
     }
   };
-  const attribute = (tag: string, name: string) => {
-    const matches = [
-      ...tag.matchAll(new RegExp(`\\s${name}\\s*=\\s*(["'])(.*?)\\1`, 'gs')),
-    ];
-    if (matches.length > 1) fail('The XLSX contains duplicate XML attributes.');
-    return matches[0]?.[2];
-  };
   let cells = 0;
   let rows = 0;
-  for (const [tag, kind] of xml.matchAll(
-    /<(?:[^<>\s/:]+:)?(row|c|dimension)\b(?:"[^"]*"|'[^']*'|[^'">])*>/g,
-  )) {
-    if (kind === 'row') {
-      const row = attribute(tag, 'r');
+  let depth = 0;
+  let tags = 0;
+  let attributes = 0;
+  const parser = new SaxesParser({ xmlns: true });
+  parser.on('opentagstart', () => {
+    attributes = 0;
+  });
+  parser.on('attribute', () => {
+    if (++attributes > 64)
+      fail('The XLSX XML has too many attributes on one element.');
+  });
+  parser.on('closetag', () => {
+    depth--;
+  });
+  parser.on('error', () =>
+    fail('The XLSX contains malformed XML or duplicate XML attributes.'),
+  );
+  parser.on('doctype', () =>
+    fail('XML DOCTYPE and entities are not supported in XLSX imports.'),
+  );
+  parser.on('opentag', (tag) => {
+    if (++depth > 64 || ++tags > 250_000)
+      fail('The XLSX XML structure exceeds safe nesting or element limits.');
+    if (tag.local === 'chartSpace')
+      fail('Use a plain data workbook without charts for specimen import.');
+    if (tag.local === 'f')
+      fail(
+        'Use literal values only: formulas are not supported in XLSX imports.',
+      );
+    if (
+      Object.values(tag.attributes).some(
+        (attribute) =>
+          attribute.local === 'TargetMode' &&
+          attribute.value.toLowerCase() === 'external',
+      )
+    ) {
+      fail(
+        'Remove external hyperlinks and workbook references before importing XLSX.',
+      );
+    }
+    // Check coordinates regardless of ZIP path or root name: the downstream
+    // workbook reader can encounter sheetData even under a nonstandard root.
+    // SAX local names distinguish c:chartSpace from actual c (cell) elements.
+    if (tag.local === 'row') {
+      const row = tag.attributes.r?.value;
       if (
         !row ||
         !/^[1-9]\d*$/.test(row) ||
@@ -48,8 +82,8 @@ function checkWorksheet(xml: string, maxRows: number): void {
           `XLSX sheets support at most ${maxRows} data rows plus one header.`,
         );
       }
-    } else if (kind === 'c') {
-      const ref = attribute(tag, 'r');
+    } else if (tag.local === 'c') {
+      const ref = tag.attributes.r?.value;
       if (!ref)
         throw new BadRequestException(
           'The XLSX contains a cell without a reference.',
@@ -57,15 +91,16 @@ function checkWorksheet(xml: string, maxRows: number): void {
       if (++cells > (maxRows + 1) * MAX_COLUMNS)
         fail('The XLSX cell range is too large.');
       address(ref);
-      if (attribute(tag, 't') === 'e')
+      if (tag.attributes.t?.value === 'e')
         fail(
           'Replace spreadsheet error cells with literal values before importing.',
         );
-    } else {
-      const ref = attribute(tag, 'ref');
+    } else if (tag.local === 'dimension') {
+      const ref = tag.attributes.ref?.value;
       if (ref) ref.split(':').forEach(address);
     }
-  }
+  });
+  parser.write(xml).close();
 }
 
 /** No filesystem extraction, formula evaluation or remote workbook references. */
@@ -112,17 +147,7 @@ export async function parseXlsxImport(
     for (const [name, data] of Object.entries(files)) {
       if (!/\.(xml|rels)$/i.test(name)) continue;
       const xml = strFromU8(data);
-      if (
-        /\0|<!DOCTYPE|<!ENTITY|<(?:[^<>\s/:]+:)?f\b|TargetMode\s*=\s*["']External["']/i.test(
-          xml,
-        )
-      ) {
-        fail(
-          'Use literal values only: formulas, XML entities and external references are not supported in XLSX imports.',
-        );
-      }
-      // Relationship targets may use arbitrary XML paths, not only xl/worksheets.
-      checkWorksheet(xml, maxRows);
+      checkXmlPart(xml, maxRows);
     }
     // Repackage bounded entries so a second ZIP reader never trusts original size metadata.
     const rows = (await readSheet<{ numeric: string }>(
