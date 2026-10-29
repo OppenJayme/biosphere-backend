@@ -87,7 +87,7 @@ system is not a reason to postpone all fixes until the end.
 | ID      | Date       | Module                     | Summary                                                                 | Severity    | Priority | Status | Owner                   |
 | ------- | ---------- | -------------------------- | ----------------------------------------------------------------------- | ----------- | -------- | ------ | ----------------------- |
 | [DEF-029](#def-029---xlsx-xml-guard-rescans-unclosed-tags-quadratically) | 2026-10-29 | Cataloging / XLSX parser | Malformed unclosed XML tags trigger excessive synchronous regex rescanning | S2 Major | P1 | Ready for retest | Kyer; Voltaire independent retest |
-| [DEF-028](#def-028---public-dialog-focus-escapes-and-is-not-restored-on-close) | 2026-10-28 | Public Website / Inquiry and visit dialog | Keyboard focus leaves the open dialog and closing fails to return focus to its opening button | S3 Moderate | P2 | Ready for retest | John/Charles public forms; Kyer assisted repair |
+| [DEF-028](#def-028---public-dialog-focus-escapes-and-is-not-restored-on-close) | 2026-10-28 | Public Website / Inquiry and visit dialog | Keyboard focus leaves the open dialog and closing fails to return focus to its opening button | S3 Moderate | P2 | Verified | John/Charles public forms; Kyer assisted repair |
 | [DEF-027](#def-027---public-forms-misreport-uncertain-submission-outcomes) | 2026-10-28 | Public Website / Inquiry and visit forms | Malformed receipts fabricate success; transport/5xx feedback encourages a potentially duplicate resend | S3 Moderate | P1 | Ready for retest | John/Charles public forms; Kyer assisted repair |
 | [DEF-026](#def-026---duplicate-result-remains-valid-after-typing-new-values) | 2026-10-27 | Cataloging / Duplicate warning UI | A response for the old name can show after typing a new value without leaving the field | S3 Moderate | P2 | Ready for retest | Kyer / Cataloging frontend |
 | [DEF-025](#def-025---denial-audit-tests-assume-immediate-background-persistence) | 2026-10-27 | Backup / Collections test harness | Immediate audit readback can fail before asynchronously recorded denial events become visible | S3 Moderate | P2 | Verified | Kyer / test maintainers |
@@ -97,7 +97,7 @@ system is not a reason to postpone all fixes until the end.
 | [DEF-021](#def-021---interrupted-csv-commit-request-removes-the-reviewed-preview) | 2026-10-24 | Cataloging / CSV import UI | Rejected client commit transport removes the reviewed preview and recovery controls | S3 Moderate | P1 | Ready for retest | Kyer / Cataloging frontend |
 | [DEF-020](#def-020---interrupted-duplicate-check-removes-the-unsaved-core-form) | 2026-10-23 | Cataloging / Duplicate warning | Rejected client request escapes the warning check and removes the unsaved form | S3 Moderate | P1 | Ready for retest | Kyer / Cataloging frontend |
 | [DEF-016](#def-016---backup-http-fixture-omits-the-security-audit-delegate) | 2026-10-19 | Backup / HTTP test fixture | Missing audit delegate logs an error despite green denial test | S3 Moderate | P2 | Ready for retest | Backup tests / coordinate with Auth |
-| [DEF-017](#def-017---storage-inventory-denial-fixture-omits-security-audit-persistence) | 2026-10-21 | Inventory / HTTP test fixture | Storage-inventory denial passes despite missing security-audit delegate | S3 Moderate | P2 | Open | John / coordinate with Voltaire |
+| [DEF-017](#def-017---storage-inventory-denial-fixture-omits-security-audit-persistence) | 2026-10-21 | Inventory / HTTP test fixture | Storage-inventory denial passes despite missing security-audit delegate | S3 Moderate | P2 | Ready for retest | John / coordinate with Voltaire |
 | [DEF-018](#def-018---csv-commit-success-status-differs-from-swagger-declaration) | 2026-10-22 | Cataloging / Import API docs | Commit Swagger success status differs from actual POST response | S4 Minor | P3 | Verified | Kyer / Cataloging |
 | [DEF-019](#def-019---tab-interruption-diagnostic-failed-its-no-backend-write-guard) | 2026-10-22 | Offline / Browser diagnostic | Tab-interruption pilot created a server fixture despite its intended interception | S3 Moderate | P1 | Open | Kyer / test isolation |
 | [DEF-001](#def-001---duplicate-normalized-collection-names-are-accepted) | 2026-09-29 | Cataloging / Collections   | Duplicate normalized collection names are accepted                      | S2 Major    | P1       | Ready for retest | Cataloging / Backend    |
@@ -167,8 +167,9 @@ seam in a fresh isolated Edge context. Frontend baseline
 `f3f38b281d3b475ccef3ef3c996e044706039de3`.
 **Owner:** John/Charles public forms; Kyer assisted under the user's explicit scope.
 **Severity / priority:** S3 Moderate / P2, keyboard navigation/accessibility.
-**Status:** Ready for retest; bounded owner repair verified, merge/deployed-build
-and independent owner acceptance pending. No full accessibility certification.
+**Status:** Verified - bounded keyboard repair, including the 2026-10-29
+authorized local production read-only check. Full WEB-005/accessibility and
+pointer/pending-close requirements remain separate.
 
 **Expected:** Opening inquiry/visit moves focus into the dialog. Forward/backward
 Tab stays inside; background elements cannot take focus. Escape, Close and
@@ -213,18 +214,38 @@ below belong to the original implementation checkpoint. No broad refactor,
 pointer policy or dependency upgrade is included. The gap-review row now points
 to this confirmed keyboard defect while leaving pending-submit close unconfirmed.
 
-The existing frontend baseline suite passes 426/426 (71 files); it does not
-include the separate unmerged #92 branch's thirteen additional helper cases.
+The original independent-branch baseline passed 426/426 (71 files) before #92
+was included. Both fixes are now merged; the combined tree's CI passes 439/439.
+The sixteen-group real-form/dialog fixture also passes. See the merged 2026-10-29
+checkpoint; historical counts have not been relabelled as later runs.
 Final static/build results and prerequisites are recorded in the
 [public submissions guide](./PUBLIC_SUBMISSIONS_GUIDE.md#public-dialog-keyboard-recovery---2026-10-28).
 
-**Limits:** No deployed CSS/visual, physical mobile, screen-reader, cross-browser
-or full accessibility claim. No submission, email, backend/database, account,
+**Merged checkpoint - 2026-10-29:** #92/#93 and the #94 integration tests are
+merged. [The combined evidence](./PUBLIC_SUBMISSIONS_GUIDE.md#merged-public-form-integration-checkpoint---2026-10-29)
+records exact merge/CI identities, CI 439/439 and sixteen owner synthetic-HTTP
+browser groups. This closes implementation/integration work, not every deployed
+or institutional acceptance limit. No shared record or app restart was needed for that CI/fixture batch.
+
+**Deployed local verification - 2026-10-29:** The authorized frontend refresh
+serves merged `06d929e`, build `5goHqxvW38dPzuTeCRyHt`. Both actual public dialogs
+passed native opening, brand text color, Tab boundaries, field traversal,
+Escape/keyboard Close, opener return and scroll restoration. Zero attempted
+non-read requests and zero page errors; owned anonymous session closed. No
+public submission, backend, database, email or original-window operation.
+See the [rollout evidence](./PUBLIC_SUBMISSIONS_GUIDE.md#authorized-local-frontend-refresh---2026-10-29).
+Combined with the recorded independent six-case check and merged CI/fixture
+evidence, this closes this keyboard defect within its defined scope. It does
+not claim pointer, mobile, screen-reader or public-workflow acceptance.
+
+**Limits:** The actual local style/keyboard smoke above is narrow; no full
+visual, physical mobile, screen-reader, cross-browser or accessibility claim. No submission, email, backend/database, account,
 Inventory, approved content or privacy-policy change. Closing during a pending
 submission and durable recovery of closed form contents remain separate. This
 repair changes only the public Modal and isolated tooling; it does not modify
 #92's helper/forms/feedback components or reopen notification review #210.
-Original apps, builds, configuration and signed-in sessions were untouched.
+The original isolated implementation checks left running apps/configuration and
+windows untouched; the later authorized frontend-only refresh is recorded above.
 
 ### DEF-027 - Public forms misreport uncertain submission outcomes
 
@@ -235,8 +256,9 @@ submission-helper and real public-form seams. Frontend baseline
 **Owner:** John/Charles public forms; Kyer assisted under the user's explicit
 scope. Backend submission ownership is unchanged.
 **Severity / priority:** S3 Moderate / P1, confirmation and retry reliability.
-**Status:** Ready for retest; isolated owner repair verified, merge/deployment
-and independent acceptance pending. No live duplicate-write incident is claimed.
+**Status:** Ready for retest for deployed/release acceptance. Repair and
+integration regressions are merged; scoped independent review and owner
+follow-up evidence are recorded below. No live duplicate-write incident claimed.
 
 **Expected:** Show a confirmation only for a valid server receipt. If a response
 is unavailable or cannot establish confirmation, retain entries and explain
@@ -301,6 +323,12 @@ results are retained against their original SHA; this follow-up awaits review.
 The backend receipt fields are now explicitly documented, and optional retry
 identity, deadline/close and tooling work are tracked as PUB-F01/02/03 in the
 [guide backlog](./PUBLIC_SUBMISSIONS_GUIDE.md#follow-up-backlog-not-implemented-or-approved-for-deployment).
+
+**Merged checkpoint - 2026-10-29:** #92/#93 and the #94 integration tests are
+merged. [The combined evidence](./PUBLIC_SUBMISSIONS_GUIDE.md#merged-public-form-integration-checkpoint---2026-10-29)
+records exact merge/CI identities, CI 439/439 and sixteen owner synthetic-HTTP
+browser groups. This closes implementation/integration work, not every deployed
+or institutional acceptance limit. No shared record or app restart was needed for that CI/fixture batch.
 
 **Limits:** No live stored/lost-response test, backend idempotency, concurrent
 commit proof, email delivery, proxy/CORS, modal close/reopen, process crash or
@@ -2772,7 +2800,7 @@ Independent reviewer retest remains pending; this is not live persistence proof.
 **Found on:** backend base `27db649`, 2026-10-21
 **Severity:** S3 Moderate (test-harness/coverage defect; no proven production failure)
 **Priority:** P2
-**Status:** Open
+**Status:** Ready for retest (isolated fixture repair, 2026-10-29)
 **Owner:** John / Inventory test fixture; coordinate with Voltaire for auth audit
 
 #### Reproduction and evidence
@@ -2802,9 +2830,32 @@ Provide the missing database-boundary audit delegate and assert the expected
 developer denial event, actor, result and request metadata. Preserve the real
 guards and existing 401/403 behavior; do not silence the error or bypass auth.
 
-- [ ] Focused developer denial still returns 403 and observes the denial audit.
-- [ ] Full storage-inventory HTTP suite passes without missing-mock audit errors.
-- [ ] No live providers, data writes or authorization weakening introduced.
+- [x] Focused developer denial still returns 403 and observes the denial audit.
+- [x] Full storage-inventory HTTP suite passes without missing-mock audit errors.
+- [x] No live providers, data writes or authorization weakening introduced.
+
+#### Isolated repair and owner evidence - 2026-10-29
+
+On backend base `09c6696`, the existing focused test reproduced the green 403
+with a missing audit-create adapter error. Adding the authorized `/audit-logs`
+readback assertion first made the test fail: the real audit route returned 500.
+The repair adds only per-test in-memory audit create/list/count adapters to
+`test/storage-inventory.e2e-spec.ts`. The real Nest controllers, guards,
+SecurityAuditService and audit mapping remain in use. Bounded readback uses the
+existing helper; it never repeats the denied request or changes guard timing.
+
+The complete affected HTTP suite passed **5/5**, including Developer 403 and
+Curator readback of exactly one denial with the expected actor, action, result,
+method and Inventory path. The run emitted no missing-audit adapter error.
+Authentication and database identities are synthetic. No production source,
+Inventory business rule, shared record, credential or running server changed.
+This does not prove live database persistence or database concurrency.
+
+Independent owner retest: run
+`node --experimental-vm-modules node_modules/jest/bin/jest.js --config ./test/jest-e2e.json --runInBand storage-inventory.e2e-spec.ts`
+from the repaired backend branch after dependency/client setup. Confirm 5/5
+and no missing audit delegate errors. Record the tested SHA and actual result;
+do not promote this to live Inventory acceptance.
 
 ### DEF-018 - CSV commit success status differs from Swagger declaration
 

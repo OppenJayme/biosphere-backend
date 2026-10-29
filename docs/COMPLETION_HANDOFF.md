@@ -5,6 +5,39 @@ change shared data, or whole-project completion percentage. The acceptance
 register and defect log remain authoritative. Reading this handoff promotes no
 status and does not authorize migrations, account changes or teammate-owned work.
 
+The [November 18 delivery plan](DELIVERY_PLAN_2026-11-18.md) sets the remaining
+milestones, priorities and release completion criteria. Use its grouped queue
+to schedule this handoff; historical passing checks do not become new work.
+
+2026-10-29 owner update: DEF-017's isolated Inventory fixture now passes 5/5,
+including Developer 403 and authorized denial-audit readback, without the
+missing-audit adapter error. It is Ready for retest by John/Voltaire; this is
+test-support evidence, not live audit persistence or full Inventory acceptance.
+See the [defect entry](TEST_DEFECT_LOG.md#def-017---storage-inventory-denial-fixture-omits-security-audit-persistence)
+for the exact scope and retest command. Earlier checkpoints below retain their
+historical status.
+
+## Current public review closeout - 2026-10-29
+
+Frontend #92/#93/#94 and backend #211/#212 are merged. Charles's corrected #212
+review is Approved. The [combined checkpoint](./PUBLIC_SUBMISSIONS_GUIDE.md#merged-public-form-integration-checkpoint---2026-10-29)
+records exact merge/CI identities, a CI-tested tree identical to merged frontend,
+439 passing unit/regression cases, two canary contract checks and lint/build,
+plus sixteen owner real-form/dialog groups using synthetic HTTP. These are
+bounded implementation/integration results; the review batch is complete.
+
+The explicitly authorized [frontend-only refresh](./PUBLIC_SUBMISSIONS_GUIDE.md#authorized-local-frontend-refresh---2026-10-29)
+is complete on source `06d929e`, build `5goHqxvW38dPzuTeCRyHt`. Both actual public
+dialogs pass the read-only keyboard/style smoke with zero non-read requests or
+page errors. The previous build/source is preserved; backend PID 20884 and
+existing browser windows were left unchanged. DEF-028 is Verified for its bounded
+keyboard repair. This rollout creates no public submission or provider evidence.
+
+Sir Curator's approved FAQ/public facts, remaining public workflow/provider and
+release/accessibility acceptance remain separate inputs. The completed owner
+keyboard and combined fixture batches are not reopened by those dependencies.
+Do not invent facts or introduce a new feature merely to keep the queue busy.
+
 ## Closeout queue - 2026-10-27
 
 ### Current independent-review checkpoint - 2026-10-28

@@ -291,8 +291,9 @@ that review is now implemented behind the default-off rollout flag; see the
 
 OBS-004 was reproduced as [DEF-027](./TEST_DEFECT_LOG.md#def-027---public-forms-misreport-uncertain-submission-outcomes).
 Frontend [repair PR #92](https://github.com/OppenJayme/biosphere-frontend/pull/92),
-commit `ac8a3e7842b91d4c1fd4f904b75179f9b2e629c6`, is prepared; it has not been deployed
-to the running site by this task. John/Charles retain module ownership.
+commit `ac8a3e7842b91d4c1fd4f904b75179f9b2e629c6`, merged on 2026-10-29.
+The original verification below predates merge; current combined evidence is
+recorded in the 2026-10-29 checkpoint at the end. John/Charles retain ownership.
 
 The direct browser-to-backend POST remains unchanged so public per-IP rate
 limits still apply to the visitor. Only a valid server receipt (UUID, nonblank
@@ -387,10 +388,10 @@ new migration is authorized here; see the [notification guide](./NOTIFICATION_ST
 
 The earlier modal keyboard inspection candidate was reproduced as
 [DEF-028](./TEST_DEFECT_LOG.md#def-028---public-dialog-focus-escapes-and-is-not-restored-on-close).
-The prepared [frontend repair #93](https://github.com/OppenJayme/biosphere-frontend/pull/93),
-commit `35e1f34b1ca9f27f00e190a4c8a1373719275e50`, is not deployed
-by this task. It touches the public Modal, not the submission helper/form changes
-in separate frontend #92. John/Charles retain module ownership.
+The merged [frontend repair #93](https://github.com/OppenJayme/biosphere-frontend/pull/93),
+commit `35e1f34b1ca9f27f00e190a4c8a1373719275e50`, is now combined with #92 on
+develop. The original independent-branch evidence below is historical; see the
+2026-10-29 combined checkpoint. John/Charles retain module ownership.
 
 The native dialog supplies background isolation; scoped first/last-control
 handling keeps Tab and Shift+Tab within the current enabled/visible controls.
@@ -416,8 +417,8 @@ Verification:
 - Actual keyboard checks cover initial focus, both Tab boundaries, blocked
   background focus, normal input traversal, opener return and empty/nonempty
   body overflow restoration.
-- `npm test`: existing 426/426 in 71 files. This branch is independent of #92;
-  its thirteen new helper tests are not present and have not been removed.
+- Original independent-branch `npm test`: 426/426 in 71 files, before #92 was
+  included. The current combined suite is 439/439; no helper tests were removed.
 - Original `da83f5a` verification: full frontend lint, Next type generation,
   TypeScript no-emit and isolated synthetic-config production build pass.
 - Review cleanup `35e1f34`: explicit native-dialog text-ink and restored README
@@ -432,6 +433,91 @@ weaken assertions. The production fixture's StrictMode wrapper does not establis
 development Strict Effects behavior. Full CSS/visual, screen-reader, mobile and
 cross-browser acceptance remain separate. The existing backdrop-close handler
 is retained; this batch does not establish pointer hit testing or pending-submit
-close/retention policy. No real public POST, email, server, configuration,
-migration, account or Inventory operation was performed. Merge/deployed-build
-verification and independent module-owner acceptance remain pending.
+close/retention policy. The original isolated keyboard batch made no real public
+POST/email and changed no server/configuration, migration, account or Inventory.
+Implementation merge and the later authorized frontend smoke are recorded in
+the following checkpoints; broader release acceptance remains separate.
+
+## Merged public-form integration checkpoint - 2026-10-29
+
+Frontend #92 and #93 are merged; #94 adds maintained combined-dialog regressions.
+Fetched develop contains #94 at `06d929e8a23133bbb4db954a6b52bfd9aa40b1be`.
+Backend #211 and #212 are merged at develop
+`09c66966e8b569529affb0e7272d1ca71431d209`. Charles approved the corrected #212
+head `14eae1b` for documentation/source-cross-check scope; this is not a new
+independent browser or shared-database run.
+
+The combined frontend tree matches CI-tested #94 head
+`3c2e764f7d7565b29e9c2abdd4499424813d7396` exactly. Verified
+[Frontend CI run 40818084859](https://github.com/OppenJayme/biosphere-frontend/actions/runs/40818084859)
+reports 439/439 tests in 72 files, two canary server-contract tests, lint and
+production build passing. Counts came from filtered CI job summaries, not a
+new local full-suite run or a teammate's rerun. This closes the missing combined
+suite record while retaining the older 426/426 branch-specific history.
+
+Owner `npm run test:public-submissions:browser` now passes sixteen groups:
+fourteen standalone cases plus two flows through the real VisitOptionsSection,
+native Modal and forms. Transport failure -> acknowledgement -> 503 -> another
+acknowledgement -> explicit success -> Done keeps warning focus inside the
+modal, retains fields/consent, respects disabled-Send keyboard boundaries and
+restores opener focus/scroll on Done. Only fixed-origin intercepted synthetic
+HTTP is used; the owned browser session closes. Focused tooling lint and
+TypeScript pass. Earlier independent thirteen-helper/fourteen-form and six-
+keyboard reports remain tied to their original tested SHAs.
+
+This implementation/review/integration batch is complete. Historical wording
+about prepared/unmerged repairs does not reopen those batches. Full deployed
+CSS/visual, mobile, screen-reader, pointer/pending-close, real provider/commit
+and institutional content/privacy acceptance are separate. No live submission,
+email, database/migration, account or Inventory operation occurred in this
+closeout. At preflight, the running frontend still used the earlier notification
+source `f3f38b2`. The subsequently authorized frontend-only rollout is recorded
+below; the CI/fixture results themselves are not proof of that restart.
+
+## Authorized local frontend refresh - 2026-10-29
+
+The user explicitly approved refreshing only port 3000, preserving recovery and
+checking both public dialogs without submitting. Deployed frontend source is
+`06d929e8a23133bbb4db954a6b52bfd9aa40b1be` on the local rollout branch tracking
+develop. Existing local configuration was retained; no environment values were
+copied into documentation or a new application checkout.
+
+The previous production build `GqhI5XaNB8UE49EstuJep` and source `f3f38b2` were
+preserved in the private owned recovery directory before the exact frontend
+process was stopped. The actual-config production webpack build passed and
+serves build `5goHqxvW38dPzuTeCRyHt` on the existing loopback port 3000.
+Backend port 3001 stayed on PID 20884 throughout the before/after checks. Both
+original browser-session processes remained present and were not operated on.
+The rebuilt frontend PID is 7592 at this checkpoint; process IDs are snapshots,
+not permanent configuration. /visit and /login return 200; backend health is 200.
+
+A fresh anonymous browser checked the actual local production /visit page,
+using the real generated CSS and no fixture replacement. All non-read requests
+were blocked. Two scenarios (inquiry/Escape and visit/keyboard Close) passed:
+
+- Native modal is open; initial focus is inside and its heading is in view.
+- Computed dialog text is the source-defined brand ink, rgb(21, 36, 27).
+- Shift+Tab and Tab wrap correctly at the current first/last controls.
+- A synthetic name can be entered and field traversal stays inside the dialog.
+- Closing returns focus to the opening button and restores prior body overflow.
+
+Observed zero attempted non-read requests, zero page errors and zero blocked
+external reads. No public form was submitted and no success receipt or backend
+failure was simulated against the running site. The temporary anonymous session
+was closed; existing signed-in windows were left open. Recovery builds, logs,
+process metadata and helper scripts remain private/ignored locally.
+
+This verifies the bounded DEF-028 keyboard repair on the deployed local build,
+so DEF-028 is Verified for that scope. It does not certify full WEB-005,
+screen-reader/mobile/pointer behavior or the remaining pending-close policy.
+DEF-027 retains its independently reviewed/owner-verified synthetic feedback
+coverage; live public submission/receipt/provider release acceptance was not
+performed by this explicitly read-only rollout. No repeat of the completed
+owner keyboard or combined fixture batches is needed solely because these
+broader requirements remain. No backend, database, migration, role, Inventory,
+notification flag or email change was made.
+
+Recovery: preserve the previous source/build recorded in the owned local
+frontend-public-refresh directory. If necessary, stop only the identified
+frontend and restore that exact source/build, then start again on the same
+loopback port. Do not reset source records, alter backend state or drop tables.
