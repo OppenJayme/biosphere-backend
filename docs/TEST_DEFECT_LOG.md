@@ -2884,6 +2884,33 @@ These are recorded signals, not confirmed application defects or closed issues.
 Promote an observation to a DEF entry when reproduction establishes an
 application failure; retain the original observation and cross-reference it.
 
+### OBS-005 - Existing production dependency security advisories
+
+**Observed:** 2026-10-29 during XLSX dependency review.
+**Status:** Open security triage; advisory evidence, no exploitation reproduced.
+**Coordination:** Backend/dependency owner with Voltaire for request IP/auth/rate
+limiting and deployment proxy configuration. Prioritize before release sign-off.
+
+`npm audit --omit=dev --json` reports the same 13 advisories on the unchanged
+backend dependency baseline and the isolated XLSX branch: 4 moderate, 8 high,
+1 critical. No newly affected package is reported after adding the pinned XLSX
+reader and fflate. This comparison is not a clean audit or security approval.
+
+The critical dependency is `proxy-addr` in the reported affected range
+`>=1.1.0 <2.0.8`; upstream advisory
+[GHSA-jqcg-44mw-7w3h](https://github.com/advisories/GHSA-jqcg-44mw-7w3h)
+concerns IPv4-mapped IPv6 trust-subnet IP spoofing. Actual applicability depends
+on resolved dependencies and proxy configuration and was not exploited here.
+Other affected package names are `@nestjs/platform-express`, `@nestjs/swagger`,
+`@prisma/config`, `body-parser`, `csv-parse`, `deepmerge-ts`, `fast-uri`,
+`js-yaml`, `multer`, `mysql2`, `prisma` and `qs`.
+
+Owner follow-up: review full current advisory details, map applicability,
+prepare the smallest compatible dependency updates with affected regressions,
+and rerun the audit. Do not run `npm audit fix --force`, silently dismiss the
+critical report, or claim deployment is secure from the XLSX tests. No shared
+dependency tree, running server, proxy setting or account changed in this check.
+
 ### OBS-004 - Public submission feedback can obscure an uncertain outcome
 
 **Observed:** 2026-10-28 source review, followed by isolated helper/UI reproduction
