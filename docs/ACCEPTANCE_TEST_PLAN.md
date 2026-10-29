@@ -135,8 +135,10 @@ Frontend #92/#93/#94 and backend #211/#212 are merged. The
 records CI 439/439 in 72 files, two passing canary contract checks and lint/build,
 plus sixteen owner real-form/dialog groups with synthetic HTTP. Exact source,
 merge and CI identities distinguish these from earlier independent 13/14/6
-reports. No prior passing batch is reopened. DEF-027/028 retain explicit deployed/
-release limits; WEB-005 and overall public-module sign-off are not promoted.
+reports. No prior passing batch is reopened. The subsequently authorized local frontend refresh passes two real public
+dialog/style scenarios with zero non-read requests/page errors; DEF-028 is
+Verified for its bounded keyboard repair. DEF-027 public-workflow/provider
+release limits, full WEB-005 and overall public-module sign-off remain separate.
 
 ## 1. Purpose
 
@@ -1890,8 +1892,10 @@ scenarios across both inquiry/visit dialogs, with zero submission/non-fixture
 requests. Initial focus, Tab boundaries, background focus denial, Escape/Close/
 Cancel, opener return and scroll restoration are covered. The existing frontend
 original 426/426 baseline predates #92. Both repairs are now merged; combined
-CI passes 439/439 and the integrated fixture passes sixteen groups. This is not a deployed-build,
-screen-reader, physical-mobile, full visual or whole WEB-005 accessibility pass.
+CI passes 439/439 and the integrated fixture passes sixteen groups. The later
+authorized local build passes two real dialog/style checks. These bounded
+results are not screen-reader, physical-mobile, full visual or whole WEB-005
+accessibility acceptance.
 Pending-submit close policy and closed-form retention remain separate and
 unchanged. Commands and limits are in the
 [public submissions guide](./PUBLIC_SUBMISSIONS_GUIDE.md#public-dialog-keyboard-recovery---2026-10-28).

@@ -14,12 +14,17 @@ records exact merge/CI identities, a CI-tested tree identical to merged frontend
 plus sixteen owner real-form/dialog groups using synthetic HTTP. These are
 bounded implementation/integration results; the review batch is complete.
 
-The next practical local step is an explicitly authorized frontend-only refresh
-and read-only check of the merged public dialogs. The existing backend/database,
-notification migration/flag and signed-in windows need no change. Sir Curator's
-approved FAQ/public facts and the existing release/provider/accessibility gates
-remain separate inputs. Do not restart the completed owner test batches while
-waiting, invent facts or introduce a new feature merely to keep the queue busy.
+The explicitly authorized [frontend-only refresh](./PUBLIC_SUBMISSIONS_GUIDE.md#authorized-local-frontend-refresh---2026-10-29)
+is complete on source `06d929e`, build `5goHqxvW38dPzuTeCRyHt`. Both actual public
+dialogs pass the read-only keyboard/style smoke with zero non-read requests or
+page errors. The previous build/source is preserved; backend PID 20884 and
+existing browser windows were left unchanged. DEF-028 is Verified for its bounded
+keyboard repair. This rollout creates no public submission or provider evidence.
+
+Sir Curator's approved FAQ/public facts, remaining public workflow/provider and
+release/accessibility acceptance remain separate inputs. The completed owner
+keyboard and combined fixture batches are not reopened by those dependencies.
+Do not invent facts or introduce a new feature merely to keep the queue busy.
 
 ## Closeout queue - 2026-10-27
 

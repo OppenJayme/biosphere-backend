@@ -433,9 +433,10 @@ weaken assertions. The production fixture's StrictMode wrapper does not establis
 development Strict Effects behavior. Full CSS/visual, screen-reader, mobile and
 cross-browser acceptance remain separate. The existing backdrop-close handler
 is retained; this batch does not establish pointer hit testing or pending-submit
-close/retention policy. No real public POST, email, server, configuration,
-migration, account or Inventory operation was performed. Merge/deployed-build
-verification and independent module-owner acceptance remain pending.
+close/retention policy. The original isolated keyboard batch made no real public
+POST/email and changed no server/configuration, migration, account or Inventory.
+Implementation merge and the later authorized frontend smoke are recorded in
+the following checkpoints; broader release acceptance remains separate.
 
 ## Merged public-form integration checkpoint - 2026-10-29
 
@@ -470,5 +471,53 @@ CSS/visual, mobile, screen-reader, pointer/pending-close, real provider/commit
 and institutional content/privacy acceptance are separate. No live submission,
 email, database/migration, account or Inventory operation occurred in this
 closeout. At preflight, the running frontend still used the earlier notification
-source `f3f38b2`; refreshing that local frontend requires the separately requested
-frontend-only rollout. No app restart is claimed by these CI/fixture results.
+source `f3f38b2`. The subsequently authorized frontend-only rollout is recorded
+below; the CI/fixture results themselves are not proof of that restart.
+
+## Authorized local frontend refresh - 2026-10-29
+
+The user explicitly approved refreshing only port 3000, preserving recovery and
+checking both public dialogs without submitting. Deployed frontend source is
+`06d929e8a23133bbb4db954a6b52bfd9aa40b1be` on the local rollout branch tracking
+develop. Existing local configuration was retained; no environment values were
+copied into documentation or a new application checkout.
+
+The previous production build `GqhI5XaNB8UE49EstuJep` and source `f3f38b2` were
+preserved in the private owned recovery directory before the exact frontend
+process was stopped. The actual-config production webpack build passed and
+serves build `5goHqxvW38dPzuTeCRyHt` on the existing loopback port 3000.
+Backend port 3001 stayed on PID 20884 throughout the before/after checks. Both
+original browser-session processes remained present and were not operated on.
+The rebuilt frontend PID is 7592 at this checkpoint; process IDs are snapshots,
+not permanent configuration. /visit and /login return 200; backend health is 200.
+
+A fresh anonymous browser checked the actual local production /visit page,
+using the real generated CSS and no fixture replacement. All non-read requests
+were blocked. Two scenarios (inquiry/Escape and visit/keyboard Close) passed:
+
+- Native modal is open; initial focus is inside and its heading is in view.
+- Computed dialog text is the source-defined brand ink, rgb(21, 36, 27).
+- Shift+Tab and Tab wrap correctly at the current first/last controls.
+- A synthetic name can be entered and field traversal stays inside the dialog.
+- Closing returns focus to the opening button and restores prior body overflow.
+
+Observed zero attempted non-read requests, zero page errors and zero blocked
+external reads. No public form was submitted and no success receipt or backend
+failure was simulated against the running site. The temporary anonymous session
+was closed; existing signed-in windows were left open. Recovery builds, logs,
+process metadata and helper scripts remain private/ignored locally.
+
+This verifies the bounded DEF-028 keyboard repair on the deployed local build,
+so DEF-028 is Verified for that scope. It does not certify full WEB-005,
+screen-reader/mobile/pointer behavior or the remaining pending-close policy.
+DEF-027 retains its independently reviewed/owner-verified synthetic feedback
+coverage; live public submission/receipt/provider release acceptance was not
+performed by this explicitly read-only rollout. No repeat of the completed
+owner keyboard or combined fixture batches is needed solely because these
+broader requirements remain. No backend, database, migration, role, Inventory,
+notification flag or email change was made.
+
+Recovery: preserve the previous source/build recorded in the owned local
+frontend-public-refresh directory. If necessary, stop only the identified
+frontend and restore that exact source/build, then start again on the same
+loopback port. Do not reset source records, alter backend state or drop tables.
