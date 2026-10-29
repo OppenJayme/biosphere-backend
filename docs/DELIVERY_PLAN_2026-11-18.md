@@ -76,12 +76,16 @@ remains authoritative; do not add optional cases merely to occupy review time.
 
 Repository inventory found `docs/BioSphere-SRS.pdf` and
 `docs/BioSphere-Final-Capstone-1.pdf`, plus technical guides for Cataloging,
-Storage, Offline, FAQ, Audit and Backup History. File existence does not prove
-that the paper is the latest version or that a guide is a complete user manual.
+Storage, Offline, FAQ, Audit and Backup History. The user confirmed on Oct 29
+that Capstone-1 is the latest paper and Capstone-2 Chapters 5-6 (results,
+recommendations and related required material) have not received substantial
+updates. Treat these chapters as remaining work, not final proofreading.
+An existing technical guide does not establish a complete user manual.
 The checked repository filenames did not identify a final user manual, defense
 slide deck or dedicated defense/demo runbook; these may exist outside the repo.
-Confirm the current editable paper and school checklist before altering paper
-content or claiming those deliverables are absent from the team's work.
+Locate the editable source and school checklist before altering paper content
+or claiming other deliverables are absent from the team's work. The user's
+confirmation settles the paper-version question; do not ask it again.
 
 Before Nov 18, consolidate rather than duplicate existing guides: identify the
 current paper and assigned chapter owners, map required modules to results and
@@ -90,6 +94,25 @@ sequence, then finish required appendices, diagrams, sanitized screenshots and
 slides. Use the school's required format and actual approved results. Never
 include credentials, private visitor data, signed media URLs or unsupported
 claims of complete accessibility, concurrency or production deployment.
+
+### Capstone-2 writing tasks, in parallel with module closeout
+
+1. Check the school's required Chapter 5-6 headings, methods and assessment
+   instruments against the current paper. Do not invent a chapter template,
+   sample size, survey, participant result or required approval.
+2. Build the results tables from the existing acceptance register and defect
+   log, linking each claim to its actual requirement, tested revision, method,
+   environment, result and limitation. Keep automated checks, owner-reported
+   manual checks and independently executed tests distinct.
+3. Identify any required external/user evaluation that is still missing and
+   assign its owner and date. Engineering test counts do not substitute for
+   usability scores, stakeholder acceptance or statistical findings.
+4. Draft conclusions against the objectives using only supported results;
+   draft recommendations from documented limitations and accepted future work.
+   Do not describe disabled collection, real restore or broad chatbot language
+   understanding as completed capabilities.
+5. Reconcile earlier chapters, architecture/ERD, scope and methodology with the
+   final implementation; obtain adviser review before submission packaging.
 
 ## Completion checklist for November 18
 
