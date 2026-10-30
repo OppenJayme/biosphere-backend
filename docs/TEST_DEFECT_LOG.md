@@ -3038,11 +3038,13 @@ critical report, or claim deployment is secure from the XLSX tests. No shared
 dependency tree, running server, proxy setting or account changed in this check.
 
 OBS-005 follow-up, 2026-10-30: [compatible dependency patch](./DEPENDENCY_PATCH_CHECKPOINT_2026-10-30.md)
-updates only body-parser, qs and development-only Handlebars lock entries.
-Build and four existing HTTP suites pass 136/136; production audit is now ten
-affected packages and full-tree audit nineteen, both with zero critical entries.
-Residual findings keep OBS-005 Open. No running app was restarted or shared
-record changed; source verification is not rollout/security acceptance.
+updates body-parser, qs and development-only Handlebars, followed by a scoped
+Multer 2.5.0 override under the Nest Express adapter. The initial four-suite
+136/136 result is retained; the final clean-install build and seven-suite
+222/222 HTTP run pass. Production audit is now eight affected packages
+(5 high / 3 moderate / 0 critical), full-tree seventeen (6 high / 3 moderate /
+8 low / 0 critical). Residual findings keep OBS-005 Open. No running app was
+restarted or shared record changed; this is not rollout/security acceptance.
 
 ### OBS-004 - Public submission feedback can obscure an uncertain outcome
 
