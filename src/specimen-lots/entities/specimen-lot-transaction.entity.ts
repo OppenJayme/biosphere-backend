@@ -18,6 +18,14 @@ export enum QuantityAdjustmentType {
   DATA_CORRECTION = 'DATA_CORRECTION',
 }
 
+/** Values retained in history, independently of currently supported write commands. */
+export const RECORDED_QUANTITY_ADJUSTMENT_TYPES = [
+  ...Object.values(QuantityAdjustmentType),
+  'TEMPORARY_ABSENCE',
+] as const;
+export type RecordedQuantityAdjustmentType =
+  (typeof RECORDED_QUANTITY_ADJUSTMENT_TYPES)[number];
+
 export class SpecimenLotTransaction {
   @ApiProperty()
   id!: string;
@@ -34,8 +42,11 @@ export class SpecimenLotTransaction {
   @ApiPropertyOptional({ nullable: true, minimum: 1 })
   quantityAffected!: number | null;
 
-  @ApiPropertyOptional({ enum: QuantityAdjustmentType, nullable: true })
-  adjustmentType!: QuantityAdjustmentType | null;
+  @ApiPropertyOptional({
+    enum: RECORDED_QUANTITY_ADJUSTMENT_TYPES,
+    nullable: true,
+  })
+  adjustmentType!: RecordedQuantityAdjustmentType | null;
 
   @ApiPropertyOptional({ nullable: true })
   reason!: string | null;

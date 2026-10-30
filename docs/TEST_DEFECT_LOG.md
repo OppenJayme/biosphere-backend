@@ -86,6 +86,7 @@ system is not a reason to postpone all fixes until the end.
 
 | ID      | Date       | Module                     | Summary                                                                 | Severity    | Priority | Status | Owner                   |
 | ------- | ---------- | -------------------------- | ----------------------------------------------------------------------- | ----------- | -------- | ------ | ----------------------- |
+| [DEF-030](#def-030---lot-history-fails-on-a-database-enum-ahead-of-the-client) | 2026-10-31 | Inventory / Lot history | Retained TEMPORARY_ABSENCE cannot be decoded by develop Prisma; frontend also rejects the historical response value | S2 Major | P1 | Ready for retest | John / Inventory; Kyer assisting; Charles report |
 | [DEF-029](#def-029---xlsx-xml-guard-rescans-unclosed-tags-quadratically) | 2026-10-29 | Cataloging / XLSX parser | Malformed unclosed XML tags trigger excessive synchronous regex rescanning | S2 Major | P1 | Verified (bounded independent retest) | Kyer; Voltaire independent retest |
 | [DEF-028](#def-028---public-dialog-focus-escapes-and-is-not-restored-on-close) | 2026-10-28 | Public Website / Inquiry and visit dialog | Keyboard focus leaves the open dialog and closing fails to return focus to its opening button | S3 Moderate | P2 | Verified | John/Charles public forms; Kyer assisted repair |
 | [DEF-027](#def-027---public-forms-misreport-uncertain-submission-outcomes) | 2026-10-28 | Public Website / Inquiry and visit forms | Malformed receipts fabricate success; transport/5xx feedback encourages a potentially duplicate resend | S3 Moderate | P1 | Ready for retest | John/Charles public forms; Kyer assisted repair |
@@ -117,6 +118,34 @@ system is not a reason to postpone all fixes until the end.
 | [DEF-015](#def-015---audit-http-fixture-omits-the-security-audit-create-method) | 2026-10-19 | Audit / HTTP test fixture | Missing security-audit create mock logs an error despite green denial test | S3 Moderate | P2 | Ready for retest | Audit tests / coordinate with Auth |
 
 ## 3. Defect details
+
+### DEF-030 - Lot history fails on a database enum ahead of the client
+
+**Reported:** 2026-10-31; Charles's artifact report supplied by the user.
+**Affected record:** User-reported accession `USC-BM-2026-0001`; not edited or
+queried directly during the repair.
+**Severity / priority:** S2 Major / P1; blocks an affected specimen's Lots page.
+**Status:** Ready for retest; owner reproduction, isolated checks and both builds
+pass. Independent review, merge and controlled rollout/live retest remain.
+
+**Actual:** The reported history endpoint returns 500. Source `0f80b67` contains
+an enum migration missing from develop's Prisma schema. An owned PostgreSQL
+fixture independently reproduces P2023: `Value 'TEMPORARY_ABSENCE' not found in
+enum 'quantity_adjustment_type'`. Separately, the real frontend page/API/Zod
+boundary rejects the retained value and shows the generic Lots failure.
+
+**Expected:** Authorized users can read the original historical adjustment,
+lots and summary without altering quantities/history or enabling unapproved
+new adjustment commands.
+
+**Repair/evidence:** [Scoped enum compatibility and rollout boundary](./LOT_HISTORY_ENUM_COMPATIBILITY.md).
+Seven real SQL/HTTP cases pass after regenerating the isolated client; the
+frontend formerly failing page case passes with known-value read compatibility.
+The original migration file is preserved byte-for-byte at the Git-blob level.
+Write DTO/form choices remain the original seven; unsupported writes are
+rejected. No shared migration, row correction, rollback or runtime restart was
+performed. The report's shared migration history is user-supplied, not newly
+verified by inspecting the shared database. Independent and live retest pending.
 
 ### DEF-029 - XLSX XML guard rescans unclosed tags quadratically
 
