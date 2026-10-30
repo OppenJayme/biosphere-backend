@@ -259,6 +259,31 @@ Existing manual/browser evidence below is historical and remains separate.
 
 ## Supported boundary
 
+### OFF-004 source and evidence reconciliation - 2026-10-31
+
+Inspection used backend `f4df176` and frontend `60ab28b`; it did not execute
+the application, repeat prior suites, or establish the served build's behavior.
+This separates existing implementation/evidence from the remaining negative
+acceptance matrix. No new defect was established and OFF-004 stays In progress.
+
+| Boundary | Inspected implementation / existing evidence | Remaining acceptance distinction |
+| --- | --- | --- |
+| Text-only local draft | `OfflineSpecimenDraftModal` exposes core text/gender fields and explains the online-only features. `draftFromFormData` explicitly sets `collectionId` to null; the strict draft schema excludes inventory, media and lifecycle fields. | Check the real offline modal/control boundary on the chosen release build; source inspection alone is not that browser result. |
+| Read-only cached records | `OfflineSpecimenPanel` renders cached identifiers/names/status with search and filters; cached rows offer no mutation or detail-navigation controls. Local draft Edit/Remove controls operate on the separate queue. | Verify cached rows cannot initiate media, movement, archive or publishing operations. Do not confuse removing a local draft/receipt with deleting a server specimen. |
+| No synchronization while offline | Sync/Retry controls depend on connectivity; `synchronizeAll` and `retryDraft` also check `navigator.onLine` before calling sync functions. | Confirm no outgoing sync request from the offline controls on the selected browser/build. Network restoration and actual expired-session re-login remain distinct cases. |
+| Frontend payload boundary | The real offline POST handler validates a strict top-level and nested schema before forwarding. The existing route test rejects `publicDisplay` and `quantity`, with neither backend fetch nor token lookup performed. | That executed test covers those two fields, not an individually executed media/taxonomy/provenance/lot/movement/archive/QR/report request matrix. Do not label the broader matrix Pass from schema inspection. |
+| Protected backend boundary | The Curator-only controller uses nested `CreateSpecimenDto`; the application's ValidationPipe forbids non-whitelisted fields. The existing HTTP suite rejects `imagePath` and confirms no specimen/receipt creation. Backend core DTO permits an existing collection UUID; the browser draft form does not offer collection assignment. | Do not describe collection UUIDs as rejected by the backend. The image rejection is prior isolated HTTP evidence, not live role/session-expiry or every unsupported operation tested. |
+| Fresh offline navigation / cache | `public/sw.js` caches only same-origin build assets, favicon and the record-free fallback. Protected HTML/navigation is network-first with the generic offline fallback; API/auth/data requests have no worker cache handler. Existing manual fallback/reconnect evidence is retained above/below. | Verify the chosen release build's cache contents and generic fallback without clearing another user's cache/session. This inspection supplies no new PWA, account-security or deployment acceptance. |
+
+Next owner acceptance is one bounded read-only browser matrix for the real
+offline draft, cached rows, disabled sync and fresh-navigation boundaries,
+followed by the agreed independent review. Actual session expiry/account
+changes and interruption use only a separately agreed safe target; DEF-019's
+shared-backend interruption pilot remains stopped. Previously passing owned
+SQL/HTTP, local isolation and lost-response recovery cases are not requeued.
+Documentation validation: `git diff --check`; no credentials, servers, shared
+records, local drafts or existing browser windows were changed.
+
 - `POST /offline-sync/specimen-drafts` accepts one draft at a time after stable
   connectivity returns and the curator has authenticated.
 - The payload contains a stable browser-generated `clientDraftId` UUID and the
