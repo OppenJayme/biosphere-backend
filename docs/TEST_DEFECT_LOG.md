@@ -6,6 +6,14 @@ defect entry.
 
 ## Start here
 
+2026-10-30 Cataloging checkpoint: [live XLSX selected-row commit/retry](./SPECIMEN_IMPORT_GUIDE.md#live-xlsx-selected-row-commit-and-retry---2026-10-30)
+passes on the merged local production builds. Exactly one approved synthetic
+specimen remains Uncataloged with public display off and no active lots; retry
+kept its ID and one successful import audit. The invalid row stayed excluded.
+Selector/guard diagnostic stops and two intercepted non-read attempts are
+recorded with their limits in the guide. No new reproducible application defect
+was established and no existing defect status is promoted by this checkpoint.
+
 2026-10-27 read-only media checkpoint: [keyboard/dialog evidence and diagnostic
 limits](./SPECIMEN_MEDIA_GUIDE.md#read-only-keyboard-and-dialog-checkpoint---2026-10-27).
 The first strict Tab-containment assertion failed; replay observed focus outside

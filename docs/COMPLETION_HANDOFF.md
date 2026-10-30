@@ -22,8 +22,11 @@ The [merged local XLSX preview checkpoint](./SPECIMEN_IMPORT_GUIDE.md#merged-loc
 now records backend #216/#217 and frontend #96 integration, fresh local builds,
 the actual two-row mixed XLSX preview, and before/after empty catalog readback
 without an import commit. DEF-029 has independent repair acceptance; the local
-proxy dependency is patched. OBS-005's remaining 12 advisories, actual museum
-template/commit acceptance and wider module sign-off remain separate. Do not
+proxy dependency is patched. The subsequently authorized [live XLSX commit/retry](./SPECIMEN_IMPORT_GUIDE.md#live-xlsx-selected-row-commit-and-retry---2026-10-30)
+passes with one retained synthetic Uncataloged specimen, invalid-row exclusion,
+the same ID and one successful import audit after retry. OBS-005's remaining
+12 advisories, actual museum-template suitability and wider module sign-off
+remain separate. Do not
 reopen the completed owner/reviewer suites simply because these gates remain.
 
 ## Current public review closeout - 2026-10-29
