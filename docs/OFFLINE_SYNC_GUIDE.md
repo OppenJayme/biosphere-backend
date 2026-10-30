@@ -311,8 +311,15 @@ record or server configuration was changed. Ordinary online cache reads could
 refresh the device-local read-only specimen cache. Scripts remain ignored at
 `.codex-tmp/offline-boundary-20261031/`; no private draft content was published.
 
-OFF-004 remains **In progress** for the individually executed unsupported-request
-matrix and independent/release acceptance. Actual expired-session re-login,
+Subsequent isolated request checks in [backend #222](https://github.com/OppenJayme/biosphere-backend/pull/222)
+and [frontend #98](https://github.com/OppenJayme/biosphere-frontend/pull/98) complete
+the named unsupported-field matrix owner-side: twelve fields tested independently
+at both nested and envelope levels, 24 new cases per side; full focused suites
+pass 28/28 and 29/29 respectively. Each verifies field-specific 400 rejection
+before receipt lookup/writes or credential lookup/forwarding. Changed-test lint
+and whitespace checks pass. These test-only PRs use synthetic adapters and still
+need review/integration; they do not prove a live rejected-request matrix.
+OFF-004 remains **In progress** for independent/release acceptance. Actual expired-session re-login,
 cross-account device access and full PWA/provider behavior are not proved.
 DEF-019's shared-backend interruption pilot remains stopped. Do not repeat
 these fifteen completed owner assertions as missing work. Documentation-only
