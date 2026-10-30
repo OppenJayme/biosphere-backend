@@ -32,7 +32,8 @@
     "benchmark:specimen-import": "ts-node --transpile-only scripts/benchmark-specimen-import.ts",
     "db:check-accession-collisions": "ts-node --transpile-only scripts/check-accession-collisions.ts",
     "db:check-collection-collisions": "ts-node --transpile-only scripts/check-collection-collisions.ts",
-    "verify:accession-uniqueness": "ts-node --transpile-only scripts/verify-accession-uniqueness.ts"
+    "verify:accession-uniqueness": "ts-node --transpile-only scripts/verify-accession-uniqueness.ts",
+    "verify:swagger-yaml": "node scripts/verify-swagger-yaml.cjs"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
@@ -60,7 +61,8 @@
   "overrides": {
     "@nestjs/platform-express": {
       "multer": "2.5.0"
-    }
+    },
+    "js-yaml@5.3.0": "5.4.1"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.2.0",

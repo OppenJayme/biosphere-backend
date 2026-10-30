@@ -3049,6 +3049,15 @@ low, with zero high/critical in either scope. Residual findings keep OBS-005
 Open. The owned container was removed; no running app was restarted or shared
 record changed. These are source/owned-fixture results, not rollout acceptance.
 
+Subsequent YAML follow-up on the same branch: an exact-version js-yaml override
+updates Swagger's 5.3.0 to 5.4.1 without changing Swagger/Nest majors or YAML
+3.x/4.x. The initial parent-scoped attempt produced npm peer errors and was
+replaced before commit; final clean install and `npm ls` pass. The maintained
+CI-wired synthetic Swagger check passes eight assertions and build passes.
+Latest audits report one moderate production entry (csv-parse), full-tree one
+moderate/eight low, zero high/critical. Earlier test counts retain their own
+graph scope. No new application defect or rollout is claimed; OBS-005 stays Open.
+
 ### OBS-004 - Public submission feedback can obscure an uncertain outcome
 
 **Observed:** 2026-10-28 source review, followed by isolated helper/UI reproduction

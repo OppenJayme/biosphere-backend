@@ -31,5 +31,8 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Verify Swagger JSON and YAML compatibility
+        run: npm run verify:swagger-yaml
+
       - name: E2E tests
         run: npm run test:e2e

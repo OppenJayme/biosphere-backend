@@ -13,6 +13,7 @@ below:
 | prisma / @prisma/client / @prisma/adapter-pg | 7.10.0 | 7.10.1 | Coordinated vendor patch release; regenerate the client before build/test |
 | fast-uri | 3.1.6 | 3.1.9 | Compatible transitive resolution used by Prisma/build tooling |
 | brace-expansion | 1.1.18 / 2.1.4 / 5.0.9 | 1.1.21 / 2.1.7 / 5.0.12 | Compatible resolutions on each existing development-tool major branch |
+| Swagger's js-yaml | 5.3.0 | 5.4.1 | Version-limited override; other YAML major versions are retained |
 
 Framework major versions, application code and runtime configuration are
 unchanged. Express's `^2.2.1` body-parser range and ts-jest's `^4.7.9`
@@ -32,7 +33,40 @@ The final lock also drops unused concat-stream/typedarray nodes and marks
 remaining shared stream helpers development-only after Multer removes its
 concat-stream dependency. These are dependency-graph changes, not app logic.
 
-## Final verification including Prisma and transitive patches - 2026-10-30
+## Final Swagger/YAML follow-up - 2026-10-30
+
+The final additional override is `"js-yaml@5.3.0": "5.4.1"`. It matches only
+the affected resolved version (currently Swagger's nested copy), preserving
+the separate 3.x/4.x YAML dependencies. Swagger remains 11.4.7 and Nest remains
+11.x. The parent-scoped trial under `@nestjs/swagger` passed runtime checks
+but emitted npm peer warnings and `npm ls` ELSPROBLEMS. That trial was replaced
+before commit. The version-limited override then installed without those
+warnings; a fresh script-disabled `npm ci` installed 940 packages and
+`npm ls` returned 0 with no invalid peer entries. No force/legacy-peer flags
+were used. This is a dependency-resolution correction, not a deployed app bug.
+
+`npm run verify:swagger-yaml` now provides a maintained, CI-wired compatibility
+check. Its synthetic module imports no AppModule/dotenv/database/provider and
+listens on an owned temporary 127.0.0.1 port. **Eight assertions pass** for
+loopback containment, a real Nest route, OpenAPI JSON, OpenAPI YAML/status/type,
+known document info, multiline Unicode description preservation, equal JSON/
+YAML operation shapes and Swagger UI availability. Requests have five-second
+timeouts and the app closes in `finally`. No shared port/browser is used.
+
+The final build, Node syntax check and `git diff --check` pass. The earlier
+701-unit/222-HTTP/16-database batch below belongs to the pre-YAML graph and was
+not replayed solely for this serializer change. CI will run the existing
+pipeline plus the added compatibility command; hosted CI success is not claimed
+here. The fixture does not prove every real BioSphere OpenAPI schema, reproduce
+the YAML resource-exhaustion advisory, or provide independent acceptance.
+
+Final audits both exit 1: production **one moderate** (`csv-parse`), full tree
+**one moderate/eight low**, with zero high/critical in either scope. Counts are
+affected-package entries. OBS-005 remains Open for the remaining parser/tooling
+disposition. No running application, account, museum record, storage, migration
+or authentication setting was changed.
+
+## Earlier Prisma/transitive verification - 2026-10-30
 
 The coordinated Prisma update resolves deepmerge-ts 8.0.2 and mysql2 3.24.4
 through vendor-selected dependencies. fast-uri and brace-expansion were then
