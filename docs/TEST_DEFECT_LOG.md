@@ -3038,6 +3038,16 @@ are not established. The original discovery below remains historical evidence.
 **Coordination:** Backend/dependency owner with Voltaire for request IP/auth/rate
 limiting and deployment proxy configuration. Prioritize before release sign-off.
 
+2026-10-30 [current dependency-path triage](./BACKEND_DEPENDENCY_TRIAGE_2026-10-30.md)
+confirms 12 production affected-package entries (8 high / 4 moderate / 0 critical)
+after the proxy repair. Full development tree: 22 entries, including a critical
+Handlebars finding through ts-jest. Actual upload/body-parser paths are repair
+priorities; Prisma/PostgreSQL versus MySQL, Swagger/YAML and CSV option
+conditions are distinguished. No exploitation, dependency update or runtime
+change occurred; OBS-005 stays Open. Audit counts are affected packages including
+parent propagation, not independent exploits. The earlier baseline below is
+retained as historical evidence.
+
 `npm audit --omit=dev --json` reports the same 13 advisories on the unchanged
 backend dependency baseline and the isolated XLSX branch: 4 moderate, 8 high,
 1 critical. No newly affected package is reported after adding the pinned XLSX

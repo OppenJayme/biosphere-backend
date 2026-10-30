@@ -41,6 +41,12 @@ completed filter/form/pagination subcases.
 
 ## Current public review closeout - 2026-10-29
 
+2026-10-30 security follow-up: [OBS-005 dependency-path triage](./BACKEND_DEPENDENCY_TRIAGE_2026-10-30.md)
+identifies actual request-body/upload dependencies as the next repair priority,
+plus a critical development-only Handlebars finding. No dependency/runtime was
+changed. Prepare compatible isolated patches rather than another passed Audit
+happy-path run or an automatic major upgrade; source review is not remediation.
+
 Frontend #92/#93/#94 and backend #211/#212 are merged. Charles's corrected #212
 review is Approved. The [combined checkpoint](./PUBLIC_SUBMISSIONS_GUIDE.md#merged-public-form-integration-checkpoint---2026-10-29)
 records exact merge/CI identities, a CI-tested tree identical to merged frontend,
