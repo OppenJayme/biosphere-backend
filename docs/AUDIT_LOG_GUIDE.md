@@ -41,6 +41,40 @@ IDs, live session expiration/provider failure or independent sign-off. Matching
 preview/row details is not proof of a captured HTTP request ID. No existing
 defect status is promoted; OBS-001's timing disposition remains separate.
 
+### Live toolbar, actor search and pagination follow-up - 2026-10-30
+
+On the same served builds and signed-in Curator session, a further **9
+assertions passed** through the real filter form and pagination links:
+
+- Submitting the known import actor's displayed name with **Apply filters**
+  returned populated results whose visible actor fields matched that name.
+  Module/action/result selections remained represented in the submitted URL.
+- That narrow import search had only three existing events. Clearing the
+  action filter through the same form, while retaining actor search, module
+  `specimens`, result `SUCCESS` and ten rows per page, yielded **134** matching
+  events. No test events were created to fill pages.
+- **Next page** preserved those filters and page size. Pages one and two had
+  nonempty bounded rows and distinct audit UUIDs, checked by selecting each row
+  locally. **Previous page** returned the original first-page UUID ordering.
+- **Clear filters** cleared the URL query and the checked search/module/action/
+  result controls. The browser then returned to the known import-event view.
+
+An initial actor selector included the avatar initials as well as the name,
+causing the diagnostic's URL wait to time out. Selecting the displayed name
+element corrected the script. A later test precondition expected more than ten
+import-only events; the observed three events prompted the broader existing-log
+query above. Neither stop established an application defect. The completed
+run observed zero non-read requests and zero page errors; no server, records
+or login were changed. Actor names and unrelated event content are not exported
+in this evidence.
+
+This covers the preceding checkpoint's missing toolbar, actor-name search and
+populated multi-page UI subcases. It does not prove exact actor-ID filtering,
+all actors/page sizes, stable pagination during concurrent insertion, timestamp
+tie/midnight boundaries, request-ID correlation, live expiry/failure behavior or
+independent acceptance. Earlier scope statements describe their dated runs;
+do not requeue these newly completed owner subcases.
+
 ## Access and immutability
 
 - Both endpoints require an authenticated, active `CURATOR` account. This

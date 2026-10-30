@@ -6,6 +6,13 @@ defect entry.
 
 ## Start here
 
+2026-10-30 Audit form/pagination follow-up: [nine read-only assertions](./AUDIT_LOG_GUIDE.md#live-toolbar-actor-search-and-pagination-follow-up---2026-10-30)
+pass for real form submission, actor-name search, populated Next/Previous and
+filter reset using existing logs. The avatar/name selector and insufficient
+import-only population were diagnostic corrections, not application defects.
+No non-read requests or page errors occurred in the completed run; no existing
+defect status is promoted.
+
 2026-10-30 Audit follow-up: [11 read-only existing-event assertions](./AUDIT_LOG_GUIDE.md#live-existing-event-filter-checkpoint---2026-10-30)
 pass for matching/nonmatching filters, adjacent-date exclusion, import preview/row
 details and stable reload identity. No non-read requests or page errors were

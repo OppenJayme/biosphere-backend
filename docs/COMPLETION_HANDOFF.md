@@ -32,9 +32,12 @@ reopen the completed owner/reviewer suites simply because these gates remain.
 2026-10-30 Audit follow-up: [11 live read-only existing-event assertions](./AUDIT_LOG_GUIDE.md#live-existing-event-filter-checkpoint---2026-10-30)
 pass using that import's existing audit: record/module/action/result/type and
 date filters, preview/row correlation and reload identity. No additional test
-record was created. Remaining actor/multi-page/request-ID/access/failure cases,
-OBS-001 disposition and independent acceptance stay separate; do not requeue
-this completed filter subcase.
+record was created. The subsequent [toolbar/actor-name/pagination follow-up](./AUDIT_LOG_GUIDE.md#live-toolbar-actor-search-and-pagination-follow-up---2026-10-30)
+passes nine more assertions using 134 existing matching logs, with distinct
+page UUIDs, stable Previous ordering and filter reset. Exact actor-ID/timestamp
+boundaries, concurrent-pagination/request-ID/access/failure limits, OBS-001
+disposition and independent acceptance stay separate; do not requeue the
+completed filter/form/pagination subcases.
 
 ## Current public review closeout - 2026-10-29
 
