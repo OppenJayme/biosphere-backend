@@ -3013,7 +3013,7 @@ for the other 12 advisories; deployed proxy-policy review and other environments
 are not established. The original discovery below remains historical evidence.
 
 **Observed:** 2026-10-29 during XLSX dependency review.
-**Status:** Open security triage; advisory evidence, no exploitation reproduced.
+**Status:** Open security triage; no live-application exploitation reproduced.
 **Coordination:** Backend/dependency owner with Voltaire for request IP/auth/rate
 limiting and deployment proxy configuration. Prioritize before release sign-off.
 
@@ -3057,6 +3057,18 @@ CI-wired synthetic Swagger check passes eight assertions and build passes.
 Latest audits report one moderate production entry (csv-parse), full-tree one
 moderate/eight low, zero high/critical. Earlier test counts retain their own
 graph scope. No new application defect or rollout is claimed; OBS-005 stays Open.
+
+Subsequent CSV follow-up pins csv-parse 7.0.3 (explicit major transition).
+Seven synthetic parser assertions passed on 5.6.0 and its grouped duplicate-
+prototype-header assertion failed; all eight pass on 7.0.3. That upstream option
+is not enabled by BioSphere, so this is not a live app exploit finding. The
+upgraded graph passed 701 unit/222 HTTP tests; removal of one redundant type
+assertion then passed build, 40 import-unit/72 specimen-HTTP tests and lint.
+Both maintained compatibility checks are wired into CI. Production audit now
+exits 0 with zero findings; full audit retains eight low development entries.
+No running app or shared data was changed. OBS-005 stays Open for residual
+tooling disposition, independent review and deployment verification; do not
+claim the entire system secure from an audit snapshot.
 
 ### OBS-004 - Public submission feedback can obscure an uncertain outcome
 

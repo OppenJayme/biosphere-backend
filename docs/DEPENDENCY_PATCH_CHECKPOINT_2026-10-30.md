@@ -14,12 +14,14 @@ below:
 | fast-uri | 3.1.6 | 3.1.9 | Compatible transitive resolution used by Prisma/build tooling |
 | brace-expansion | 1.1.18 / 2.1.4 / 5.0.9 | 1.1.21 / 2.1.7 / 5.0.12 | Compatible resolutions on each existing development-tool major branch |
 | Swagger's js-yaml | 5.3.0 | 5.4.1 | Version-limited override; other YAML major versions are retained |
+| csv-parse | 5.6.0 | 7.0.3 | Deliberate pinned major upgrade; verified against the synchronous API and import contract |
 
 Framework major versions, application code and runtime configuration are
 unchanged. Express's `^2.2.1` body-parser range and ts-jest's `^4.7.9`
 Handlebars range already permit the selected updates. proxy-addr remains 2.0.8.
 
-Besides the three coordinated Prisma patch pins, `package.json` adds the parent-scoped override
+Besides the coordinated Prisma and CSV pins and verification commands,
+`package.json` adds the parent-scoped override
 `"@nestjs/platform-express": { "multer": "2.5.0" }`. Registry inspection of
 Nest adapter 11.2.6, 11.2.7 and the current 11.x legacy tag 11.2.8 found each
 still pins Multer 2.4.0. That remains affected by the latest reported teardown
@@ -33,7 +35,56 @@ The final lock also drops unused concat-stream/typedarray nodes and marks
 remaining shared stream helpers development-only after Multer removes its
 concat-stream dependency. These are dependency-graph changes, not app logic.
 
-## Final Swagger/YAML follow-up - 2026-10-30
+## Final CSV parser follow-up - 2026-10-30
+
+The parser is explicitly pinned at 7.0.3. This is a dependency major transition,
+not an automatic patch update. Current upstream release notes and npm exports
+retain CommonJS `csv-parse/sync` and BioSphere's `columns`, `bom`, `trim` and
+`skip_empty_lines` options. Application import logic/options are preserved.
+One obsolete `as Record<string, string>[]` assertion was removed because the
+new declarations made it redundant; lint initially rejected that assertion.
+No lint rule was disabled and this cleanup changes no runtime operation.
+
+The maintained `npm run verify:csv-parser` check is included in CI. Seven
+ordinary synthetic assertions passed on installed 5.6.0, then the eighth
+failed: duplicate `__proto__` headers with grouping enabled replaced the parsed
+row's prototype. On 7.0.3 all **eight assertions pass**. The check covers BOM/
+CRLF/trim/leading-zero accessions, quoted commas/escaped quotes/newlines, blank
+lines, literal numeric/date strings, Unicode/hash data, malformed quotes,
+inconsistent columns and that prototype invariant. It parses fixed local text
+only: no HTTP, database, environment loading, visitor input or shared writes.
+
+The advisory reproduction uses `group_columns_by_name: true`, which BioSphere
+does not enable. It demonstrates the old library branch, not a confirmed
+live-application exploit. The security check and application-contract evidence
+must not be conflated.
+
+Verification on the upgraded parser graph:
+
+- Fresh script-disabled `npm ci` installed 940 packages; installed readback
+  confirms csv-parse 7.0.3. Build and both eight-assertion compatibility commands
+  pass. Node syntax and `git diff --check` pass.
+- **701/701 unit tests** and **222/222 HTTP tests** passed before the subsequent
+  type-only assertion removal. After that removal, build, **40/40 import service
+  tests**, **72/72 specimen HTTP tests** and full lint passed. Lint has zero
+  errors and six unchanged-file unused-disable warnings. The intentional mocked
+  import connection-reset log remains visible; no real connection was reset.
+- The HTTP suite retains reviewed CSV selected-row commit/retry and XLSX
+  preview/invalid-input regressions with synthetic adapters. No live import,
+  museum-template acceptance or database concurrency claim is added. The
+  preceding owned SQL result below belongs to its earlier graph/stage.
+- Production audit exits **0 with zero affected-package entries**. Full audit
+  exits 1 with **eight low development entries**, zero moderate/high/critical.
+  Those remaining entries propagate through deepmerge/build/test tooling;
+  audit-suggested major Jest/Nest CLI downgrades were not applied. Counts are
+  a snapshot, not proof of comprehensive security.
+
+OBS-005 stays Open for residual development-tool disposition, review and
+deployment verification. No running app, shared migration, Inventory record,
+storage object, login or browser session was changed. Review this major CSV
+upgrade and its regression evidence explicitly before merge/rollout.
+
+## Earlier Swagger/YAML follow-up - 2026-10-30
 
 The final additional override is `"js-yaml@5.3.0": "5.4.1"`. It matches only
 the affected resolved version (currently Swagger's nested copy), preserving
@@ -182,3 +233,5 @@ found in the inspected upload controllers. This does not dismiss the other
 Multer advisories or establish comprehensive non-exploitability. No exploit
 payload was sent to shared servers.
 Prisma: [upstream 7.10.1 release](https://github.com/prisma/orm/releases/tag/7.10.1).
+CSV: [prototype advisory](https://github.com/advisories/GHSA-8cw4-87c7-c6xx) and
+[current upstream changelog](https://github.com/adaltas/node-csv/blob/master/packages/csv-parse/CHANGELOG.md).
