@@ -9,6 +9,28 @@ The [November 18 delivery plan](DELIVERY_PLAN_2026-11-18.md) sets the remaining
 milestones, priorities and release completion criteria. Use its grouped queue
 to schedule this handoff; historical passing checks do not become new work.
 
+## Current next actions - 2026-10-31
+
+This checkpoint supersedes older next-step wording below while preserving its
+dated evidence. Do not turn every historical limitation into a new feature or
+repeat an already-passing owner batch. Acceptance statuses still come from the
+register and named owner/reviewer dispositions.
+
+| Work | Current evidence | Next action / dependency |
+| --- | --- | --- |
+| Dependency repair | [Backend #220](https://github.com/OppenJayme/biosphere-backend/pull/220), head `edfcb57`, is open/mergeable. [CI run #398 passed](https://github.com/OppenJayme/biosphere-backend/actions/runs/41076678282). Proposed production audit is zero entries; eight low development entries remain. This is not the running backend. | Teammate reviews the explicit CSV major transition, both override scopes, coordinated Prisma update and CI evidence; then merge. Preserve/rebuild/refresh the local backend and run focused import/read smoke checks after integration. No deployment or independent security acceptance is inferred. |
+| Cataloging / Storage | Live XLSX selected commit/retry and 20 existing-event Audit assertions below are complete. Earlier lifecycle, date, media, phone and storage checks retain their recorded scope. | Finish only required unresolved acceptance cases or obtain explicit dispositions; coordinate Inventory fixtures. Museum-template suitability, remaining media/restoration/policy boundaries and independent module acceptance are not supplied by dependency tests. |
+| Specimen lots | #220 records 13 isolated lot API regressions. The Cataloging prepared-lot completion case already passes. INV-001 through INV-010 remain unexecuted as a manual/live checklist. | John coordinates Inventory fixture/placement/quantity/movement acceptance. The user recalled a Charles/Claude artifact error, but no exact artifact, message or reproduction was located; obtain that report before claiming a defect or repair. No live lot edits are authorized by this handoff. |
+| FAQ | Implementation and synthetic matcher/widget evidence exist; authoritative museum answers remain pending. Optional unanswered-question collection stays disabled. | Sir Curator supplies/approves the content-review answers; then use the normal approved workflow and bounded visitor acceptance. Do not invent facts or activate synthetic answers to fill the gap. |
+| Limited offline | Owned SQL/HTTP and accepted-write/tab-recovery evidence already exists. | Reconcile required expiry/re-login/negative-boundary coverage and independent acceptance. Keep DEF-019's shared-backend diagnostic stopped; choose an agreed safe target or explicit scope disposition for genuinely missing cases. |
+| Audit / Backup and final handoff | Record/filter/form/pagination/reload owner checks and independent disposable Collection/Backup evidence already exist. Real backup/restore remains Deferred. | Address remaining required correlation/access/provider/timing cases or accepted limitations, then one pinned integration/demo round and named module sign-off. Preserve the distinction between metadata history and a real backup/restore. |
+
+Practical sequence: review/integrate #220, verify its local rollout, then close
+the named module acceptance gaps and external inputs. Review can proceed while
+the team gathers FAQ facts and Inventory evidence. Do not add optional tests or
+features simply to occupy that wait. Helping another module remains coordinated
+with its owner; this list is not a whole-project completion percentage.
+
 2026-10-29 update: DEF-017's isolated Inventory fixture passes 5/5,
 including Developer 403 and authorized denial-audit readback, without the
 missing-audit adapter error. Voltaire independently confirmed #214; it is
@@ -24,8 +46,9 @@ the actual two-row mixed XLSX preview, and before/after empty catalog readback
 without an import commit. DEF-029 has independent repair acceptance; the local
 proxy dependency is patched. The subsequently authorized [live XLSX commit/retry](./SPECIMEN_IMPORT_GUIDE.md#live-xlsx-selected-row-commit-and-retry---2026-10-30)
 passes with one retained synthetic Uncataloged specimen, invalid-row exclusion,
-the same ID and one successful import audit after retry. OBS-005's remaining
-12 advisories, actual museum-template suitability and wider module sign-off
+the same ID and one successful import audit after retry. OBS-005's proposed
+repair is in #220 (see the current checkpoint); its earlier 12-entry baseline,
+actual museum-template suitability and wider module sign-off
 remain separate. Do not
 reopen the completed owner/reviewer suites simply because these gates remain.
 
@@ -42,10 +65,10 @@ completed filter/form/pagination subcases.
 ## Current public review closeout - 2026-10-29
 
 2026-10-30 security follow-up: [OBS-005 dependency-path triage](./BACKEND_DEPENDENCY_TRIAGE_2026-10-30.md)
-identifies actual request-body/upload dependencies as the next repair priority,
+identified actual request-body/upload dependencies as the repair priority,
 plus a critical development-only Handlebars finding. No dependency/runtime was
-changed. Prepare compatible isolated patches rather than another passed Audit
-happy-path run or an automatic major upgrade; source review is not remediation.
+changed in that triage. The later #220 repair and CI are now recorded above;
+do not requeue preparation of that patch or another passed Audit happy path.
 
 Frontend #92/#93/#94 and backend #211/#212 are merged. Charles's corrected #212
 review is Approved. The [combined checkpoint](./PUBLIC_SUBMISSIONS_GUIDE.md#merged-public-form-integration-checkpoint---2026-10-29)
