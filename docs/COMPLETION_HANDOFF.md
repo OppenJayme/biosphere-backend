@@ -20,16 +20,38 @@ register and named owner/reviewer dispositions.
 | --- | --- | --- |
 | Dependency repair | [Backend #220](https://github.com/OppenJayme/biosphere-backend/pull/220), head `edfcb57`, is open/mergeable. [CI run #398 passed](https://github.com/OppenJayme/biosphere-backend/actions/runs/41076678282). Proposed production audit is zero entries; eight low development entries remain. This is not the running backend. | Teammate reviews the explicit CSV major transition, both override scopes, coordinated Prisma update and CI evidence; then merge. Preserve/rebuild/refresh the local backend and run focused import/read smoke checks after integration. No deployment or independent security acceptance is inferred. |
 | Cataloging / Storage | Live XLSX selected commit/retry and 20 existing-event Audit assertions below are complete. Earlier lifecycle, date, media, phone and storage checks retain their recorded scope. | Finish only required unresolved acceptance cases or obtain explicit dispositions; coordinate Inventory fixtures. Museum-template suitability, remaining media/restoration/policy boundaries and independent module acceptance are not supplied by dependency tests. |
-| Specimen lots | #220 records 13 isolated lot API regressions. The Cataloging prepared-lot completion case already passes. INV-001 through INV-010 remain unexecuted as a manual/live checklist. | John coordinates Inventory fixture/placement/quantity/movement acceptance. The user recalled a Charles/Claude artifact error, but no exact artifact, message or reproduction was located; obtain that report before claiming a defect or repair. No live lot edits are authorized by this handoff. |
+| Specimen lots | Charles's report is now supplied: `USC-BM-2026-0001` fails history reads because a retained `TEMPORARY_ABSENCE` value is absent from develop's Prisma enum. The exact failure was independently reproduced in owned PostgreSQL. [Backend #221](https://github.com/OppenJayme/biosphere-backend/pull/221) and [frontend #97](https://github.com/OppenJayme/biosphere-frontend/pull/97) propose read compatibility; 7 SQL/HTTP regressions, backend 701 unit / 22 existing HTTP and frontend 450 tests pass, with both builds. | Obtain review, merge backend before frontend, then coordinate rollout and read-only retest of the reported specimen and a control. DEF-030 is Ready for retest in #221; no shared migration or historical-row change was performed. John still owns INV-001 through INV-010 manual/live fixture, quantity, placement and movement acceptance. This repair does not enable new temporary-absence adjustments or establish Inventory acceptance. |
 | FAQ | Implementation and synthetic matcher/widget evidence exist; authoritative museum answers remain pending. Optional unanswered-question collection stays disabled. | Sir Curator supplies/approves the content-review answers; then use the normal approved workflow and bounded visitor acceptance. Do not invent facts or activate synthetic answers to fill the gap. |
 | Limited offline | Owned SQL/HTTP and accepted-write/tab-recovery evidence already exists. | Reconcile required expiry/re-login/negative-boundary coverage and independent acceptance. Keep DEF-019's shared-backend diagnostic stopped; choose an agreed safe target or explicit scope disposition for genuinely missing cases. |
 | Audit / Backup and final handoff | Record/filter/form/pagination/reload owner checks and independent disposable Collection/Backup evidence already exist. Real backup/restore remains Deferred. | Address remaining required correlation/access/provider/timing cases or accepted limitations, then one pinned integration/demo round and named module sign-off. Preserve the distinction between metadata history and a real backup/restore. |
 
-Practical sequence: review/integrate #220, verify its local rollout, then close
-the named module acceptance gaps and external inputs. Review can proceed while
-the team gathers FAQ facts and Inventory evidence. Do not add optional tests or
-features simply to occupy that wait. Helping another module remains coordinated
-with its owner; this list is not a whole-project completion percentage.
+Practical sequence: review/integrate #220 and the paired lot repair, preserving
+their separate scopes; then use one coordinated local refresh and focused
+read/import/history checks after the relevant changes are merged and rollout is
+authorized. Check the actual integrated source and migration state first; a
+merged PR alone does not update the running application. Review can proceed
+while the team gathers FAQ facts and Inventory evidence. Do not add optional
+tests or features simply to occupy that wait. Helping another module remains
+coordinated with its owner; this list is not a whole-project completion percentage.
+
+### Work selection while review is pending
+
+The live XLSX commit/retry is already reconciled in this PR's CAT-013 register
+entry. Its older wording in an unmerged working copy is not a new test gap.
+The current finish work is grouped below; these are not promises of four tests,
+four sessions, or complete module acceptance.
+
+| Batch | Exact remaining work to select | Dependency / stopping rule |
+| --- | --- | --- |
+| Review and integration | Review #220, backend #221 and frontend #97; check their integrated revisions, then the focused rollout smoke above. | Teammate review and authorized rollout. Do not repeat the already-passing isolated suites just to fill the wait. |
+| Required owner acceptance | CAT-011 live media role/wrong-pair and failure boundaries; CAT-014 archived-match policy and remaining response-ordering scope; CAT-016 complete live restoration branch; OFF-004 negative boundaries and genuine expiry/re-login scope; remaining AUD-001 access/correlation boundaries and BAK-001 populated UI scope. | Reconcile each exact subcase with its guide/register before execution. Shared writes, account changes, provider-failure injection and interruption need an agreed safe setup. Prior synthetic, owned-SQL and manual passes are retained, not repeated or promoted to live proof. |
+| External answers and owner decisions | Sir Curator's approved FAQ content; team disposition of FAQ normalized-question/alias collisions and archived specimen duplicate matches; John's Inventory fixture/placement evidence; reviewer disposition of DEF-011, OBS-001, OBS-005 and offline release limits. | Request only still-unanswered decisions. No invented museum facts, silently accepted limitations, or Inventory feature changes. Optional FAQ collection stays disabled; real backup/restore remains separately Deferred. |
+| Final scoped release acceptance | Pin the served backend/frontend source and build; run one agreed role/workflow/demo round, reconcile the register and known limitations, and obtain named owner/reviewer sign-off. | Relevant repairs are integrated and required fixtures/content available. Record missing dependencies honestly; paper/manual alignment uses the accepted results rather than engineering test counts as stakeholder approval. |
+
+While the listed inputs are unavailable, maintain the handoff or coordinate an
+explicit teammate-owned task. There is no automatic new feature or additional
+regression suite to start merely because a review is pending. This reconciliation
+changes no acceptance status and authorizes no shared-data or runtime operation.
 
 2026-10-29 update: DEF-017's isolated Inventory fixture passes 5/5,
 including Developer 403 and authorized denial-audit readback, without the
