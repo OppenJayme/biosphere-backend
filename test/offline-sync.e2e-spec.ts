@@ -227,4 +227,44 @@ describe('Offline specimen draft synchronization (e2e)', () => {
     expect(specimenCreate).not.toHaveBeenCalled();
     expect(receiptCreate).not.toHaveBeenCalled();
   });
+
+  describe.each(['draft', 'envelope'] as const)(
+    'unsupported offline fields in the %s',
+    (placement) => {
+      it.each([
+        ['media', [{ filePath: 'synthetic/not-an-upload.jpg' }]],
+        ['taxonomy', { kingdom: 'Animalia' }],
+        ['provenance', { collectionDate: '2026-01-01' }],
+        ['lots', [{ quantity: 1 }]],
+        ['quantity', 5],
+        ['storageUnitId', '77777777-7777-4777-8777-777777777777'],
+        ['movements', [{ reason: 'Synthetic move request' }]],
+        ['status', 'ARCHIVED'],
+        ['publicDisplay', true],
+        ['qrCode', 'synthetic-qr'],
+        ['reportId', '88888888-8888-4888-8888-888888888888'],
+        ['createdBy', '99999999-9999-4999-8999-999999999999'],
+      ])('rejects %s before receipt lookup or writes', async (field, value) => {
+        const draft = { commonName: 'Synthetic offline boundary control' };
+        const body =
+          placement === 'draft'
+            ? { clientDraftId: draftId, draft: { ...draft, [field]: value } }
+            : { clientDraftId: draftId, draft, [field]: value };
+
+        const response = await request(app.getHttpServer())
+          .post('/offline-sync/specimen-drafts')
+          .set('Authorization', `Bearer ${curatorToken}`)
+          .send(body)
+          .expect(400);
+
+        expect(response.body.message).toEqual(
+          expect.arrayContaining([expect.stringContaining(String(field))]),
+        );
+        expect(receiptFindUnique).not.toHaveBeenCalled();
+        expect(specimenCreate).not.toHaveBeenCalled();
+        expect(receiptCreate).not.toHaveBeenCalled();
+        expect(auditCreate).not.toHaveBeenCalled();
+      });
+    },
+  );
 });
