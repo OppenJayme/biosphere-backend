@@ -3038,13 +3038,16 @@ critical report, or claim deployment is secure from the XLSX tests. No shared
 dependency tree, running server, proxy setting or account changed in this check.
 
 OBS-005 follow-up, 2026-10-30: [compatible dependency patch](./DEPENDENCY_PATCH_CHECKPOINT_2026-10-30.md)
-updates body-parser, qs and development-only Handlebars, followed by a scoped
-Multer 2.5.0 override under the Nest Express adapter. The initial four-suite
-136/136 result is retained; the final clean-install build and seven-suite
-222/222 HTTP run pass. Production audit is now eight affected packages
-(5 high / 3 moderate / 0 critical), full-tree seventeen (6 high / 3 moderate /
-8 low / 0 critical). Residual findings keep OBS-005 Open. No running app was
-restarted or shared record changed; this is not rollout/security acceptance.
+updates parser/tooling dependencies and scoped Multer, then coordinates Prisma
+CLI/client/adapter 7.10.1 plus compatible fast-uri/brace-expansion resolutions.
+Earlier 136/222 results are retained in the guide. Final clean-install generation,
+build, 701 unit tests, 222 HTTP tests and 16 owned PostgreSQL collection checks
+pass. Full lint has zero errors and six unchanged-file warnings. The intentional
+SQL 42501 audit-permission failure verifies rollback; it is not a new outage.
+Production audit is now three moderate entries, full-tree three moderate/eight
+low, with zero high/critical in either scope. Residual findings keep OBS-005
+Open. The owned container was removed; no running app was restarted or shared
+record changed. These are source/owned-fixture results, not rollout acceptance.
 
 ### OBS-004 - Public submission feedback can obscure an uncertain outcome
 
