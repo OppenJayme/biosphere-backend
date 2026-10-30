@@ -6,6 +6,12 @@ defect entry.
 
 ## Start here
 
+2026-10-30 Audit follow-up: [11 read-only existing-event assertions](./AUDIT_LOG_GUIDE.md#live-existing-event-filter-checkpoint---2026-10-30)
+pass for matching/nonmatching filters, adjacent-date exclusion, import preview/row
+details and stable reload identity. No non-read requests or page errors were
+observed. The initial ambiguous diagnostic selector was corrected; no new
+application defect or existing-status promotion is established by this batch.
+
 2026-10-30 Cataloging checkpoint: [live XLSX selected-row commit/retry](./SPECIMEN_IMPORT_GUIDE.md#live-xlsx-selected-row-commit-and-retry---2026-10-30)
 passes on the merged local production builds. Exactly one approved synthetic
 specimen remains Uncataloged with public display off and no active lots; retry

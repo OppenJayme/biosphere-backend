@@ -29,6 +29,13 @@ the same ID and one successful import audit after retry. OBS-005's remaining
 remain separate. Do not
 reopen the completed owner/reviewer suites simply because these gates remain.
 
+2026-10-30 Audit follow-up: [11 live read-only existing-event assertions](./AUDIT_LOG_GUIDE.md#live-existing-event-filter-checkpoint---2026-10-30)
+pass using that import's existing audit: record/module/action/result/type and
+date filters, preview/row correlation and reload identity. No additional test
+record was created. Remaining actor/multi-page/request-ID/access/failure cases,
+OBS-001 disposition and independent acceptance stay separate; do not requeue
+this completed filter subcase.
+
 ## Current public review closeout - 2026-10-29
 
 Frontend #92/#93/#94 and backend #211/#212 are merged. Charles's corrected #212
