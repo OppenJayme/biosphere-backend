@@ -259,6 +259,65 @@ Existing manual/browser evidence below is historical and remains separate.
 
 ## Supported boundary
 
+### OFF-004 read-only browser boundary checkpoint - 2026-10-31
+
+Owner browser checks passed on local frontend source `60ab28b`, with on-disk
+production build ID `KjnKPLGaaPM_cm9tgFdJ_`; no build/restart was performed.
+Backend source remains `f4df176`. This is bounded browser evidence, not an
+independent acceptance report or verification of pending repair branches.
+
+The existing authenticated browser session was preserved. A temporary tab first
+confirmed no eligible/interrupted local drafts, loaded the actual specimen
+workspace with `selected=none`, and used target-scoped CDP offline emulation.
+All non-GET/HEAD/OPTIONS requests were blocked by a read-only guard. Its eleven
+assertions passed:
+
+- No eligible/interrupted drafts before opening the workspace.
+- Offline state disables the actual Sync now control.
+- Cached specimens are populated and their rows contain no links, mutation,
+  media, detail or form controls.
+- New offline draft opens with exactly accession number, category, common name,
+  scientific name, gender, classification status and remarks; no upload field.
+- Cancel closes the modal without saving; all existing local draft content and
+  states match the before-read in memory.
+- Zero non-read requests and zero page errors in the final workspace run; the
+  original signed-in page URL remains unchanged.
+
+The fallback slice used a separately named, fresh credential-free Edge session.
+It loaded the served `/offline.html` and explicitly registered the served
+`/sw.js` in that disposable context. Four checks passed: the populated worker
+cache contained only the fallback/favicon/allowed build-asset paths; fresh
+offline navigation to `/specimens` rendered `BioSphere is offline`; that page
+had no record table, form or workspace; zero non-read requests occurred. This
+checks the real served worker, not automatic app registration or an
+authenticated offline reload. No credentials/storage state were copied.
+
+Diagnostic corrections are retained rather than counted as passing runs:
+the initial combined attempt stalled during the fresh-context bootstrap and
+was stopped by closing only its owned pages (execution-context-destroyed error).
+Two workspace attempts blocked one `POST /specimens` each; inspection identified
+the default selected-record cover-preview read as a Server Action using POST.
+No POST was permitted and no mutation is inferred from its method. Clearing
+selection excluded that unrelated read and produced the clean final run.
+The first standalone fallback attempt used `Request.url()` instead of the
+Cache API's `Request.url` property; correcting the diagnostic produced the
+passing fallback run. No application defect or repair is claimed from these
+diagnostic issues.
+
+Cleanup confirmed only the original audit tab remained in its context, online,
+with no extra context pages; the named fallback browser was closed. Existing
+drafts were not saved/edited/removed, no sync was requested, and no shared
+record or server configuration was changed. Ordinary online cache reads could
+refresh the device-local read-only specimen cache. Scripts remain ignored at
+`.codex-tmp/offline-boundary-20261031/`; no private draft content was published.
+
+OFF-004 remains **In progress** for the individually executed unsupported-request
+matrix and independent/release acceptance. Actual expired-session re-login,
+cross-account device access and full PWA/provider behavior are not proved.
+DEF-019's shared-backend interruption pilot remains stopped. Do not repeat
+these fifteen completed owner assertions as missing work. Documentation-only
+validation: `git diff --check`; application suites/builds were not rerun.
+
 ### OFF-004 source and evidence reconciliation - 2026-10-31
 
 Inspection used backend `f4df176` and frontend `60ab28b`; it did not execute
