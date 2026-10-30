@@ -3037,6 +3037,13 @@ and rerun the audit. Do not run `npm audit fix --force`, silently dismiss the
 critical report, or claim deployment is secure from the XLSX tests. No shared
 dependency tree, running server, proxy setting or account changed in this check.
 
+OBS-005 follow-up, 2026-10-30: [compatible dependency patch](./DEPENDENCY_PATCH_CHECKPOINT_2026-10-30.md)
+updates only body-parser, qs and development-only Handlebars lock entries.
+Build and four existing HTTP suites pass 136/136; production audit is now ten
+affected packages and full-tree audit nineteen, both with zero critical entries.
+Residual findings keep OBS-005 Open. No running app was restarted or shared
+record changed; source verification is not rollout/security acceptance.
+
 ### OBS-004 - Public submission feedback can obscure an uncertain outcome
 
 **Observed:** 2026-10-28 source review, followed by isolated helper/UI reproduction
