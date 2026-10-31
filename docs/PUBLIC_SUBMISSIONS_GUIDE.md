@@ -253,8 +253,9 @@ Visit-request specific rules:
   and `endTime` must be later than `startTime`. Duplicate options are rejected.
 - `visitorCount`: 1 to 200. `visitors` may list at most `visitorCount` people
   as `{ firstName, lastName? }` (50 and 49 characters).
-- Vehicle details (`plateNumber`, `carBrand`, `carType`) require
-  `bringingVehicle: true`, and `plateNumber` is then required.
+- `vehicles`: 1 to 10 entries of `{ plateNumber, carBrand?, carType? }`, each
+  stored as one `visit_request_vehicle` row. The list requires
+  `bringingVehicle: true`, and `bringingVehicle: true` requires the list.
 
 ## Consistency and audit
 
