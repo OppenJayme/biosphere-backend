@@ -20,10 +20,12 @@ import {
 } from 'class-validator';
 import { trimString } from '../../common/transforms/trim-string.transform';
 import { PreferredScheduleDto } from './preferred-schedule.dto';
+import { VehicleDto } from './vehicle.dto';
 import { VisitorDto } from './visitor.dto';
 
 export const MAX_PREFERRED_SCHEDULES = 5;
 export const MAX_VISITOR_COUNT = 200;
+export const MAX_VEHICLES = 10;
 
 // Public Request-a-Visit form (SRS REQ-4.9-01 to 06). Limits follow the
 // visit_request and child-table column sizes.
@@ -108,35 +110,21 @@ export class CreateVisitRequestDto {
   bringingVehicle?: boolean;
 
   @ApiPropertyOptional({
-    example: 'ABC 1234',
-    maxLength: 20,
+    type: [VehicleDto],
+    minItems: 1,
+    maxItems: MAX_VEHICLES,
     description: 'Required when bringingVehicle is true',
   })
   @ValidateIf(
     (dto: CreateVisitRequestDto) =>
-      dto.bringingVehicle === true || dto.plateNumber !== undefined,
+      dto.bringingVehicle === true || dto.vehicles !== undefined,
   )
-  @Transform(trimString)
-  @IsString()
-  @IsNotEmpty()
-  @MaxLength(20)
-  plateNumber?: string;
-
-  @ApiPropertyOptional({ example: 'Toyota', maxLength: 100 })
-  @IsOptional()
-  @Transform(trimString)
-  @IsString()
-  @IsNotEmpty()
-  @MaxLength(100)
-  carBrand?: string;
-
-  @ApiPropertyOptional({ example: 'Van', maxLength: 100 })
-  @IsOptional()
-  @Transform(trimString)
-  @IsString()
-  @IsNotEmpty()
-  @MaxLength(100)
-  carType?: string;
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(MAX_VEHICLES)
+  @ValidateNested({ each: true })
+  @Type(() => VehicleDto)
+  vehicles?: VehicleDto[];
 
   @ApiPropertyOptional({
     example: 'Cameras, notebooks, recording gear',

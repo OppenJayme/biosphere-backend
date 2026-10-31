@@ -127,15 +127,11 @@ export class VisitRequestsService {
             })),
           },
           visit_request_vehicle: {
-            create: dto.bringingVehicle
-              ? [
-                  {
-                    plate_number: dto.plateNumber ?? null,
-                    vehicle_brand: dto.carBrand ?? null,
-                    vehicle_type: dto.carType ?? null,
-                  },
-                ]
-              : [],
+            create: (dto.vehicles ?? []).map((vehicle) => ({
+              plate_number: vehicle.plateNumber,
+              vehicle_brand: vehicle.carBrand ?? null,
+              vehicle_type: vehicle.carType ?? null,
+            })),
           },
         },
       });
@@ -628,11 +624,7 @@ export class VisitRequestsService {
   }
 
   private assertVehicleValid(dto: CreateVisitRequestDto): void {
-    const hasVehicleDetails =
-      dto.plateNumber !== undefined ||
-      dto.carBrand !== undefined ||
-      dto.carType !== undefined;
-    if (hasVehicleDetails && dto.bringingVehicle !== true) {
+    if (dto.vehicles !== undefined && dto.bringingVehicle !== true) {
       throw new BadRequestException(
         'Vehicle details require bringingVehicle to be true.',
       );
