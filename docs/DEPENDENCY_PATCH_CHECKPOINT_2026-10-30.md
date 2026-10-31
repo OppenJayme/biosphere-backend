@@ -1,0 +1,260 @@
+# Backend security dependency patch - 2026-10-30
+
+OBS-005 follow-up on base `560222c` (application source `f4df176`). The isolated
+branch updates these resolved versions, with a scoped Multer override described
+below:
+
+| Package | Before | After | Reason |
+| --- | --- | --- | --- |
+| body-parser | 2.3.0 | 2.4.0 | Patched compressed-request trailing-byte handling |
+| qs | 6.16.0 | 6.17.1 | Compatible resolution required by body-parser's newer dependency range; removes the reported qs entry |
+| handlebars | 4.7.9 | 4.7.10 | Patched development-tool template/AST issues; reached through ts-jest |
+| multer | 2.2.0 | 2.5.0 | Patched multipart upload handling; scoped to the Nest Express adapter |
+| prisma / @prisma/client / @prisma/adapter-pg | 7.10.0 | 7.10.1 | Coordinated vendor patch release; regenerate the client before build/test |
+| fast-uri | 3.1.6 | 3.1.9 | Compatible transitive resolution used by Prisma/build tooling |
+| brace-expansion | 1.1.18 / 2.1.4 / 5.0.9 | 1.1.21 / 2.1.7 / 5.0.12 | Compatible resolutions on each existing development-tool major branch |
+| Swagger's js-yaml | 5.3.0 | 5.4.1 | Version-limited override; other YAML major versions are retained |
+| csv-parse | 5.6.0 | 7.0.3 | Deliberate pinned major upgrade; verified against the synchronous API and import contract |
+
+Framework major versions, application code and runtime configuration are
+unchanged. Express's `^2.2.1` body-parser range and ts-jest's `^4.7.9`
+Handlebars range already permit the selected updates. proxy-addr remains 2.0.8.
+
+Besides the coordinated Prisma and CSV pins and verification commands,
+`package.json` adds the parent-scoped override
+`"@nestjs/platform-express": { "multer": "2.5.0" }`. Registry inspection of
+Nest adapter 11.2.6, 11.2.7 and the current 11.x legacy tag 11.2.8 found each
+still pins Multer 2.4.0. That remains affected by the latest reported teardown
+advisory, patched in 2.5.0. The override avoids upgrading Nest to 12.x or changing
+unrelated dependencies. It deliberately replaces the adapter's exact transitive
+pin and therefore needs compatibility review, not just a semver-range assertion.
+Remove it when the chosen adapter natively supplies a suitable patched Multer
+and the affected checks pass.
+
+The final lock also drops unused concat-stream/typedarray nodes and marks
+remaining shared stream helpers development-only after Multer removes its
+concat-stream dependency. These are dependency-graph changes, not app logic.
+
+## Final CSV parser follow-up - 2026-10-30
+
+The parser is explicitly pinned at 7.0.3. This is a dependency major transition,
+not an automatic patch update. Current upstream release notes and npm exports
+retain CommonJS `csv-parse/sync` and BioSphere's `columns`, `bom`, `trim` and
+`skip_empty_lines` options. Application import logic/options are preserved.
+One obsolete `as Record<string, string>[]` assertion was removed because the
+new declarations made it redundant; lint initially rejected that assertion.
+No lint rule was disabled and this cleanup changes no runtime operation.
+
+The maintained `npm run verify:csv-parser` check is included in CI. Seven
+ordinary synthetic assertions passed on installed 5.6.0, then the eighth
+failed: duplicate `__proto__` headers with grouping enabled replaced the parsed
+row's prototype. On 7.0.3 all **eight assertions pass**. The check covers BOM/
+CRLF/trim/leading-zero accessions, quoted commas/escaped quotes/newlines, blank
+lines, literal numeric/date strings, Unicode/hash data, malformed quotes,
+inconsistent columns and that prototype invariant. It parses fixed local text
+only: no HTTP, database, environment loading, visitor input or shared writes.
+
+The advisory reproduction uses `group_columns_by_name: true`, which BioSphere
+does not enable. It demonstrates the old library branch, not a confirmed
+live-application exploit. The security check and application-contract evidence
+must not be conflated.
+
+Verification on the upgraded parser graph:
+
+- Fresh script-disabled `npm ci` installed 940 packages; installed readback
+  confirms csv-parse 7.0.3. Build and both eight-assertion compatibility commands
+  pass. Node syntax and `git diff --check` pass.
+- **701/701 unit tests** and **222/222 HTTP tests** passed before the subsequent
+  type-only assertion removal. After that removal, build, **40/40 import service
+  tests**, **72/72 specimen HTTP tests** and full lint passed. Lint has zero
+  errors and six unchanged-file unused-disable warnings. The intentional mocked
+  import connection-reset log remains visible; no real connection was reset.
+- The HTTP suite retains reviewed CSV selected-row commit/retry and XLSX
+  preview/invalid-input regressions with synthetic adapters. No live import,
+  museum-template acceptance or database concurrency claim is added. The
+  preceding owned SQL result below belongs to its earlier graph/stage.
+- Production audit exits **0 with zero affected-package entries**. Full audit
+  exits 1 with **eight low development entries**, zero moderate/high/critical.
+  Those remaining entries propagate through deepmerge/build/test tooling;
+  audit-suggested major Jest/Nest CLI downgrades were not applied. Counts are
+  a snapshot, not proof of comprehensive security.
+
+OBS-005 stays Open for residual development-tool disposition, review and
+deployment verification. No running app, shared migration, Inventory record,
+storage object, login or browser session was changed. Review this major CSV
+upgrade and its regression evidence explicitly before merge/rollout.
+
+## Earlier Swagger/YAML follow-up - 2026-10-30
+
+The final additional override is `"js-yaml@5.3.0": "5.4.1"`. It matches only
+the affected resolved version (currently Swagger's nested copy), preserving
+the separate 3.x/4.x YAML dependencies. Swagger remains 11.4.7 and Nest remains
+11.x. The parent-scoped trial under `@nestjs/swagger` passed runtime checks
+but emitted npm peer warnings and `npm ls` ELSPROBLEMS. That trial was replaced
+before commit. The version-limited override then installed without those
+warnings; a fresh script-disabled `npm ci` installed 940 packages and
+`npm ls` returned 0 with no invalid peer entries. No force/legacy-peer flags
+were used. This is a dependency-resolution correction, not a deployed app bug.
+
+`npm run verify:swagger-yaml` now provides a maintained, CI-wired compatibility
+check. Its synthetic module imports no AppModule/dotenv/database/provider and
+listens on an owned temporary 127.0.0.1 port. **Eight assertions pass** for
+loopback containment, a real Nest route, OpenAPI JSON, OpenAPI YAML/status/type,
+known document info, multiline Unicode description preservation, equal JSON/
+YAML operation shapes and Swagger UI availability. Requests have five-second
+timeouts and the app closes in `finally`. No shared port/browser is used.
+
+The final build, Node syntax check and `git diff --check` pass. The earlier
+701-unit/222-HTTP/16-database batch below belongs to the pre-YAML graph and was
+not replayed solely for this serializer change. CI will run the existing
+pipeline plus the added compatibility command; hosted CI success is not claimed
+here. The fixture does not prove every real BioSphere OpenAPI schema, reproduce
+the YAML resource-exhaustion advisory, or provide independent acceptance.
+
+Final audits both exit 1: production **one moderate** (`csv-parse`), full tree
+**one moderate/eight low**, with zero high/critical in either scope. Counts are
+affected-package entries. OBS-005 remains Open for the remaining parser/tooling
+disposition. No running application, account, museum record, storage, migration
+or authentication setting was changed.
+
+## Earlier Prisma/transitive verification - 2026-10-30
+
+The coordinated Prisma update resolves deepmerge-ts 8.0.2 and mysql2 3.24.4
+through vendor-selected dependencies. fast-uri and brace-expansion were then
+updated within their existing declared ranges; no root dependency or override
+was added for them. Other lock changes are Prisma runtime/engine/support and
+configuration-reader dependencies, not an application/schema refactor.
+`@prisma/engines-version` has upstream identifier
+`8.1.0-1.d1b3f377ca835d73fd50954a5e22128b9ebdd6b8`; registry metadata for
+`@prisma/engines@7.10.1` confirms that exact dependency. The CLI, client and
+PostgreSQL adapter all remain 7.10.1; the engine identifier is not a root major
+version upgrade.
+
+- A fresh script-disabled `npm ci` installed 940 packages. Prisma Client
+  7.10.1 generated with the synthetic loopback datasource; build passed.
+- **701/701 unit tests in 53 suites** and **222/222 existing HTTP tests in seven
+  suites** passed. These replace the earlier graph verification below rather
+  than being additional unique cases. Unit logs include intentional mocked
+  failure-path errors/warnings; they were not suppressed or claimed absent.
+- The already-authorized collection suite passed **16/16 real SQL/HTTP checks**
+  using the generated client/PrismaPg 7.10.1 in a fresh owned PostgreSQL
+  container. It covers create/read/audit, normalized uniqueness, concurrent
+  collisions, migration behavior and atomic rollback. The intentional audit
+  permission revocation emitted SQL 42501 through Prisma P2039; its rollback
+  assertion passed. Node's experimental VM warning is expected.
+- The fixture uses its pinned image digest, random synthetic identities,
+  loopback-only ephemeral port and tmpfs; the helper verifies its owner label
+  before removing the container. Before/after owned-collection container lists
+  were empty. No shared datasource, migration, live provider or Inventory data
+  was used. Environment: Node 24.7.0, local Docker server 28.4.0.
+- Full lint passed with **0 errors / 6 unused-disable warnings** in unchanged
+  files. Installed resolution readback and `git diff --check` passed.
+- Production audit: **3 moderate / 0 high / 0 critical**, down from 12 affected
+  package entries. Full audit: **3 moderate / 8 low / 0 high / 0 critical**,
+  down from 22. Both still exit 1. Remaining production entries are csv-parse,
+  @nestjs/swagger and its js-yaml dependency; these are not three independent
+  exploit paths. OBS-005 remains Open for their disposition/repair.
+
+The lock-comparison diagnostic initially hit PowerShell's empty-property JSON
+limitation, then a sandboxed Node child-process permission error. Reading a
+separately exported baseline with Node corrected the diagnostic; no app code
+was changed for those stops. Application servers and browsers were untouched.
+These results do not establish real museum/lot concurrency, live provider
+compatibility, exploit reproduction, independent sign-off or rollout. Earlier
+stages below retain their own versions/counts and do not override this result.
+
+## Intermediate verification including Multer - 2026-10-30
+
+- A fresh `npm ci --ignore-scripts --prefer-offline --no-audit --no-fund`
+  accepted the override/lock and installed 942 packages. Installed readback
+  reports Multer 2.5.0 overridden beneath platform-express 11.2.3, body-parser
+  2.4.0, qs 6.17.1, Handlebars 4.7.10 and proxy-addr 2.0.8.
+- The existing generated Prisma client was retained; no migration or database
+  operation occurred. `npm run build` passed after the clean install.
+- **222/222 existing HTTP tests passed in seven suites:** specimens,
+  public-submissions, specimen-lots, proxy-trust, specimen-media, exhibits,
+  and developer-ar-exhibits. This final run includes the earlier 136 cases;
+  it is not 222 additional cases. The added suites exercise real multipart
+  parsing with synthetic auth/database/storage adapters, without real uploads
+  to museum storage, visitor messages or live credentials.
+- Production audit: **8** affected-package entries (5 high / 3 moderate /
+  0 critical), down from the original 12. Full audit: **17** (6 high /
+  3 moderate / 8 low / 0 critical), down from 22. Neither audit lists Multer or
+  platform-express. Both still return exit 1 for residual findings.
+- `git diff --check` passed. Application servers and signed-in browser windows
+  were untouched. These checks do not reproduce the upstream exploits or prove
+  live storage/concurrency, a clean audit, independent acceptance or rollout.
+
+OBS-005 remains Open for the residual CSV/Prisma/Swagger/tooling findings. The
+earlier three-package checkpoint below is preserved as historical evidence.
+
+## Initial parser/tooling verification before the Multer follow-up
+
+- `npm ci --ignore-scripts --prefer-offline --no-audit --no-fund` completed in
+  the owned worktree. Deprecation notices for existing glob/eslint versions
+  were retained; they were not suppressed or treated as fixes.
+- Prisma Client 7.10.0 generated using a synthetic loopback datasource string,
+  with no migration or database connection. The first sandboxed generation
+  failed on Prisma cache-file permissions; the same generation succeeded with
+  the cache-access permission. No application repair was needed for that stop.
+- `npm run build` passed.
+- Existing Nest/Express HTTP regressions passed **136/136 in four suites**:
+  `specimens`, `public-submissions`, `specimen-lots`, and `proxy-trust`.
+  Authentication/database adapters are synthetic; public submission mail is
+  mocked. No live fixture, account, email or database was used.
+- Production audit: **12 -> 10** affected-package entries, now 7 high,
+  3 moderate, 0 critical. Full development audit: **22 -> 19**, now 8 high,
+  3 moderate, 8 low, 0 critical. Both audits returned exit 1 for residual findings.
+- Installed dependency readback and `git diff --check` passed. The running
+  frontend/backend and signed-in browsers were left untouched.
+
+This verifies compatible resolution, build and existing HTTP behavior. It does
+not reproduce malicious compressed-body or template payloads, establish live
+provider/database behavior, or claim a clean security audit/deployed repair.
+At this initial checkpoint, Multer/upload, CSV, Prisma/tooling, Swagger/YAML and remaining development
+advisories still require their recorded triage and targeted repairs.
+
+## Review and rollout
+
+### Charles review follow-up - 2026-10-31
+
+The supported import contract remains intact, but csv-parse 5.6.0 and 7.0.3
+are not byte-for-byte equivalent on all inputs. Charles's direct comparison
+reported two differences, now captured in the maintained verifier using the
+actual application options: non-breaking spaces around an unquoted value are
+trimmed in 7.0.3, and `__proto__` is retained as an own data key rather than
+silently dropped. The row prototype stays unchanged. A real import-preview
+service regression verifies `__proto__` is reported as unmapped and never
+copied into specimen data; no application behavior change was needed.
+
+The expanded parser verifier passes **10/10** and the import-service suite
+passes **41/41**. The existing intentional connection-reset test logs its
+synthetic error; the suite still passes. Changed-file lint and whitespace
+checks are recorded separately from the earlier full-suite/build checkpoint.
+`CLAUDE.md` now reflects the coordinated 7.10.1 pins and instructs users to
+reinstall/regenerate before rebuilding after pulling.
+
+After #220 and #221 are integrated, rerun `npm run test:lot-history:db` with
+the integrated 7.10.1 client/adapter. The original #221 result used 7.10.0;
+it does not establish that later combination. No shared migration, historical
+quantity decision or runtime refresh is authorized by this test follow-up.
+
+Review the parser/tooling and coordinated Prisma updates, scoped override and graph cleanup, the
+audit delta and affected regression results. No broad framework upgrade,
+`npm audit fix --force`, shared migration or production restart is included.
+Merge/CI and a separately scoped rollout are required before calling the
+running application patched. The manual Inventory acceptance checklist remains
+separate from the [supporting lot API regressions](./SPECIMEN_LOTS_GUIDE.md#supporting-http-regression-checkpoint---2026-10-30).
+
+Upstream: [body-parser advisory](https://github.com/advisories/GHSA-27r3-jxmh-p828),
+[Handlebars AST compilation advisory](https://github.com/advisories/GHSA-8r5x-fm3f-whwj)
+and [Handlebars own-property advisory](https://github.com/advisories/GHSA-p8wg-vrv2-v86f).
+Multer: [upstream 2.5.0 release](https://github.com/expressjs/multer/releases/tag/v2.5.0)
+and [async-fileFilter teardown advisory](https://github.com/advisories/GHSA-q7qp-rjg7-q26m).
+The latter requires an asynchronous fileFilter; no such application option was
+found in the inspected upload controllers. This does not dismiss the other
+Multer advisories or establish comprehensive non-exploitability. No exploit
+payload was sent to shared servers.
+Prisma: [upstream 7.10.1 release](https://github.com/prisma/orm/releases/tag/7.10.1).
+CSV: [prototype advisory](https://github.com/advisories/GHSA-8cw4-87c7-c6xx) and
+[current upstream changelog](https://github.com/adaltas/node-csv/blob/master/packages/csv-parse/CHANGELOG.md).

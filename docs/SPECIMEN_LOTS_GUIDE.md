@@ -6,6 +6,23 @@ existing `public.specimen_lot`, `public.specimen_lot_transaction`,
 `public.storage_unit`, `public.specimen`, `public.specimen_revision_history`,
 and `public.audit_log` tables through Prisma. It does not alter the database.
 
+## Supporting HTTP regression checkpoint - 2026-10-30
+
+The existing `test/specimen-lots.e2e-spec.ts` passed **13/13** as part of the
+[compatible dependency patch's four-suite 136/136 run](./DEPENDENCY_PATCH_CHECKPOINT_2026-10-30.md).
+It exercises the real Nest HTTP/controller/service boundary with synthetic
+authentication and database adapters: role/field validation, lot creation and
+initial Addition history, rejection of non-holding storage, reads/totals/history,
+movement/condition command validation, partial movement, quantity-adjustment
+validation, stale-quantity conflicts, reduction history and notes-only updates.
+
+These are isolated API regressions, not live database/transaction concurrency,
+browser persistence or complete Inventory acceptance. No live lot or quantity
+was changed. Inventory owns lot/quantity/placement operations under the current
+acceptance plan; the historical foundation description above does not reassign
+that ownership. INV-001 through INV-010 still require their specific manual/
+integration evidence and owner sign-off; do not mark them passed from this run.
+
 ## Lot contract
 
 | API field        | PostgreSQL / Prisma field | Rules                                             |

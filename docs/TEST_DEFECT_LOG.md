@@ -3013,7 +3013,7 @@ for the other 12 advisories; deployed proxy-policy review and other environments
 are not established. The original discovery below remains historical evidence.
 
 **Observed:** 2026-10-29 during XLSX dependency review.
-**Status:** Open security triage; advisory evidence, no exploitation reproduced.
+**Status:** Open security triage; no live-application exploitation reproduced.
 **Coordination:** Backend/dependency owner with Voltaire for request IP/auth/rate
 limiting and deployment proxy configuration. Prioritize before release sign-off.
 
@@ -3036,6 +3036,39 @@ prepare the smallest compatible dependency updates with affected regressions,
 and rerun the audit. Do not run `npm audit fix --force`, silently dismiss the
 critical report, or claim deployment is secure from the XLSX tests. No shared
 dependency tree, running server, proxy setting or account changed in this check.
+
+OBS-005 follow-up, 2026-10-30: [compatible dependency patch](./DEPENDENCY_PATCH_CHECKPOINT_2026-10-30.md)
+updates parser/tooling dependencies and scoped Multer, then coordinates Prisma
+CLI/client/adapter 7.10.1 plus compatible fast-uri/brace-expansion resolutions.
+Earlier 136/222 results are retained in the guide. Final clean-install generation,
+build, 701 unit tests, 222 HTTP tests and 16 owned PostgreSQL collection checks
+pass. Full lint has zero errors and six unchanged-file warnings. The intentional
+SQL 42501 audit-permission failure verifies rollback; it is not a new outage.
+Production audit is now three moderate entries, full-tree three moderate/eight
+low, with zero high/critical in either scope. Residual findings keep OBS-005
+Open. The owned container was removed; no running app was restarted or shared
+record changed. These are source/owned-fixture results, not rollout acceptance.
+
+Subsequent YAML follow-up on the same branch: an exact-version js-yaml override
+updates Swagger's 5.3.0 to 5.4.1 without changing Swagger/Nest majors or YAML
+3.x/4.x. The initial parent-scoped attempt produced npm peer errors and was
+replaced before commit; final clean install and `npm ls` pass. The maintained
+CI-wired synthetic Swagger check passes eight assertions and build passes.
+Latest audits report one moderate production entry (csv-parse), full-tree one
+moderate/eight low, zero high/critical. Earlier test counts retain their own
+graph scope. No new application defect or rollout is claimed; OBS-005 stays Open.
+
+Subsequent CSV follow-up pins csv-parse 7.0.3 (explicit major transition).
+Seven synthetic parser assertions passed on 5.6.0 and its grouped duplicate-
+prototype-header assertion failed; all eight pass on 7.0.3. That upstream option
+is not enabled by BioSphere, so this is not a live app exploit finding. The
+upgraded graph passed 701 unit/222 HTTP tests; removal of one redundant type
+assertion then passed build, 40 import-unit/72 specimen-HTTP tests and lint.
+Both maintained compatibility checks are wired into CI. Production audit now
+exits 0 with zero findings; full audit retains eight low development entries.
+No running app or shared data was changed. OBS-005 stays Open for residual
+tooling disposition, independent review and deployment verification; do not
+claim the entire system secure from an audit snapshot.
 
 ### OBS-004 - Public submission feedback can obscure an uncertain outcome
 
