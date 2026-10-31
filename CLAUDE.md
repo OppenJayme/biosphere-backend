@@ -12,7 +12,9 @@ backup history, reports, dashboard, user accounts and offline synchronization.
 Inspect the relevant controller, DTO, service and tests before changing a flow.
 
 - `package.json` specifies NestJS 11 packages and pins Prisma/client/pg adapter
-  to 7.10.0. Use `package-lock.json` for resolved dependency versions.
+  to 7.10.1. Use `package-lock.json` for resolved dependency versions. After
+  pulling dependency changes, run `npm ci` and regenerate Prisma with
+  `npm run prisma:generate` before rebuilding; do not reuse an older client.
 - `src/prisma/prisma.service.ts` uses the pg adapter with `DATABASE_URL`.
   `prisma.config.ts` uses `DIRECT_URL` for CLI operations and declares Supabase
   Auth objects external. The existing database has already been baselined.

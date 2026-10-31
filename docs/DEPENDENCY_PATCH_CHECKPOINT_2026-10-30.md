@@ -216,6 +216,29 @@ advisories still require their recorded triage and targeted repairs.
 
 ## Review and rollout
 
+### Charles review follow-up - 2026-10-31
+
+The supported import contract remains intact, but csv-parse 5.6.0 and 7.0.3
+are not byte-for-byte equivalent on all inputs. Charles's direct comparison
+reported two differences, now captured in the maintained verifier using the
+actual application options: non-breaking spaces around an unquoted value are
+trimmed in 7.0.3, and `__proto__` is retained as an own data key rather than
+silently dropped. The row prototype stays unchanged. A real import-preview
+service regression verifies `__proto__` is reported as unmapped and never
+copied into specimen data; no application behavior change was needed.
+
+The expanded parser verifier passes **10/10** and the import-service suite
+passes **41/41**. The existing intentional connection-reset test logs its
+synthetic error; the suite still passes. Changed-file lint and whitespace
+checks are recorded separately from the earlier full-suite/build checkpoint.
+`CLAUDE.md` now reflects the coordinated 7.10.1 pins and instructs users to
+reinstall/regenerate before rebuilding after pulling.
+
+After #220 and #221 are integrated, rerun `npm run test:lot-history:db` with
+the integrated 7.10.1 client/adapter. The original #221 result used 7.10.0;
+it does not establish that later combination. No shared migration, historical
+quantity decision or runtime refresh is authorized by this test follow-up.
+
 Review the parser/tooling and coordinated Prisma updates, scoped override and graph cleanup, the
 audit delta and affected regression results. No broad framework upgrade,
 `npm audit fix --force`, shared migration or production restart is included.

@@ -36,6 +36,19 @@ check('blank lines are ignored', () => {
     { commonName: 'Second' },
   ]);
 });
+check('non-breaking spaces are trimmed by the patched parser', () => {
+  assert.deepEqual(
+    parse('commonName\n\u00a0Synthetic beetle\u00a0\n', options),
+    [{ commonName: 'Synthetic beetle' }],
+  );
+});
+check('default prototype header is an own data key without changing the prototype', () => {
+  const [row] = parse('__proto__,commonName\nignored,Synthetic\n', options);
+  assert.equal(Object.getPrototypeOf(row), Object.prototype);
+  assert.equal(Object.hasOwn(row, '__proto__'), true);
+  assert.equal(row.__proto__, 'ignored');
+  assert.equal(row.commonName, 'Synthetic');
+});
 check('numeric-looking and date values stay literal strings', () => {
   assert.deepEqual(
     parse('quantity,collectionDate\n00012,2020-01-01\n', options),
