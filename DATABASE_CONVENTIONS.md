@@ -84,6 +84,9 @@ This document records the conventions agreed upon for the BioSphere database. Th
   tracked in DEF-030; do not merge the compatibility proposal as though that
   decision has already been made. See
   [the compatibility guide](docs/LOT_HISTORY_ENUM_COMPATIBILITY.md).
+  Kyer's 2026-10-31 direction supports retaining the historical value and
+  proposing a future borrowing option; it is recorded in DEF-030 separately
+  from institutional approval and validation of the existing adjustment.
 
 - `TRANSFER_OUT` means a specimen physically leaves the USC Biological Museum collection.
 - Moving a specimen between internal museum storage locations is a location movement and must not reduce total specimen quantity.

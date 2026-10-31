@@ -149,6 +149,14 @@ rejected. No shared migration, row correction, rollback or runtime restart was
 performed. The report's shared migration history is user-supplied, not newly
 verified by inspecting the shared database. Independent and live retest pending.
 
+**User direction - 2026-10-31:** Kyer explicitly wants to retain the value and
+have a future borrowing option for current or successor curators. Record this
+as support for retention and a proposed Inventory loan workflow, not as an
+instruction to remove historical evidence. It does not establish that the
+existing adjustment is valid or that a new write operation is implemented.
+The [compatibility guide](./LOT_HISTORY_ENUM_COMPATIBILITY.md#proposed-borrowing-workflow---user-direction-2026-10-31)
+records the proposed workflow and remaining owner decisions.
+
 **Pending business disposition (merge gate):** John/Inventory and the team must
 obtain and record the Curator's decision on (1) permanent retention of the
 historical enum value and (2) whether the reported specimen's quantity change

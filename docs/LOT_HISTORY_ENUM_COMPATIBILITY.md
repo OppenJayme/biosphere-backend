@@ -77,6 +77,34 @@ under REQ-4.5-09 / BR-08. The historical read exception is now explicit in
 `DATABASE_CONVENTIONS.md`; the seven supported new-write types are unchanged.
 No institutional/business approval is inferred from a technical repair.
 
+### Proposed borrowing workflow - user direction 2026-10-31
+
+Kyer explicitly requests retaining the value because a current or future curator
+may allow specimens to be borrowed. Preserve that direction; do not propose
+deleting or relabelling the existing event merely because the current SRS omits
+the operation. This is a proposed Inventory enhancement owned by John, not an
+implemented option in the compatibility repair or proof of the reported event's
+validity. The institutional/SRS disposition remains pending.
+
+Recommended design for owner/Curator confirmation:
+
+- Show a distinct **On loan / Temporarily off-site** state alongside the
+  specimen's Cataloging status; preserve the museum's ownership/accession.
+- Record borrower/organization, responsible curator, quantity, checkout date,
+  expected return, reason and audit history, with a return/close action.
+- Define available/on-site quantity separately from museum-owned total, and
+  agree how partial returns, overdue loans and damage/loss are handled before
+  enabling writes. A bare quantity decrement is not a complete loan workflow.
+- Confirm the SRS/BR-08 amendment and delivery priority with the module owner
+  and Curator. Add it as separately reviewed work; do not silently expand the
+  November delivery scope or expose TEMPORARY_ABSENCE in the current form.
+
+No schema, endpoint, form option, loan record or quantity changes implement this
+proposal. #221 remains historical-read compatibility, with the existing event
+and institutional decisions recorded independently in DEF-030.
+
+### Integration sequence after disposition
+
 After that disposition and backend review/merge, regenerate/rebuild/restart
 the integrated sources through the agreed controlled rollout. Check
 the reported specimen read-only after rollout and record its actual outcome.
