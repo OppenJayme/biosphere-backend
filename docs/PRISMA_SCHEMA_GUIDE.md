@@ -215,7 +215,10 @@ Before requesting review for database-backed code, confirm:
 - Feature modules import the modules that provide their dependencies.
 - DTOs and response entities do not expose internal database naming or secret
   fields.
-- Frozen enum values match `DATABASE_CONVENTIONS.md`.
+- Frozen enum values match `DATABASE_CONVENTIONS.md`, including explicitly
+  documented historical read-only compatibility values. DEF-030's retained
+  `TEMPORARY_ABSENCE` is not an approved new-write operation; its team/Curator
+  disposition remains a merge gate in the defect record.
 - Files are stored in Supabase Storage; PostgreSQL stores only their paths.
 - AR uploads currently accept the self-contained `.glb` and `.usdz` formats;
   plain `.gltf` packages are not supported by the one-file upload workflow.

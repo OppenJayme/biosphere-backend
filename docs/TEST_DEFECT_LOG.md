@@ -125,8 +125,10 @@ system is not a reason to postpone all fixes until the end.
 **Affected record:** User-reported accession `USC-BM-2026-0001`; not edited or
 queried directly during the repair.
 **Severity / priority:** S2 Major / P1; blocks an affected specimen's Lots page.
-**Status:** Ready for retest; owner reproduction, isolated checks and both builds
-pass. Independent review, merge and controlled rollout/live retest remain.
+**Status:** Ready for retest; merge held after Charles's 2026-10-31 review.
+Owner reproduction, isolated checks and both builds pass. Frozen-enum/read-only
+compatibility documentation is reconciled, but the team/Curator decision below
+is not supplied. Controlled rollout/live retest and independent acceptance remain.
 
 **Actual:** The reported history endpoint returns 500. Source `0f80b67` contains
 an enum migration missing from develop's Prisma schema. An owned PostgreSQL
@@ -146,6 +148,23 @@ Write DTO/form choices remain the original seven; unsupported writes are
 rejected. No shared migration, row correction, rollback or runtime restart was
 performed. The report's shared migration history is user-supplied, not newly
 verified by inspecting the shared database. Independent and live retest pending.
+
+**Pending business disposition (merge gate):** John/Inventory and the team must
+obtain and record the Curator's decision on (1) permanent retention of the
+historical enum value and (2) whether the reported specimen's quantity change
+is valid under REQ-4.5-09 / BR-08. No decision is inferred from the request to
+repair history reads. Record the approver, date, scope/rationale and any approved
+follow-up; preserve evidence and do not convert/delete historical events or
+recalculate quantities without a separately approved remediation. Until then,
+#221 remains held even though its compatibility tests pass.
+
+**Rollout gates:** verify both the quantity migration and sibling FAQ migration
+`20261022000000_add_faq_unanswered_question` against actual target migration
+history, run owner-controlled `prisma migrate status`, and compare applied
+SHA-256 checksums with deployment-file bytes (including line endings). Neither
+the sibling's application nor checksum agreement has been established on the
+shared database. The [compatibility guide](./LOT_HISTORY_ENUM_COMPATIBILITY.md)
+records the checks without authorizing shared migrations or data repair.
 
 ### DEF-029 - XLSX XML guard rescans unclosed tags quadratically
 

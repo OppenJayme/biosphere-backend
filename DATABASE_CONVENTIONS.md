@@ -74,6 +74,17 @@ This document records the conventions agreed upon for the BioSphere database. Th
 
 ### Notes
 
+- **DEF-030 historical read compatibility:** the Prisma/PostgreSQL quantity
+  enum additionally represents the already-retained `TEMPORARY_ABSENCE` value
+  so historical rows can be decoded. It is excluded from supported new-write
+  DTOs and form options; the seven operations above remain the approved
+  REQ-4.5-09 / BR-08 write contract. This exception does not approve a new
+  quantity operation, permanent retention, or the validity of the reported
+  adjustment on `USC-BM-2026-0001`. Team/Curator disposition is pending and is
+  tracked in DEF-030; do not merge the compatibility proposal as though that
+  decision has already been made. See
+  [the compatibility guide](docs/LOT_HISTORY_ENUM_COMPATIBILITY.md).
+
 - `TRANSFER_OUT` means a specimen physically leaves the USC Biological Museum collection.
 - Moving a specimen between internal museum storage locations is a location movement and must not reduce total specimen quantity.
 - Collection names must NOT be implemented as an enum because future collections may be added after system turnover.

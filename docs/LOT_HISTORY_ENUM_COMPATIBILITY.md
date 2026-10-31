@@ -68,10 +68,22 @@ acceptance. Running applications and signed-in browsers were left untouched.
 
 ## Integration and operational boundary
 
-Review/merge the backend compatibility change, then the paired frontend, and
-regenerate/rebuild/restart both through the agreed controlled rollout. Check
+Frontend [#97](https://github.com/OppenJayme/biosphere-frontend/pull/97) is already
+merged at `f67a390ea2555e7da958a4d739336591953826ea`; its additive response
+support does not repair the old backend enum decoder. Backend #221 remains
+held pending the team/Curator disposition recorded in DEF-030: permanent
+retention of the value and the validity of the reported quantity adjustment
+under REQ-4.5-09 / BR-08. The historical read exception is now explicit in
+`DATABASE_CONVENTIONS.md`; the seven supported new-write types are unchanged.
+No institutional/business approval is inferred from a technical repair.
+
+After that disposition and backend review/merge, regenerate/rebuild/restart
+the integrated sources through the agreed controlled rollout. Check
 the reported specimen read-only after rollout and record its actual outcome.
 This repair is separate from dependency PR #220; it changes no dependency pins.
+Rerun the owned `npm run test:lot-history:db` on the integrated #220/#221 source
+with Prisma/client/adapter 7.10.1 before rollout; the original seven-case result
+above used 7.10.0 and is not automatically promoted to the new dependency set.
 
 Do not run shared migrations or change rows merely to verify this PR. According
 to the report, the target already has the value; inspect its actual migration
@@ -80,3 +92,36 @@ ADD VALUE IF NOT EXISTS migration supports fresh targets and is tested as a
 no-op on an already-advanced owned target. No shared rollback or enum deletion
 is proposed. Use separate databases for unmerged-branch migration trials and
 keep deployed schema, generated client and response readers aligned.
+
+### Migration-history and checksum preflight (rollout owner)
+
+Commit `0f80b67` also contains
+`20261022000000_add_faq_unanswered_question/migration.sql`. That sibling is
+not imported by this compatibility PR. Its presence in the feature commit is
+confirmed by source inspection; its application to the shared database is
+**unverified**, not a newly confirmed drift incident. Do not adopt the unrelated
+FAQ feature or enable collection merely to make migration history appear clean.
+
+Before any shared rollout, the database/deployment owner must:
+
+1. Inspect `prisma migrate status` using the intended target's normal private
+   configuration and inventory all target migration names against repository
+   migrations, explicitly including both sibling names above. This is an
+   owner-run read-only preflight; it was not run against shared credentials here.
+2. Inspect the corresponding `_prisma_migrations` metadata (`migration_name`,
+   `checksum`, `finished_at`, `rolled_back_at`) and unresolved/failed entries.
+   A missing or extra migration requires an explicit reconciliation plan.
+3. Compare each applied checksum with the SHA-256 of the **actual migration
+   file bytes** intended for deployment. For example, use `Get-FileHash
+   -Algorithm SHA256 -LiteralPath <migration.sql>` in the deployment checkout.
+   Check that checkout's line endings; LF versus CRLF changes the bytes/hash.
+   The Git blob identity above proves source identity only, not agreement with
+   an applied SHA-256 checksum or a Windows working-copy hash.
+4. Stop on any mismatch or unknown applied migration and obtain the owner's
+   reconciliation decision. Do not rewrite an applied migration, edit migration
+   history/checksums, run `migrate resolve`, `db push` or `migrate deploy`, or
+   roll back/delete enum values as an incidental verification step.
+
+Record the target identifier (without credentials), checked revision, migration
+names, comparison result and owner decision. No shared metadata was inspected
+and no target checksum match or successful migration status is claimed here.
