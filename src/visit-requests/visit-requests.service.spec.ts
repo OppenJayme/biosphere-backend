@@ -120,8 +120,10 @@ describe('VisitRequestsService', () => {
           { firstName: 'Ben' },
         ],
         bringingVehicle: true,
-        plateNumber: 'ABC 1234',
-        carBrand: 'Toyota',
+        vehicles: [
+          { plateNumber: 'ABC 1234', carBrand: 'Toyota' },
+          { plateNumber: 'XYZ 5678', carType: 'School Bus' },
+        ],
       }),
     );
 
@@ -148,6 +150,11 @@ describe('VisitRequestsService', () => {
     ]);
     expect(data.visit_request_vehicle.create).toEqual([
       { plate_number: 'ABC 1234', vehicle_brand: 'Toyota', vehicle_type: null },
+      {
+        plate_number: 'XYZ 5678',
+        vehicle_brand: null,
+        vehicle_type: 'School Bus',
+      },
     ]);
     expect(auditDelegate.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
@@ -213,8 +220,9 @@ describe('VisitRequestsService', () => {
 
   it('rejects vehicle details without bringingVehicle', async () => {
     await expect(
-      service.create(validDto({ plateNumber: 'ABC 1234' })),
+      service.create(validDto({ vehicles: [{ plateNumber: 'ABC 1234' }] })),
     ).rejects.toBeInstanceOf(BadRequestException);
+    expect(visitDelegate.create).not.toHaveBeenCalled();
   });
 
   it('maps stored rows, including schedules, to the curator entity', async () => {

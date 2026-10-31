@@ -345,7 +345,10 @@ describe('Inquiries and visit requests (e2e)', () => {
           ...validVisit,
           visitors: [{ firstName: 'Ana', lastName: 'Reyes' }],
           bringingVehicle: true,
-          plateNumber: 'ABC 1234',
+          vehicles: [
+            { plateNumber: 'ABC 1234', carBrand: 'Toyota' },
+            { plateNumber: 'XYZ 5678', carType: 'School Bus' },
+          ],
         })
         .expect(201);
 
@@ -361,7 +364,18 @@ describe('Inquiries and visit requests (e2e)', () => {
           { preference_order: 2 },
         ],
         visit_request_visitor: [{ visitor_name: 'Ana Reyes' }],
-        visit_request_vehicle: [{ plate_number: 'ABC 1234' }],
+        visit_request_vehicle: [
+          {
+            plate_number: 'ABC 1234',
+            vehicle_brand: 'Toyota',
+            vehicle_type: null,
+          },
+          {
+            plate_number: 'XYZ 5678',
+            vehicle_brand: null,
+            vehicle_type: 'School Bus',
+          },
+        ],
         consent_accepted_at: expect.any(Date),
       });
     });
@@ -408,7 +422,36 @@ describe('Inquiries and visit requests (e2e)', () => {
         },
       ],
       ['zero visitors', { ...validVisit, visitorCount: 0 }],
-      ['a vehicle without a plate', { ...validVisit, bringingVehicle: true }],
+      [
+        'bringing a vehicle with none listed',
+        { ...validVisit, bringingVehicle: true },
+      ],
+      [
+        'an empty vehicle list',
+        { ...validVisit, bringingVehicle: true, vehicles: [] },
+      ],
+      [
+        'a vehicle without a plate',
+        {
+          ...validVisit,
+          bringingVehicle: true,
+          vehicles: [{ plateNumber: 'ABC 1234' }, { carBrand: 'Toyota' }],
+        },
+      ],
+      [
+        'more than ten vehicles',
+        {
+          ...validVisit,
+          bringingVehicle: true,
+          vehicles: Array.from({ length: 11 }, (_, index) => ({
+            plateNumber: `ABC ${index}`,
+          })),
+        },
+      ],
+      [
+        'vehicles without bringingVehicle',
+        { ...validVisit, vehicles: [{ plateNumber: 'ABC 1234' }] },
+      ],
       ['an over-long purpose', { ...validVisit, purpose: 'x'.repeat(1001) }],
     ])('rejects %s with 400 and stores nothing', async (_label, body) => {
       await request(app.getHttpServer())
