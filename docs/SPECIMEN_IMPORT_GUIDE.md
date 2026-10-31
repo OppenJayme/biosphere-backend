@@ -56,6 +56,29 @@ of museum-provided workbooks, or whole-module acceptance. Earlier isolated
 HTTP/parser regressions retain their own scope. No new reproducible application
 defect was established and no existing defect status is promoted by this run.
 
+### Retained fixture disposition before final acceptance - 2026-10-31
+
+`TEST-XLSX-20261030-A` (specimen
+`585172b4-d99d-4f28-b765-65a5a12de24a`) remains an approved synthetic test
+record, not museum inventory or research-result data. Kyer coordinates its
+disposition with the Curator before turnover. No cleanup has been executed.
+
+Before final acceptance, record one approved disposition: archive it through
+the normal Cataloging workflow, or retain it in an explicitly separated test/demo
+dataset. Recheck its then-current status, public eligibility and lot references
+before proposing an action; do not assume the original no-lot state is current.
+Any shared-data action needs its normal authorization and must preserve the
+creation/import audit and resulting lifecycle history. Do not hard-delete audit
+evidence, alter quantities or move inventory as incidental cleanup.
+
+Verify the chosen disposition against the active catalog and final demo/report
+outputs so the synthetic specimen is not presented as a real museum holding or
+included in reported real-record counts. Archiving alone is not proof that every
+report excludes it. Record the approver, action/date, affected specimen, relevant
+audit reference and catalog/report verification in the acceptance handoff. This
+note is a pending turnover task, not approval to archive/delete or a claim that
+the record has already been removed.
+
 ## Merged local XLSX preview checkpoint - 2026-10-29
 
 Backend #216/#217 and frontend #96 are merged. The controlled local refresh

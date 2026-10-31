@@ -317,8 +317,10 @@ the named unsupported-field matrix owner-side: twelve fields tested independentl
 at both nested and envelope levels, 24 new cases per side; full focused suites
 pass 28/28 and 29/29 respectively. Each verifies field-specific 400 rejection
 before receipt lookup/writes or credential lookup/forwarding. Changed-test lint
-and whitespace checks pass. These test-only PRs use synthetic adapters and still
-need review/integration; they do not prove a live rejected-request matrix.
+and whitespace checks pass. Both test-only suites use synthetic adapters.
+Frontend #98 merged on 2026-10-31 at
+`a7cbc17f59b5f77d8274156130263b2acdbe63cb`; backend #222 still needs
+review/integration. Neither suite proves a live rejected-request matrix.
 OFF-004 remains **In progress** for independent/release acceptance. Actual expired-session re-login,
 cross-account device access and full PWA/provider behavior are not proved.
 DEF-019's shared-backend interruption pilot remains stopped. Do not repeat
