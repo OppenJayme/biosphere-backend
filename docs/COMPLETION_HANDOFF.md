@@ -9,34 +9,74 @@ The [November 18 delivery plan](DELIVERY_PLAN_2026-11-18.md) sets the remaining
 milestones, priorities and release completion criteria. Use its grouped queue
 to schedule this handoff; historical passing checks do not become new work.
 
-## Current next actions - 2026-10-31
+## Current next actions - 2026-11-01
 
 This checkpoint supersedes older next-step wording below while preserving its
 dated evidence. Do not turn every historical limitation into a new feature or
 repeat an already-passing owner batch. Acceptance statuses still come from the
 register and named owner/reviewer dispositions.
 
-GitHub status refreshed on 2026-10-31 following WhiteBeard's review: frontend
+GitHub status refreshed on 2026-11-01 following WhiteBeard's review: frontend
 [#97](https://github.com/OppenJayme/biosphere-frontend/pull/97) merged at
 `f67a390ea2555e7da958a4d739336591953826ea` and
 [#98](https://github.com/OppenJayme/biosphere-frontend/pull/98) at
-`a7cbc17f59b5f77d8274156130263b2acdbe63cb`. Backend #220, #221 and #222
-are still open. Merge this documentation PR (#219) after those backend PRs.
+`a7cbc17f59b5f77d8274156130263b2acdbe63cb`. Backend #220 merged at
+`ef491c8e4aac89e0eba68f7e34f7108901b445b9` and #222 at
+`4de07c6fd42a0207f1c3d7ab4b9b20a7fd16e3f0`. Backend #221 remains open
+with its business-disposition hold; the user deferred that discussion. Merge
+this documentation PR (#219) after #221 is cleared and integrated.
 Frontend source integration does not establish that the running build has
 been refreshed or that the lot-history backend repair is deployed.
 
+### Merged backend preparation - 2026-11-01
+
+Merged backend `4de07c6fd42a0207f1c3d7ab4b9b20a7fd16e3f0` (#220 plus #222)
+was prepared in the owned `.codex-tmp/merged-backend-20261101` checkout.
+`package.json` and lockfile match the existing #220 dependency checkout exactly,
+so its installed modules were reused through an owned-worktree junction; this
+was not a new clean-install test. No `.env` was copied. Prisma generation used
+an unreachable synthetic loopback datasource and produced Client 7.10.1 in the
+isolated checkout. Installed Prisma/client/adapter are all 7.10.1; csv-parse is
+7.0.3. The build output is isolated; the original checkout was not switched.
+
+| Merged-source check | Result / scope |
+| --- | --- |
+| `node scripts/verify-csv-parser.cjs` | 10/10 fixed synthetic parser checks pass |
+| `node scripts/verify-swagger-yaml.cjs` | 8/8 owned loopback Nest/Swagger/YAML compatibility checks pass |
+| `node node_modules/@nestjs/cli/bin/nest.js build` | Pass; no application server started |
+| Existing `specimens` and `offline-sync` HTTP suites | 100/100 pass through real Nest wiring with synthetic authentication/database adapters |
+| Working tree / whitespace | Clean isolated source tree; `git diff --check` passes |
+
+The initial version-readback command tried importing a package.json subpath
+which adapter-pg does not export. Reading the installed package metadata as a
+file corrected that diagnostic; Prisma generation itself had already succeeded.
+No dependency or application repair was needed for the diagnostic error.
+
+This is a merged-source integration checkpoint, not runtime rollout, a new
+audit snapshot, full suite rerun, live import/sync, real session expiry or
+independent module acceptance. No shared connection, migration, auth export,
+record edit or existing browser/server operation was used. The original local
+backend remains on source `f4df176`, and frontend checkout `60ab28b` still has
+on-disk build `KjnKPLGaaPM_cm9tgFdJ_`. Preserve recovery assets before a controlled
+backend refresh, then verify startup and agreed read-only routes. #221's held
+schema/history repair is excluded, so this checkpoint cannot establish that
+`USC-BM-2026-0001` is fixed. Its 7.10.1 lot-history SQL check waits for agreed
+integration of that repair; do not run shared migrations to bypass the hold.
+
 | Work | Current evidence | Next action / dependency |
 | --- | --- | --- |
-| Dependency repair | [Backend #220](https://github.com/OppenJayme/biosphere-backend/pull/220), head `edfcb57`, is open/mergeable. [CI run #398 passed](https://github.com/OppenJayme/biosphere-backend/actions/runs/41076678282). Proposed production audit is zero entries; eight low development entries remain. This is not the running backend. | Teammate reviews the explicit CSV major transition, both override scopes, coordinated Prisma update and CI evidence; then merge. Preserve/rebuild/refresh the local backend and run focused import/read smoke checks after integration. No deployment or independent security acceptance is inferred. |
+| Dependency repair | [Backend #220](https://github.com/OppenJayme/biosphere-backend/pull/220) is merged, including review follow-up `1220d31`. The merged `4de07c6` build, 100 HTTP and 18 compatibility assertions pass as scoped above. Recorded branch production audit is zero entries; eight low development entries remain; no new runtime audit was performed. | Preserve/refresh the local backend and run the agreed read-only smoke. Do not requeue completed patch preparation, review or merged-source checks. Deployment and independent security acceptance are not inferred. |
 | Cataloging / Storage | Live XLSX selected commit/retry and 20 existing-event Audit assertions below are complete. Earlier lifecycle, date, media, phone and storage checks retain their recorded scope. | Finish only required unresolved acceptance cases or obtain explicit dispositions; coordinate Inventory fixtures. Museum-template suitability, remaining media/restoration/policy boundaries and independent module acceptance are not supplied by dependency tests. |
 | Specimen lots | Charles's report is now supplied: `USC-BM-2026-0001` fails history reads because a retained `TEMPORARY_ABSENCE` value is absent from develop's Prisma enum. The exact failure was independently reproduced in owned PostgreSQL. [Backend #221](https://github.com/OppenJayme/biosphere-backend/pull/221) proposes backend read compatibility; [frontend #97](https://github.com/OppenJayme/biosphere-frontend/pull/97) is already merged. Recorded branch checks pass: 7 SQL/HTTP regressions, backend 701 unit / 22 existing HTTP and frontend 450 tests, with both builds. | Finish backend #221 review/merge, then coordinate rollout of both integrated sources and read-only retest of the reported specimen and a control. DEF-030 is Ready for retest in #221; no shared migration or historical-row change was performed. John still owns INV-001 through INV-010 manual/live fixture, quantity, placement and movement acceptance. This repair does not enable new temporary-absence adjustments or establish Inventory acceptance. |
 | FAQ | Implementation and synthetic matcher/widget evidence exist; authoritative museum answers remain pending. Optional unanswered-question collection stays disabled. | Sir Curator supplies/approves the content-review answers; then use the normal approved workflow and bounded visitor acceptance. Do not invent facts or activate synthetic answers to fill the gap. |
-| Limited offline | Owned SQL/HTTP and accepted-write/tab-recovery evidence already exists. [OFF-004 browser checkpoint](./OFFLINE_SYNC_GUIDE.md#off-004-read-only-browser-boundary-checkpoint---2026-10-31) adds 15 scoped assertions. The named unsupported-field matrix passes in [backend #222](https://github.com/OppenJayme/biosphere-backend/pull/222) (28/28, still open) and [frontend #98](https://github.com/OppenJayme/biosphere-frontend/pull/98) (29/29, merged), with 24 new cases per side and no production change. | Finish backend #222 review/integration; frontend #98 needs no further merge. Do not requeue the completed owner browser/request matrix. Actual expiry/re-login and independent/release acceptance remain. Keep DEF-019's shared-backend diagnostic stopped; choose an agreed safe target or explicit scope disposition for genuinely missing cases. |
+| Limited offline | Owned SQL/HTTP and accepted-write/tab-recovery evidence already exists. [OFF-004 browser checkpoint](./OFFLINE_SYNC_GUIDE.md#off-004-read-only-browser-boundary-checkpoint---2026-10-31) adds 15 scoped assertions. Backend #222 (28/28) and frontend #98 (29/29) are both merged, with 24 new cases per side and no production behavior change. | Review/integration of the request-matrix PRs is complete; do not requeue those owner checks. Actual expiry/re-login and independent/release acceptance remain. Keep DEF-019's shared-backend diagnostic stopped; choose an agreed safe target or explicit scope disposition for genuinely missing cases. |
 | Audit / Backup and final handoff | Record/filter/form/pagination/reload owner checks and independent disposable Collection/Backup evidence already exist. Real backup/restore remains Deferred. | Address remaining required correlation/access/provider/timing cases or accepted limitations, then one pinned integration/demo round and named module sign-off. Preserve the distinction between metadata history and a real backup/restore. |
 
-Practical sequence: finish backend #220/#221/#222 review and integration;
-frontend #97/#98 are already merged. Merge documentation #219 last, then use
-one coordinated local refresh and focused
+Practical sequence: backend #220/#222 and frontend #97/#98 are merged. Prepare
+the integrated backend build and focused checks while #221's decision is
+deferred. Its lot repair and documentation #219 still wait for that gate;
+do not deploy the unmerged repair or call the affected specimen fixed. Use
+a controlled local refresh and focused
 read/import/history checks after the relevant changes are merged and rollout is
 authorized. Check the actual integrated source and migration state first; a
 merged PR alone does not update the running application. Review can proceed
@@ -53,7 +93,7 @@ four sessions, or complete module acceptance.
 
 | Batch | Exact remaining work to select | Dependency / stopping rule |
 | --- | --- | --- |
-| Review and integration | Finish backend #220/#221/#222 review and merge, then documentation #219. Frontend #97/#98 are merged. Check integrated revisions before the focused rollout smoke above. | Teammate review and authorized rollout. Do not repeat the already-passing isolated suites just to fill the wait. |
+| Review and integration | Backend #220/#222 and frontend #97/#98 are merged. #221's business decision/review remains deferred, followed by documentation #219. Verify merged backend build/import/offline behavior independently of that hold before the focused rollout smoke. | Respect the #221 hold; do not repeat already-passing suites without a relevant integration change. |
 | Required owner acceptance | CAT-011 live media role/wrong-pair and failure boundaries; CAT-014 archived-match policy and remaining response-ordering scope; CAT-016 complete live restoration branch; OFF-004 negative boundaries and genuine expiry/re-login scope; remaining AUD-001 access/correlation boundaries and BAK-001 populated UI scope. | Reconcile each exact subcase with its guide/register before execution. Shared writes, account changes, provider-failure injection and interruption need an agreed safe setup. Prior synthetic, owned-SQL and manual passes are retained, not repeated or promoted to live proof. |
 | External answers and owner decisions | Sir Curator's approved FAQ content; team disposition of FAQ normalized-question/alias collisions and archived specimen duplicate matches; John's Inventory fixture/placement evidence; reviewer disposition of DEF-011, OBS-001, OBS-005 and offline release limits. | Request only still-unanswered decisions. No invented museum facts, silently accepted limitations, or Inventory feature changes. Optional FAQ collection stays disabled; real backup/restore remains separately Deferred. |
 | Final scoped release acceptance | Pin the served backend/frontend source and build; run one agreed role/workflow/demo round, reconcile the register and known limitations, and obtain named owner/reviewer sign-off. | Relevant repairs are integrated and required fixtures/content available. Record missing dependencies honestly; paper/manual alignment uses the accepted results rather than engineering test counts as stakeholder approval. |

@@ -319,8 +319,11 @@ pass 28/28 and 29/29 respectively. Each verifies field-specific 400 rejection
 before receipt lookup/writes or credential lookup/forwarding. Changed-test lint
 and whitespace checks pass. Both test-only suites use synthetic adapters.
 Frontend #98 merged on 2026-10-31 at
-`a7cbc17f59b5f77d8274156130263b2acdbe63cb`; backend #222 still needs
-review/integration. Neither suite proves a live rejected-request matrix.
+`a7cbc17f59b5f77d8274156130263b2acdbe63cb`; backend #222 also merged on
+2026-10-31 at `4de07c6fd42a0207f1c3d7ab4b9b20a7fd16e3f0`. The November 1
+[merged-source checkpoint](./COMPLETION_HANDOFF.md#merged-backend-preparation---2026-11-01)
+passes build, 100 import/offline HTTP and 18 compatibility assertions in an
+isolated checkout. Neither suite proves a live rejected-request matrix or rollout.
 OFF-004 remains **In progress** for independent/release acceptance. Actual expired-session re-login,
 cross-account device access and full PWA/provider behavior are not proved.
 DEF-019's shared-backend interruption pilot remains stopped. Do not repeat
