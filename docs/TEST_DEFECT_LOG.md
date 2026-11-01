@@ -1070,6 +1070,18 @@ idempotency defect has been established. Do not blindly rerun the pilot.
 
 #### Containment and follow-up
 
+2026-11-01 separately authorized [live session-loss and manual re-login](./OFFLINE_SYNC_GUIDE.md#live-isolated-session-loss-and-re-login-recovery---2026-11-01)
+records 28 functional checks with one approved retained synthetic record and
+one correlated sync success audit after identical retry. Three explicitly
+allowed frontend sync requests returned 401/200/200; one additional attempt
+was blocked without retained payload/timing, and a diagnostic selector error
+required read-only continuation. This is not a zero-attempt clean run or a
+confirmed new application defect. No response was held and no interruption
+was performed; original-account protected access was preserved. **DEF-019
+remains Open and its shared interruption pilot stays stopped.** This new
+session-loss evidence does not retroactively explain the historical leak or
+prove natural expiry, independent containment or provider/PWA behavior.
+
 2026-10-28 subsequent approved [owned accepted-write recovery](./OFFLINE_SYNC_GUIDE.md#owned-accepted-write-tab-recovery---2026-10-28)
 passes 1/1 twice consecutively: lost first response, tab close, retained fields,
 recovered interrupted state and automatic same-ID retry; independent owned SQL

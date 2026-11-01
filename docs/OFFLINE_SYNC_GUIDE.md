@@ -259,6 +259,75 @@ Existing manual/browser evidence below is historical and remains separate.
 
 ## Supported boundary
 
+### Live isolated session-loss and re-login recovery - 2026-11-01
+
+The user authorized exactly one persistent synthetic specimen and a separate
+spare-Curator browser session. Actual frontend `60ab28b`, production build
+`KjnKPLGaaPM_cm9tgFdJ_`, and running backend `4de07c6` were used. This checks
+local session loss, real frontend 401 handling, manual re-login and same-ID
+recovery; it does not simulate or prove natural JWT expiry/provider revocation.
+
+The user manually signed in and later signed back in with the spare account.
+No password, cookie/token value or auth state was copied or exported. Inspection
+of the installed Supabase SDK confirmed normal `signOut()` defaults to global
+scope, so that action was not used. Only the isolated test context's cookies
+were cleared; IndexedDB and the original account's browser were preserved.
+
+The test accession was absent before any draft was created. The real offline
+modal saved one text-only local draft. Reconnection with the test cookies gone
+produced a real `/api/offline/specimen-drafts` 401 and the visible sign-in/retry
+message. ID, owner partition and all eight core payload fields survived, with
+recoverable AUTH failure and no server specimen ID. After manual same-account
+re-login, a fresh protected workspace displayed that owner's retained draft and
+automatically synchronized it: 200, `alreadySynchronized: false`. An explicit
+identical request returned 200, `alreadySynchronized: true`, and the same server
+ID. The synchronized local receipt, catalog row and success audit were read back.
+
+Retained authorized fixture:
+
+- Accession: `TEST-SESSION-20261101-A`.
+- Name: `TEST - Session Recovery 20261101`.
+- Client draft UUID: `3df63227-a7b7-4678-8798-86b3869bf5dd`.
+- Specimen UUID: `dcb4fbcf-dfbe-4fbc-a852-0cd79e1d6fd7`.
+- Observed: one matching catalog record; `UNCATALOGED`; public display false;
+  no active lots; one matching `SYNC_OFFLINE_SPECIMEN_DRAFT` success audit whose
+  details contain the original client draft UUID. No lot/storage/media operations
+  were submitted. The synchronized local receipt remains in the test context.
+
+**Result:** 28 functional assertions passed across retained-draft recovery,
+authenticated sync, identical retry and catalog/audit readback. A separate
+read-only probe confirmed the original account still accesses the protected
+Cataloging queue, with its original dashboard URL preserved. Both account
+windows remain open; the created login tab was closed after recovery. The test
+context keeps its read-only guard after completion; the original account is
+not subject to that guard.
+
+**Diagnostic qualifications:** the context guard explicitly allowed only three
+exact test-draft requests, with responses **401, 200, 200**, plus the user's
+manual login submission. One additional `POST /api/offline/specimen-drafts`
+attempt was blocked. Only its method/path were retained, not its payload or
+timing; do not label its cause, prove independent server non-arrival, or claim
+a zero-attempt clean run. The later readback caused no further blocked attempts.
+The first recovery helper also stopped on a CSS selector whose attribute quotes
+were stripped by command transport. Only readback resumed with an attribute
+comparison; no draft/sync creation step was repeated. Console diagnostics showed
+two HTTP 401 messages; there were zero browser page exceptions. These facts
+remain in the record rather than being suppressed as a clean execution.
+
+No application bug is established from that unclassified blocked attempt; its
+disposition belongs in independent acceptance. Functional recovery evidence
+does not close historical DEF-019 or its stopped shared interruption pilot.
+There was no response hold, interruption, global sign-out, database migration,
+quantity change or server restart. This is not independent acceptance, a full
+Next/PWA/security evaluation, direct SQL receipt counting or concurrency proof.
+
+Before turnover, Kyer/Curator must record the fixture's approved archive or
+separated test/demo disposition, preserve audit/history, and verify exclusion
+from real museum counts/reports. No cleanup was automatically performed. Ignored
+scripts are in `.codex-tmp/session-recovery-20261101/`; shared documentation
+contains no credentials or unrelated record contents. `git diff --check` passed;
+no application suite/build was repeated for this live evidence update.
+
 ### OFF-004 read-only browser boundary checkpoint - 2026-10-31
 
 Owner browser checks passed on local frontend source `60ab28b`, with on-disk
