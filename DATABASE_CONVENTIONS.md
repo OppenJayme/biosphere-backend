@@ -79,10 +79,8 @@ This document records the conventions agreed upon for the BioSphere database. Th
   so historical rows can be decoded. It is excluded from supported new-write
   DTOs and form options; the seven operations above remain the approved
   REQ-4.5-09 / BR-08 write contract. This exception does not approve a new
-  quantity operation, permanent retention, or the validity of the reported
-  adjustment on `USC-BM-2026-0001`. Team/Curator disposition is pending and is
-  tracked in DEF-030; do not merge the compatibility proposal as though that
-  decision has already been made. See
+  quantity operation. Retention of the value and the status of the test
+  adjustment on `USC-BM-2026-0001` are recorded in DEF-030. See
   [the compatibility guide](docs/LOT_HISTORY_ENUM_COMPATIBILITY.md).
   Kyer's 2026-10-31 direction supports retaining the historical value and
   proposing a future borrowing option; it is recorded in DEF-030 separately

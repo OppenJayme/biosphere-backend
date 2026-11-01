@@ -70,12 +70,12 @@ acceptance. Running applications and signed-in browsers were left untouched.
 
 Frontend [#97](https://github.com/OppenJayme/biosphere-frontend/pull/97) is already
 merged at `f67a390ea2555e7da958a4d739336591953826ea`; its additive response
-support does not repair the old backend enum decoder. Backend #221 remains
-held pending the team/Curator disposition recorded in DEF-030: permanent
-retention of the value and the validity of the reported quantity adjustment
-under REQ-4.5-09 / BR-08. The historical read exception is now explicit in
-`DATABASE_CONVENTIONS.md`; the seven supported new-write types are unchanged.
-No institutional/business approval is inferred from a technical repair.
+support does not repair the old backend enum decoder. DEF-030 records the
+disposition for backend #221: retention of the value under the Curator's general
+direction, and the reported quantity adjustment as test data. The historical read
+exception is now explicit in `DATABASE_CONVENTIONS.md`; the seven supported
+new-write types are unchanged. No institutional/business approval is inferred
+from a technical repair.
 
 ### Proposed borrowing workflow - user direction 2026-10-31
 
@@ -84,7 +84,7 @@ may allow specimens to be borrowed. Preserve that direction; do not propose
 deleting or relabelling the existing event merely because the current SRS omits
 the operation. This is a proposed Inventory enhancement owned by John, not an
 implemented option in the compatibility repair or proof of the reported event's
-validity. The institutional/SRS disposition remains pending.
+validity. Any SRS amendment for a borrowing operation remains undecided.
 
 Recommended design for owner/Curator confirmation:
 

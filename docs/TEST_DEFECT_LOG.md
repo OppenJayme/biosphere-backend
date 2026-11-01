@@ -125,10 +125,11 @@ system is not a reason to postpone all fixes until the end.
 **Affected record:** User-reported accession `USC-BM-2026-0001`; not edited or
 queried directly during the repair.
 **Severity / priority:** S2 Major / P1; blocks an affected specimen's Lots page.
-**Status:** Ready for retest; merge held after Charles's 2026-10-31 review.
-Owner reproduction, isolated checks and both builds pass. Frozen-enum/read-only
-compatibility documentation is reconciled, but the team/Curator decision below
-is not supplied. Controlled rollout/live retest and independent acceptance remain.
+**Status:** Ready for retest; business decisions recorded 2026-11-01, see the
+disposition record below. Owner reproduction, isolated checks and both builds
+pass. Frozen-enum/read-only compatibility documentation is reconciled. Re-review
+after Charles's 2026-10-31 review, a database-suite rerun on Prisma 7.10.1,
+controlled rollout/live retest and independent acceptance remain.
 
 **Actual:** The reported history endpoint returns 500. Source `0f80b67` contains
 an enum migration missing from develop's Prisma schema. An owned PostgreSQL
@@ -157,14 +158,55 @@ existing adjustment is valid or that a new write operation is implemented.
 The [compatibility guide](./LOT_HISTORY_ENUM_COMPATIBILITY.md#proposed-borrowing-workflow---user-direction-2026-10-31)
 records the proposed workflow and remaining owner decisions.
 
-**Pending business disposition (merge gate):** John/Inventory and the team must
-obtain and record the Curator's decision on (1) permanent retention of the
-historical enum value and (2) whether the reported specimen's quantity change
-is valid under REQ-4.5-09 / BR-08. No decision is inferred from the request to
-repair history reads. Record the approver, date, scope/rationale and any approved
-follow-up; preserve evidence and do not convert/delete historical events or
-recalculate quantities without a separately approved remediation. Until then,
-#221 remains held even though its compatibility tests pass.
+**Record provenance - owner statement, 2026-11-01:** John Gerozaga (Inventory
+owner) states that `USC-BM-2026-0001` is the test record `TEST - Proposal accession`
+(`8fd97f42-39bc-44e0-9ff4-8f47b5fd377c`), not a museum specimen. It was created
+during the approved 2026-10-28 live check of the client proposals on
+`feat/client-proposals-presentation`. That check deliberately reduced lot
+`21791a63-f3e2-44e9-8b82-832e189f8655` in `TEST Drawer B` to 0 using
+`TEMPORARY_ABSENCE`. No real loan, off-site conservation or other physical
+movement took place.
+
+**Shared migration record - 2026-10-28, not rechecked since:** at the owner's
+direction, `prisma migrate deploy` applied
+`20261022000100_add_temporary_absence_adjustment` from a Windows checkout, with
+`20261022000000_add_faq_unanswered_question` deliberately set aside because
+develop's own FAQ work covers that proposal. Immediately afterwards the enum
+included `TEMPORARY_ABSENCE`, `faq_unanswered_question` did not exist, and
+`prisma migrate status` listed the FAQ migration as not applied. This answers the
+sibling question as of that date; the rollout owner must still rerun the preflight
+in the [compatibility guide](./LOT_HISTORY_ENUM_COMPATIBILITY.md).
+
+The applied checksum was not recorded. The repository has no `.gitattributes` and
+this checkout uses `core.autocrlf=true`, so it is likely the CRLF value. Compare
+`_prisma_migrations.checksum` with both candidates:
+
+- LF: `c8f5bae99f5bbf0d1bfd20412b195a6266a50f14d4911fe25c1ecc8912611f06`
+- CRLF: `7aa91b8e59172268baeb604fb9e0f0a69632e1a6025c51daa429a83e17bd5d57`
+
+**Impact and retest scope:** the Lots page is the reported symptom. From code
+inspection, not reproduced, the same enum decoding also affects the Quantity
+adjustments grouping in generated reports whose date range includes the event, and
+storage inventory history for the unit holding the lot. After rollout, retest both
+read-only along with the specimens already named.
+
+These notes explain where the event came from. They do not authorize changing or
+deleting the record.
+
+**Disposition record - 2026-11-01:**
+
+| Decision | Outcome | Approver | Date | Scope / rationale |
+| -------- | ------- | -------- | ---- | ----------------- |
+| Keep `TEMPORARY_ABSENCE` as a historical read-only value permanently | Keep; treated as confirmed under the Curator's general direction | Curator's general direction, relayed by John Gerozaga (Inventory owner) | Curator's statement 2026-10-28; recorded 2026-11-01 | The Curator told the team it may adjust anything needed to avoid system bugs or confusion. No sign-off specific to this value was obtained. Needed to read the retained row; new writes stay rejected. Does not approve the borrowing proposal or amend the SRS |
+| Treat the `USC-BM-2026-0001` adjustment as test data, not a valid collection event, under REQ-4.5-09 / BR-08 | Test data | John Gerozaga (Inventory owner) | 2026-11-01 | Owner vouches that the record was created for the 2026-10-28 live check. Owner decision; Curator approval not required per the owner |
+| Keep or clean up the test record, by separately approved remediation only | Keep for now; not a merge condition | John Gerozaga (Inventory owner) | 2026-11-01 | The post-deploy retest reads it; any later cleanup needs separate approval |
+
+**Business disposition (merge gate):** the table above records (1) retention of
+the historical enum value and (2) the reported quantity change under REQ-4.5-09 /
+BR-08. If the Curator later gives a decision specific to (1), record it there.
+Preserve evidence and do not convert/delete historical events or recalculate
+quantities without a separately approved remediation. This gate does not replace
+the re-review and database-suite rerun #221 still needs.
 
 **Rollout gates:** verify both the quantity migration and sibling FAQ migration
 `20261022000000_add_faq_unanswered_question` against actual target migration
