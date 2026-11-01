@@ -100,6 +100,38 @@ checkout still use its retained old build until that checkout is deliberately
 updated. The local startup checkpoint is complete; protected acceptance and
 #221's business/release gate remain separate.
 
+### Protected Curator read-only smoke - 2026-11-01
+
+After the user manually signed in as Curator, 20 assertions passed through the
+actual frontend `60ab28b` / production build `KjnKPLGaaPM_cm9tgFdJ_` and local
+merged backend `4de07c6`. The prior browser session had closed; a new visible,
+isolated Edge session `protected-smoke-20261101` was opened without copying
+credentials or browser storage. Tests ran in one owned temporary tab under a
+guard rejecting all non-GET/HEAD/OPTIONS requests and foreign origins.
+
+| Protected page | Checked behavior |
+| --- | --- |
+| `/cataloging` | HTTP 200, Uncataloged queue and records section, no backend-unavailable fallback, correct import link |
+| `/storage` | HTTP 200, storage hierarchy and record-details sections, no backend/permission fallback |
+| `/audit-logs` | HTTP 200, populated audit rows and matching-count display, no error fallback |
+| `/cataloging/import` | HTTP 200, CSV/XLSX file acceptance and Preview control, no selected file or reviewed commit action |
+| Guard / cleanup | Zero non-read attempts, zero page errors, unchanged original signed-in URL; owned test tab closed |
+
+The user-facing browser remains open and signed in for the next step. No file
+was selected, preview/import submitted, draft saved, status changed, specimen
+edited or shared migration run. No credentials, record contents or audit details
+were exported. The original signed-in dashboard tab was not navigated. Script
+and CLI artifacts are ignored; the diagnostic script is under
+`.codex-tmp/protected-smoke-20261101/`.
+
+This completes the agreed post-refresh protected read smoke. It is not full
+Cataloging/Storage/Audit/import acceptance, an expired-session recovery test,
+validation of frontend #97/#98's unrefreshed code, or #221's historical repair.
+Existing relevant automated results remain scoped to their recorded targets;
+no additional suite/build was rerun for this documentation update. Whitespace
+validation: `git diff --check`. Continue exact missing acceptance cases instead
+of another identical read-only smoke.
+
 | Work | Current evidence | Next action / dependency |
 | --- | --- | --- |
 | Dependency repair | [Backend #220](https://github.com/OppenJayme/biosphere-backend/pull/220) is merged, including review follow-up `1220d31`. The merged build, 100 HTTP and 18 compatibility assertions pass; the local `4de07c6` backend is now started with passing public root/OpenAPI smoke and the original build retained. Recorded branch production audit is zero entries; eight low development entries remain; no new audit was performed. | Local startup is complete; continue required protected acceptance rather than repeating preparation/startup. This is a temporary verified-worktree launch, not an update of the retained original checkout or independent security acceptance. |
