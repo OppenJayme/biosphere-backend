@@ -22,6 +22,12 @@ general language/number understanding.
 wording, proposed aliases/keywords, category and source question numbers. The
 synthetic UUIDs identify isolated test entries; they are not shared FAQ IDs.
 
+These are synthetic editorial candidates, including user-relayed rules whose
+precise walk-in eligibility and non-school group limits remain unconfirmed.
+They need content-owner approval before any public activation. The visit form's
+current schedule, batch and notification behavior must also be reconciled with
+the content intake; these tests do not establish that those rules are enforced.
+
 The seventeen topics are weekday hours, Saturday hours, closures, admission,
 appointments, campus entry, tour batches, request lead time, general photography,
 restricted photography permission, handling, conduct, address, assistance,
@@ -49,7 +55,7 @@ specific campus-entry documents/directions and loan approval. No empty answer,
 | Group | Cases | Expected behavior checked |
 | --- | --- | --- |
 | Canonical questions | 17 | Return the intended entry and its exact stored answer, with narrow public fields |
-| Alternative wording, critical rules and follow-up | 8 | Fee phrasing; alumni campus entry; parties of five/four; outside-school student exemption; larger-than-50 parties; Saturday follow-up; flash permission |
+| Alternative wording, critical rules and follow-up | 8 | Fee phrasing; alumni campus entry; questions about parties of five/four; outside-school student exemption; larger-than-50 school parties; Saturday follow-up; flash permission |
 | Unsupported/incomplete scope | 7 | No definitive answer for Sunday hours; no unrelated answers for parking price, tour-fee inclusion, bag/food detail, phone number, species identification or borrowing permission |
 | Ambiguous hours | 1 | Ask for clarification rather than choosing weekday/Saturday arbitrarily |
 

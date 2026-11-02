@@ -88,7 +88,7 @@ export const curatorFaqDrafts: Draft[] = [
     id: CURATOR_FAQ_IDS.appointment,
     question: 'When is an appointment required?',
     answer:
-      'USC student parties of one to four may make an informal visit. Parties of five or more require an appointment. Guided tours require an appointment regardless of size. Outside visitors, including alumni, must follow campus entry; free admission does not authorize a walk-in.',
+      'The user reports that student walk-ins of fewer than five are informal. Parties of five or more and guided tours require an appointment. Which students qualify and whether other visitors may walk in require confirmation. Outside visitors, including alumni, must follow campus entry.',
     alternative_wording: [
       'Can USC students walk in?',
       'Do five visitors need an appointment?',
@@ -111,7 +111,7 @@ export const curatorFaqDrafts: Draft[] = [
     id: CURATOR_FAQ_IDS.batch,
     question: 'What is the maximum school-tour batch size?',
     answer:
-      'School tours accommodate a maximum of 50 visitors per batch. Larger parties require separate timed batches, managed by the visiting group. Parties of five or more require an appointment.',
+      'School tours accommodate a maximum of 50 visitors per batch. Larger school groups require separate timed batches, managed by the visiting group. Parties of five or more require an appointment. Limits for other groups require confirmation.',
     alternative_wording: ['How many visitors can join one tour batch?'],
     keywords: ['maximum', 'batch', '50', 'school tour'],
     category: 'Group Visits',

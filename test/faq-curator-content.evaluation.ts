@@ -47,7 +47,7 @@ const cases: Case[] = [
     answerId: ID.appointment,
   },
   {
-    label: 'four USC students may visit informally',
+    label: 'four students ask about informal visits',
     question: 'Can four USC students walk in?',
     outcomes: ['ANSWERED'],
     answerId: ID.appointment,
@@ -59,8 +59,8 @@ const cases: Case[] = [
     answerId: ID.admission,
   },
   {
-    label: 'larger parties must use separate batches',
-    question: 'Can more than 50 visitors join the same tour batch?',
+    label: 'larger school parties require separate batches',
+    question: 'Can more than 50 school visitors join the same tour batch?',
     outcomes: ['ANSWERED'],
     answerId: ID.batch,
   },
