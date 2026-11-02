@@ -7,8 +7,10 @@ page shows **The specimen lots could not be loaded**, and protected
 `GET /specimens/:id/lots/history` returns 500. The report attributes this to a
 shared-database migration from unmerged `feat/client-proposals-presentation`
 commit `0f80b67`, which introduced `TEMPORARY_ABSENCE` into
-`quantity_adjustment_type`. Shared migration history/records were not inspected
-or changed during this repair; that deployment detail remains user-reported.
+`quantity_adjustment_type`. The original attribution was user-reported. A later
+read-only metadata preflight inspected the database configured for the local
+backend; its identity as the shared deployment target was not independently
+established. No migration history or specimen records were changed.
 
 Source inspection confirms the feature commit's enum/migration and develop's
 missing value. A fresh owned PostgreSQL fixture independently reproduces the
@@ -109,9 +111,9 @@ After that disposition and backend review/merge, regenerate/rebuild/restart
 the integrated sources through the agreed controlled rollout. Check
 the reported specimen read-only after rollout and record its actual outcome.
 This repair is separate from dependency PR #220; it changes no dependency pins.
-Rerun the owned `npm run test:lot-history:db` on the integrated #220/#221 source
-with Prisma/client/adapter 7.10.1 before rollout; the original seven-case result
-above used 7.10.0 and is not automatically promoted to the new dependency set.
+The owned `npm run test:lot-history:db` passed all seven cases on 2026-11-02
+after a local merge with develop `4de07c6` and generation with Prisma 7.10.1.
+The integrated build passed too. This is separate from the original 7.10.0 run.
 
 Do not run shared migrations or change rows merely to verify this PR. According
 to the report, the target already has the value; inspect its actual migration
@@ -126,8 +128,9 @@ keep deployed schema, generated client and response readers aligned.
 Commit `0f80b67` also contains
 `20261022000000_add_faq_unanswered_question/migration.sql`. That sibling is
 not imported by this compatibility PR. Its presence in the feature commit is
-confirmed by source inspection; its application to the shared database is
-**unverified**, not a newly confirmed drift incident. Do not adopt the unrelated
+confirmed by source inspection. A 2026-11-02 read-only preflight found no sibling
+migration entry or table in the locally configured database, but that target's
+identity as the shared deployment database remains unverified. Do not adopt the unrelated
 FAQ feature or enable collection merely to make migration history appear clean.
 
 Before any shared rollout, the database/deployment owner must:
@@ -151,5 +154,8 @@ Before any shared rollout, the database/deployment owner must:
    roll back/delete enum values as an incidental verification step.
 
 Record the target identifier (without credentials), checked revision, migration
-names, comparison result and owner decision. No shared metadata was inspected
-and no target checksum match or successful migration status is claimed here.
+names, comparison result and owner decision. The 2026-11-02 preflight found the
+quantity migration checksum matched the original LF bytes in the locally
+configured database; its Windows checkout had CRLF bytes. The target's identity
+as the shared deployment database is unconfirmed, and no full migration-status
+check was run. Verify both on the intended target before rollout.

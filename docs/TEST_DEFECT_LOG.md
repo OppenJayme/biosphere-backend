@@ -147,8 +147,9 @@ frontend formerly failing page case passes with known-value read compatibility.
 The original migration file is preserved byte-for-byte at the Git-blob level.
 Write DTO/form choices remain the original seven; unsupported writes are
 rejected. No shared migration, row correction, rollback or runtime restart was
-performed. The report's shared migration history is user-supplied, not newly
-verified by inspecting the shared database. Independent and live retest pending.
+performed. A later read-only preflight inspected the locally configured database;
+its identity as the shared deployment target is not independently confirmed.
+Independent and live retest pending.
 
 **User direction - 2026-10-31:** Kyer explicitly wants to retain the value and
 have a future borrowing option for current or successor curators. Record this
@@ -167,7 +168,7 @@ during the approved 2026-10-28 live check of the client proposals on
 `TEMPORARY_ABSENCE`. No real loan, off-site conservation or other physical
 movement took place.
 
-**Shared migration record - 2026-10-28, not rechecked since:** at the owner's
+**Shared migration record - owner statement from 2026-10-28:** at the owner's
 direction, `prisma migrate deploy` applied
 `20261022000100_add_temporary_absence_adjustment` from a Windows checkout, with
 `20261022000000_add_faq_unanswered_question` deliberately set aside because
@@ -177,9 +178,9 @@ included `TEMPORARY_ABSENCE`, `faq_unanswered_question` did not exist, and
 sibling question as of that date; the rollout owner must still rerun the preflight
 in the [compatibility guide](./LOT_HISTORY_ENUM_COMPATIBILITY.md).
 
-The applied checksum was not recorded. The repository has no `.gitattributes` and
-this checkout uses `core.autocrlf=true`, so it is likely the CRLF value. Compare
-`_prisma_migrations.checksum` with both candidates:
+The checksum was not recorded at that time. The 2026-11-02 preflight below found
+the LF checksum on the locally configured database; the Windows checkout had
+CRLF bytes. Compare the intended deployment target and file with both candidates:
 
 - LF: `c8f5bae99f5bbf0d1bfd20412b195a6266a50f14d4911fe25c1ecc8912611f06`
 - CRLF: `7aa91b8e59172268baeb604fb9e0f0a69632e1a6025c51daa429a83e17bd5d57`
@@ -208,13 +209,15 @@ Preserve evidence and do not convert/delete historical events or recalculate
 quantities without a separately approved remediation. This gate does not replace
 the re-review and deployment checks #221 still needs.
 
-**Read-only preflight - 2026-11-02:** Kyer relayed that the retained adjustment
-is valid and reaffirmed keeping the value. John's provenance above identifies
-the adjustment as intentional test data; this confirmation does not turn it into
-a real loan or enable new temporary-absence writes. The PR merged locally with
+**Read-only preflight - 2026-11-02:** Kyer relayed acceptance of retaining the
+adjustment and reaffirmed keeping the value. This is an accepted test action to
+preserve as test history, not a valid museum collection event or real loan;
+John's provenance above identifies it as intentional test data. This does not
+enable new temporary-absence writes. The PR merged locally with
 develop `4de07c6`, generated with Prisma 7.10.1, passed its build and all seven
 owned PostgreSQL/HTTP lot-history tests. In a read-only transaction
-against the database configured for the local backend, the quantity migration
+against the database configured for the local backend (not independently
+identified as the shared deployment target), the quantity migration
 was finished and not rolled back, its enum contained `TEMPORARY_ABSENCE`, and
 the sibling FAQ migration and its table were absent. The applied quantity
 migration checksum matches the original LF bytes (`c8f5bae9...`) rather than the
