@@ -25,6 +25,12 @@ integration evidence and owner sign-off; do not mark them passed from this run.
 
 ## Lot contract
 
+Known historical adjustment compatibility: [DEF-030 repair](./LOT_HISTORY_ENUM_COMPATIBILITY.md)
+lets the generated client and response readers recognize a retained
+`TEMPORARY_ABSENCE` event. This does not add it to supported write DTO choices
+or change quantity rules. The original feature migration is carried for schema
+alignment, without applying anything to the shared database during verification.
+
 | API field        | PostgreSQL / Prisma field | Rules                                             |
 | ---------------- | ------------------------- | ------------------------------------------------- |
 | `id`             | `id`                      | System-generated lot UUID                         |

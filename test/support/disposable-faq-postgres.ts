@@ -8,6 +8,10 @@ export const FAQ_DB_IMAGE =
 const LOCAL_DOCKER = 'npipe:////./pipe/dockerDesktopLinuxEngine';
 // Historical class/file name retained for the existing FAQ suite.
 const DATABASE_PROFILES = {
+  'lot-history': {
+    database: 'biosphere_lot_history_disposable',
+    optIn: 'RUN_LOT_HISTORY_DISPOSABLE_DB',
+  },
   notifications: {
     database: 'biosphere_notifications_disposable',
     optIn: 'RUN_NOTIFICATIONS_DISPOSABLE_DB',

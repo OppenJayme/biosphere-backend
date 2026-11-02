@@ -43,6 +43,7 @@ export const ADJUSTMENT_LABELS = {
   DEACCESSION: 'Deaccession',
   MISSING_LOSS: 'Missing or lost',
   DESTRUCTION: 'Destruction',
+  TEMPORARY_ABSENCE: 'Temporary absence',
   DATA_CORRECTION: 'Data correction',
 } as const;
 
