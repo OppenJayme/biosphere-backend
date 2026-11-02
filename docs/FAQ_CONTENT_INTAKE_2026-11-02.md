@@ -158,7 +158,7 @@ no paid AI provider, matching change or new implementation is introduced.
   selects one preferred schedule and does not represent separate timed batches.
   The school-tour 50-per-batch statement is user-relayed; non-school scope and
   operational handling need owner/Curator review.
-- Schedule validation checks future dates, duplicate preferences and ordering,
+- Schedule validation checks real, non-past dates, duplicate preferences and ordering,
   but does not enforce museum opening hours, holidays or the one-week lead time.
   A submission receipt is not approval or proof the slot is available.
 - Schedule approval can omit notification (`notifyVisitor: false`); an email
