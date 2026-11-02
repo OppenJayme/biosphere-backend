@@ -1804,6 +1804,11 @@ Inventory owns lots, quantities, condition, placement, movements, quantity
 adjustments, and transaction history (SRS 4.5; `SPECIMEN_LOTS_GUIDE.md`). Use a
 disposable `TEST -` specimen and storage units that hold specimens.
 
+2026-10-30 supporting evidence: the existing [specimen-lot HTTP suite](./SPECIMEN_LOTS_GUIDE.md#supporting-http-regression-checkpoint---2026-10-30)
+passes 13/13 with synthetic auth/database adapters in the dependency-patch
+regression batch. This does not execute the manual/live checklist below or
+change its statuses. Cataloging's prepared-lot readiness evidence is separate.
+
 | ID      | Test                                                                                            | Expected result                                                                                                                                         | Status  |
 | ------- | ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
 | INV-001 | Create a lot in a specimen-holding unit; retry with the same unit and condition in another case | Quantity, condition, and placement persist after reload; the case-variant duplicate (`Good`/`good`) is rejected rather than silently added to           | Not run |

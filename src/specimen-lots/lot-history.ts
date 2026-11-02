@@ -1,7 +1,7 @@
 import { Prisma } from '../generated/prisma/client';
 import {
   LotTransactionType,
-  QuantityAdjustmentType,
+  type RecordedQuantityAdjustmentType,
 } from './entities/specimen-lot-transaction.entity';
 import { SpecimenLotHistoryEntry } from './entities/specimen-lot-history.entity';
 
@@ -65,7 +65,8 @@ export function toLotHistoryEntry(
     targetLotId: item.target_lot_id,
     transactionType: item.transaction_type as LotTransactionType,
     quantityAffected: item.quantity_affected,
-    adjustmentType: item.adjustment_type as QuantityAdjustmentType | null,
+    adjustmentType:
+      item.adjustment_type as RecordedQuantityAdjustmentType | null,
     reason: item.reason,
     performedBy: item.performed_by,
     createdAt: item.created_at,

@@ -107,6 +107,7 @@ system is not a reason to postpone all fixes until the end.
 
 | ID      | Date       | Module                     | Summary                                                                 | Severity    | Priority | Status | Owner                   |
 | ------- | ---------- | -------------------------- | ----------------------------------------------------------------------- | ----------- | -------- | ------ | ----------------------- |
+| [DEF-030](#def-030---lot-history-fails-on-a-database-enum-ahead-of-the-client) | 2026-10-31 | Inventory / Lot history | Retained TEMPORARY_ABSENCE cannot be decoded by develop Prisma; frontend also rejects the historical response value | S2 Major | P1 | Ready for retest | John / Inventory; Kyer assisting; Charles report |
 | [DEF-029](#def-029---xlsx-xml-guard-rescans-unclosed-tags-quadratically) | 2026-10-29 | Cataloging / XLSX parser | Malformed unclosed XML tags trigger excessive synchronous regex rescanning | S2 Major | P1 | Verified (bounded independent retest) | Kyer; Voltaire independent retest |
 | [DEF-028](#def-028---public-dialog-focus-escapes-and-is-not-restored-on-close) | 2026-10-28 | Public Website / Inquiry and visit dialog | Keyboard focus leaves the open dialog and closing fails to return focus to its opening button | S3 Moderate | P2 | Verified | John/Charles public forms; Kyer assisted repair |
 | [DEF-027](#def-027---public-forms-misreport-uncertain-submission-outcomes) | 2026-10-28 | Public Website / Inquiry and visit forms | Malformed receipts fabricate success; transport/5xx feedback encourages a potentially duplicate resend | S3 Moderate | P1 | Ready for retest | John/Charles public forms; Kyer assisted repair |
@@ -138,6 +139,119 @@ system is not a reason to postpone all fixes until the end.
 | [DEF-015](#def-015---audit-http-fixture-omits-the-security-audit-create-method) | 2026-10-19 | Audit / HTTP test fixture | Missing security-audit create mock logs an error despite green denial test | S3 Moderate | P2 | Ready for retest | Audit tests / coordinate with Auth |
 
 ## 3. Defect details
+
+### DEF-030 - Lot history fails on a database enum ahead of the client
+
+**Reported:** 2026-10-31; Charles's artifact report supplied by the user.
+**Affected record:** User-reported accession `USC-BM-2026-0001`; not edited or
+queried directly during the repair.
+**Severity / priority:** S2 Major / P1; blocks an affected specimen's Lots page.
+**Status:** Ready for retest; business decisions recorded 2026-11-01, see the
+disposition record below. Owner reproduction, isolated checks and both builds
+pass. Frozen-enum/read-only compatibility documentation is reconciled. Re-review
+after Charles's 2026-10-31 review, controlled rollout/live retest and independent
+acceptance remain. The database-suite rerun on Prisma 7.10.1 passed on 2026-11-02.
+
+**Actual:** The reported history endpoint returns 500. Source `0f80b67` contains
+an enum migration missing from develop's Prisma schema. An owned PostgreSQL
+fixture independently reproduces P2023: `Value 'TEMPORARY_ABSENCE' not found in
+enum 'quantity_adjustment_type'`. Separately, the real frontend page/API/Zod
+boundary rejects the retained value and shows the generic Lots failure.
+
+**Expected:** Authorized users can read the original historical adjustment,
+lots and summary without altering quantities/history or enabling unapproved
+new adjustment commands.
+
+**Repair/evidence:** [Scoped enum compatibility and rollout boundary](./LOT_HISTORY_ENUM_COMPATIBILITY.md).
+Seven real SQL/HTTP cases pass after regenerating the isolated client; the
+frontend formerly failing page case passes with known-value read compatibility.
+The original migration file is preserved byte-for-byte at the Git-blob level.
+Write DTO/form choices remain the original seven; unsupported writes are
+rejected. No shared migration, row correction, rollback or runtime restart was
+performed. A later read-only preflight inspected the locally configured database;
+its identity as the shared deployment target is not independently confirmed.
+Independent and live retest pending.
+
+**User direction - 2026-10-31:** Kyer explicitly wants to retain the value and
+have a future borrowing option for current or successor curators. Record this
+as support for retention and a proposed Inventory loan workflow, not as an
+instruction to remove historical evidence. It does not establish that the
+existing adjustment is valid or that a new write operation is implemented.
+The [compatibility guide](./LOT_HISTORY_ENUM_COMPATIBILITY.md#proposed-borrowing-workflow---user-direction-2026-10-31)
+records the proposed workflow and remaining owner decisions.
+
+**Record provenance - owner statement, 2026-11-01:** John Gerozaga (Inventory
+owner) states that `USC-BM-2026-0001` is the test record `TEST - Proposal accession`
+(`8fd97f42-39bc-44e0-9ff4-8f47b5fd377c`), not a museum specimen. It was created
+during the approved 2026-10-28 live check of the client proposals on
+`feat/client-proposals-presentation`. That check deliberately reduced lot
+`21791a63-f3e2-44e9-8b82-832e189f8655` in `TEST Drawer B` to 0 using
+`TEMPORARY_ABSENCE`. No real loan, off-site conservation or other physical
+movement took place.
+
+**Shared migration record - owner statement from 2026-10-28:** at the owner's
+direction, `prisma migrate deploy` applied
+`20261022000100_add_temporary_absence_adjustment` from a Windows checkout, with
+`20261022000000_add_faq_unanswered_question` deliberately set aside because
+develop's own FAQ work covers that proposal. Immediately afterwards the enum
+included `TEMPORARY_ABSENCE`, `faq_unanswered_question` did not exist, and
+`prisma migrate status` listed the FAQ migration as not applied. This answers the
+sibling question as of that date; the rollout owner must still rerun the preflight
+in the [compatibility guide](./LOT_HISTORY_ENUM_COMPATIBILITY.md).
+
+The checksum was not recorded at that time. The 2026-11-02 preflight below found
+the LF checksum on the locally configured database; the Windows checkout had
+CRLF bytes. Compare the intended deployment target and file with both candidates:
+
+- LF: `c8f5bae99f5bbf0d1bfd20412b195a6266a50f14d4911fe25c1ecc8912611f06`
+- CRLF: `7aa91b8e59172268baeb604fb9e0f0a69632e1a6025c51daa429a83e17bd5d57`
+
+**Impact and retest scope:** the Lots page is the reported symptom. From code
+inspection, not reproduced, the same enum decoding also affects the Quantity
+adjustments grouping in generated reports whose date range includes the event, and
+storage inventory history for the unit holding the lot. After rollout, retest both
+read-only along with the specimens already named.
+
+These notes explain where the event came from. They do not authorize changing or
+deleting the record.
+
+**Disposition record - 2026-11-01:**
+
+| Decision | Outcome | Approver | Date | Scope / rationale |
+| -------- | ------- | -------- | ---- | ----------------- |
+| Keep `TEMPORARY_ABSENCE` as a historical read-only value permanently | Keep; treated as confirmed under the Curator's general direction | Curator's general direction, relayed by John Gerozaga (Inventory owner) | Curator's statement 2026-10-28; recorded 2026-11-01 | The Curator told the team it may adjust anything needed to avoid system bugs or confusion. No sign-off specific to this value was obtained. Needed to read the retained row; new writes stay rejected. Does not approve the borrowing proposal or amend the SRS |
+| Treat the `USC-BM-2026-0001` adjustment as test data, not a valid collection event, under REQ-4.5-09 / BR-08 | Test data | John Gerozaga (Inventory owner) | 2026-11-01 | Owner vouches that the record was created for the 2026-10-28 live check. Owner decision; Curator approval not required per the owner |
+| Keep or clean up the test record, by separately approved remediation only | Keep for now; not a merge condition | John Gerozaga (Inventory owner) | 2026-11-01 | The post-deploy retest reads it; any later cleanup needs separate approval |
+
+**Business disposition (merge gate):** the table above records (1) retention of
+the historical enum value and (2) the reported quantity change under REQ-4.5-09 /
+BR-08. If the Curator later gives a decision specific to (1), record it there.
+Preserve evidence and do not convert/delete historical events or recalculate
+quantities without a separately approved remediation. This gate does not replace
+the re-review and deployment checks #221 still needs.
+
+**Read-only preflight - 2026-11-02:** Kyer relayed acceptance of retaining the
+adjustment and reaffirmed keeping the value. This is an accepted test action to
+preserve as test history, not a valid museum collection event or real loan;
+John's provenance above identifies it as intentional test data. This does not
+enable new temporary-absence writes. The PR merged locally with
+develop `4de07c6`, generated with Prisma 7.10.1, passed its build and all seven
+owned PostgreSQL/HTTP lot-history tests. In a read-only transaction
+against the database configured for the local backend (not independently
+identified as the shared deployment target), the quantity migration
+was finished and not rolled back, its enum contained `TEMPORARY_ABSENCE`, and
+the sibling FAQ migration and its table were absent. The applied quantity
+migration checksum matches the original LF bytes (`c8f5bae9...`) rather than the
+CRLF bytes (`7aa91b8e...`) in the local Windows checkout. Verify the exact
+deployment file bytes and target again during rollout; no database state changed.
+
+**Rollout gates:** verify both the quantity migration and sibling FAQ migration
+`20261022000000_add_faq_unanswered_question` against actual target migration
+history, run owner-controlled `prisma migrate status`, and compare applied
+SHA-256 checksums with deployment-file bytes (including line endings). The above
+preflight is a snapshot of the locally configured target, not verification of
+every deployment environment. The [compatibility guide](./LOT_HISTORY_ENUM_COMPATIBILITY.md)
+records the checks without authorizing shared migrations or data repair.
 
 ### DEF-029 - XLSX XML guard rescans unclosed tags quadratically
 
@@ -3046,7 +3160,7 @@ for the other 12 advisories; deployed proxy-policy review and other environments
 are not established. The original discovery below remains historical evidence.
 
 **Observed:** 2026-10-29 during XLSX dependency review.
-**Status:** Open security triage; advisory evidence, no exploitation reproduced.
+**Status:** Open security triage; no live-application exploitation reproduced.
 **Coordination:** Backend/dependency owner with Voltaire for request IP/auth/rate
 limiting and deployment proxy configuration. Prioritize before release sign-off.
 
@@ -3079,6 +3193,39 @@ prepare the smallest compatible dependency updates with affected regressions,
 and rerun the audit. Do not run `npm audit fix --force`, silently dismiss the
 critical report, or claim deployment is secure from the XLSX tests. No shared
 dependency tree, running server, proxy setting or account changed in this check.
+
+OBS-005 follow-up, 2026-10-30: [compatible dependency patch](./DEPENDENCY_PATCH_CHECKPOINT_2026-10-30.md)
+updates parser/tooling dependencies and scoped Multer, then coordinates Prisma
+CLI/client/adapter 7.10.1 plus compatible fast-uri/brace-expansion resolutions.
+Earlier 136/222 results are retained in the guide. Final clean-install generation,
+build, 701 unit tests, 222 HTTP tests and 16 owned PostgreSQL collection checks
+pass. Full lint has zero errors and six unchanged-file warnings. The intentional
+SQL 42501 audit-permission failure verifies rollback; it is not a new outage.
+Production audit is now three moderate entries, full-tree three moderate/eight
+low, with zero high/critical in either scope. Residual findings keep OBS-005
+Open. The owned container was removed; no running app was restarted or shared
+record changed. These are source/owned-fixture results, not rollout acceptance.
+
+Subsequent YAML follow-up on the same branch: an exact-version js-yaml override
+updates Swagger's 5.3.0 to 5.4.1 without changing Swagger/Nest majors or YAML
+3.x/4.x. The initial parent-scoped attempt produced npm peer errors and was
+replaced before commit; final clean install and `npm ls` pass. The maintained
+CI-wired synthetic Swagger check passes eight assertions and build passes.
+Latest audits report one moderate production entry (csv-parse), full-tree one
+moderate/eight low, zero high/critical. Earlier test counts retain their own
+graph scope. No new application defect or rollout is claimed; OBS-005 stays Open.
+
+Subsequent CSV follow-up pins csv-parse 7.0.3 (explicit major transition).
+Seven synthetic parser assertions passed on 5.6.0 and its grouped duplicate-
+prototype-header assertion failed; all eight pass on 7.0.3. That upstream option
+is not enabled by BioSphere, so this is not a live app exploit finding. The
+upgraded graph passed 701 unit/222 HTTP tests; removal of one redundant type
+assertion then passed build, 40 import-unit/72 specimen-HTTP tests and lint.
+Both maintained compatibility checks are wired into CI. Production audit now
+exits 0 with zero findings; full audit retains eight low development entries.
+No running app or shared data was changed. OBS-005 stays Open for residual
+tooling disposition, independent review and deployment verification; do not
+claim the entire system secure from an audit snapshot.
 
 ### OBS-004 - Public submission feedback can obscure an uncertain outcome
 

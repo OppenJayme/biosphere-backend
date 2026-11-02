@@ -711,3 +711,42 @@ tab being destroyed. The earlier 401/matrix fixture names were still absent
 on readback, but that does not excuse or close the new isolation defect.
 Actual browser/process death, accepted-write interruption, re-login and live
 concurrency remain unverified. No runtime code was changed in this checkpoint.
+
+### OFF-004 unsupported-request matrix - 2026-10-31
+
+Test-only follow-up on backend base `560222c` and frontend base `60ab28b`.
+The existing protected Nest HTTP suite passes **28/28**, including 24 new cases;
+the real frontend POST-handler suite passes **29/29**, including 24 matching
+boundary cases. Changed-test lint and `git diff --check` pass in both checkouts.
+No application source, dependency, shared record or server was changed.
+
+Each field below is supplied independently, both inside an otherwise valid
+`draft` and beside `clientDraftId`/`draft` in the request envelope:
+
+| Excluded operation / authority | Supplied field(s) |
+| --- | --- |
+| Media, taxonomy and provenance | `media`, `taxonomy`, `provenance` |
+| Inventory lots, quantities, placement and movement | `lots`, `quantity`, `storageUnitId`, `movements` |
+| Archive/lifecycle and public eligibility | `status: ARCHIVED`, `publicDisplay: true` |
+| QR, reports and client-selected attribution | `qrCode`, `reportId`, `createdBy` |
+
+All 24 backend requests return 400 with the rejected field named, before any
+receipt lookup, specimen creation, receipt creation or audit write. Real Nest
+controllers, validation, authentication/role guards and service wiring are used;
+authentication and database adapters are synthetic. Existing positive creation,
+authorization, invalid-input and same-ID conflict checks also pass.
+
+All 24 frontend requests return uncached 400 responses naming the field, before
+token lookup or backend fetch. The real Request/Response handler, API client and
+schemas are exercised with synthetic session/config/remote HTTP. Existing valid
+forwarding, 401/403 preservation and malformed-success checks also pass.
+
+This completes the named unsupported-field matrix owner-side; it is not an
+exhaustive penetration test or proof of live middleware, login expiry, database
+rollback/concurrency, provider/PWA behavior or independent acceptance. It does
+not prohibit the existing supported backend collection UUID field. OFF-004
+remains In progress for integration/reviewer acceptance; DEF-019's stopped
+shared-backend interruption pilot is unchanged. No red/green application repair
+is claimed: these are regressions for existing rejection behavior. A temporary
+Prisma-client generation overlap caused a generated-directory conflict; one
+sequential rerun succeeded before the backend suite, with no database access.

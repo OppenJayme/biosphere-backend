@@ -213,6 +213,19 @@ describe('SpecimenImportService', () => {
       expect(result.rows[0].errors.length).toBeGreaterThan(0);
     });
 
+    it('reports the prototype header as unmapped without copying it into specimen data', async () => {
+      const result = await service.previewImport(
+        csvFile('__proto__,commonName\nignored,Synthetic parser control\n'),
+        CURATOR_ID,
+      );
+
+      expect(result.unmappedColumns).toEqual(['__proto__']);
+      expect(result.validRows).toBe(1);
+      expect(result.rows[0].data.commonName).toBe('Synthetic parser control');
+      expect(Object.hasOwn(result.rows[0].data, '__proto__')).toBe(false);
+      expect(Object.getPrototypeOf(result.rows[0].data)).toBe(Object.prototype);
+    });
+
     it('flags a collectionId that does not exist', async () => {
       collectionDelegate.findMany.mockResolvedValue([]);
       const file = csvFile(`collectionId\n${COLLECTION_ID}\n`);

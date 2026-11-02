@@ -539,7 +539,7 @@ export class SpecimenImportService {
         bom: true,
         trim: true,
         skip_empty_lines: true,
-      }) as Record<string, string>[];
+      });
     } catch (error) {
       throw new BadRequestException(
         `The uploaded file could not be parsed as CSV: ${
