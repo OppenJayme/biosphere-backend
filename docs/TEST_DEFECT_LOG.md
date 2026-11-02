@@ -128,8 +128,8 @@ queried directly during the repair.
 **Status:** Ready for retest; business decisions recorded 2026-11-01, see the
 disposition record below. Owner reproduction, isolated checks and both builds
 pass. Frozen-enum/read-only compatibility documentation is reconciled. Re-review
-after Charles's 2026-10-31 review, a database-suite rerun on Prisma 7.10.1,
-controlled rollout/live retest and independent acceptance remain.
+after Charles's 2026-10-31 review, controlled rollout/live retest and independent
+acceptance remain. The database-suite rerun on Prisma 7.10.1 passed on 2026-11-02.
 
 **Actual:** The reported history endpoint returns 500. Source `0f80b67` contains
 an enum migration missing from develop's Prisma schema. An owned PostgreSQL
@@ -206,14 +206,27 @@ the historical enum value and (2) the reported quantity change under REQ-4.5-09 
 BR-08. If the Curator later gives a decision specific to (1), record it there.
 Preserve evidence and do not convert/delete historical events or recalculate
 quantities without a separately approved remediation. This gate does not replace
-the re-review and database-suite rerun #221 still needs.
+the re-review and deployment checks #221 still needs.
+
+**Read-only preflight - 2026-11-02:** Kyer relayed that the retained adjustment
+is valid and reaffirmed keeping the value. John's provenance above identifies
+the adjustment as intentional test data; this confirmation does not turn it into
+a real loan or enable new temporary-absence writes. The PR merged locally with
+develop `4de07c6`, generated with Prisma 7.10.1, passed its build and all seven
+owned PostgreSQL/HTTP lot-history tests. In a read-only transaction
+against the database configured for the local backend, the quantity migration
+was finished and not rolled back, its enum contained `TEMPORARY_ABSENCE`, and
+the sibling FAQ migration and its table were absent. The applied quantity
+migration checksum matches the original LF bytes (`c8f5bae9...`) rather than the
+CRLF bytes (`7aa91b8e...`) in the local Windows checkout. Verify the exact
+deployment file bytes and target again during rollout; no database state changed.
 
 **Rollout gates:** verify both the quantity migration and sibling FAQ migration
 `20261022000000_add_faq_unanswered_question` against actual target migration
 history, run owner-controlled `prisma migrate status`, and compare applied
-SHA-256 checksums with deployment-file bytes (including line endings). Neither
-the sibling's application nor checksum agreement has been established on the
-shared database. The [compatibility guide](./LOT_HISTORY_ENUM_COMPATIBILITY.md)
+SHA-256 checksums with deployment-file bytes (including line endings). The above
+preflight is a snapshot of the locally configured target, not verification of
+every deployment environment. The [compatibility guide](./LOT_HISTORY_ENUM_COMPATIBILITY.md)
 records the checks without authorizing shared migrations or data repair.
 
 ### DEF-029 - XLSX XML guard rescans unclosed tags quadratically
