@@ -14,6 +14,9 @@ the remaining factual clarifications and normal entry/activation workflow for
 complete confirmed answers, followed by bounded visitor acceptance. Do not
 re-ask for every fact as if nothing was provided. No public activation, matcher
 change, paid service or database write is included in this documentation slice.
+The subsequent user clarification also resolves free student admission as
+USC-only, alumni as free but subject to outsider campus entry, and five or more
+as requiring an appointment. These are no longer pending content questions.
 
 **Current direction: laptop-only demo, no new paid services.** Keep optional
 question collection disabled; hosted migration/scheduler work is parked pending

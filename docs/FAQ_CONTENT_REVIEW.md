@@ -120,11 +120,12 @@ now records all answers, proposed public wording, exceptions and internal-data
 boundaries. The user's follow-up confirms Sir Fidel as source/approver and
 October 30, 2026 as the confirmation date; November 2 is the received date.
 The school-tour limit is clarified as a maximum of 50 per batch, not a minimum.
-Exactly-five handling and other identified incomplete details remain pending.
-Further user clarification records alumni as exempt, student-only walk-ins
-and mandatory campus entry for outsiders. The scope of `school students`
-(USC-only or any school) still needs precision. The intake retains the reported
-interview/conversation source and separates admission fees from entry rules.
+Further user clarification resolves the student exemption as USC-only, alumni
+as free-admission outsiders requiring campus entry, and the appointment
+threshold as five or more (one to four is informal for eligible students;
+guided tours still require appointments). Other incomplete details remain
+identified in the intake. It retains the reported interview/conversation source
+and separates admission fees from entry rules; do not re-ask settled thresholds.
 No entry was created or activated. The older inventory below is
 the October 25 checkpoint, not a claim that no answers have since arrived.
 

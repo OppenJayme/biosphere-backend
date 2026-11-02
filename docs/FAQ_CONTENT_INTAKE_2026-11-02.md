@@ -16,16 +16,20 @@ The source-confirmation date applies to the supplied list, including its
 explicit unanswered/incomplete items; it does not supply their missing facts.
 **S02** is the user's November 2 clarification that the school-tour limit is
 a maximum of 50. This resolves the original `at least 50` wording: larger
-parties need separate batches as already described. Exactly five visitors
-remains unresolved. Do not backdate that wording clarification as an additional
-direct Curator confirmation.
+parties need separate batches as already described. Do not backdate that
+wording clarification as an additional direct Curator confirmation.
 **S03** is the user's further November 2 clarification: USC-affiliated visitors
-and alumni are free; school students were also mentioned, but whether this
-includes non-USC students is unresolved. Walk-ins were described as students
+and alumni are free; school students were also mentioned. Walk-ins were described as students
 only, and outsiders always need campus entry. These are separate admission-fee
 and access rules: free admission does not establish walk-in/campus eligibility.
 The source is an interview/conversation with Sir Fidel as reported by the user.
-No new interview date or independent written policy was supplied for S02/S03.
+**S04** is the user's next November 2 clarification: the student exemption is
+USC-only; alumni count as outsiders for campus entry while retaining their free
+admission exemption. Parties of five or more require an appointment; fewer than
+five are informal, subject to the supplied student-only walk-in rule. Guided
+tours still require appointments regardless of size. This resolves the earlier
+student-scope and exactly-five questions. S04 supersedes the ambiguities in S03.
+No new interview date or independent written policy was supplied for S02-S04.
 Proposed prose below is edited from the received answers; the exceptions column
 preserves qualifications and identifies missing facts. It is not a verbatim
 transcript or a replacement for Curator review.
@@ -44,19 +48,19 @@ unconfirmed draft wording as if they were helpful approved answers.
 | 01 | What are the weekday opening hours? | Monday-Friday, 8:00-11:00 AM and 1:00-4:00 PM. | The received staff break is 11:30 AM-12:30 PM, inside the wider visitor closure implied by these opening windows. Confirm whether staff-break details should be public; do not change the visitor windows to the break times. Closures in 03 apply. | S01 / Sir Fidel (via user) | 2026-10-30 |
 | 02 | Is the museum open on weekends? | Saturday visiting hours are 8:00-11:00 AM only. | Sunday availability was not expressly supplied. Do not invent Sunday hours or claim all weekends are closed. Closures in 03 apply. | S01 / Sir Fidel (via user) | 2026-10-30 |
 | 03 | Is the museum open during holidays, school breaks or university closures? | The museum is closed during holidays, school breaks and university closures. | Confirm the authoritative campus closure notice/source and how exceptions would be communicated; no dates were supplied. | S01 / Sir Fidel (via user) | 2026-10-30 |
-| 04 | Can I walk in, or do I need an appointment? | Guided tours require an appointment. Walk-ins were clarified as students only, subject to the party-size rule; outsiders must follow campus entry. The original answer permits parties of fewer than five and requires appointments for larger parties. | **Exactly five is still unresolved.** Confirm whether student walk-ins mean USC students only or also outside students with completed campus entry. Admission exemptions do not automatically authorize entry. | S01 / Sir Fidel (via user); S03 / user clarification | 2026-10-30 (S01); 2026-11-02 received (S03) |
-| 05 | How much is admission, and who is exempt? | The stated entrance fee is PHP 50 per person. USC-affiliated visitors, alumni and kindergarten or younger children (08) are admitted free. Admission is free for all visitors during USC Days. | S03 resolves alumni as exempt. Confirm whether the mentioned school-student exemption covers USC students only or all schools, qualifying affiliation/proof, and USC Days dates. Do not turn five visitors into a fee exemption: party size and eligibility are different rules. Do not infer parking/tour charges or payment methods. | S01 (05, 08) / Sir Fidel (via user); S03 / user clarification | 2026-10-30 (S01); 2026-11-02 received (S03) |
+| 04 | Can I walk in, or do I need an appointment? | USC student parties of one to four may make an informal visit. Parties of five or more require an appointment. Guided tours always require an appointment. Outside visitors, including alumni, must follow campus entry. | S04 resolves the inclusive threshold: exactly five requires an appointment. Free admission does not waive campus entry; the informal-party rule does not authorize outsider walk-ins. | S01 / Sir Fidel (via user); S03-S04 / user clarifications | 2026-10-30 (S01); 2026-11-02 received (S03-S04) |
+| 05 | How much is admission, and who is exempt? | The stated entrance fee is PHP 50 per person. Free admission applies to USC-affiliated visitors (including USC students), alumni, and children in kindergarten or below (08). Admission is free for all visitors during USC Days. | S04 confirms the student exemption is USC-only; students from other schools are not exempt merely for being students. Other explicit exemptions still apply. Alumni are free but are outsiders for campus entry. Qualifying proof and USC Days dates remain unspecified; no parking/tour charges or payment method is inferred. | S01 (05, 08) / Sir Fidel (via user); S03-S04 / user clarifications | 2026-10-30 (S01); 2026-11-02 received (S03-S04) |
 | 06 | Who may visit the museum? | The museum is open to all visitors. | Admission, appointment and campus-entry requirements still apply; this is not automatic campus access. Do not restrict researchers-only rules in 28 onto ordinary public visits. | S01 / Sir Fidel (via user) | 2026-10-30 |
 | 07 | What identification or documents do I need? | **No complete public answer yet.** The received answer only refers to campus-entry details. | Obtain the actual checklist, who submits it, the authorized channel and any visitor-category exceptions. Do not invent ID, permission-letter or document requirements. | S01 / Sir Fidel (via user) | 2026-10-30 |
 | 08 | May children visit, and must an adult accompany them? | There is no stated age restriction. Adult accompaniment is encouraged. Accompanying adults should be listed for campus entry. Children in kindergarten or below are admitted free. | Encouraged is not mandatory. Kindergarten is a school level, not an approved numeric age cutoff. Confirm the campus-entry listing process and exceptions; adult admission follows 05. | S01 / Sir Fidel (via user) | 2026-10-30 |
 | 09 | Where is the museum? | Third Level, Learning Resource Center, Josef Baumgartner Building, University of San Carlos, Talamban Campus, Nasipit, Cebu City, Philippines. | The building location is supplied; the specific approved campus visitor entrance/gate is not. Confirm the preferred official address wording/map link. | S01 / Sir Fidel (via user) | 2026-10-30 |
 | 10 | What directions or landmarks should I follow? | **No answer supplied** (`To Be Answered`). | Obtain approved directions, landmarks and visitor entrance. Do not fabricate a gate, route, travel time or landmark. | S01 / Sir Fidel (via user) | 2026-10-30 |
-| 11 | How do outside visitors enter the campus? | Outside visitors must follow the campus-entry process. If arriving in a vehicle, have the campus guard inspect it and direct the driver to the designated parking area. | S03 confirms campus entry is always required for outsiders. Exact pedestrian/vehicle clearance steps, documents and channels remain unspecified; link to 07/15 once confirmed. Do not describe a free-admission outsider as exempt from campus entry. | S01 / Sir Fidel (via user); S03 / user clarification | 2026-10-30 (S01); 2026-11-02 received (S03) |
+| 11 | How do outside visitors enter the campus? | Outside visitors, including alumni, must follow the campus-entry process. If arriving in a vehicle, have the campus guard inspect it and direct the driver to the designated parking area. | S03-S04 confirm outsiders' campus entry and alumni classification. Exact pedestrian/vehicle clearance steps, documents and channels remain unspecified; link to 07/15 once confirmed. Alumni's free admission does not waive campus entry. | S01 / Sir Fidel (via user); S03-S04 / user clarifications | 2026-10-30 (S01); 2026-11-02 received (S03-S04) |
 | 12 | Is parking available, and are there fees or restrictions? | Follow the campus guard's parking directions. | The received answer does not establish parking availability, fees, exact areas or restrictions. Do not advertise free or guaranteed parking. | S01 / Sir Fidel (via user) | 2026-10-30 |
 | 13 | How can a school or group request a visit? | Use the BioSphere website to submit a visit request or inquiry. | The received label is `Visitor Form/Inquiries`; confirm the intended entry point. The current public UI has distinct Request a Visit and Inquiry dialogs. Requests and inquiries do not themselves approve a visit or campus entry. | S01 / Sir Fidel (via user) | 2026-10-30 |
 | 14 | How early should a visit be requested? | Submit the request at least one week before the intended visit. | Confirm whether this means calendar days and whether exceptions are allowed. This is lead-time guidance, not a guaranteed approval deadline. | S01 / Sir Fidel (via user) | 2026-10-30 |
 | 15 | What information and documents are required for a group visit? | **No complete public answer yet.** The received answer refers to campus-entry details. | Obtain the exact group/document checklist and submission process. Public instructions may list required document types; submitted personal details remain private. | S01 / Sir Fidel (via user) | 2026-10-30 |
-| 16 | What group sizes can the museum accommodate? | School tours accommodate a maximum of 50 visitors per batch. Larger parties require separate timed batches, managed by the visiting group as supplied. | S02 explicitly corrects the original `at least 50` to a maximum. Exactly-five walk-in/appointment handling remains unresolved; confirm batch scheduling/approval details without changing the clarified cap. | S01 / Sir Fidel (via user); S02 / user clarification | 2026-10-30 (S01); 2026-11-02 received (S02) |
+| 16 | What group sizes can the museum accommodate? | Parties of five or more require an appointment. School tours accommodate a maximum of 50 visitors per batch. Larger parties require separate timed batches, managed by the visiting group as supplied. | S02 resolves the maximum and S04 resolves exactly five. Detailed batch scheduling/approval arrangements remain to be supplied; do not change the clarified cap. | S01 / Sir Fidel (via user); S02, S04 / user clarifications | 2026-10-30 (S01); 2026-11-02 received (S02, S04) |
 | 17 | Are guided tours available, and do they cost extra? | Guided tours require an appointment through the BioSphere website. | Availability by appointment is supplied; a separate guided-tour fee or exemption is not. Do not say tours are free or included in admission. | S01 / Sir Fidel (via user) | 2026-10-30 |
 | 18 | How will I know whether my visit request is approved? | BioSphere/the curator will notify you by email about approval. | Museum approval and campus-entry clearance are distinct. No response-time guarantee or official sender address was supplied; see 30. | S01 / Sir Fidel (via user) | 2026-10-30 |
 | 19 | How can I request a change or cancellation? | **Confirm the public request channel.** The received answer says through the BioSphere website. | Source inspection currently finds public visit submission and Curator-only update/cancel routes. Confirm whether visitors should use General Inquiry/contact the curator, supplying their reference. Do not promise a visitor self-service cancel/edit button. | S01 / Sir Fidel (via user) | 2026-10-30 |
@@ -76,14 +80,16 @@ unconfirmed draft wording as if they were helpful approved answers.
 
 1. Source/date resolved by user follow-up: Sir Fidel, October 30, 2026. Retain
    any additional original reference if available; do not re-ask as unknown.
-2. The limit is a maximum of 50, not a minimum; larger parties use separate
-   batches. Is exactly five a walk-in party or an appointment/group case?
+2. Size rules are resolved: five or more requires an appointment; fewer than
+   five is informal for eligible USC students; tours have a maximum of 50 per
+   batch and larger parties need separate batches. Confirm only the remaining
+   batch scheduling details, not these settled thresholds.
 3. Supply the campus-entry checklist and approved entrance/directions (07,
    09-11, 15), plus parking availability/fees/restrictions (12).
-4. Alumni exemption is resolved by S03. Confirm whether school students means
-   USC students only or all schools, eligibility/proof and USC Days, and whether
-   guided tours have an additional charge (05, 08, 17). Separate fee exemptions
-   from student walk-in eligibility and outsiders' campus-entry requirements.
+4. Exemptions are resolved by S03-S04: the student exemption is USC-only;
+   alumni are free but count as outsiders for campus entry. Confirm only proof,
+   USC Days dates and any separate guided-tour charge (05, 08, 17). Separate
+   fee exemptions from walk-in eligibility and campus-entry requirements.
 5. Confirm the website's intended change/cancel route (19), detailed item
    restrictions/exceptions (23), and the step-free third-floor route (25).
 6. Supply publishable collection descriptions, official contact details and
