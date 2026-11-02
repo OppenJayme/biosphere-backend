@@ -225,6 +225,18 @@ describe('VisitRequestsService', () => {
     expect(visitDelegate.create).not.toHaveBeenCalled();
   });
 
+  it('rejects a plate repeated with different spacing, hyphens or case', async () => {
+    await expect(
+      service.create(
+        validDto({
+          bringingVehicle: true,
+          vehicles: [{ plateNumber: 'ABC 1234' }, { plateNumber: 'abc-1234' }],
+        }),
+      ),
+    ).rejects.toThrow('vehicles[1].plateNumber duplicates an earlier vehicle.');
+    expect(visitDelegate.create).not.toHaveBeenCalled();
+  });
+
   it('maps stored rows, including schedules, to the curator entity', async () => {
     visitDelegate.findUnique.mockResolvedValue(visitRecord());
 

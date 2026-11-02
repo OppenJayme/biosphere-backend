@@ -256,6 +256,8 @@ Visit-request specific rules:
 - `vehicles`: 1 to 10 entries of `{ plateNumber, carBrand?, carType? }`, each
   stored as one `visit_request_vehicle` row. The list requires
   `bringingVehicle: true`, and `bringingVehicle: true` requires the list.
+  A plate can appear once per request; spacing, hyphens and case are ignored
+  when comparing plates. The number of vehicles is not capped by `visitorCount`.
 - Each entry in `preferredSchedules`, `visitors` and `vehicles` must be an
   object. A nested array such as `vehicles: [[]]` is rejected with 400.
 

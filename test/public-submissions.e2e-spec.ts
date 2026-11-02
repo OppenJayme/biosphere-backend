@@ -453,6 +453,14 @@ describe('Inquiries and visit requests (e2e)', () => {
         { ...validVisit, vehicles: [{ plateNumber: 'ABC 1234' }] },
       ],
       [
+        'the same plate listed twice',
+        {
+          ...validVisit,
+          bringingVehicle: true,
+          vehicles: [{ plateNumber: 'ABC 1234' }, { plateNumber: 'abc-1234' }],
+        },
+      ],
+      [
         'an empty nested vehicle list',
         { ...validVisit, bringingVehicle: true, vehicles: [[]] },
       ],
