@@ -148,9 +148,9 @@ queried directly during the repair.
 **Severity / priority:** S2 Major / P1; blocks an affected specimen's Lots page.
 **Status:** Ready for retest; business decisions recorded 2026-11-01, see the
 disposition record below. Owner reproduction, isolated checks and both builds
-pass. Frozen-enum/read-only compatibility documentation is reconciled. Re-review
-after Charles's 2026-10-31 review, controlled rollout/live retest and independent
-acceptance remain. The database-suite rerun on Prisma 7.10.1 passed on 2026-11-02.
+pass. Frozen-enum/read-only compatibility documentation is reconciled. Charles
+approved backend #221 and it was merged; controlled rollout/live retest and
+independent acceptance remain. The Prisma 7.10.1 database rerun passed on 2026-11-02.
 
 **Actual:** The reported history endpoint returns 500. Source `0f80b67` contains
 an enum migration missing from develop's Prisma schema. An owned PostgreSQL
@@ -227,8 +227,8 @@ deleting the record.
 the historical enum value and (2) the reported quantity change under REQ-4.5-09 /
 BR-08. If the Curator later gives a decision specific to (1), record it there.
 Preserve evidence and do not convert/delete historical events or recalculate
-quantities without a separately approved remediation. This gate does not replace
-the re-review and deployment checks #221 still needs.
+quantities without a separately approved remediation. Charles approved #221;
+its deployment checks and live retest remain outstanding.
 
 **Read-only preflight - 2026-11-02:** Kyer relayed acceptance of retaining the
 adjustment and reaffirmed keeping the value. This is an accepted test action to

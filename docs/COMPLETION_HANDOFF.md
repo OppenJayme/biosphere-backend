@@ -9,7 +9,7 @@ The [November 18 delivery plan](DELIVERY_PLAN_2026-11-18.md) sets the remaining
 milestones, priorities and release completion criteria. Use its grouped queue
 to schedule this handoff; historical passing checks do not become new work.
 
-## Current next actions - 2026-11-01
+## Current next actions - 2026-11-02
 
 This checkpoint supersedes older next-step wording below while preserving its
 dated evidence. Do not turn every historical limitation into a new feature or
@@ -22,11 +22,11 @@ GitHub status refreshed on 2026-11-01 following WhiteBeard's review: frontend
 [#98](https://github.com/OppenJayme/biosphere-frontend/pull/98) at
 `a7cbc17f59b5f77d8274156130263b2acdbe63cb`. Backend #220 merged at
 `ef491c8e4aac89e0eba68f7e34f7108901b445b9` and #222 at
-`4de07c6fd42a0207f1c3d7ab4b9b20a7fd16e3f0`. Backend #221 remains open
-with its business-disposition hold; the user deferred that discussion. Merge
-this documentation PR (#219) after #221 is cleared and integrated.
-Frontend source integration does not establish that the running build has
-been refreshed or that the lot-history backend repair is deployed.
+`4de07c6fd42a0207f1c3d7ab4b9b20a7fd16e3f0`. Backend #221 was approved
+and merged at `175f81cc7b871a63cf54993b2a1b30de62a5a0a4`. Its seven owned
+PostgreSQL/HTTP regressions and integrated build passed with Prisma 7.10.1.
+Source integration does not establish that either running build was refreshed
+or that the lot-history repair has been deployed or accepted live.
 
 ### Merged backend preparation - 2026-11-01
 
@@ -58,10 +58,10 @@ independent module acceptance. No shared connection, migration, auth export,
 record edit or existing browser/server operation was used. The original local
 backend remains on source `f4df176`, and frontend checkout `60ab28b` still has
 on-disk build `KjnKPLGaaPM_cm9tgFdJ_`. Preserve recovery assets before a controlled
-backend refresh, then verify startup and agreed read-only routes. #221's held
-schema/history repair is excluded, so this checkpoint cannot establish that
-`USC-BM-2026-0001` is fixed. Its 7.10.1 lot-history SQL check waits for agreed
-integration of that repair; do not run shared migrations to bypass the hold.
+backend refresh, then verify startup and agreed read-only routes. This dated
+checkpoint excludes #221, so it cannot establish that `USC-BM-2026-0001` is
+fixed. The later 7.10.1 lot-history SQL check passed in an owned fixture;
+deployment and read-only live retest remain separate.
 
 ### Local backend startup checkpoint - 2026-11-01
 
@@ -98,7 +98,7 @@ original backend directory; do not issue broad Node/port kills. There was no
 previous running process to restore. Subsequent manual starts from the original
 checkout still use its retained old build until that checkout is deliberately
 updated. The local startup checkpoint is complete; protected acceptance and
-#221's business/release gate remain separate.
+#221's later rollout and live acceptance remain separate.
 
 ### Protected Curator read-only smoke - 2026-11-01
 
@@ -136,15 +136,14 @@ of another identical read-only smoke.
 | --- | --- | --- |
 | Dependency repair | [Backend #220](https://github.com/OppenJayme/biosphere-backend/pull/220) is merged, including review follow-up `1220d31`. The merged build, 100 HTTP and 18 compatibility assertions pass; the local `4de07c6` backend is now started with passing public root/OpenAPI smoke and the original build retained. Recorded branch production audit is zero entries; eight low development entries remain; no new audit was performed. | Local startup is complete; continue required protected acceptance rather than repeating preparation/startup. This is a temporary verified-worktree launch, not an update of the retained original checkout or independent security acceptance. |
 | Cataloging / Storage | Live XLSX selected commit/retry and 20 existing-event Audit assertions below are complete. Earlier lifecycle, date, media, phone and storage checks retain their recorded scope. | Finish only required unresolved acceptance cases or obtain explicit dispositions; coordinate Inventory fixtures. Museum-template suitability, remaining media/restoration/policy boundaries and independent module acceptance are not supplied by dependency tests. |
-| Specimen lots | Charles's report is now supplied: `USC-BM-2026-0001` fails history reads because a retained `TEMPORARY_ABSENCE` value is absent from develop's Prisma enum. The exact failure was independently reproduced in owned PostgreSQL. [Backend #221](https://github.com/OppenJayme/biosphere-backend/pull/221) proposes backend read compatibility; [frontend #97](https://github.com/OppenJayme/biosphere-frontend/pull/97) is already merged. Recorded branch checks pass: 7 SQL/HTTP regressions, backend 701 unit / 22 existing HTTP and frontend 450 tests, with both builds. | Finish backend #221 review/merge, then coordinate rollout of both integrated sources and read-only retest of the reported specimen and a control. DEF-030 is Ready for retest in #221; no shared migration or historical-row change was performed. John still owns INV-001 through INV-010 manual/live fixture, quantity, placement and movement acceptance. This repair does not enable new temporary-absence adjustments or establish Inventory acceptance. |
+| Specimen lots | The reported `USC-BM-2026-0001` history failure was reproduced in owned PostgreSQL. [Backend #221](https://github.com/OppenJayme/biosphere-backend/pull/221) and [frontend #97](https://github.com/OppenJayme/biosphere-frontend/pull/97) are merged. Seven owned SQL/HTTP regressions and the integrated backend build passed on Prisma 7.10.1; earlier branch checks include backend 701 unit / 22 HTTP and frontend 450 tests. | The rollout owner must identify the intended target, check migration status and deployment-file checksums, then coordinate rollout and read-only retests of the affected specimen, a control, report grouping and storage history. DEF-030 remains Ready for retest. John owns Inventory acceptance; the repair does not enable new temporary-absence writes. |
 | FAQ | Implementation and synthetic matcher/widget evidence exist; authoritative museum answers remain pending. Optional unanswered-question collection stays disabled. | Sir Curator supplies/approves the content-review answers; then use the normal approved workflow and bounded visitor acceptance. Do not invent facts or activate synthetic answers to fill the gap. |
 | Limited offline | Owned SQL/HTTP and accepted-write/tab recovery, the 15 OFF-004 browser assertions and merged #222/#98 request matrix remain recorded. [Approved live session-loss recovery](./OFFLINE_SYNC_GUIDE.md#live-isolated-session-loss-and-re-login-recovery---2026-11-01) adds 28 functional checks: actual frontend 401, preserved local draft, manual re-login and same-ID 200/200 acceptance/retry, with one retained specimen/success audit. | Do not repeat completed owner request/browser/re-login checks as untested. Obtain independent acceptance and disposition of the one unclassified blocked extra attempt and retained fixture. Natural expiry/provider revocation and full PWA are unproved limits, not new features or an automatic repeat queue. DEF-019's historical shared interruption pilot stays stopped. |
 | Audit / Backup and final handoff | Record/filter/form/pagination/reload owner checks and independent disposable Collection/Backup evidence already exist. Real backup/restore remains Deferred. | Address remaining required correlation/access/provider/timing cases or accepted limitations, then one pinned integration/demo round and named module sign-off. Preserve the distinction between metadata history and a real backup/restore. |
 
-Practical sequence: backend #220/#222 and frontend #97/#98 are merged. Merged
-backend preparation, focused checks and local startup are complete while #221's decision is
-deferred. Its lot repair and documentation #219 still wait for that gate;
-do not deploy the unmerged repair or call the affected specimen fixed. Continue
+Practical sequence: backend #220/#221/#222 and frontend #97/#98 are merged.
+The November 1 backend preparation and local startup predate #221. Do not call
+the affected specimen fixed until the integrated repair is deployed and retested. Continue
 the exact protected acceptance gaps using an agreed safe target. Check the
 actual source/build and migration state before future rollout; a
 merged PR alone does not update the running application. Review can proceed
@@ -161,7 +160,7 @@ four sessions, or complete module acceptance.
 
 | Batch | Exact remaining work to select | Dependency / stopping rule |
 | --- | --- | --- |
-| Review and integration | Backend #220/#222 and frontend #97/#98 are merged. #221's business decision/review remains deferred, followed by documentation #219. Verify merged backend build/import/offline behavior independently of that hold before the focused rollout smoke. | Respect the #221 hold; do not repeat already-passing suites without a relevant integration change. |
+| Review and integration | Backend #220/#221/#222 and frontend #97/#98 are merged. The #221 compatibility checks passed in an owned fixture; the November 1 runtime predates that repair. | Confirm deployment target, migration status and checksums, then perform the agreed read-only rollout checks. Do not repeat passing suites without a relevant integration change. |
 | Required owner acceptance | CAT-011 live media role/wrong-pair and failure boundaries; CAT-014 archived-match policy and remaining response-ordering scope; CAT-016 complete live restoration branch; OFF-004 negative boundaries and genuine expiry/re-login scope; remaining AUD-001 access/correlation boundaries and BAK-001 populated UI scope. | Reconcile each exact subcase with its guide/register before execution. Shared writes, account changes, provider-failure injection and interruption need an agreed safe setup. Prior synthetic, owned-SQL and manual passes are retained, not repeated or promoted to live proof. |
 | External answers and owner decisions | Sir Curator's approved FAQ content; team disposition of FAQ normalized-question/alias collisions and archived specimen duplicate matches; John's Inventory fixture/placement evidence; reviewer disposition of DEF-011, OBS-001, OBS-005 and offline release limits. | Request only still-unanswered decisions. No invented museum facts, silently accepted limitations, or Inventory feature changes. Optional FAQ collection stays disabled; real backup/restore remains separately Deferred. |
 | Final scoped release acceptance | Pin the served backend/frontend source and build; run one agreed role/workflow/demo round, reconcile the register and known limitations, and obtain named owner/reviewer sign-off. | Relevant repairs are integrated and required fixtures/content available. Record missing dependencies honestly; paper/manual alignment uses the accepted results rather than engineering test counts as stakeholder approval. |
