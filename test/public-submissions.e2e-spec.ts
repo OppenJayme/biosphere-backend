@@ -345,7 +345,10 @@ describe('Inquiries and visit requests (e2e)', () => {
           ...validVisit,
           visitors: [{ firstName: 'Ana', lastName: 'Reyes' }],
           bringingVehicle: true,
-          plateNumber: 'ABC 1234',
+          vehicles: [
+            { plateNumber: 'ABC 1234', carBrand: 'Toyota' },
+            { plateNumber: 'XYZ 5678', carType: 'School Bus' },
+          ],
         })
         .expect(201);
 
@@ -361,7 +364,18 @@ describe('Inquiries and visit requests (e2e)', () => {
           { preference_order: 2 },
         ],
         visit_request_visitor: [{ visitor_name: 'Ana Reyes' }],
-        visit_request_vehicle: [{ plate_number: 'ABC 1234' }],
+        visit_request_vehicle: [
+          {
+            plate_number: 'ABC 1234',
+            vehicle_brand: 'Toyota',
+            vehicle_type: null,
+          },
+          {
+            plate_number: 'XYZ 5678',
+            vehicle_brand: null,
+            vehicle_type: 'School Bus',
+          },
+        ],
         consent_accepted_at: expect.any(Date),
       });
     });
@@ -408,7 +422,70 @@ describe('Inquiries and visit requests (e2e)', () => {
         },
       ],
       ['zero visitors', { ...validVisit, visitorCount: 0 }],
-      ['a vehicle without a plate', { ...validVisit, bringingVehicle: true }],
+      [
+        'bringing a vehicle with none listed',
+        { ...validVisit, bringingVehicle: true },
+      ],
+      [
+        'an empty vehicle list',
+        { ...validVisit, bringingVehicle: true, vehicles: [] },
+      ],
+      [
+        'a vehicle without a plate',
+        {
+          ...validVisit,
+          bringingVehicle: true,
+          vehicles: [{ plateNumber: 'ABC 1234' }, { carBrand: 'Toyota' }],
+        },
+      ],
+      [
+        'more than ten vehicles',
+        {
+          ...validVisit,
+          bringingVehicle: true,
+          vehicles: Array.from({ length: 11 }, (_, index) => ({
+            plateNumber: `ABC ${index}`,
+          })),
+        },
+      ],
+      [
+        'vehicles without bringingVehicle',
+        { ...validVisit, vehicles: [{ plateNumber: 'ABC 1234' }] },
+      ],
+      [
+        'the same plate listed twice',
+        {
+          ...validVisit,
+          bringingVehicle: true,
+          vehicles: [{ plateNumber: 'ABC 1234' }, { plateNumber: 'abc-1234' }],
+        },
+      ],
+      [
+        'an empty nested vehicle list',
+        { ...validVisit, bringingVehicle: true, vehicles: [[]] },
+      ],
+      [
+        'a vehicle inside a nested list',
+        {
+          ...validVisit,
+          bringingVehicle: true,
+          vehicles: [[{ plateNumber: 'ABC 1234' }]],
+        },
+      ],
+      ['an empty nested visitor list', { ...validVisit, visitors: [[]] }],
+      [
+        'a visitor inside a nested list',
+        { ...validVisit, visitors: [[{ firstName: 'Ana' }]] },
+      ],
+      [
+        'a schedule inside a nested list',
+        {
+          ...validVisit,
+          preferredSchedules: [
+            [{ date: '2030-10-15', startTime: '09:00', endTime: '11:00' }],
+          ],
+        },
+      ],
       ['an over-long purpose', { ...validVisit, purpose: 'x'.repeat(1001) }],
     ])('rejects %s with 400 and stores nothing', async (_label, body) => {
       await request(app.getHttpServer())
@@ -657,6 +734,23 @@ describe('Inquiries and visit requests (e2e)', () => {
           .send({ status })
           .expect(200);
       }
+    });
+
+    it('reject a referral with a schedule inside a nested list', async () => {
+      await request(app.getHttpServer())
+        .post('/inquiries')
+        .send(validInquiry)
+        .expect(201);
+
+      await request(app.getHttpServer())
+        .post(`/inquiries/${inquiryId}/referral`)
+        .set('Authorization', auth)
+        .send({
+          ...referralBody,
+          preferredSchedules: [referralBody.preferredSchedules],
+        })
+        .expect(400);
+      expect(visits).toHaveLength(0);
     });
 
     it('refer an inquiry to a new Pending visit request', async () => {

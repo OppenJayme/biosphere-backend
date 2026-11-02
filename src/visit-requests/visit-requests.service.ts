@@ -127,15 +127,11 @@ export class VisitRequestsService {
             })),
           },
           visit_request_vehicle: {
-            create: dto.bringingVehicle
-              ? [
-                  {
-                    plate_number: dto.plateNumber ?? null,
-                    vehicle_brand: dto.carBrand ?? null,
-                    vehicle_type: dto.carType ?? null,
-                  },
-                ]
-              : [],
+            create: (dto.vehicles ?? []).map((vehicle) => ({
+              plate_number: vehicle.plateNumber,
+              vehicle_brand: vehicle.carBrand ?? null,
+              vehicle_type: vehicle.carType ?? null,
+            })),
           },
         },
       });
@@ -628,15 +624,23 @@ export class VisitRequestsService {
   }
 
   private assertVehicleValid(dto: CreateVisitRequestDto): void {
-    const hasVehicleDetails =
-      dto.plateNumber !== undefined ||
-      dto.carBrand !== undefined ||
-      dto.carType !== undefined;
-    if (hasVehicleDetails && dto.bringingVehicle !== true) {
+    if (dto.vehicles !== undefined && dto.bringingVehicle !== true) {
       throw new BadRequestException(
         'Vehicle details require bringingVehicle to be true.',
       );
     }
+
+    const seen = new Set<string>();
+    dto.vehicles?.forEach((vehicle, index) => {
+      // Spacing, hyphens and case don't change a plate: "abc-1234" repeats "ABC 1234".
+      const plate = vehicle.plateNumber.replace(/[\s-]+/g, '').toUpperCase();
+      if (seen.has(plate)) {
+        throw new BadRequestException(
+          `vehicles[${index}].plateNumber duplicates an earlier vehicle.`,
+        );
+      }
+      seen.add(plate);
+    });
   }
 
   private async findOneOrThrow(
