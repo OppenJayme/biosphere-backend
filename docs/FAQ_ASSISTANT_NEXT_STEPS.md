@@ -6,6 +6,13 @@ or active knowledge was changed and no public ask request was made here.
 
 ## Progress update - 2026-10-25
 
+Current content update - 2026-11-02: thirty answers have now been supplied by
+the user and transcribed into the [FAQ intake sheet](./FAQ_CONTENT_INTAKE_2026-11-02.md).
+Next is source/date confirmation and the sheet's precise factual clarifications,
+then approval/normal entry workflow and bounded visitor acceptance. Do not
+re-ask for every fact as if nothing was provided. No public activation, matcher
+change, paid service or database write is included in this documentation slice.
+
 **Current direction: laptop-only demo, no new paid services.** Keep optional
 question collection disabled; hosted migration/scheduler work is parked pending
 its separate approval gates. Backend #190 is merged with successful PR CI.

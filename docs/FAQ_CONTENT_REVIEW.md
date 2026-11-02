@@ -114,6 +114,14 @@ scope eligibility, not thresholds or a supported-language promise.
 
 ## Real museum content review sheet
 
+2026-11-02 update: the user supplied thirty museum FAQ answers. The
+[content intake and clarification sheet](./FAQ_CONTENT_INTAKE_2026-11-02.md)
+now records all answers, proposed public wording, exceptions and internal-data
+boundaries. Authoritative approver/source and confirmation dates remain
+unprovided; November 2 is the received date only. Several facts are incomplete
+or ambiguous. No entry was created or activated. The older inventory below is
+the October 25 checkpoint, not a claim that no answers have since arrived.
+
 This is a proposed review inventory, **not approved museum information**. Real
 answers and authoritative sources were not supplied in this task. Leave them
 unapproved rather than substituting synthetic facts. This does not reopen the
