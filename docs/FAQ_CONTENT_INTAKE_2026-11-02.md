@@ -19,6 +19,13 @@ a maximum of 50. This resolves the original `at least 50` wording: larger
 parties need separate batches as already described. Exactly five visitors
 remains unresolved. Do not backdate that wording clarification as an additional
 direct Curator confirmation.
+**S03** is the user's further November 2 clarification: USC-affiliated visitors
+and alumni are free; school students were also mentioned, but whether this
+includes non-USC students is unresolved. Walk-ins were described as students
+only, and outsiders always need campus entry. These are separate admission-fee
+and access rules: free admission does not establish walk-in/campus eligibility.
+The source is an interview/conversation with Sir Fidel as reported by the user.
+No new interview date or independent written policy was supplied for S02/S03.
 Proposed prose below is edited from the received answers; the exceptions column
 preserves qualifications and identifies missing facts. It is not a verbatim
 transcript or a replacement for Curator review.
@@ -37,14 +44,14 @@ unconfirmed draft wording as if they were helpful approved answers.
 | 01 | What are the weekday opening hours? | Monday-Friday, 8:00-11:00 AM and 1:00-4:00 PM. | The received staff break is 11:30 AM-12:30 PM, inside the wider visitor closure implied by these opening windows. Confirm whether staff-break details should be public; do not change the visitor windows to the break times. Closures in 03 apply. | S01 / Sir Fidel (via user) | 2026-10-30 |
 | 02 | Is the museum open on weekends? | Saturday visiting hours are 8:00-11:00 AM only. | Sunday availability was not expressly supplied. Do not invent Sunday hours or claim all weekends are closed. Closures in 03 apply. | S01 / Sir Fidel (via user) | 2026-10-30 |
 | 03 | Is the museum open during holidays, school breaks or university closures? | The museum is closed during holidays, school breaks and university closures. | Confirm the authoritative campus closure notice/source and how exceptions would be communicated; no dates were supplied. | S01 / Sir Fidel (via user) | 2026-10-30 |
-| 04 | Can I walk in, or do I need an appointment? | Guided tours require an appointment. Walk-in parties of fewer than five may be accommodated; larger parties require an appointment. | **Exactly five is unresolved:** 04 says fewer than five, while 16 defines a group as more than five. Confirm the inclusive threshold before publishing either size rule. | S01 / Sir Fidel (via user) | 2026-10-30 |
-| 05 | How much is admission, and who is exempt? | The stated entrance fee is PHP 50 per person. USC-affiliated visitors and kindergarten or younger children (08) are admitted free. Admission is free for all visitors during USC Days. **Alumni treatment requires confirmation.** | The received parenthetical says `an exception to Alumni`; confirm whether alumni are exempt or excluded from the free-affiliation rule, qualifying USC affiliation/proof, and what dates count as USC Days. Do not infer parking, tour charges, payment methods or other discounts. | S01 (05, 08) / Sir Fidel (via user) | 2026-10-30 |
+| 04 | Can I walk in, or do I need an appointment? | Guided tours require an appointment. Walk-ins were clarified as students only, subject to the party-size rule; outsiders must follow campus entry. The original answer permits parties of fewer than five and requires appointments for larger parties. | **Exactly five is still unresolved.** Confirm whether student walk-ins mean USC students only or also outside students with completed campus entry. Admission exemptions do not automatically authorize entry. | S01 / Sir Fidel (via user); S03 / user clarification | 2026-10-30 (S01); 2026-11-02 received (S03) |
+| 05 | How much is admission, and who is exempt? | The stated entrance fee is PHP 50 per person. USC-affiliated visitors, alumni and kindergarten or younger children (08) are admitted free. Admission is free for all visitors during USC Days. | S03 resolves alumni as exempt. Confirm whether the mentioned school-student exemption covers USC students only or all schools, qualifying affiliation/proof, and USC Days dates. Do not turn five visitors into a fee exemption: party size and eligibility are different rules. Do not infer parking/tour charges or payment methods. | S01 (05, 08) / Sir Fidel (via user); S03 / user clarification | 2026-10-30 (S01); 2026-11-02 received (S03) |
 | 06 | Who may visit the museum? | The museum is open to all visitors. | Admission, appointment and campus-entry requirements still apply; this is not automatic campus access. Do not restrict researchers-only rules in 28 onto ordinary public visits. | S01 / Sir Fidel (via user) | 2026-10-30 |
 | 07 | What identification or documents do I need? | **No complete public answer yet.** The received answer only refers to campus-entry details. | Obtain the actual checklist, who submits it, the authorized channel and any visitor-category exceptions. Do not invent ID, permission-letter or document requirements. | S01 / Sir Fidel (via user) | 2026-10-30 |
 | 08 | May children visit, and must an adult accompany them? | There is no stated age restriction. Adult accompaniment is encouraged. Accompanying adults should be listed for campus entry. Children in kindergarten or below are admitted free. | Encouraged is not mandatory. Kindergarten is a school level, not an approved numeric age cutoff. Confirm the campus-entry listing process and exceptions; adult admission follows 05. | S01 / Sir Fidel (via user) | 2026-10-30 |
 | 09 | Where is the museum? | Third Level, Learning Resource Center, Josef Baumgartner Building, University of San Carlos, Talamban Campus, Nasipit, Cebu City, Philippines. | The building location is supplied; the specific approved campus visitor entrance/gate is not. Confirm the preferred official address wording/map link. | S01 / Sir Fidel (via user) | 2026-10-30 |
 | 10 | What directions or landmarks should I follow? | **No answer supplied** (`To Be Answered`). | Obtain approved directions, landmarks and visitor entrance. Do not fabricate a gate, route, travel time or landmark. | S01 / Sir Fidel (via user) | 2026-10-30 |
-| 11 | How do outside visitors enter the campus? | If arriving in a vehicle, have the campus guard inspect it and direct the driver to the designated parking area. | This describes vehicle arrival only. Pedestrian entry, advance clearance, required documents and approval steps are not supplied; link to 07/15 once confirmed. | S01 / Sir Fidel (via user) | 2026-10-30 |
+| 11 | How do outside visitors enter the campus? | Outside visitors must follow the campus-entry process. If arriving in a vehicle, have the campus guard inspect it and direct the driver to the designated parking area. | S03 confirms campus entry is always required for outsiders. Exact pedestrian/vehicle clearance steps, documents and channels remain unspecified; link to 07/15 once confirmed. Do not describe a free-admission outsider as exempt from campus entry. | S01 / Sir Fidel (via user); S03 / user clarification | 2026-10-30 (S01); 2026-11-02 received (S03) |
 | 12 | Is parking available, and are there fees or restrictions? | Follow the campus guard's parking directions. | The received answer does not establish parking availability, fees, exact areas or restrictions. Do not advertise free or guaranteed parking. | S01 / Sir Fidel (via user) | 2026-10-30 |
 | 13 | How can a school or group request a visit? | Use the BioSphere website to submit a visit request or inquiry. | The received label is `Visitor Form/Inquiries`; confirm the intended entry point. The current public UI has distinct Request a Visit and Inquiry dialogs. Requests and inquiries do not themselves approve a visit or campus entry. | S01 / Sir Fidel (via user) | 2026-10-30 |
 | 14 | How early should a visit be requested? | Submit the request at least one week before the intended visit. | Confirm whether this means calendar days and whether exceptions are allowed. This is lead-time guidance, not a guaranteed approval deadline. | S01 / Sir Fidel (via user) | 2026-10-30 |
@@ -73,8 +80,10 @@ unconfirmed draft wording as if they were helpful approved answers.
    batches. Is exactly five a walk-in party or an appointment/group case?
 3. Supply the campus-entry checklist and approved entrance/directions (07,
    09-11, 15), plus parking availability/fees/restrictions (12).
-4. Confirm admission eligibility/proof and USC Days, and whether guided tours
-   have an additional charge (05, 08, 17).
+4. Alumni exemption is resolved by S03. Confirm whether school students means
+   USC students only or all schools, eligibility/proof and USC Days, and whether
+   guided tours have an additional charge (05, 08, 17). Separate fee exemptions
+   from student walk-in eligibility and outsiders' campus-entry requirements.
 5. Confirm the website's intended change/cancel route (19), detailed item
    restrictions/exceptions (23), and the step-free third-floor route (25).
 6. Supply publishable collection descriptions, official contact details and
@@ -97,6 +106,12 @@ not a claim that the user's message contains those private records. Whether
 the stated staff break is intended as public information remains a question.
 
 ## Matching and activation handoff
+
+For the capstone evidence, retain a dated interview/conversation summary and
+this clarification trail. Describe the facts as curator-interview findings
+reported by the user, not independently checked written institutional policy,
+visitor usability results or measured chatbot accuracy. Seek precise wording
+only for unresolved rules; a new full interview is not required by this sheet.
 
 Once an answer is approved, record its exact wording, source/approver,
 confirmation date, exceptions, review trigger and approved aliases/keywords in
