@@ -9,6 +9,7 @@ import {
   IsEmail,
   IsInt,
   IsNotEmpty,
+  IsObject,
   IsOptional,
   IsString,
   Matches,
@@ -82,6 +83,7 @@ export class CreateVisitRequestDto {
   @IsArray()
   @ArrayMinSize(1)
   @ArrayMaxSize(MAX_PREFERRED_SCHEDULES)
+  @IsObject({ each: true })
   @ValidateNested({ each: true })
   @Type(() => PreferredScheduleDto)
   preferredSchedules!: PreferredScheduleDto[];
@@ -100,6 +102,7 @@ export class CreateVisitRequestDto {
   @IsOptional()
   @IsArray()
   @ArrayMaxSize(MAX_VISITOR_COUNT)
+  @IsObject({ each: true })
   @ValidateNested({ each: true })
   @Type(() => VisitorDto)
   visitors?: VisitorDto[];
@@ -122,6 +125,7 @@ export class CreateVisitRequestDto {
   @IsArray()
   @ArrayMinSize(1)
   @ArrayMaxSize(MAX_VEHICLES)
+  @IsObject({ each: true })
   @ValidateNested({ each: true })
   @Type(() => VehicleDto)
   vehicles?: VehicleDto[];

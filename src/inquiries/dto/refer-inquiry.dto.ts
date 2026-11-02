@@ -6,6 +6,7 @@ import {
   IsArray,
   IsInt,
   IsNotEmpty,
+  IsObject,
   IsOptional,
   IsString,
   Matches,
@@ -75,6 +76,7 @@ export class ReferInquiryDto {
   @IsArray()
   @ArrayMinSize(1)
   @ArrayMaxSize(MAX_PREFERRED_SCHEDULES)
+  @IsObject({ each: true })
   @ValidateNested({ each: true })
   @Type(() => PreferredScheduleDto)
   preferredSchedules!: PreferredScheduleDto[];

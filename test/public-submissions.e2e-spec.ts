@@ -452,6 +452,32 @@ describe('Inquiries and visit requests (e2e)', () => {
         'vehicles without bringingVehicle',
         { ...validVisit, vehicles: [{ plateNumber: 'ABC 1234' }] },
       ],
+      [
+        'an empty nested vehicle list',
+        { ...validVisit, bringingVehicle: true, vehicles: [[]] },
+      ],
+      [
+        'a vehicle inside a nested list',
+        {
+          ...validVisit,
+          bringingVehicle: true,
+          vehicles: [[{ plateNumber: 'ABC 1234' }]],
+        },
+      ],
+      ['an empty nested visitor list', { ...validVisit, visitors: [[]] }],
+      [
+        'a visitor inside a nested list',
+        { ...validVisit, visitors: [[{ firstName: 'Ana' }]] },
+      ],
+      [
+        'a schedule inside a nested list',
+        {
+          ...validVisit,
+          preferredSchedules: [
+            [{ date: '2030-10-15', startTime: '09:00', endTime: '11:00' }],
+          ],
+        },
+      ],
       ['an over-long purpose', { ...validVisit, purpose: 'x'.repeat(1001) }],
     ])('rejects %s with 400 and stores nothing', async (_label, body) => {
       await request(app.getHttpServer())
@@ -700,6 +726,23 @@ describe('Inquiries and visit requests (e2e)', () => {
           .send({ status })
           .expect(200);
       }
+    });
+
+    it('reject a referral with a schedule inside a nested list', async () => {
+      await request(app.getHttpServer())
+        .post('/inquiries')
+        .send(validInquiry)
+        .expect(201);
+
+      await request(app.getHttpServer())
+        .post(`/inquiries/${inquiryId}/referral`)
+        .set('Authorization', auth)
+        .send({
+          ...referralBody,
+          preferredSchedules: [referralBody.preferredSchedules],
+        })
+        .expect(400);
+      expect(visits).toHaveLength(0);
     });
 
     it('refer an inquiry to a new Pending visit request', async () => {

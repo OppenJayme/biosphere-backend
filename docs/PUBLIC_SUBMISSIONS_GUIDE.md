@@ -256,6 +256,8 @@ Visit-request specific rules:
 - `vehicles`: 1 to 10 entries of `{ plateNumber, carBrand?, carType? }`, each
   stored as one `visit_request_vehicle` row. The list requires
   `bringingVehicle: true`, and `bringingVehicle: true` requires the list.
+- Each entry in `preferredSchedules`, `visitors` and `vehicles` must be an
+  object. A nested array such as `vehicles: [[]]` is rejected with 400.
 
 ## Consistency and audit
 
