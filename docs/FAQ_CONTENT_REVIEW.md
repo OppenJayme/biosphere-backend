@@ -114,8 +114,16 @@ scope eligibility, not thresholds or a supported-language promise.
 
 ## Real museum content review sheet
 
-This is a proposed review inventory, **not approved museum information**. Real
-answers and authoritative sources were not supplied in this task. Leave them
+2026-11-02 update: the user supplied responses to thirty questions, some
+incomplete or unanswered. The [intake sheet](./FAQ_CONTENT_INTAKE_2026-11-02.md)
+records reported interview facts and later user clarifications, proposed wording,
+exceptions and open questions. Sir Fidel and October 30 are reported via the
+user; later edits and clarifications are not independently approved wording.
+Each entry needs its own content-owner approval before activation. No entry was
+created or activated. The older inventory below is the October 25 checkpoint.
+
+This is a proposed review inventory, **not approved museum information**. At the October 25 checkpoint, real
+answers and authoritative sources had not yet been supplied. Leave them
 unapproved rather than substituting synthetic facts. This does not reopen the
 already-answered eight business-rule decisions; it requests factual content and
 its provenance only.

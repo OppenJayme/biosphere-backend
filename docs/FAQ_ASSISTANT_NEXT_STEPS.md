@@ -4,6 +4,15 @@ Source review checkpoint, not feature acceptance or approval to publish test
 answers. Backend reviewed at `a3961d1`; frontend at `9ea97c7`. No chatbot code
 or active knowledge was changed and no public ask request was made here.
 
+## Content update - 2026-11-02
+
+The user supplied responses to thirty questions, including incomplete and
+unanswered items. The [FAQ intake sheet](./FAQ_CONTENT_INTAKE_2026-11-02.md)
+records reported interview facts, later user clarifications, and unresolved
+scope and workflow questions. Confirm exact wording and per-entry approval
+before activation; do not discard the answers already supplied. No public FAQ
+activation, matcher change or database write was made by this update.
+
 ## Progress update - 2026-10-25
 
 **Current direction: laptop-only demo, no new paid services.** Keep optional
