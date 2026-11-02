@@ -4,19 +4,16 @@ Source review checkpoint, not feature acceptance or approval to publish test
 answers. Backend reviewed at `a3961d1`; frontend at `9ea97c7`. No chatbot code
 or active knowledge was changed and no public ask request was made here.
 
-## Progress update - 2026-10-25
+## Content update - 2026-11-02
 
-Current content update - 2026-11-02: thirty answers have now been supplied by
-the user and transcribed into the [FAQ intake sheet](./FAQ_CONTENT_INTAKE_2026-11-02.md).
-User follow-up confirms Sir Fidel as source/approver on October 30, 2026 and
-clarifies the school-tour limit as a maximum of 50 per batch. Next are only
-the remaining factual clarifications and normal entry/activation workflow for
-complete confirmed answers, followed by bounded visitor acceptance. Do not
-re-ask for every fact as if nothing was provided. No public activation, matcher
-change, paid service or database write is included in this documentation slice.
-The subsequent user clarification also resolves free student admission as
-USC-only, alumni as free but subject to outsider campus entry, and five or more
-as requiring an appointment. These are no longer pending content questions.
+The user supplied responses to thirty questions, including incomplete and
+unanswered items. The [FAQ intake sheet](./FAQ_CONTENT_INTAKE_2026-11-02.md)
+records reported interview facts, later user clarifications, and unresolved
+scope and workflow questions. Confirm exact wording and per-entry approval
+before activation; do not discard the answers already supplied. No public FAQ
+activation, matcher change or database write was made by this update.
+
+## Progress update - 2026-10-25
 
 **Current direction: laptop-only demo, no new paid services.** Keep optional
 question collection disabled; hosted migration/scheduler work is parked pending

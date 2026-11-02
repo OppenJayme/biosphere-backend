@@ -1,6 +1,7 @@
 # Museum FAQ content intake - 2026-11-02
 
-Thirty answers were supplied by the user on November 2, 2026 (Asia/Singapore).
+The user supplied responses to thirty questions on November 2, 2026
+(Asia/Singapore); some responses were incomplete or unanswered.
 This is an editorial review sheet, not a public knowledge activation or a claim
 that every answer is complete or institutionally approved. No database entry,
 status, matcher rule, alias, threshold or visitor-facing page was changed.
@@ -12,8 +13,8 @@ In the follow-up, the user confirmed Sir Fidel as the source/approving person
 and October 30, 2026 as the confirmation date. This is recorded as reported
 Curator confirmation via the user, not independent contact with Sir Fidel.
 November 2 remains the received date; it is not substituted for October 30.
-The source-confirmation date applies to the supplied list, including its
-explicit unanswered/incomplete items; it does not supply their missing facts.
+October 30 is the reported conversation date, not confirmation that incomplete
+or unanswered items have a complete answer or approval of edited wording.
 **S02** is the user's November 2 clarification that the school-tour limit is
 a maximum of 50. This resolves the original `at least 50` wording: larger
 parties need separate batches as already described. Do not backdate that
@@ -27,73 +28,80 @@ The source is an interview/conversation with Sir Fidel as reported by the user.
 USC-only; alumni count as outsiders for campus entry while retaining their free
 admission exemption. Parties of five or more require an appointment; fewer than
 five are informal, subject to the supplied student-only walk-in rule. Guided
-tours still require appointments regardless of size. This resolves the earlier
-student-scope and exactly-five questions. S04 supersedes the ambiguities in S03.
+tours still require appointments regardless of size. Exactly five requires an
+appointment, as relayed by the user. The informal rule's eligibility for
+non-USC students, staff, alumni and other outsiders remains unclear.
 No new interview date or independent written policy was supplied for S02-S04.
 Proposed prose below is edited from the received answers; the exceptions column
 preserves qualifications and identifies missing facts. It is not a verbatim
 transcript or a replacement for Curator review.
 
-The supplied facts now have reported Curator confirmation; this edited sheet
-remains **review-only**, with no entry published by this update. Complete
-answers can proceed individually through the normal entry workflow after
-checking fidelity; an unanswered row need not delay unrelated confirmed facts.
+The October 30 conversation is reported by the user; subsequent clarifications
+are user-relayed and not a separate direct Curator confirmation. This sheet is
+**review-only**. Before activating an entry, the content owner must approve its
+exact wording, source, date and exceptions under the normal review workflow.
+An unanswered row need not prevent separate review of an unrelated answer.
 Never publish `N/A`, `To Be Answered`, vague document references or
 unconfirmed draft wording as if they were helpful approved answers.
 
 ## Draft questions, answers and exceptions
 
-| ID | Visitor question | Proposed public answer / supplied scope | Exceptions or clarification needed | Source / approver | Source confirmation date |
+| ID | Visitor question | Proposed public answer / supplied scope | Exceptions or clarification needed | Reported source | Conversation / receipt date; not wording approval |
 | --- | --- | --- | --- | --- | --- |
 | 01 | What are the weekday opening hours? | Monday-Friday, 8:00-11:00 AM and 1:00-4:00 PM. | The received staff break is 11:30 AM-12:30 PM, inside the wider visitor closure implied by these opening windows. Confirm whether staff-break details should be public; do not change the visitor windows to the break times. Closures in 03 apply. | S01 / Sir Fidel (via user) | 2026-10-30 |
-| 02 | Is the museum open on weekends? | Saturday visiting hours are 8:00-11:00 AM only. | Sunday availability was not expressly supplied. Do not invent Sunday hours or claim all weekends are closed. Closures in 03 apply. | S01 / Sir Fidel (via user) | 2026-10-30 |
+| 02 | What are Saturday visiting hours? | Saturday visiting hours are 8:00-11:00 AM. | Sunday availability was not expressly supplied. Confirm it before publishing a weekend or Sunday answer; do not infer it from Saturday hours. Closures in 03 apply. | S01 / Sir Fidel (via user) | 2026-10-30 |
 | 03 | Is the museum open during holidays, school breaks or university closures? | The museum is closed during holidays, school breaks and university closures. | Confirm the authoritative campus closure notice/source and how exceptions would be communicated; no dates were supplied. | S01 / Sir Fidel (via user) | 2026-10-30 |
-| 04 | Can I walk in, or do I need an appointment? | USC student parties of one to four may make an informal visit. Parties of five or more require an appointment. Guided tours always require an appointment. Outside visitors, including alumni, must follow campus entry. | S04 resolves the inclusive threshold: exactly five requires an appointment. Free admission does not waive campus entry; the informal-party rule does not authorize outsider walk-ins. | S01 / Sir Fidel (via user); S03-S04 / user clarifications | 2026-10-30 (S01); 2026-11-02 received (S03-S04) |
-| 05 | How much is admission, and who is exempt? | The stated entrance fee is PHP 50 per person. Free admission applies to USC-affiliated visitors (including USC students), alumni, and children in kindergarten or below (08). Admission is free for all visitors during USC Days. | S04 confirms the student exemption is USC-only; students from other schools are not exempt merely for being students. Other explicit exemptions still apply. Alumni are free but are outsiders for campus entry. Qualifying proof and USC Days dates remain unspecified; no parking/tour charges or payment method is inferred. | S01 (05, 08) / Sir Fidel (via user); S03-S04 / user clarifications | 2026-10-30 (S01); 2026-11-02 received (S03-S04) |
+| 04 | Can I walk in, or do I need an appointment? | The user reports that student walk-ins of fewer than five are informal; parties of five or more require an appointment. Guided tours always require an appointment. Outside visitors, including alumni, must follow campus entry. | Exactly five requires an appointment as relayed. Confirm which students qualify and whether USC staff, alumni or other outside visitors in parties of one to four may walk in or need appointments. Campus entry and fee exemptions are separate; do not infer eligibility. | S01 / Sir Fidel (via user); S03-S04 / user clarifications | 2026-10-30 (S01); 2026-11-02 received (S03-S04) |
+| 05 | How much is admission, and who is exempt? | The stated entrance fee is PHP 50 per person. Free admission applies to USC-affiliated visitors (including USC students), alumni, and children in kindergarten or below. Admission is free for all visitors during USC Days. | S04 confirms the student exemption is USC-only; students from other schools are not exempt merely for being students. Other explicit exemptions still apply. Alumni are free but are outsiders for campus entry. Qualifying proof and USC Days dates remain unspecified; no parking/tour charges or payment method is inferred. | S01 (05, 08) / Sir Fidel (via user); S03-S04 / user clarifications | 2026-10-30 (S01); 2026-11-02 received (S03-S04) |
 | 06 | Who may visit the museum? | The museum is open to all visitors. | Admission, appointment and campus-entry requirements still apply; this is not automatic campus access. Do not restrict researchers-only rules in 28 onto ordinary public visits. | S01 / Sir Fidel (via user) | 2026-10-30 |
 | 07 | What identification or documents do I need? | **No complete public answer yet.** The received answer only refers to campus-entry details. | Obtain the actual checklist, who submits it, the authorized channel and any visitor-category exceptions. Do not invent ID, permission-letter or document requirements. | S01 / Sir Fidel (via user) | 2026-10-30 |
 | 08 | May children visit, and must an adult accompany them? | There is no stated age restriction. Adult accompaniment is encouraged. Accompanying adults should be listed for campus entry. Children in kindergarten or below are admitted free. | Encouraged is not mandatory. Kindergarten is a school level, not an approved numeric age cutoff. Confirm the campus-entry listing process and exceptions; adult admission follows 05. | S01 / Sir Fidel (via user) | 2026-10-30 |
 | 09 | Where is the museum? | Third Level, Learning Resource Center, Josef Baumgartner Building, University of San Carlos, Talamban Campus, Nasipit, Cebu City, Philippines. | The building location is supplied; the specific approved campus visitor entrance/gate is not. Confirm the preferred official address wording/map link. | S01 / Sir Fidel (via user) | 2026-10-30 |
-| 10 | What directions or landmarks should I follow? | **No answer supplied** (`To Be Answered`). | Obtain approved directions, landmarks and visitor entrance. Do not fabricate a gate, route, travel time or landmark. | S01 / Sir Fidel (via user) | 2026-10-30 |
+| 10 | What directions or landmarks should I follow? | **No answer supplied** (`To Be Answered`). | Obtain approved directions, landmarks and visitor entrance. Do not fabricate a gate, route, travel time or landmark. | S01 / unanswered | Not confirmed |
 | 11 | How do outside visitors enter the campus? | Outside visitors, including alumni, must follow the campus-entry process. If arriving in a vehicle, have the campus guard inspect it and direct the driver to the designated parking area. | S03-S04 confirm outsiders' campus entry and alumni classification. Exact pedestrian/vehicle clearance steps, documents and channels remain unspecified; link to 07/15 once confirmed. Alumni's free admission does not waive campus entry. | S01 / Sir Fidel (via user); S03-S04 / user clarifications | 2026-10-30 (S01); 2026-11-02 received (S03-S04) |
 | 12 | Is parking available, and are there fees or restrictions? | Follow the campus guard's parking directions. | The received answer does not establish parking availability, fees, exact areas or restrictions. Do not advertise free or guaranteed parking. | S01 / Sir Fidel (via user) | 2026-10-30 |
 | 13 | How can a school or group request a visit? | Use the BioSphere website to submit a visit request or inquiry. | The received label is `Visitor Form/Inquiries`; confirm the intended entry point. The current public UI has distinct Request a Visit and Inquiry dialogs. Requests and inquiries do not themselves approve a visit or campus entry. | S01 / Sir Fidel (via user) | 2026-10-30 |
 | 14 | How early should a visit be requested? | Submit the request at least one week before the intended visit. | Confirm whether this means calendar days and whether exceptions are allowed. This is lead-time guidance, not a guaranteed approval deadline. | S01 / Sir Fidel (via user) | 2026-10-30 |
 | 15 | What information and documents are required for a group visit? | **No complete public answer yet.** The received answer refers to campus-entry details. | Obtain the exact group/document checklist and submission process. Public instructions may list required document types; submitted personal details remain private. | S01 / Sir Fidel (via user) | 2026-10-30 |
-| 16 | What group sizes can the museum accommodate? | Parties of five or more require an appointment. School tours accommodate a maximum of 50 visitors per batch. Larger parties require separate timed batches, managed by the visiting group as supplied. | S02 resolves the maximum and S04 resolves exactly five. Detailed batch scheduling/approval arrangements remain to be supplied; do not change the clarified cap. | S01 / Sir Fidel (via user); S02, S04 / user clarifications | 2026-10-30 (S01); 2026-11-02 received (S02, S04) |
+| 16 | What group sizes can the museum accommodate? | Parties of five or more require an appointment. School tours accommodate a maximum of 50 visitors per batch. School tour groups larger than 50 require separate timed batches, managed by the visiting group as supplied. | The 50-person cap is user-relayed for school tours; the cap for other groups is unknown. Confirm batch scheduling and approval arrangements, including how requests should represent separate batches. | S01 / Sir Fidel (via user); S02, S04 / user clarifications | 2026-10-30 (S01); 2026-11-02 received (S02, S04) |
 | 17 | Are guided tours available, and do they cost extra? | Guided tours require an appointment through the BioSphere website. | Availability by appointment is supplied; a separate guided-tour fee or exemption is not. Do not say tours are free or included in admission. | S01 / Sir Fidel (via user) | 2026-10-30 |
-| 18 | How will I know whether my visit request is approved? | BioSphere/the curator will notify you by email about approval. | Museum approval and campus-entry clearance are distinct. No response-time guarantee or official sender address was supplied; see 30. | S01 / Sir Fidel (via user) | 2026-10-30 |
+| 18 | How will I know whether my visit request is approved? | **Draft only:** the supplied answer says BioSphere/the curator notifies visitors by email. | Email is optional in the present approval flow and may fail after approval. Confirm a reliable notification and follow-up channel before publishing a guarantee; museum approval and campus entry are distinct. Sender and response time remain unknown. | S01 / Sir Fidel (via user) | 2026-10-30 |
 | 19 | How can I request a change or cancellation? | **Confirm the public request channel.** The received answer says through the BioSphere website. | Source inspection currently finds public visit submission and Curator-only update/cancel routes. Confirm whether visitors should use General Inquiry/contact the curator, supplying their reference. Do not promise a visitor self-service cancel/edit button. | S01 / Sir Fidel (via user) | 2026-10-30 |
-| 20 | May I take photographs or videos? | Photography and video are allowed, subject to the curator-permission restrictions in 21. | Keep the restrictions with this answer so a broad photography match does not imply permission for flash, tripods or commercial work. Other display-specific exceptions were not supplied. | S01 (20, 21) / Sir Fidel (via user) | 2026-10-30 |
+| 20 | May I take photographs or videos? | Photography and video are allowed. Flash photography, tripods and professional or commercial shoots require permission from the curator. | Keep the restrictions with this answer so a broad photography match does not imply permission for flash, tripods or commercial work. Other display-specific exceptions were not supplied. | S01 (20, 21) / Sir Fidel (via user) | 2026-10-30 |
 | 21 | May I use flash, a tripod, or take professional/commercial images? | These activities require permission from the curator. | The received `No. Requires permission` is treated as conditional, not an absolute ban. Confirm permission procedure and any exceptions; no fees or authorization turnaround were supplied. | S01 / Sir Fidel (via user) | 2026-10-30 |
 | 22 | May I touch specimens or displays? | Visitors may not touch specimens or displays. | No authorized-handling or accessibility exceptions were supplied. Do not imply that requesting a research visit automatically grants handling permission. | S01 / Sir Fidel (via user) | 2026-10-30 |
 | 23 | May I bring food, drinks or bags? | **Detailed restriction wording pending.** The received answer is `Restricted`. | Confirm what is prohibited/permitted, where bags may be left, and medical/accessibility/child-related exceptions. Restricted does not establish an absolute ban on every item. | S01 / Sir Fidel (via user) | 2026-10-30 |
 | 24 | What conduct is expected inside the museum? | Avoid loud noise, running and roughhousing. | Confirm any additional posted safety or emergency instructions before adding them. Do not invent evacuation directions or safety contacts. | S01 / Sir Fidel (via user) | 2026-10-30 |
-| 25 | What wheelchair-accessibility facilities are available? | Ramps are available for wheelchair users. For assistance or special arrangements, use General Inquiry (26). | Ramps alone do not establish a continuous step-free route to the third-floor museum. Confirm elevator/route availability and known limitations; do not claim full accessibility compliance. | S01 (25, 26) / Sir Fidel (via user) | 2026-10-30 |
+| 25 | What wheelchair-accessibility facilities are available? | Ramps are available for wheelchair users. For assistance or special arrangements, use General Inquiry. | Ramps alone do not establish a continuous step-free route to the third-floor museum. Confirm elevator/route availability and known limitations; do not claim full accessibility compliance. | S01 (25, 26) / Sir Fidel (via user) | 2026-10-30 |
 | 26 | How can I request assistance or special arrangements? | Send a General Inquiry through BioSphere. | Confirm how far ahead to request assistance and which arrangements can be offered. Do not guarantee an unconfirmed accommodation. | S01 / Sir Fidel (via user) | 2026-10-30 |
-| 27 | Which collections or exhibits can be described publicly? | **No approved content supplied** (`N/A`). | N/A does not mean no collections exist or that all catalog records are public. Obtain approved public exhibit/collection descriptions; do not disclose restricted specimen information. | S01 / Sir Fidel (via user) | 2026-10-30 |
+| 27 | Which collections or exhibits can be described publicly? | **No approved content supplied** (`N/A`). | N/A does not mean no collections exist or that all catalog records are public. Obtain approved public exhibit/collection descriptions; do not disclose restricted specimen information. | S01 / unanswered | Not confirmed |
 | 28 | Can researchers request access to non-public specimens? | Research access is limited to researchers; submit the request through the Visit Request form. | The curator must confirm eligibility, permitted scope and supporting documents. Requesting is not guaranteed access, handling permission or a borrowing authorization. | S01 / Sir Fidel (via user) | 2026-10-30 |
 | 29 | Who can answer questions outside this FAQ? | Contact the museum curator. | The received contact is Sir Fidel. Confirm permission/preferred public name and a durable role-based contact channel; do not invent a title, phone number or email. | S01 / Sir Fidel (via user) | 2026-10-30 |
 | 30 | What official contact details and response hours may be published? | **Contact details and exact response hours pending.** The received answer is `During office hours`. | Obtain the official public email/phone/channel and actual response hours. Do not assume response hours equal visitor opening hours or publish personal contact details without approval. | S01 / Sir Fidel (via user) | 2026-10-30 |
 
 ## Priority clarification list for the content owner
 
-1. Source/date resolved by user follow-up: Sir Fidel, October 30, 2026. Retain
-   any additional original reference if available; do not re-ask as unknown.
-2. Size rules are resolved: five or more requires an appointment; fewer than
-   five is informal for eligible USC students; tours have a maximum of 50 per
-   batch and larger parties need separate batches. Confirm only the remaining
-   batch scheduling details, not these settled thresholds.
-3. Supply the campus-entry checklist and approved entrance/directions (07,
-   09-11, 15), plus parking availability/fees/restrictions (12).
-4. Exemptions are resolved by S03-S04: the student exemption is USC-only;
-   alumni are free but count as outsiders for campus entry. Confirm only proof,
-   USC Days dates and any separate guided-tour charge (05, 08, 17). Separate
-   fee exemptions from walk-in eligibility and campus-entry requirements.
-5. Confirm the website's intended change/cancel route (19), detailed item
-   restrictions/exceptions (23), and the step-free third-floor route (25).
-6. Supply publishable collection descriptions, official contact details and
-   response hours (27, 29, 30). None should be guessed from internal records.
+Retain the reported October 30 interview and November 2 user clarifications;
+the thresholds already relayed need not be re-asked as if no answer exists.
+Confirm the **scope, implementation and exact public wording** before activation:
+
+1. Sunday status, closure notices and whether staff-break details are public
+   (01-03); identify the authoritative source for changes.
+2. Which students may walk in, and whether staff, alumni and other outside
+   visitors in parties of one to four require appointments; campus-entry rules
+   apply independently (04, 11). Five or more and the school-tour maximum of
+   50 per batch are user-relayed; clarify non-school groups and scheduling
+   multiple batches (04, 16).
+3. Define USC affiliation, qualifying proof, payment methods, USC Days dates,
+   kindergarten eligibility and any separate tour fee (05, 08, 17).
+4. Supply campus-entry documents, approved entrance/directions and parking
+   details (07, 09-12, 15). Confirm the meaning of one week and exceptions (14).
+5. Confirm approval-email sender, reliable notification and follow-up, public
+   cancellation/change channel, and photography permission process (18-21).
+6. Clarify food/bag restrictions, access to the third floor, research documents,
+   public collection descriptions and official contacts/hours (23, 25, 27-30).
+
+This list identifies missing details; it does not override the user's answers.
 
 ## Public wording versus internal information
 
@@ -146,10 +154,21 @@ no paid AI provider, matching change or new implementation is introduced.
   establish an approved visitor change-request channel.
 - Frontend `60ab28b`: `src/components/visit/VisitOptionsSection.tsx` has separate
   Request a Visit and Inquiry dialogs. It does not establish campus procedures.
+- Visit request DTO permits up to 200 visitors. The current schedule approval
+  selects one preferred schedule and does not represent separate timed batches.
+  The school-tour 50-per-batch statement is user-relayed; non-school scope and
+  operational handling need owner/Curator review.
+- Schedule validation checks future dates, duplicate preferences and ordering,
+  but does not enforce museum opening hours, holidays or the one-week lead time.
+  A submission receipt is not approval or proof the slot is available.
+- Schedule approval can omit notification (`notifyVisitor: false`); an email
+  failure after saving the decision may leave approval without delivery. Confirm
+  the operational follow-up before promising notification to visitors.
 - FAQ API: `src/faq/dto/create-faq-entry.dto.ts` accepts question, answer,
   category, alternative wording and keywords. Facts/approval metadata in this
   sheet are review records, not new supported API fields.
 
-Documentation-only checks: thirty IDs present, source/date placeholders retained,
-links/whitespace inspected. No application test, browser submission, database
-mutation, FAQ activation or institutional-fact verification is claimed.
+Documentation-only checks: thirty IDs present; reported source/date and
+unanswered rows distinguished; links/whitespace inspected. No application test,
+browser submission, database mutation, FAQ activation or institutional-fact
+verification is claimed.
