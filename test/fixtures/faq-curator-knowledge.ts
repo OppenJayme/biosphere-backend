@@ -1,6 +1,6 @@
 /**
  * Review-only content candidates from FAQ intake #224 (S01-S04).
- * Facts: Sir Fidel via the user, confirmed 2026-10-30; clarifications received
+ * Source: Sir Fidel via the user, conversation reported 2026-10-30; clarifications received
  * 2026-11-02. IDs are synthetic; aliases/keywords are editorial proposals.
  * ACTIVE below exists only in the isolated HTTP adapter. Never seed/activate
  * this fixture in a shared database as an incidental evaluation step.
@@ -52,7 +52,7 @@ export const curatorFaqDrafts: Draft[] = [
     id: CURATOR_FAQ_IDS.saturday,
     question: 'What are the Saturday opening hours?',
     answer:
-      'Saturday visiting hours are 8:00-11:00 AM only. The museum is closed during holidays, school breaks and university closures.',
+      'Saturday visiting hours are 8:00-11:00 AM. The museum is closed during holidays, school breaks and university closures.',
     alternative_wording: ['When can I visit on Saturday?'],
     keywords: ['Saturday', 'opening hours'],
     category: 'Visiting Hours',
@@ -88,7 +88,7 @@ export const curatorFaqDrafts: Draft[] = [
     id: CURATOR_FAQ_IDS.appointment,
     question: 'When is an appointment required?',
     answer:
-      'The user reports that student walk-ins of fewer than five are informal. Parties of five or more and guided tours require an appointment. Which students qualify and whether other visitors may walk in require confirmation. Outside visitors, including alumni, must follow campus entry.',
+      'Parties of five or more and guided tours require an appointment. For walk-in eligibility for smaller parties, contact the museum curator. Outside visitors, including alumni, must follow campus entry.',
     alternative_wording: [
       'Can USC students walk in?',
       'Do five visitors need an appointment?',
@@ -111,7 +111,7 @@ export const curatorFaqDrafts: Draft[] = [
     id: CURATOR_FAQ_IDS.batch,
     question: 'What is the maximum school-tour batch size?',
     answer:
-      'School tours accommodate a maximum of 50 visitors per batch. Larger school groups require separate timed batches, managed by the visiting group. Parties of five or more require an appointment. Limits for other groups require confirmation.',
+      'School tours accommodate a maximum of 50 visitors per batch. Larger school groups require separate timed batches, managed by the visiting group. Parties of five or more require an appointment. Contact the museum curator about limits for other groups.',
     alternative_wording: ['How many visitors can join one tour batch?'],
     keywords: ['maximum', 'batch', '50', 'school tour'],
     category: 'Group Visits',

@@ -6,7 +6,7 @@
 controller, validation, guards, service and matcher on backend base `4de07c6`.
 Seventeen review-only answer candidates use the facts and S01-S04 clarifications
 in [content intake PR #224](https://github.com/OppenJayme/biosphere-backend/pull/224).
-The reported source is Sir Fidel, confirmation October 30, 2026; later user
+The reported source is Sir Fidel, with a conversation dated October 30, 2026; later user
 clarifications were received November 2. This does not independently verify
 the interview or approve editorial aliases/wording on the curator's behalf.
 
@@ -33,15 +33,14 @@ appointments, campus entry, tour batches, request lead time, general photography
 restricted photography permission, handling, conduct, address, assistance,
 wheelchair ramps, research requests and curator referral.
 
-Important qualifications remain in the answer text:
+Important qualifications and unresolved scope in these candidates:
 
 - Free student admission is USC-only; alumni are free but require outsider
   campus entry. Other supplied exemptions remain separate.
-- Student walk-ins of fewer than five were reported as informal, with exact
-  eligibility still to confirm; five or more requires
-  an appointment, and guided tours always require one.
-- Fifty is a maximum per tour batch, not a minimum or a prohibition on larger
-  parties making arrangements for multiple batches.
+- Five or more and guided tours require an appointment in the candidate; it
+  directs smaller parties to the curator while walk-in eligibility is clarified.
+- Fifty is a maximum per school-tour batch in the candidate; larger school
+  groups use separate batches. Limits for other groups remain unconfirmed.
 - Ordinary photography does not waive flash/tripod/professional permission.
 - Ramps are described without promising a fully step-free third-floor route.
 - Research requests do not grant handling or borrowing permission.
