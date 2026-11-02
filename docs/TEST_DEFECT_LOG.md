@@ -6,6 +6,27 @@ defect entry.
 
 ## Start here
 
+2026-10-30 Audit form/pagination follow-up: [nine read-only assertions](./AUDIT_LOG_GUIDE.md#live-toolbar-actor-search-and-pagination-follow-up---2026-10-30)
+pass for real form submission, actor-name search, populated Next/Previous and
+filter reset using existing logs. The avatar/name selector and insufficient
+import-only population were diagnostic corrections, not application defects.
+No non-read requests or page errors occurred in the completed run; no existing
+defect status is promoted.
+
+2026-10-30 Audit follow-up: [11 read-only existing-event assertions](./AUDIT_LOG_GUIDE.md#live-existing-event-filter-checkpoint---2026-10-30)
+pass for matching/nonmatching filters, adjacent-date exclusion, import preview/row
+details and stable reload identity. No non-read requests or page errors were
+observed. The initial ambiguous diagnostic selector was corrected; no new
+application defect or existing-status promotion is established by this batch.
+
+2026-10-30 Cataloging checkpoint: [live XLSX selected-row commit/retry](./SPECIMEN_IMPORT_GUIDE.md#live-xlsx-selected-row-commit-and-retry---2026-10-30)
+passes on the merged local production builds. Exactly one approved synthetic
+specimen remains Uncataloged with public display off and no active lots; retry
+kept its ID and one successful import audit. The invalid row stayed excluded.
+Selector/guard diagnostic stops and two intercepted non-read attempts are
+recorded with their limits in the guide. No new reproducible application defect
+was established and no existing defect status is promoted by this checkpoint.
+
 2026-10-27 read-only media checkpoint: [keyboard/dialog evidence and diagnostic
 limits](./SPECIMEN_MEDIA_GUIDE.md#read-only-keyboard-and-dialog-checkpoint---2026-10-27).
 The first strict Tab-containment assertion failed; replay observed focus outside
@@ -127,9 +148,9 @@ queried directly during the repair.
 **Severity / priority:** S2 Major / P1; blocks an affected specimen's Lots page.
 **Status:** Ready for retest; business decisions recorded 2026-11-01, see the
 disposition record below. Owner reproduction, isolated checks and both builds
-pass. Frozen-enum/read-only compatibility documentation is reconciled. Re-review
-after Charles's 2026-10-31 review, controlled rollout/live retest and independent
-acceptance remain. The database-suite rerun on Prisma 7.10.1 passed on 2026-11-02.
+pass. Frozen-enum/read-only compatibility documentation is reconciled. Charles
+approved backend #221 and it was merged; controlled rollout/live retest and
+independent acceptance remain. The Prisma 7.10.1 database rerun passed on 2026-11-02.
 
 **Actual:** The reported history endpoint returns 500. Source `0f80b67` contains
 an enum migration missing from develop's Prisma schema. An owned PostgreSQL
@@ -206,8 +227,8 @@ deleting the record.
 the historical enum value and (2) the reported quantity change under REQ-4.5-09 /
 BR-08. If the Curator later gives a decision specific to (1), record it there.
 Preserve evidence and do not convert/delete historical events or recalculate
-quantities without a separately approved remediation. This gate does not replace
-the re-review and deployment checks #221 still needs.
+quantities without a separately approved remediation. Charles approved #221;
+its deployment checks and live retest remain outstanding.
 
 **Read-only preflight - 2026-11-02:** Kyer relayed acceptance of retaining the
 adjustment and reaffirmed keeping the value. This is an accepted test action to
@@ -1162,6 +1183,18 @@ interception guarantees isolation, or that an application authorization or
 idempotency defect has been established. Do not blindly rerun the pilot.
 
 #### Containment and follow-up
+
+2026-11-01 separately authorized [live session-loss and manual re-login](./OFFLINE_SYNC_GUIDE.md#live-isolated-session-loss-and-re-login-recovery---2026-11-01)
+records 28 functional checks with one approved retained synthetic record and
+one correlated sync success audit after identical retry. Three explicitly
+allowed frontend sync requests returned 401/200/200; one additional attempt
+was blocked without retained payload/timing, and a diagnostic selector error
+required read-only continuation. This is not a zero-attempt clean run or a
+confirmed new application defect. No response was held and no interruption
+was performed; original-account protected access was preserved. **DEF-019
+remains Open and its shared interruption pilot stays stopped.** This new
+session-loss evidence does not retroactively explain the historical leak or
+prove natural expiry, independent containment or provider/PWA behavior.
 
 2026-10-28 subsequent approved [owned accepted-write recovery](./OFFLINE_SYNC_GUIDE.md#owned-accepted-write-tab-recovery---2026-10-28)
 passes 1/1 twice consecutively: lost first response, tab close, retained fields,
@@ -3130,6 +3163,16 @@ are not established. The original discovery below remains historical evidence.
 **Status:** Open security triage; no live-application exploitation reproduced.
 **Coordination:** Backend/dependency owner with Voltaire for request IP/auth/rate
 limiting and deployment proxy configuration. Prioritize before release sign-off.
+
+2026-10-30 [current dependency-path triage](./BACKEND_DEPENDENCY_TRIAGE_2026-10-30.md)
+confirms 12 production affected-package entries (8 high / 4 moderate / 0 critical)
+after the proxy repair. Full development tree: 22 entries, including a critical
+Handlebars finding through ts-jest. Actual upload/body-parser paths are repair
+priorities; Prisma/PostgreSQL versus MySQL, Swagger/YAML and CSV option
+conditions are distinguished. No exploitation, dependency update or runtime
+change occurred; OBS-005 stays Open. Audit counts are affected packages including
+parent propagation, not independent exploits. The earlier baseline below is
+retained as historical evidence.
 
 `npm audit --omit=dev --json` reports the same 13 advisories on the unchanged
 backend dependency baseline and the isolated XLSX branch: 4 moderate, 8 high,

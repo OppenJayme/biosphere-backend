@@ -1,5 +1,84 @@
 # BioSphere Specimen Bulk Import Guide
 
+## Live XLSX selected-row commit and retry - 2026-10-30
+
+With explicit permission to retain one synthetic record, the signed-in Curator
+used the merged production UI/API on backend `f4df176` and frontend `60ab28b`
+(build `KjnKPLGaaPM_cm9tgFdJ_`). No rebuild, migration or server restart was
+needed. The workbook contained one `Specimens` sheet with literal headers
+`accessionNumber,commonName,gender,remarks` and these two rows:
+
+| Row | Accession | Common name | Gender | Result |
+| --- | --- | --- | --- | --- |
+| 1 | `TEST-XLSX-20261030-A` | TEST - XLSX Commit Retest 20261030 | UNKNOWN | Valid; selected and committed |
+| 2 | `TEST-XLSX-20261030-INVALID` | TEST - XLSX Invalid Row 20261030 | BAD_VALUE | Invalid; disabled and unselected throughout |
+
+The initial catalog search for `TEST-XLSX-20261030` showed no matching records.
+One preview POST returned 201 with two rows, one valid and one invalid. The
+table uses the accession as its primary label when present; checking for the
+common name as an exact preview label initially returned zero. Inspecting the
+row labels confirmed both expected accessions; this was a test-selector
+correction before any commit, not evidence of lost common-name data.
+
+The first **Import selected rows** completed with one successful / zero failed.
+Read-only catalog and filtered audit pages then showed one specimen and one
+successful `IMPORT_SPECIMEN` audit. Reselecting row 1 and explicitly committing
+the **same retained preview** completed successfully again. Both submitted
+argument objects were identical: the same preview ID and `rowNumbers: [1]`.
+After retry, catalog search still returned exactly one valid record and no
+invalid record; the specimen ID stayed
+`585172b4-d99d-4f28-b765-65a5a12de24a`.
+
+Full specimen details confirmed the approved common name and remarks persisted,
+status `UNCATALOGED`, public display **Not eligible**, and **No active specimen
+lots are assigned**. The audit page filtered by module `specimens`, action
+`IMPORT_SPECIMEN`, result `SUCCESS` and the specimen UUID as search showed
+one matching row before retry and **Showing 1–1 of 1** after retry. Structured details matched the original
+preview ID, row 1 and `UNCATALOGED`. The fixture and its normal creation audit
+remain in place; no lot, quantity, storage, publishing, archive or deletion
+action was submitted. Initial creation is not assumed to produce field-edit
+revision rows.
+
+The narrow browser guard permitted only one preview and two exact commit
+requests. It also intercepted two other non-read attempts during readback;
+their destinations/bodies were not retained, so they are not classified as an
+application defect or claimed as zero attempted writes. An early retry script
+stopped before clicking because it expected zero intercepted requests; the
+actual retry proceeded only after the first record/audit readback passed,
+with the same exact request allowlist. No additional commit was allowed. Zero
+page errors were counted. The final specimen page remains signed in under a
+read-only guard. This browser guard is not independent full-stack containment.
+
+**Result:** the bounded live XLSX selected-row commit/retry subcase passes. This
+does not establish concurrent or cross-process/expired-preview retry behavior,
+direct SQL postconditions, invalid-row direct-request rejection, suitability
+of museum-provided workbooks, or whole-module acceptance. Earlier isolated
+HTTP/parser regressions retain their own scope. No new reproducible application
+defect was established and no existing defect status is promoted by this run.
+
+### Retained fixture disposition before final acceptance - 2026-10-31
+
+`TEST-XLSX-20261030-A` (specimen
+`585172b4-d99d-4f28-b765-65a5a12de24a`) remains an approved synthetic test
+record, not museum inventory or research-result data. Kyer coordinates its
+disposition with the Curator before turnover. No cleanup has been executed.
+
+Before final acceptance, record one approved disposition: archive it through
+the normal Cataloging workflow, or retain it in an explicitly separated test/demo
+dataset. Recheck its then-current status, public eligibility and lot references
+before proposing an action; do not assume the original no-lot state is current.
+Any shared-data action needs its normal authorization and must preserve the
+creation/import audit and resulting lifecycle history. Do not hard-delete audit
+evidence, alter quantities or move inventory as incidental cleanup.
+
+Verify the chosen disposition against the active catalog and final demo/report
+outputs so the synthetic specimen is not presented as a real museum holding or
+included in reported real-record counts. Archiving alone is not proof that every
+report excludes it. Record the approver, action/date, affected specimen, relevant
+audit reference and catalog/report verification in the acceptance handoff. This
+note is a pending turnover task, not approval to archive/delete or a claim that
+the record has already been removed.
+
 ## Merged local XLSX preview checkpoint - 2026-10-29
 
 Backend #216/#217 and frontend #96 are merged. The controlled local refresh

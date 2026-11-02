@@ -4,6 +4,77 @@ This module implements the protected audit-review portion of SRS Section 4.15
 using the existing `public.audit_log` and `public.user_account` tables. It does
 not change the database schema and does not implement backup or restoration.
 
+## Live existing-event filter checkpoint - 2026-10-30
+
+After the [approved XLSX commit/retry](./SPECIMEN_IMPORT_GUIDE.md#live-xlsx-selected-row-commit-and-retry---2026-10-30),
+the already signed-in Curator checked its existing successful import event on
+backend `f4df176` / frontend `60ab28b`, production build
+`KjnKPLGaaPM_cm9tgFdJ_`. No additional fixture or audit was created. The real
+Audit page loaded through its normal server/API path with query-string filters;
+this did not simulate responses or call a copied authentication token.
+
+**11 assertions passed:**
+
+- Specimen UUID search plus module `specimens`, action `IMPORT_SPECIMEN`,
+  result `SUCCESS` and record type `specimen` returned one matching event.
+- Structured details matched the approved import's original preview ID and
+  row number 1.
+- Changing module, action, result or record type individually to a nonmatching
+  value excluded the event, each with the normal empty-filter state.
+- The museum-local date range October 30 to October 30 included the event;
+  October 29 only and October 31 only each excluded it. The matching-date
+  check also requested the supported 10-row page size.
+- Restoring matching filters recovered the event; reload kept the same audit
+  UUID, structured details and one matching row.
+
+The read-only browser guard observed zero non-read requests and zero page
+errors in the completed run. An initial diagnostic stopped because a broad
+`aside span[title]` selector also matched the actor avatar. Narrowing the
+selector to the audit UUID element corrected the test before the full run;
+this was not an application failure. The browser remains signed in on the
+filtered Audit page. No records, server configuration or login were changed.
+
+This supplies bounded live AUD-001 filtering and existing-event correlation
+evidence, not complete acceptance. It does not test the toolbar submit gesture,
+actor filtering, multi-page population, exact midnight edges, middleware request
+IDs, live session expiration/provider failure or independent sign-off. Matching
+preview/row details is not proof of a captured HTTP request ID. No existing
+defect status is promoted; OBS-001's timing disposition remains separate.
+
+### Live toolbar, actor search and pagination follow-up - 2026-10-30
+
+On the same served builds and signed-in Curator session, a further **9
+assertions passed** through the real filter form and pagination links:
+
+- Submitting the known import actor's displayed name with **Apply filters**
+  returned populated results whose visible actor fields matched that name.
+  Module/action/result selections remained represented in the submitted URL.
+- That narrow import search had only three existing events. Clearing the
+  action filter through the same form, while retaining actor search, module
+  `specimens`, result `SUCCESS` and ten rows per page, yielded **134** matching
+  events. No test events were created to fill pages.
+- **Next page** preserved those filters and page size. Pages one and two had
+  nonempty bounded rows and distinct audit UUIDs, checked by selecting each row
+  locally. **Previous page** returned the original first-page UUID ordering.
+- **Clear filters** cleared the URL query and the checked search/module/action/
+  result controls. The browser then returned to the known import-event view.
+
+An initial actor selector included the avatar initials as well as the name,
+causing the diagnostic's URL wait to time out. Selecting the displayed name
+element corrected the script. A later test precondition expected more than ten
+import-only events; the observed three events prompted the broader existing-log
+query above. Neither stop established an application defect. The completed
+run observed zero non-read requests and zero page errors; no server, records
+or login were changed. Actor names and unrelated event content are not exported
+in this evidence.
+
+This covers the preceding checkpoint's missing toolbar, actor-name search and
+populated multi-page UI subcases. It does not prove exact actor-ID filtering,
+all actors/page sizes, stable pagination during concurrent insertion, timestamp
+tie/midnight boundaries, request-ID correlation, live expiry/failure behavior or
+independent acceptance. Earlier scope statements describe their dated runs;
+do not requeue these newly completed owner subcases.
+
 ## Access and immutability
 
 - Both endpoints require an authenticated, active `CURATOR` account. This
