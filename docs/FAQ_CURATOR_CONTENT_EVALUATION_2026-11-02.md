@@ -37,7 +37,8 @@ Important qualifications remain in the answer text:
 
 - Free student admission is USC-only; alumni are free but require outsider
   campus entry. Other supplied exemptions remain separate.
-- One to four eligible USC students may visit informally; five or more requires
+- Student walk-ins of fewer than five were reported as informal, with exact
+  eligibility still to confirm; five or more requires
   an appointment, and guided tours always require one.
 - Fifty is a maximum per tour batch, not a minimum or a prohibition on larger
   parties making arrangements for multiple batches.
