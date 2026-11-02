@@ -6,6 +6,8 @@ import { App } from 'supertest/types';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { SUPABASE_CLIENT } from '../src/supabase/supabase.constants';
+import { xlsxFixture } from './support/xlsx-fixture';
+import { strToU8 } from 'fflate';
 
 describe('Specimens (e2e)', () => {
   const curatorToken = 'curator-specimen-token';
@@ -353,6 +355,287 @@ describe('Specimens (e2e)', () => {
   });
 
   describe('reviewed CSV HTTP workflow', () => {
+    it('rejects repeated unclosed XML tags within a bounded HTTP response time', async () => {
+      const malformed = xlsxFixture(
+        { Specimens: [['commonName'], ['Test']] },
+        {
+          'xl/padding.xml': strToU8('<c '.repeat(34_000)),
+        },
+      );
+      const started = performance.now();
+      await request(app.getHttpServer())
+        .post('/specimens/import/preview')
+        .set('Authorization', `Bearer ${curatorToken}`)
+        .attach('file', malformed, 'malformed.xlsx')
+        .expect(400);
+      expect(performance.now() - started).toBeLessThan(2000);
+      await request(app.getHttpServer())
+        .get('/specimens')
+        .set('Authorization', `Bearer ${curatorToken}`)
+        .expect(200);
+      expect(specimenDelegate.create).not.toHaveBeenCalled();
+      expect(auditDelegate.create).not.toHaveBeenCalled();
+    }, 20_000);
+
+    const workbookPreview = (buffer: Buffer) =>
+      request(app.getHttpServer())
+        .post('/specimens/import/preview')
+        .set('Authorization', `Bearer ${curatorToken}`)
+        .attach('file', buffer, 'specimens.xlsx');
+
+    it('reads only the named Specimens sheet and preserves text accession zeros', async () => {
+      const response = await workbookPreview(
+        xlsxFixture({
+          Instructions: [['commonName'], ['Must not import']],
+          Specimens: [
+            ['commonName', 'accessionNumber'],
+            ['Literal specimen', '000123'],
+          ],
+        }),
+      ).expect(201);
+      expect(response.body).toMatchObject({
+        totalRows: 1,
+        validRows: 1,
+        rows: [
+          {
+            rowNumber: 1,
+            data: { commonName: 'Literal specimen', accessionNumber: '000123' },
+            valid: true,
+          },
+        ],
+      });
+      expect(specimenDelegate.create).not.toHaveBeenCalled();
+    });
+
+    it('normalizes a date-only Excel cell without guessing a locale date string', async () => {
+      const response = await workbookPreview(
+        xlsxFixture(
+          {
+            Specimens: [
+              ['commonName', 'collectionDate'],
+              ['Test', ''],
+            ],
+          },
+          {
+            'xl/styles.xml': strToU8(
+              '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><cellXfs count="1"><xf numFmtId="14" applyNumberFormat="1"/></cellXfs></styleSheet>',
+            ),
+            'xl/worksheets/sheet1.xml': strToU8(
+              '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData><row r="1"><c r="A1" t="inlineStr"><is><t>commonName</t></is></c><c r="B1" t="inlineStr"><is><t>collectionDate</t></is></c></row><row r="2"><c r="A2" t="inlineStr"><is><t>Excel date fixture</t></is></c><c r="B2" s="0"><v>43831</v></c></row></sheetData></worksheet>',
+            ),
+          },
+        ),
+      ).expect(201);
+      expect(response.body.rows[0]).toMatchObject({
+        valid: true,
+        data: { collectionDate: '2020-01-01' },
+      });
+    });
+
+    it.each([
+      [
+        'missing named sheet',
+        () => xlsxFixture({ Sheet1: [['commonName'], ['Test']] }),
+        /Specimens/,
+      ],
+      [
+        'excess XML nesting',
+        () =>
+          xlsxFixture(
+            { Specimens: [['commonName'], ['Test']] },
+            {
+              'xl/padding.xml': strToU8('<n>'.repeat(65) + '</n>'.repeat(65)),
+            },
+          ),
+        /nesting/,
+      ],
+      [
+        'excess attributes on one XML element',
+        () =>
+          xlsxFixture(
+            { Specimens: [['commonName'], ['Test']] },
+            {
+              'xl/padding.xml': strToU8(
+                '<n ' +
+                  Array.from({ length: 65 }, (_, i) => `a${i}="1"`).join(' ') +
+                  '/>',
+              ),
+            },
+          ),
+        /too many attributes/,
+      ],
+      [
+        'chart workbook with a clear unsupported-feature message',
+        () =>
+          xlsxFixture(
+            { Specimens: [['commonName'], ['Test']] },
+            {
+              'xl/charts/chart1.xml': strToU8(
+                '<c:chartSpace xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart"><c:chart/></c:chartSpace>',
+              ),
+            },
+          ),
+        /without charts/,
+      ],
+      [
+        'external hyperlink with a clear removal instruction',
+        () =>
+          xlsxFixture(
+            { Specimens: [['commonName'], ['Test']] },
+            {
+              'xl/worksheets/_rels/sheet1.xml.rels': strToU8(
+                '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="link1" Target="https://example.test" TargetMode="External" Type="hyperlink"/></Relationships>',
+              ),
+            },
+          ),
+        /Remove external hyperlinks/,
+      ],
+      [
+        'oversized coordinates outside the conventional worksheet path',
+        () =>
+          xlsxFixture(
+            { Specimens: [['commonName'], ['Test']] },
+            {
+              'xl/custom.xml': strToU8(
+                '<worksheet><sheetData><row r="502"><c r="A502"><v>1</v></c></row></sheetData></worksheet>',
+              ),
+            },
+          ),
+        /500/,
+      ],
+      [
+        'duplicate attributes hidden behind a quoted greater-than sign',
+        () =>
+          xlsxFixture(
+            { Specimens: [['commonName'], ['Test']] },
+            {
+              'xl/worksheets/sheet1.xml': strToU8(
+                '<worksheet><sheetData><row r="1" note=">" r="502"><c r="A1"><v>1</v></c></row></sheetData></worksheet>',
+              ),
+            },
+          ),
+        /duplicate XML attributes/,
+      ],
+      [
+        'formula with cached value',
+        () =>
+          xlsxFixture({
+            Specimens: [['commonName'], [{ xml: '<f>1+1</f><v>2</v>' }]],
+          }),
+        /literal/i,
+      ],
+      [
+        'numeric accession',
+        () =>
+          xlsxFixture({
+            Specimens: [
+              ['commonName', 'accessionNumber'],
+              ['Test', 123],
+            ],
+          }),
+        /Text/,
+      ],
+      [
+        'duplicate headers',
+        () =>
+          xlsxFixture({
+            Specimens: [
+              ['commonName', 'common_name'],
+              ['Test', 'Other'],
+            ],
+          }),
+        /duplicate/i,
+      ],
+      [
+        'excess rows',
+        () =>
+          xlsxFixture({
+            Specimens: [
+              ['commonName'],
+              ...Array.from({ length: 501 }, () => ['Test']),
+            ],
+          }),
+        /500/,
+      ],
+      [
+        'sparse huge coordinate',
+        () =>
+          xlsxFixture(
+            { Specimens: [['commonName'], ['Test']] },
+            {
+              'xl/worksheets/sheet1.xml': strToU8(
+                '<worksheet><sheetData><row r="1048576"><c r="XFD1048576" t="inlineStr"><is><t>Test</t></is></c></row></sheetData></worksheet>',
+              ),
+            },
+          ),
+        /500/,
+      ],
+      [
+        'expanded-size bomb',
+        () =>
+          xlsxFixture(
+            { Specimens: [['commonName'], ['Test']] },
+            { 'xl/padding.xml': new Uint8Array(20 * 1024 * 1024 + 1) },
+          ),
+        /20 MB/,
+      ],
+      [
+        'external link',
+        () =>
+          xlsxFixture(
+            { Specimens: [['commonName'], ['Test']] },
+            {
+              'xl/externalLinks/externalLink1.xml': strToU8('<externalLink/>'),
+            },
+          ),
+        /external/i,
+      ],
+      [
+        'XML entity',
+        () =>
+          xlsxFixture(
+            { Specimens: [['commonName'], ['Test']] },
+            {
+              'xl/padding.xml': strToU8(
+                '<!DOCTYPE x [<!ENTITY x "value">]><x>&x;</x>',
+              ),
+            },
+          ),
+        /entities/i,
+      ],
+      [
+        'spreadsheet error',
+        () =>
+          xlsxFixture(
+            { Specimens: [['commonName'], [{ xml: '<v>#DIV/0!</v>' }]] },
+            {
+              'xl/worksheets/sheet1.xml': strToU8(
+                '<worksheet><sheetData><row r="1"><c r="A1" t="e"><v>#DIV/0!</v></c></row></sheetData></worksheet>',
+              ),
+            },
+          ),
+        /error cells/i,
+      ],
+      [
+        'malformed package',
+        () => Buffer.from('not a workbook'),
+        /valid workbook/i,
+      ],
+    ] as const)(
+      'rejects %s before saving',
+      async (_label, makeWorkbook, message) => {
+        const response = await workbookPreview(makeWorkbook()).expect(400);
+        expect(response.body.message).toMatch(message);
+        expect(specimenDelegate.create).not.toHaveBeenCalled();
+        expect(auditDelegate.create).not.toHaveBeenCalled();
+      },
+    );
+
+    it('enforces the multipart upload size limit for XLSX', async () => {
+      await workbookPreview(Buffer.alloc(5 * 1024 * 1024 + 1)).expect(413);
+      expect(specimenDelegate.create).not.toHaveBeenCalled();
+    });
+
     describe.each(['preview', 'commit'])('%s access', (endpoint) => {
       it.each([
         { token: undefined, status: 401, caller: 'signed out' },
@@ -383,61 +666,72 @@ describe('Specimens (e2e)', () => {
       'Invalid collection,UNKNOWN,,not-a-uuid',
     ].join('\n');
 
-    const preview = () =>
+    const preview = (format = 'csv') =>
       request(app.getHttpServer())
         .post('/specimens/import/preview')
         .set('Authorization', `Bearer ${curatorToken}`)
-        .attach('file', Buffer.from(csv), 'cataloging-http.csv');
+        .attach(
+          'file',
+          format === 'xlsx'
+            ? xlsxFixture({
+                Specimens: csv.split('\n').map((row) => row.split(',')),
+              })
+            : Buffer.from(csv),
+          `cataloging-http.${format}`,
+        );
 
-    it('commits only a selected valid row and reuses its record on retry', async () => {
-      const reviewed = await preview().expect(201);
-      const previewId = reviewed.body.previewId as string;
-      const commit = () =>
-        request(app.getHttpServer())
-          .post('/specimens/import/commit')
-          .set('Authorization', `Bearer ${curatorToken}`)
-          .send({ previewId, rowNumbers: [1] });
-      const first = await commit().expect(201);
-      expect(first.body).toMatchObject({
-        createdCount: 1,
-        failedCount: 0,
-        results: [
-          {
-            rowNumber: 1,
-            success: true,
-            specimen: {
-              id: specimenId,
-              commonName: 'Selected import',
-              status: 'UNCATALOGED',
-              publicDisplay: false,
-              createdBy: curatorAccountId,
+    it.each(['csv', 'xlsx'])(
+      'commits only a selected valid %s row and reuses its record on retry',
+      async (format) => {
+        const reviewed = await preview(format).expect(201);
+        const previewId = reviewed.body.previewId as string;
+        const commit = () =>
+          request(app.getHttpServer())
+            .post('/specimens/import/commit')
+            .set('Authorization', `Bearer ${curatorToken}`)
+            .send({ previewId, rowNumbers: [1] });
+        const first = await commit().expect(201);
+        expect(first.body).toMatchObject({
+          createdCount: 1,
+          failedCount: 0,
+          results: [
+            {
+              rowNumber: 1,
+              success: true,
+              specimen: {
+                id: specimenId,
+                commonName: 'Selected import',
+                status: 'UNCATALOGED',
+                publicDisplay: false,
+                createdBy: curatorAccountId,
+              },
             },
-          },
-        ],
-      });
-      const retry = await commit().expect(201);
-      expect(retry.body.results).toEqual(first.body.results);
-      const read = await request(app.getHttpServer())
-        .get(`/specimens/${specimenId}`)
-        .set('Authorization', `Bearer ${curatorToken}`)
-        .expect(200);
-      expect(read.body).toMatchObject({
-        commonName: 'Selected import',
-        status: 'UNCATALOGED',
-        publicDisplay: false,
-      });
-      expect(specimenDelegate.create).toHaveBeenCalledTimes(1);
-      expect(auditDelegate.create).toHaveBeenCalledTimes(1);
-      expect(auditDelegate.create).toHaveBeenCalledWith({
-        data: expect.objectContaining({
-          user_id: curatorAccountId,
-          action: 'IMPORT_SPECIMEN',
-          status: 'SUCCESS',
-          details: expect.objectContaining({ rowNumber: 1, previewId }),
-        }),
-      });
-      expect(provenanceDelegate.create).not.toHaveBeenCalled();
-    });
+          ],
+        });
+        const retry = await commit().expect(201);
+        expect(retry.body.results).toEqual(first.body.results);
+        const read = await request(app.getHttpServer())
+          .get(`/specimens/${specimenId}`)
+          .set('Authorization', `Bearer ${curatorToken}`)
+          .expect(200);
+        expect(read.body).toMatchObject({
+          commonName: 'Selected import',
+          status: 'UNCATALOGED',
+          publicDisplay: false,
+        });
+        expect(specimenDelegate.create).toHaveBeenCalledTimes(1);
+        expect(auditDelegate.create).toHaveBeenCalledTimes(1);
+        expect(auditDelegate.create).toHaveBeenCalledWith({
+          data: expect.objectContaining({
+            user_id: curatorAccountId,
+            action: 'IMPORT_SPECIMEN',
+            status: 'SUCCESS',
+            details: expect.objectContaining({ rowNumber: 1, previewId }),
+          }),
+        });
+        expect(provenanceDelegate.create).not.toHaveBeenCalled();
+      },
+    );
 
     it('refuses invalid and unreviewed row numbers even when posted directly', async () => {
       const reviewed = await preview().expect(201);
@@ -502,41 +796,44 @@ describe('Specimens (e2e)', () => {
       expect(specimenDelegate.create).toHaveBeenCalledTimes(1);
     });
 
-    it('previews mixed rows without changing specimens or audit history', async () => {
-      const before = await request(app.getHttpServer())
-        .get('/specimens')
-        .set('Authorization', `Bearer ${curatorToken}`)
-        .expect(200);
-      const result = await preview().expect(201);
-      expect(result.body).toMatchObject({
-        totalRows: 5,
-        validRows: 2,
-        invalidRows: 3,
-      });
-      const rows = result.body.rows as Array<{
-        rowNumber: number;
-        valid: boolean;
-        errors: string[];
-      }>;
-      expect(rows.map((row) => [row.rowNumber, row.valid])).toEqual([
-        [1, true],
-        [2, true],
-        [3, false],
-        [4, false],
-        [5, false],
-      ]);
-      expect(rows[2].errors.join(' ')).toContain('gender');
-      expect(rows[3].errors.join(' ')).toContain('on or before today');
-      expect(rows[4].errors.join(' ')).toContain('collectionId');
-      const after = await request(app.getHttpServer())
-        .get('/specimens')
-        .set('Authorization', `Bearer ${curatorToken}`)
-        .expect(200);
-      expect(after.body).toEqual(before.body);
-      expect(specimenDelegate.create).not.toHaveBeenCalled();
-      expect(provenanceDelegate.create).not.toHaveBeenCalled();
-      expect(auditDelegate.create).not.toHaveBeenCalled();
-    });
+    it.each(['csv', 'xlsx'])(
+      'previews mixed %s rows without changing specimens or audit history',
+      async (format) => {
+        const before = await request(app.getHttpServer())
+          .get('/specimens')
+          .set('Authorization', `Bearer ${curatorToken}`)
+          .expect(200);
+        const result = await preview(format).expect(201);
+        expect(result.body).toMatchObject({
+          totalRows: 5,
+          validRows: 2,
+          invalidRows: 3,
+        });
+        const rows = result.body.rows as Array<{
+          rowNumber: number;
+          valid: boolean;
+          errors: string[];
+        }>;
+        expect(rows.map((row) => [row.rowNumber, row.valid])).toEqual([
+          [1, true],
+          [2, true],
+          [3, false],
+          [4, false],
+          [5, false],
+        ]);
+        expect(rows[2].errors.join(' ')).toContain('gender');
+        expect(rows[3].errors.join(' ')).toContain('on or before today');
+        expect(rows[4].errors.join(' ')).toContain('collectionId');
+        const after = await request(app.getHttpServer())
+          .get('/specimens')
+          .set('Authorization', `Bearer ${curatorToken}`)
+          .expect(200);
+        expect(after.body).toEqual(before.body);
+        expect(specimenDelegate.create).not.toHaveBeenCalled();
+        expect(provenanceDelegate.create).not.toHaveBeenCalled();
+        expect(auditDelegate.create).not.toHaveBeenCalled();
+      },
+    );
   });
 
   it('rejects a request without a Supabase access token', () =>

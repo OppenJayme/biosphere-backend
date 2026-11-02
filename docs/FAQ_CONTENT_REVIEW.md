@@ -2,6 +2,15 @@
 
 ## Operating decision
 
+2026-11-02 content follow-up: [intake #224](https://github.com/OppenJayme/biosphere-backend/pull/224)
+records the user's responses to thirty questions and later clarifications,
+including incomplete and unanswered items. An isolated
+[curator-content evaluation](./FAQ_CURATOR_CONTENT_EVALUATION_2026-11-02.md)
+now passes 33/33 working cases using seventeen draft answer candidates, without
+changing matching rules or activating shared entries. The older fictional
+25-case set below retains its own scope; neither result is a visitor-study
+accuracy score or independent approval of the proposed public wording.
+
 Use the existing laptop-only demo setup. Do not create hosting accounts, paid AI
 services, scheduled jobs or shared database migrations for this slice. Keep the
 optional question-review collection disabled. Existing service plans/limits are
@@ -114,8 +123,16 @@ scope eligibility, not thresholds or a supported-language promise.
 
 ## Real museum content review sheet
 
-This is a proposed review inventory, **not approved museum information**. Real
-answers and authoritative sources were not supplied in this task. Leave them
+2026-11-02 update: the user supplied responses to thirty questions, some
+incomplete or unanswered. The [intake sheet](./FAQ_CONTENT_INTAKE_2026-11-02.md)
+records reported interview facts and later user clarifications, proposed wording,
+exceptions and open questions. Sir Fidel and October 30 are reported via the
+user; later edits and clarifications are not independently approved wording.
+Each entry needs its own content-owner approval before activation. No entry was
+created or activated. The older inventory below is the October 25 checkpoint.
+
+This is a proposed review inventory, **not approved museum information**. At the October 25 checkpoint, real
+answers and authoritative sources had not yet been supplied. Leave them
 unapproved rather than substituting synthetic facts. This does not reopen the
 already-answered eight business-rule decisions; it requests factual content and
 its provenance only.

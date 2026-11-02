@@ -259,6 +259,171 @@ Existing manual/browser evidence below is historical and remains separate.
 
 ## Supported boundary
 
+### Live isolated session-loss and re-login recovery - 2026-11-01
+
+The user authorized exactly one persistent synthetic specimen and a separate
+spare-Curator browser session. Actual frontend `60ab28b`, production build
+`KjnKPLGaaPM_cm9tgFdJ_`, and running backend `4de07c6` were used. This checks
+local session loss, real frontend 401 handling, manual re-login and same-ID
+recovery; it does not simulate or prove natural JWT expiry/provider revocation.
+
+The user manually signed in and later signed back in with the spare account.
+No password, cookie/token value or auth state was copied or exported. Inspection
+of the installed Supabase SDK confirmed normal `signOut()` defaults to global
+scope, so that action was not used. Only the isolated test context's cookies
+were cleared; IndexedDB and the original account's browser were preserved.
+
+The test accession was absent before any draft was created. The real offline
+modal saved one text-only local draft. Reconnection with the test cookies gone
+produced a real `/api/offline/specimen-drafts` 401 and the visible sign-in/retry
+message. ID, owner partition and all eight core payload fields survived, with
+recoverable AUTH failure and no server specimen ID. After manual same-account
+re-login, a fresh protected workspace displayed that owner's retained draft and
+automatically synchronized it: 200, `alreadySynchronized: false`. An explicit
+identical request returned 200, `alreadySynchronized: true`, and the same server
+ID. The synchronized local receipt, catalog row and success audit were read back.
+
+Retained authorized fixture:
+
+- Accession: `TEST-SESSION-20261101-A`.
+- Name: `TEST - Session Recovery 20261101`.
+- Client draft UUID: `3df63227-a7b7-4678-8798-86b3869bf5dd`.
+- Specimen UUID: `dcb4fbcf-dfbe-4fbc-a852-0cd79e1d6fd7`.
+- Observed: one matching catalog record; `UNCATALOGED`; public display false;
+  no active lots; one matching `SYNC_OFFLINE_SPECIMEN_DRAFT` success audit whose
+  details contain the original client draft UUID. No lot/storage/media operations
+  were submitted. The synchronized local receipt remains in the test context.
+
+**Result:** 28 functional assertions passed across retained-draft recovery,
+authenticated sync, identical retry and catalog/audit readback. A separate
+read-only probe confirmed the original account still accesses the protected
+Cataloging queue, with its original dashboard URL preserved. Both account
+windows remain open; the created login tab was closed after recovery. The test
+context keeps its read-only guard after completion; the original account is
+not subject to that guard.
+
+**Diagnostic qualifications:** the context guard explicitly allowed only three
+exact test-draft requests, with responses **401, 200, 200**, plus the user's
+manual login submission. One additional `POST /api/offline/specimen-drafts`
+attempt was blocked. Only its method/path were retained, not its payload or
+timing; do not label its cause, prove independent server non-arrival, or claim
+a zero-attempt clean run. The later readback caused no further blocked attempts.
+The first recovery helper also stopped on a CSS selector whose attribute quotes
+were stripped by command transport. Only readback resumed with an attribute
+comparison; no draft/sync creation step was repeated. Console diagnostics showed
+two HTTP 401 messages; there were zero browser page exceptions. These facts
+remain in the record rather than being suppressed as a clean execution.
+
+No application bug is established from that unclassified blocked attempt; its
+disposition belongs in independent acceptance. Functional recovery evidence
+does not close historical DEF-019 or its stopped shared interruption pilot.
+There was no response hold, interruption, global sign-out, database migration,
+quantity change or server restart. This is not independent acceptance, a full
+Next/PWA/security evaluation, direct SQL receipt counting or concurrency proof.
+
+Before turnover, Kyer/Curator must record the fixture's approved archive or
+separated test/demo disposition, preserve audit/history, and verify exclusion
+from real museum counts/reports. No cleanup was automatically performed. Ignored
+scripts are in `.codex-tmp/session-recovery-20261101/`; shared documentation
+contains no credentials or unrelated record contents. `git diff --check` passed;
+no application suite/build was repeated for this live evidence update.
+
+### OFF-004 read-only browser boundary checkpoint - 2026-10-31
+
+Owner browser checks passed on local frontend source `60ab28b`, with on-disk
+production build ID `KjnKPLGaaPM_cm9tgFdJ_`; no build/restart was performed.
+Backend source remains `f4df176`. This is bounded browser evidence, not an
+independent acceptance report or verification of pending repair branches.
+
+The existing authenticated browser session was preserved. A temporary tab first
+confirmed no eligible/interrupted local drafts, loaded the actual specimen
+workspace with `selected=none`, and used target-scoped CDP offline emulation.
+All non-GET/HEAD/OPTIONS requests were blocked by a read-only guard. Its eleven
+assertions passed:
+
+- No eligible/interrupted drafts before opening the workspace.
+- Offline state disables the actual Sync now control.
+- Cached specimens are populated and their rows contain no links, mutation,
+  media, detail or form controls.
+- New offline draft opens with exactly accession number, category, common name,
+  scientific name, gender, classification status and remarks; no upload field.
+- Cancel closes the modal without saving; all existing local draft content and
+  states match the before-read in memory.
+- Zero non-read requests and zero page errors in the final workspace run; the
+  original signed-in page URL remains unchanged.
+
+The fallback slice used a separately named, fresh credential-free Edge session.
+It loaded the served `/offline.html` and explicitly registered the served
+`/sw.js` in that disposable context. Four checks passed: the populated worker
+cache contained only the fallback/favicon/allowed build-asset paths; fresh
+offline navigation to `/specimens` rendered `BioSphere is offline`; that page
+had no record table, form or workspace; zero non-read requests occurred. This
+checks the real served worker, not automatic app registration or an
+authenticated offline reload. No credentials/storage state were copied.
+
+Diagnostic corrections are retained rather than counted as passing runs:
+the initial combined attempt stalled during the fresh-context bootstrap and
+was stopped by closing only its owned pages (execution-context-destroyed error).
+Two workspace attempts blocked one `POST /specimens` each; inspection identified
+the default selected-record cover-preview read as a Server Action using POST.
+No POST was permitted and no mutation is inferred from its method. Clearing
+selection excluded that unrelated read and produced the clean final run.
+The first standalone fallback attempt used `Request.url()` instead of the
+Cache API's `Request.url` property; correcting the diagnostic produced the
+passing fallback run. No application defect or repair is claimed from these
+diagnostic issues.
+
+Cleanup confirmed only the original audit tab remained in its context, online,
+with no extra context pages; the named fallback browser was closed. Existing
+drafts were not saved/edited/removed, no sync was requested, and no shared
+record or server configuration was changed. Ordinary online cache reads could
+refresh the device-local read-only specimen cache. Scripts remain ignored at
+`.codex-tmp/offline-boundary-20261031/`; no private draft content was published.
+
+Subsequent isolated request checks in [backend #222](https://github.com/OppenJayme/biosphere-backend/pull/222)
+and [frontend #98](https://github.com/OppenJayme/biosphere-frontend/pull/98) complete
+the named unsupported-field matrix owner-side: twelve fields tested independently
+at both nested and envelope levels, 24 new cases per side; full focused suites
+pass 28/28 and 29/29 respectively. Each verifies field-specific 400 rejection
+before receipt lookup/writes or credential lookup/forwarding. Changed-test lint
+and whitespace checks pass. Both test-only suites use synthetic adapters.
+Frontend #98 merged on 2026-10-31 at
+`a7cbc17f59b5f77d8274156130263b2acdbe63cb`; backend #222 also merged on
+2026-10-31 at `4de07c6fd42a0207f1c3d7ab4b9b20a7fd16e3f0`. The November 1
+[merged-source checkpoint](./COMPLETION_HANDOFF.md#merged-backend-preparation---2026-11-01)
+passes build, 100 import/offline HTTP and 18 compatibility assertions in an
+isolated checkout. Neither suite proves a live rejected-request matrix or rollout.
+OFF-004 remains **In progress** for independent/release acceptance. Actual expired-session re-login,
+cross-account device access and full PWA/provider behavior are not proved.
+DEF-019's shared-backend interruption pilot remains stopped. Do not repeat
+these fifteen completed owner assertions as missing work. Documentation-only
+validation: `git diff --check`; application suites/builds were not rerun.
+
+### OFF-004 source and evidence reconciliation - 2026-10-31
+
+Inspection used backend `f4df176` and frontend `60ab28b`; it did not execute
+the application, repeat prior suites, or establish the served build's behavior.
+This separates existing implementation/evidence from the remaining negative
+acceptance matrix. No new defect was established and OFF-004 stays In progress.
+
+| Boundary | Inspected implementation / existing evidence | Remaining acceptance distinction |
+| --- | --- | --- |
+| Text-only local draft | `OfflineSpecimenDraftModal` exposes core text/gender fields and explains the online-only features. `draftFromFormData` explicitly sets `collectionId` to null; the strict draft schema excludes inventory, media and lifecycle fields. | Check the real offline modal/control boundary on the chosen release build; source inspection alone is not that browser result. |
+| Read-only cached records | `OfflineSpecimenPanel` renders cached identifiers/names/status with search and filters; cached rows offer no mutation or detail-navigation controls. Local draft Edit/Remove controls operate on the separate queue. | Verify cached rows cannot initiate media, movement, archive or publishing operations. Do not confuse removing a local draft/receipt with deleting a server specimen. |
+| No synchronization while offline | Sync/Retry controls depend on connectivity; `synchronizeAll` and `retryDraft` also check `navigator.onLine` before calling sync functions. | Confirm no outgoing sync request from the offline controls on the selected browser/build. Network restoration and actual expired-session re-login remain distinct cases. |
+| Frontend payload boundary | The real offline POST handler validates a strict top-level and nested schema before forwarding. The existing route test rejects `publicDisplay` and `quantity`, with neither backend fetch nor token lookup performed. | That executed test covers those two fields, not an individually executed media/taxonomy/provenance/lot/movement/archive/QR/report request matrix. Do not label the broader matrix Pass from schema inspection. |
+| Protected backend boundary | The Curator-only controller uses nested `CreateSpecimenDto`; the application's ValidationPipe forbids non-whitelisted fields. The existing HTTP suite rejects `imagePath` and confirms no specimen/receipt creation. Backend core DTO permits an existing collection UUID; the browser draft form does not offer collection assignment. | Do not describe collection UUIDs as rejected by the backend. The image rejection is prior isolated HTTP evidence, not live role/session-expiry or every unsupported operation tested. |
+| Fresh offline navigation / cache | `public/sw.js` caches only same-origin build assets, favicon and the record-free fallback. Protected HTML/navigation is network-first with the generic offline fallback; API/auth/data requests have no worker cache handler. Existing manual fallback/reconnect evidence is retained above/below. | Verify the chosen release build's cache contents and generic fallback without clearing another user's cache/session. This inspection supplies no new PWA, account-security or deployment acceptance. |
+
+Next owner acceptance is one bounded read-only browser matrix for the real
+offline draft, cached rows, disabled sync and fresh-navigation boundaries,
+followed by the agreed independent review. Actual session expiry/account
+changes and interruption use only a separately agreed safe target; DEF-019's
+shared-backend interruption pilot remains stopped. Previously passing owned
+SQL/HTTP, local isolation and lost-response recovery cases are not requeued.
+Documentation validation: `git diff --check`; no credentials, servers, shared
+records, local drafts or existing browser windows were changed.
+
 - `POST /offline-sync/specimen-drafts` accepts one draft at a time after stable
   connectivity returns and the curator has authenticated.
 - The payload contains a stable browser-generated `clientDraftId` UUID and the
@@ -546,3 +711,42 @@ tab being destroyed. The earlier 401/matrix fixture names were still absent
 on readback, but that does not excuse or close the new isolation defect.
 Actual browser/process death, accepted-write interruption, re-login and live
 concurrency remain unverified. No runtime code was changed in this checkpoint.
+
+### OFF-004 unsupported-request matrix - 2026-10-31
+
+Test-only follow-up on backend base `560222c` and frontend base `60ab28b`.
+The existing protected Nest HTTP suite passes **28/28**, including 24 new cases;
+the real frontend POST-handler suite passes **29/29**, including 24 matching
+boundary cases. Changed-test lint and `git diff --check` pass in both checkouts.
+No application source, dependency, shared record or server was changed.
+
+Each field below is supplied independently, both inside an otherwise valid
+`draft` and beside `clientDraftId`/`draft` in the request envelope:
+
+| Excluded operation / authority | Supplied field(s) |
+| --- | --- |
+| Media, taxonomy and provenance | `media`, `taxonomy`, `provenance` |
+| Inventory lots, quantities, placement and movement | `lots`, `quantity`, `storageUnitId`, `movements` |
+| Archive/lifecycle and public eligibility | `status: ARCHIVED`, `publicDisplay: true` |
+| QR, reports and client-selected attribution | `qrCode`, `reportId`, `createdBy` |
+
+All 24 backend requests return 400 with the rejected field named, before any
+receipt lookup, specimen creation, receipt creation or audit write. Real Nest
+controllers, validation, authentication/role guards and service wiring are used;
+authentication and database adapters are synthetic. Existing positive creation,
+authorization, invalid-input and same-ID conflict checks also pass.
+
+All 24 frontend requests return uncached 400 responses naming the field, before
+token lookup or backend fetch. The real Request/Response handler, API client and
+schemas are exercised with synthetic session/config/remote HTTP. Existing valid
+forwarding, 401/403 preservation and malformed-success checks also pass.
+
+This completes the named unsupported-field matrix owner-side; it is not an
+exhaustive penetration test or proof of live middleware, login expiry, database
+rollback/concurrency, provider/PWA behavior or independent acceptance. It does
+not prohibit the existing supported backend collection UUID field. OFF-004
+remains In progress for integration/reviewer acceptance; DEF-019's stopped
+shared-backend interruption pilot is unchanged. No red/green application repair
+is claimed: these are regressions for existing rejection behavior. A temporary
+Prisma-client generation overlap caused a generated-directory conflict; one
+sequential rerun succeeded before the backend suite, with no database access.

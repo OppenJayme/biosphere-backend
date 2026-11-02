@@ -1,6 +1,126 @@
 # BioSphere Specimen Bulk Import Guide
 
+## Live XLSX selected-row commit and retry - 2026-10-30
+
+With explicit permission to retain one synthetic record, the signed-in Curator
+used the merged production UI/API on backend `f4df176` and frontend `60ab28b`
+(build `KjnKPLGaaPM_cm9tgFdJ_`). No rebuild, migration or server restart was
+needed. The workbook contained one `Specimens` sheet with literal headers
+`accessionNumber,commonName,gender,remarks` and these two rows:
+
+| Row | Accession | Common name | Gender | Result |
+| --- | --- | --- | --- | --- |
+| 1 | `TEST-XLSX-20261030-A` | TEST - XLSX Commit Retest 20261030 | UNKNOWN | Valid; selected and committed |
+| 2 | `TEST-XLSX-20261030-INVALID` | TEST - XLSX Invalid Row 20261030 | BAD_VALUE | Invalid; disabled and unselected throughout |
+
+The initial catalog search for `TEST-XLSX-20261030` showed no matching records.
+One preview POST returned 201 with two rows, one valid and one invalid. The
+table uses the accession as its primary label when present; checking for the
+common name as an exact preview label initially returned zero. Inspecting the
+row labels confirmed both expected accessions; this was a test-selector
+correction before any commit, not evidence of lost common-name data.
+
+The first **Import selected rows** completed with one successful / zero failed.
+Read-only catalog and filtered audit pages then showed one specimen and one
+successful `IMPORT_SPECIMEN` audit. Reselecting row 1 and explicitly committing
+the **same retained preview** completed successfully again. Both submitted
+argument objects were identical: the same preview ID and `rowNumbers: [1]`.
+After retry, catalog search still returned exactly one valid record and no
+invalid record; the specimen ID stayed
+`585172b4-d99d-4f28-b765-65a5a12de24a`.
+
+Full specimen details confirmed the approved common name and remarks persisted,
+status `UNCATALOGED`, public display **Not eligible**, and **No active specimen
+lots are assigned**. The audit page filtered by module `specimens`, action
+`IMPORT_SPECIMEN`, result `SUCCESS` and the specimen UUID as search showed
+one matching row before retry and **Showing 1–1 of 1** after retry. Structured details matched the original
+preview ID, row 1 and `UNCATALOGED`. The fixture and its normal creation audit
+remain in place; no lot, quantity, storage, publishing, archive or deletion
+action was submitted. Initial creation is not assumed to produce field-edit
+revision rows.
+
+The narrow browser guard permitted only one preview and two exact commit
+requests. It also intercepted two other non-read attempts during readback;
+their destinations/bodies were not retained, so they are not classified as an
+application defect or claimed as zero attempted writes. An early retry script
+stopped before clicking because it expected zero intercepted requests; the
+actual retry proceeded only after the first record/audit readback passed,
+with the same exact request allowlist. No additional commit was allowed. Zero
+page errors were counted. The final specimen page remains signed in under a
+read-only guard. This browser guard is not independent full-stack containment.
+
+**Result:** the bounded live XLSX selected-row commit/retry subcase passes. This
+does not establish concurrent or cross-process/expired-preview retry behavior,
+direct SQL postconditions, invalid-row direct-request rejection, suitability
+of museum-provided workbooks, or whole-module acceptance. Earlier isolated
+HTTP/parser regressions retain their own scope. No new reproducible application
+defect was established and no existing defect status is promoted by this run.
+
+### Retained fixture disposition before final acceptance - 2026-10-31
+
+`TEST-XLSX-20261030-A` (specimen
+`585172b4-d99d-4f28-b765-65a5a12de24a`) remains an approved synthetic test
+record, not museum inventory or research-result data. Kyer coordinates its
+disposition with the Curator before turnover. No cleanup has been executed.
+
+Before final acceptance, record one approved disposition: archive it through
+the normal Cataloging workflow, or retain it in an explicitly separated test/demo
+dataset. Recheck its then-current status, public eligibility and lot references
+before proposing an action; do not assume the original no-lot state is current.
+Any shared-data action needs its normal authorization and must preserve the
+creation/import audit and resulting lifecycle history. Do not hard-delete audit
+evidence, alter quantities or move inventory as incidental cleanup.
+
+Verify the chosen disposition against the active catalog and final demo/report
+outputs so the synthetic specimen is not presented as a real museum holding or
+included in reported real-record counts. Archiving alone is not proof that every
+report excludes it. Record the approver, action/date, affected specimen, relevant
+audit reference and catalog/report verification in the acceptance handoff. This
+note is a pending turnover task, not approval to archive/delete or a claim that
+the record has already been removed.
+
+## Merged local XLSX preview checkpoint - 2026-10-29
+
+Backend #216/#217 and frontend #96 are merged. The controlled local refresh
+serves backend `f4df1761b6326f282f865c7749093d2f0a338749` (PID 26116),
+frontend `60ab28b98a2759d951ca4e716ebd359b6bc0f47f` (PID 39028), and frontend
+production build `KjnKPLGaaPM_cm9tgFdJ_`. Exact merged lockfile installation,
+Prisma client generation without migration and both production builds completed.
+The installed backend `proxy-addr` is 2.0.8. Both app health/login checks returned
+200; runtime Swagger describes CSV/XLSX preview support. Previous builds/source
+references and private recovery logs remain outside Git.
+
+After manual Curator sign-in, the actual merged UI/API previewed a synthetic
+XLSX with a `Specimens` sheet and two rows. The real preview POST returned 201,
+with **2 total / 1 valid / 1 invalid**. The valid row was selected, the invalid
+gender and name remained visible, and its checkbox was disabled. Catalog search
+for the unique synthetic prefix showed the no-matching-records state before
+and after preview. This is UI readback, not a direct SQL postcondition.
+
+The fresh browser guard allowed one same-origin preview POST and rejected other
+non-read methods; observations were one preview, zero other non-read attempts
+and zero page errors. No import commit, migration, lot/Inventory or public-
+eligibility action was issued. This guard is defense in depth, not independent
+full-stack containment. The temporary readback tab closed; the Curator preview
+session remains open in read-only test mode. No cookies, tokens or signed URLs
+were exported. Native OS chooser behavior was not evaluated by file selection.
+
+Operational probe notes: the first backend readiness window expired;
+subsequent independent HTTP checks returned 200. The frontend's first immediate
+post-stop check still reported a listener; the next check confirmed release
+before its build was moved. No application defect or particular root cause was
+established from these probe events. The refreshed apps are healthy.
+
+This completes the local rollout/preview checkpoint. Live XLSX commit/retry,
+actual museum-template suitability, concurrency and whole-module acceptance
+are not claimed. The already passing isolated/reviewer suites were not rerun
+merely for this documentation update.
+
 ## Required-format gap confirmed - 2026-10-29
+
+Historical pre-implementation checkpoint: the reviewed XLSX implementation and
+subsequent XML repair are recorded under Scope below. This retained finding
+does not mean the implementation is still absent from this feature branch.
 
 The user's retained eight-decisions handoff (Oct 5, question 4) specifies CSV
 and XLSX for the first release through the same preview/validation/commit
@@ -18,13 +138,77 @@ implementation; no package was installed or runtime changed in this check.
 Actual museum-template validation remains separate from synthetic format tests.
 This records a required feature gap, not a regression of the working CSV preview.
 
-This module implements the CSV import slice of Cataloging Management (SRS
+This module implements the CSV/XLSX import slice of Cataloging Management (SRS
 REQ-4.4-18 through REQ-4.4-23). It reuses the existing specimen-core creation
 path (`public.specimen`, `public.specimen_revision_history`,
 `public.audit_log`, `public.collection`) through Prisma and introduces no
 database structures.
 
 ## Scope
+
+### XML review repair - 2026-10-29
+
+Voltaire independently reproduced the original 67 HTTP / 40 unit results, but
+identified a blocking quadratic regex scan in `checkWorksheet` on malformed
+unclosed tags. See [DEF-029](./TEST_DEFECT_LOG.md#def-029---xlsx-xml-guard-rescans-unclosed-tags-quadratically).
+That regex scan has been removed. Pinned `saxes@6.0.0` (ISC, CommonJS and typed)
+now performs strict event-based XML validation before the workbook reader.
+Malformed XML and duplicate attributes reject immediately; worksheet range
+checks follow parser events, even for nonstandard ZIP paths. Other XML parts
+are validated without interpreting chart namespace prefixes as worksheet cells.
+Additional limits are depth 64, 250,000 elements per XML part and 64 attributes
+per element. Charts and external hyperlinks remain unsupported, with explicit
+removal instructions instead of a misleading missing-cell-reference message.
+
+The public HTTP malformed-tag regression failed before the repair and now
+rejects within its two-second response budget, followed by a successful
+protected specimen GET and no fixture writes. The affected HTTP suite passes
+72/72 and import-service units 40/40; TypeScript/changed-file lint pass. This is
+bounded synthetic HTTP evidence, not a universal latency guarantee or
+independent acceptance of the fix. Voltaire subsequently approved `842f558` in
+[his retest](https://github.com/OppenJayme/biosphere-backend/pull/216#issuecomment-6499454194),
+reporting combined specimen/storage HTTP 77/77 and import units 40/40; see
+DEF-029 for the bounded result. Frontend #96 then merged. Dependency
+audit remains the recorded 13 existing advisories; no saxes/xmlchars advisory
+is reported. OBS-005's separate security triage remains open.
+
+### XLSX support checkpoint - 2026-10-29
+
+XLSX rows now enter the existing preview/validation/commit pipeline; commit,
+lot handling and duplicate rules are unchanged. Use a worksheet named exactly
+`Specimens`, with text headers in its first row. Other sheets are not imported.
+The existing CSV template supplies the same supported headers; it can be opened
+in Excel, the sheet renamed and saved as `.xlsx`. No museum template or sample
+facts are declared approved by this change.
+
+Format accession numbers as **Text** before entry. Numeric accession cells are
+rejected rather than reconstructing lost leading zeros or number formats.
+Collection dates may be ISO `YYYY-MM-DD` text or date-only Excel cells, which
+are normalized to ISO dates. Date/time cells and dates in other fields are
+rejected. The normal future-date and row validation rules still apply.
+
+Workbook limits: 5 MB uploaded, 20 MB total expanded ZIP entries, 128 archive
+entries, and sheets within 501 rows (header plus 500 data rows) and 100 columns.
+Remove unused formatted rows/columns if Excel's stored range exceeds these
+bounds. Range checks apply to XML at arbitrary relationship target paths.
+Formula cells (including cached results), spreadsheet error cells, XML
+DOCTYPE/entities, external relationships, macro/embedded-object entries,
+duplicate headers and unsafe/duplicate archive names are rejected. Only
+literal input is accepted; spreadsheet formulas are never evaluated.
+
+Dependencies are pinned to `read-excel-file@9.3.13` and `fflate@0.8.3` (MIT).
+The reader's [documented named-sheet and numeric parsing API](https://gitlab.com/catamphetamine/read-excel-file/-/blob/master/README.md)
+is used after bounded archive extraction and repackaging. This is resource
+limiting, not an OS/process sandbox or unlimited hostile-file guarantee.
+
+Verification: first XLSX HTTP workflow failed with 400 before implementation;
+the affected Nest HTTP suite now passes 67/67 and existing import-service units
+40/40. These use real services/controllers with synthetic auth/database
+adapters and literal OOXML fixtures. Frontend format/rendered-form/handler and
+transport checks pass 16/16; full frontend suite 445/445. Local TypeScript and
+changed-file lint pass. No live import, shared record, migration, running-server
+restart or actual museum-workbook acceptance is claimed. Deployment must pair
+the backend support before exposing the frontend XLSX option.
 
 Import creates the same core `UNCATALOGED` specimen record as
 `POST /specimens`, plus, when the row supplies them, its taxonomy, provenance,
@@ -40,7 +224,7 @@ commit provably operates on what was actually previewed rather than on
 arbitrary rows a client happens to send:
 
 1. `POST /specimens/import/preview` — `multipart/form-data` upload with a
-   `.csv` file field named `file`. Parses and validates every row, flags
+   `.csv` or `.xlsx` file field named `file`. Parses and validates every row, flags
    possible duplicates, and returns the results plus a `previewId`. Nothing
    is persisted and no audit event is written.
 2. `POST /specimens/import/commit` — JSON body of `{ previewId, rowNumbers?
@@ -314,7 +498,7 @@ needs no special flag outside Jest's sandboxed module loader.
 ## Deferred boundaries
 
 This slice reports catalog completeness in the preview but does not change a
-record's status, does not support spreadsheet formats other than CSV, and
+record's status, does not support legacy XLS or macro-enabled XLSM files, and
 does not auto-merge possible duplicates. The column mappings are not final
 until the museum approves the CSV template and they are validated against
 representative museum data. Those remain governed by the same boundaries documented

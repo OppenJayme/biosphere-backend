@@ -5,6 +5,7 @@
   "private": true,
   "license": "UNLICENSED",
   "scripts": {
+    "test:lot-history:db": "cross-env RUN_LOT_HISTORY_DISPOSABLE_DB=true node --experimental-vm-modules node_modules/jest/bin/jest.js --config ./test/jest-lot-history-db.json --runInBand",
     "test:notifications:db": "cross-env RUN_NOTIFICATIONS_DISPOSABLE_DB=true node --experimental-vm-modules node_modules/jest/bin/jest.js --config ./test/jest-notifications-db.json --runInBand",
     "postinstall": "prisma generate",
     "prisma:generate": "prisma generate",
@@ -22,6 +23,7 @@
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "evaluate:faq": "jest --config ./test/jest-faq-evaluation.json --runInBand",
+    "evaluate:faq:curator": "cross-env NODE_OPTIONS=--experimental-vm-modules jest --config ./test/jest-faq-curator-evaluation.json --runInBand",
     "test:faq-review:db": "cross-env RUN_FAQ_REVIEW_DISPOSABLE_DB=true node --experimental-vm-modules node_modules/jest/bin/jest.js --config ./test/jest-faq-review-db.json --runInBand",
     "test:collections:db": "cross-env RUN_COLLECTIONS_DISPOSABLE_DB=true node --experimental-vm-modules node_modules/jest/bin/jest.js --config ./test/jest-collections-db.json --runInBand",
     "test:backup-history:db": "cross-env RUN_BACKUP_HISTORY_DISPOSABLE_DB=true node --experimental-vm-modules node_modules/jest/bin/jest.js --config ./test/jest-backup-history-db.json --runInBand",
@@ -32,7 +34,9 @@
     "benchmark:specimen-import": "ts-node --transpile-only scripts/benchmark-specimen-import.ts",
     "db:check-accession-collisions": "ts-node --transpile-only scripts/check-accession-collisions.ts",
     "db:check-collection-collisions": "ts-node --transpile-only scripts/check-collection-collisions.ts",
-    "verify:accession-uniqueness": "ts-node --transpile-only scripts/verify-accession-uniqueness.ts"
+    "verify:accession-uniqueness": "ts-node --transpile-only scripts/verify-accession-uniqueness.ts",
+    "verify:swagger-yaml": "node scripts/verify-swagger-yaml.cjs",
+    "verify:csv-parser": "node scripts/verify-csv-parser.cjs"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
@@ -41,18 +45,27 @@
     "@nestjs/platform-express": "^11.0.1",
     "@nestjs/swagger": "^11.4.7",
     "@nestjs/throttler": "^6.5.0",
-    "@prisma/adapter-pg": "7.10.0",
-    "@prisma/client": "7.10.0",
+    "@prisma/adapter-pg": "7.10.1",
+    "@prisma/client": "7.10.1",
     "@supabase/supabase-js": "^2.112.4",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.15.1",
-    "csv-parse": "^5.6.0",
+    "csv-parse": "7.0.3",
     "docx": "^9.8.1",
+    "fflate": "0.8.3",
     "pdfkit": "^0.20.2",
     "pg": "^8.23.0",
     "qrcode": "^1.5.4",
+    "read-excel-file": "9.3.13",
     "reflect-metadata": "^0.2.2",
-    "rxjs": "^7.8.1"
+    "rxjs": "^7.8.1",
+    "saxes": "6.0.0"
+  },
+  "overrides": {
+    "@nestjs/platform-express": {
+      "multer": "2.5.0"
+    },
+    "js-yaml@5.3.0": "5.4.1"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.2.0",
@@ -76,7 +89,7 @@
     "globals": "^17.0.0",
     "jest": "^30.0.0",
     "prettier": "^3.4.2",
-    "prisma": "7.10.0",
+    "prisma": "7.10.1",
     "source-map-support": "^0.5.21",
     "supertest": "^7.0.0",
     "ts-jest": "^29.2.5",

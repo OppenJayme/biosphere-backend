@@ -1202,6 +1202,7 @@ enum quantity_adjustment_type {
   DEACCESSION
   MISSING_LOSS
   DESTRUCTION
+  TEMPORARY_ABSENCE
   DATA_CORRECTION
 
   @@schema("public")

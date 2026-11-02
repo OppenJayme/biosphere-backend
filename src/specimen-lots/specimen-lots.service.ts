@@ -31,6 +31,7 @@ import { SpecimenLotQuantityAdjustmentResult } from './entities/specimen-lot-qua
 import {
   LotTransactionType,
   QuantityAdjustmentType,
+  type RecordedQuantityAdjustmentType,
   SpecimenLotTransaction,
   SpecimenLotTransactionPage,
 } from './entities/specimen-lot-transaction.entity';
@@ -1000,7 +1001,8 @@ export class SpecimenLotsService {
       targetLotId: item.target_lot_id,
       transactionType: item.transaction_type as LotTransactionType,
       quantityAffected: item.quantity_affected,
-      adjustmentType: item.adjustment_type as QuantityAdjustmentType | null,
+      adjustmentType:
+        item.adjustment_type as RecordedQuantityAdjustmentType | null,
       reason: item.reason,
       performedBy: item.performed_by,
       createdAt: item.created_at,

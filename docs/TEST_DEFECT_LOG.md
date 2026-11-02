@@ -6,6 +6,27 @@ defect entry.
 
 ## Start here
 
+2026-10-30 Audit form/pagination follow-up: [nine read-only assertions](./AUDIT_LOG_GUIDE.md#live-toolbar-actor-search-and-pagination-follow-up---2026-10-30)
+pass for real form submission, actor-name search, populated Next/Previous and
+filter reset using existing logs. The avatar/name selector and insufficient
+import-only population were diagnostic corrections, not application defects.
+No non-read requests or page errors occurred in the completed run; no existing
+defect status is promoted.
+
+2026-10-30 Audit follow-up: [11 read-only existing-event assertions](./AUDIT_LOG_GUIDE.md#live-existing-event-filter-checkpoint---2026-10-30)
+pass for matching/nonmatching filters, adjacent-date exclusion, import preview/row
+details and stable reload identity. No non-read requests or page errors were
+observed. The initial ambiguous diagnostic selector was corrected; no new
+application defect or existing-status promotion is established by this batch.
+
+2026-10-30 Cataloging checkpoint: [live XLSX selected-row commit/retry](./SPECIMEN_IMPORT_GUIDE.md#live-xlsx-selected-row-commit-and-retry---2026-10-30)
+passes on the merged local production builds. Exactly one approved synthetic
+specimen remains Uncataloged with public display off and no active lots; retry
+kept its ID and one successful import audit. The invalid row stayed excluded.
+Selector/guard diagnostic stops and two intercepted non-read attempts are
+recorded with their limits in the guide. No new reproducible application defect
+was established and no existing defect status is promoted by this checkpoint.
+
 2026-10-27 read-only media checkpoint: [keyboard/dialog evidence and diagnostic
 limits](./SPECIMEN_MEDIA_GUIDE.md#read-only-keyboard-and-dialog-checkpoint---2026-10-27).
 The first strict Tab-containment assertion failed; replay observed focus outside
@@ -86,6 +107,8 @@ system is not a reason to postpone all fixes until the end.
 
 | ID      | Date       | Module                     | Summary                                                                 | Severity    | Priority | Status | Owner                   |
 | ------- | ---------- | -------------------------- | ----------------------------------------------------------------------- | ----------- | -------- | ------ | ----------------------- |
+| [DEF-030](#def-030---lot-history-fails-on-a-database-enum-ahead-of-the-client) | 2026-10-31 | Inventory / Lot history | Retained TEMPORARY_ABSENCE cannot be decoded by develop Prisma; frontend also rejects the historical response value | S2 Major | P1 | Ready for retest | John / Inventory; Kyer assisting; Charles report |
+| [DEF-029](#def-029---xlsx-xml-guard-rescans-unclosed-tags-quadratically) | 2026-10-29 | Cataloging / XLSX parser | Malformed unclosed XML tags trigger excessive synchronous regex rescanning | S2 Major | P1 | Verified (bounded independent retest) | Kyer; Voltaire independent retest |
 | [DEF-028](#def-028---public-dialog-focus-escapes-and-is-not-restored-on-close) | 2026-10-28 | Public Website / Inquiry and visit dialog | Keyboard focus leaves the open dialog and closing fails to return focus to its opening button | S3 Moderate | P2 | Verified | John/Charles public forms; Kyer assisted repair |
 | [DEF-027](#def-027---public-forms-misreport-uncertain-submission-outcomes) | 2026-10-28 | Public Website / Inquiry and visit forms | Malformed receipts fabricate success; transport/5xx feedback encourages a potentially duplicate resend | S3 Moderate | P1 | Ready for retest | John/Charles public forms; Kyer assisted repair |
 | [DEF-026](#def-026---duplicate-result-remains-valid-after-typing-new-values) | 2026-10-27 | Cataloging / Duplicate warning UI | A response for the old name can show after typing a new value without leaving the field | S3 Moderate | P2 | Ready for retest | Kyer / Cataloging frontend |
@@ -96,7 +119,7 @@ system is not a reason to postpone all fixes until the end.
 | [DEF-021](#def-021---interrupted-csv-commit-request-removes-the-reviewed-preview) | 2026-10-24 | Cataloging / CSV import UI | Rejected client commit transport removes the reviewed preview and recovery controls | S3 Moderate | P1 | Ready for retest | Kyer / Cataloging frontend |
 | [DEF-020](#def-020---interrupted-duplicate-check-removes-the-unsaved-core-form) | 2026-10-23 | Cataloging / Duplicate warning | Rejected client request escapes the warning check and removes the unsaved form | S3 Moderate | P1 | Ready for retest | Kyer / Cataloging frontend |
 | [DEF-016](#def-016---backup-http-fixture-omits-the-security-audit-delegate) | 2026-10-19 | Backup / HTTP test fixture | Missing audit delegate logs an error despite green denial test | S3 Moderate | P2 | Ready for retest | Backup tests / coordinate with Auth |
-| [DEF-017](#def-017---storage-inventory-denial-fixture-omits-security-audit-persistence) | 2026-10-21 | Inventory / HTTP test fixture | Storage-inventory denial passes despite missing security-audit delegate | S3 Moderate | P2 | Ready for retest | John / coordinate with Voltaire |
+| [DEF-017](#def-017---storage-inventory-denial-fixture-omits-security-audit-persistence) | 2026-10-21 | Inventory / HTTP test fixture | Storage-inventory denial passes despite missing security-audit delegate | S3 Moderate | P2 | Verified (isolated fixture) | John / coordinate with Voltaire |
 | [DEF-018](#def-018---csv-commit-success-status-differs-from-swagger-declaration) | 2026-10-22 | Cataloging / Import API docs | Commit Swagger success status differs from actual POST response | S4 Minor | P3 | Verified | Kyer / Cataloging |
 | [DEF-019](#def-019---tab-interruption-diagnostic-failed-its-no-backend-write-guard) | 2026-10-22 | Offline / Browser diagnostic | Tab-interruption pilot created a server fixture despite its intended interception | S3 Moderate | P1 | Open | Kyer / test isolation |
 | [DEF-001](#def-001---duplicate-normalized-collection-names-are-accepted) | 2026-09-29 | Cataloging / Collections   | Duplicate normalized collection names are accepted                      | S2 Major    | P1       | Ready for retest | Cataloging / Backend    |
@@ -116,6 +139,173 @@ system is not a reason to postpone all fixes until the end.
 | [DEF-015](#def-015---audit-http-fixture-omits-the-security-audit-create-method) | 2026-10-19 | Audit / HTTP test fixture | Missing security-audit create mock logs an error despite green denial test | S3 Moderate | P2 | Ready for retest | Audit tests / coordinate with Auth |
 
 ## 3. Defect details
+
+### DEF-030 - Lot history fails on a database enum ahead of the client
+
+**Reported:** 2026-10-31; Charles's artifact report supplied by the user.
+**Affected record:** User-reported accession `USC-BM-2026-0001`; not edited or
+queried directly during the repair.
+**Severity / priority:** S2 Major / P1; blocks an affected specimen's Lots page.
+**Status:** Ready for retest; business decisions recorded 2026-11-01, see the
+disposition record below. Owner reproduction, isolated checks and both builds
+pass. Frozen-enum/read-only compatibility documentation is reconciled. Charles
+approved backend #221 and it was merged; controlled rollout/live retest and
+independent acceptance remain. The Prisma 7.10.1 database rerun passed on 2026-11-02.
+
+**Actual:** The reported history endpoint returns 500. Source `0f80b67` contains
+an enum migration missing from develop's Prisma schema. An owned PostgreSQL
+fixture independently reproduces P2023: `Value 'TEMPORARY_ABSENCE' not found in
+enum 'quantity_adjustment_type'`. Separately, the real frontend page/API/Zod
+boundary rejects the retained value and shows the generic Lots failure.
+
+**Expected:** Authorized users can read the original historical adjustment,
+lots and summary without altering quantities/history or enabling unapproved
+new adjustment commands.
+
+**Repair/evidence:** [Scoped enum compatibility and rollout boundary](./LOT_HISTORY_ENUM_COMPATIBILITY.md).
+Seven real SQL/HTTP cases pass after regenerating the isolated client; the
+frontend formerly failing page case passes with known-value read compatibility.
+The original migration file is preserved byte-for-byte at the Git-blob level.
+Write DTO/form choices remain the original seven; unsupported writes are
+rejected. No shared migration, row correction, rollback or runtime restart was
+performed. A later read-only preflight inspected the locally configured database;
+its identity as the shared deployment target is not independently confirmed.
+Independent and live retest pending.
+
+**User direction - 2026-10-31:** Kyer explicitly wants to retain the value and
+have a future borrowing option for current or successor curators. Record this
+as support for retention and a proposed Inventory loan workflow, not as an
+instruction to remove historical evidence. It does not establish that the
+existing adjustment is valid or that a new write operation is implemented.
+The [compatibility guide](./LOT_HISTORY_ENUM_COMPATIBILITY.md#proposed-borrowing-workflow---user-direction-2026-10-31)
+records the proposed workflow and remaining owner decisions.
+
+**Record provenance - owner statement, 2026-11-01:** John Gerozaga (Inventory
+owner) states that `USC-BM-2026-0001` is the test record `TEST - Proposal accession`
+(`8fd97f42-39bc-44e0-9ff4-8f47b5fd377c`), not a museum specimen. It was created
+during the approved 2026-10-28 live check of the client proposals on
+`feat/client-proposals-presentation`. That check deliberately reduced lot
+`21791a63-f3e2-44e9-8b82-832e189f8655` in `TEST Drawer B` to 0 using
+`TEMPORARY_ABSENCE`. No real loan, off-site conservation or other physical
+movement took place.
+
+**Shared migration record - owner statement from 2026-10-28:** at the owner's
+direction, `prisma migrate deploy` applied
+`20261022000100_add_temporary_absence_adjustment` from a Windows checkout, with
+`20261022000000_add_faq_unanswered_question` deliberately set aside because
+develop's own FAQ work covers that proposal. Immediately afterwards the enum
+included `TEMPORARY_ABSENCE`, `faq_unanswered_question` did not exist, and
+`prisma migrate status` listed the FAQ migration as not applied. This answers the
+sibling question as of that date; the rollout owner must still rerun the preflight
+in the [compatibility guide](./LOT_HISTORY_ENUM_COMPATIBILITY.md).
+
+The checksum was not recorded at that time. The 2026-11-02 preflight below found
+the LF checksum on the locally configured database; the Windows checkout had
+CRLF bytes. Compare the intended deployment target and file with both candidates:
+
+- LF: `c8f5bae99f5bbf0d1bfd20412b195a6266a50f14d4911fe25c1ecc8912611f06`
+- CRLF: `7aa91b8e59172268baeb604fb9e0f0a69632e1a6025c51daa429a83e17bd5d57`
+
+**Impact and retest scope:** the Lots page is the reported symptom. From code
+inspection, not reproduced, the same enum decoding also affects the Quantity
+adjustments grouping in generated reports whose date range includes the event, and
+storage inventory history for the unit holding the lot. After rollout, retest both
+read-only along with the specimens already named.
+
+These notes explain where the event came from. They do not authorize changing or
+deleting the record.
+
+**Disposition record - 2026-11-01:**
+
+| Decision | Outcome | Approver | Date | Scope / rationale |
+| -------- | ------- | -------- | ---- | ----------------- |
+| Keep `TEMPORARY_ABSENCE` as a historical read-only value permanently | Keep; treated as confirmed under the Curator's general direction | Curator's general direction, relayed by John Gerozaga (Inventory owner) | Curator's statement 2026-10-28; recorded 2026-11-01 | The Curator told the team it may adjust anything needed to avoid system bugs or confusion. No sign-off specific to this value was obtained. Needed to read the retained row; new writes stay rejected. Does not approve the borrowing proposal or amend the SRS |
+| Treat the `USC-BM-2026-0001` adjustment as test data, not a valid collection event, under REQ-4.5-09 / BR-08 | Test data | John Gerozaga (Inventory owner) | 2026-11-01 | Owner vouches that the record was created for the 2026-10-28 live check. Owner decision; Curator approval not required per the owner |
+| Keep or clean up the test record, by separately approved remediation only | Keep for now; not a merge condition | John Gerozaga (Inventory owner) | 2026-11-01 | The post-deploy retest reads it; any later cleanup needs separate approval |
+
+**Business disposition (merge gate):** the table above records (1) retention of
+the historical enum value and (2) the reported quantity change under REQ-4.5-09 /
+BR-08. If the Curator later gives a decision specific to (1), record it there.
+Preserve evidence and do not convert/delete historical events or recalculate
+quantities without a separately approved remediation. Charles approved #221;
+its deployment checks and live retest remain outstanding.
+
+**Read-only preflight - 2026-11-02:** Kyer relayed acceptance of retaining the
+adjustment and reaffirmed keeping the value. This is an accepted test action to
+preserve as test history, not a valid museum collection event or real loan;
+John's provenance above identifies it as intentional test data. This does not
+enable new temporary-absence writes. The PR merged locally with
+develop `4de07c6`, generated with Prisma 7.10.1, passed its build and all seven
+owned PostgreSQL/HTTP lot-history tests. In a read-only transaction
+against the database configured for the local backend (not independently
+identified as the shared deployment target), the quantity migration
+was finished and not rolled back, its enum contained `TEMPORARY_ABSENCE`, and
+the sibling FAQ migration and its table were absent. The applied quantity
+migration checksum matches the original LF bytes (`c8f5bae9...`) rather than the
+CRLF bytes (`7aa91b8e...`) in the local Windows checkout. Verify the exact
+deployment file bytes and target again during rollout; no database state changed.
+
+**Rollout gates:** verify both the quantity migration and sibling FAQ migration
+`20261022000000_add_faq_unanswered_question` against actual target migration
+history, run owner-controlled `prisma migrate status`, and compare applied
+SHA-256 checksums with deployment-file bytes (including line endings). The above
+preflight is a snapshot of the locally configured target, not verification of
+every deployment environment. The [compatibility guide](./LOT_HISTORY_ENUM_COMPATIBILITY.md)
+records the checks without authorizing shared migrations or data repair.
+
+### DEF-029 - XLSX XML guard rescans unclosed tags quadratically
+
+**Found:** 2026-10-29 in [Voltaire's #216 review](https://github.com/OppenJayme/biosphere-backend/pull/216#issuecomment-6497720771)
+of backend `ac4cc6e`.
+**Severity / priority:** S2 Major / P1, authenticated import denial-of-service.
+**Status:** Verified for the bounded parser repair after Voltaire's independent
+retest on `842f558`; backend #216 and frontend #96 subsequently merged.
+
+Voltaire's [approval/retest](https://github.com/OppenJayme/biosphere-backend/pull/216#issuecomment-6499454194)
+reported the former 200 KB input rejected in 13ms and a 19 MB variant in 164ms,
+plus prompt rejection of excessive nesting/elements, size-lying ZIP input,
+DOCTYPE, undeclared entity, UTF-16 and namespaced formulas. He reported combined
+specimen/storage HTTP **77/77**, import units **40/40**, lint and TypeScript
+clean. These are his measurements, not owner reruns or universal latency bounds.
+The merged backend's `src` tree matches that reviewed head. The subsequent
+[local merged preview](./SPECIMEN_IMPORT_GUIDE.md#merged-local-xlsx-preview-checkpoint---2026-10-29)
+adds normal-workbook UI/API evidence, not hostile-input testing against shared
+data or live concurrency/museum-template acceptance.
+
+The regex in `checkWorksheet` repeatedly rescanned unclosed `<c ` sequences
+in every XML part. Voltaire reported about 0.4s at 25 KB, 1.7s at 50 KB, 6.9s
+at 100 KB and 27.8s at 200 KB; these are his measurements, not ours. An active
+Curator could submit a small compressed workbook containing such data and
+block the synchronous server thread. No production exploit was attempted.
+
+Owner red reproduction: the real import HTTP route received an OOXML fixture
+with 34,000 repeated unclosed tags in an additional XML part. It returned 201
+instead of the expected 400 after prolonged processing. The focused Jest run
+took 27.5 seconds including application/test setup; that is not an isolated
+parser latency measurement. Synthetic auth/database adapters were used; no
+live database or records were involved.
+
+Repair: remove the tag/attribute regex scan and use pinned `saxes@6.0.0` for a
+strict XML event pass, preserving archive/size/range/literal-cell restrictions.
+Reject malformed XML, DOCTYPE, duplicate attributes and excessive depth,
+element/attribute counts. Check worksheet coordinates at every ZIP path while
+other XML parts receive well-formedness validation. Charts/hyperlinks have clear
+unsupported-feature messages. No authentication, Inventory or commit rule changes.
+
+Owner results: malformed-tag HTTP response is 400 within the regression's
+2,000ms budget, the following protected GET succeeds and fixture writes remain
+zero. Full affected HTTP suite 72/72, import units 40/40, TypeScript and changed
+file ESLint pass. No live records, credentials, migrations or server restart.
+The timing budget covers this bounded input/environment, not all hostile files
+or a production SLA. Existing dependency advisories remain under OBS-005.
+
+Retest the updated backend PR head using the affected `specimens.e2e-spec.ts`
+suite, including `-t 'repeated unclosed'` for the focused case, and the existing
+import-service unit suite. Confirm malformed XML rejects promptly, normal
+CSV/XLSX preview/selected commit/retry still work, no fixture writes occur on
+rejection, and record the exact SHA/commands/results. Independent review of
+the parser replacement was required and is now recorded above; these retained
+instructions are not a request to repeat the completed reviewer batch.
 
 ### DEF-028 - Public dialog focus escapes and is not restored on close
 
@@ -993,6 +1183,18 @@ interception guarantees isolation, or that an application authorization or
 idempotency defect has been established. Do not blindly rerun the pilot.
 
 #### Containment and follow-up
+
+2026-11-01 separately authorized [live session-loss and manual re-login](./OFFLINE_SYNC_GUIDE.md#live-isolated-session-loss-and-re-login-recovery---2026-11-01)
+records 28 functional checks with one approved retained synthetic record and
+one correlated sync success audit after identical retry. Three explicitly
+allowed frontend sync requests returned 401/200/200; one additional attempt
+was blocked without retained payload/timing, and a diagnostic selector error
+required read-only continuation. This is not a zero-attempt clean run or a
+confirmed new application defect. No response was held and no interruption
+was performed; original-account protected access was preserved. **DEF-019
+remains Open and its shared interruption pilot stays stopped.** This new
+session-loss evidence does not retroactively explain the historical leak or
+prove natural expiry, independent containment or provider/PWA behavior.
 
 2026-10-28 subsequent approved [owned accepted-write recovery](./OFFLINE_SYNC_GUIDE.md#owned-accepted-write-tab-recovery---2026-10-28)
 passes 1/1 twice consecutively: lost first response, tab close, retained fields,
@@ -2757,8 +2959,18 @@ Independent reviewer retest remains pending; this is not live persistence proof.
 **Found on:** backend base `27db649`, 2026-10-21
 **Severity:** S3 Moderate (test-harness/coverage defect; no proven production failure)
 **Priority:** P2
-**Status:** Ready for retest (isolated fixture repair, 2026-10-29)
+**Status:** Verified for the isolated fixture repair (independent retest, 2026-10-29)
 **Owner:** John / Inventory test fixture; coordinate with Voltaire for auth audit
+
+#### Independent fixture retest - 2026-10-29
+
+Voltaire [independently confirmed #214](https://github.com/OppenJayme/biosphere-backend/pull/214#issuecomment-6496206565)
+on clean `ce5932edcadf05486b773439ac0b688a5d299511`, with Node 22.14.0,
+Windows and dependencies installed from the committed lockfile. The affected
+HTTP suite passed 5/5, exit 0, without missing-audit delegate errors. He also
+reproduced the old green-403/error behavior on `09c6696` and verified no guard,
+SecurityAuditService or Inventory source change. This verifies only the
+synthetic HTTP fixture, not live audit persistence or Inventory acceptance.
 
 #### Reproduction and evidence
 
@@ -2934,6 +3146,86 @@ records the tested commit and changes it to `Verified`; do not erase the entry.
 These are recorded signals, not confirmed application defects or closed issues.
 Promote an observation to a DEF entry when reproduction establishes an
 application failure; retain the original observation and cross-reference it.
+
+### OBS-005 - Existing production dependency security advisories
+
+**Current component disposition - 2026-10-29:** backend #217 is merged, and the
+controlled local backend refresh installed `proxy-addr@2.0.8` and restarted the
+app from merged `f4df176` (PID 26116). Voltaire independently approved `64c4829`,
+reporting the four request-IP tests pass on 2.0.8 and the advisory test fails on
+2.0.7, with audit 12 remaining / zero critical. See [his report](https://github.com/OppenJayme/biosphere-backend/pull/217#issuecomment-6499447844)
+and [the local release note](./RATE_LIMITING_GUIDE.md#merged-local-dependency-refresh---2026-10-29).
+The critical component is patched in this local install. OBS-005 remains open
+for the other 12 advisories; deployed proxy-policy review and other environments
+are not established. The original discovery below remains historical evidence.
+
+**Observed:** 2026-10-29 during XLSX dependency review.
+**Status:** Open security triage; no live-application exploitation reproduced.
+**Coordination:** Backend/dependency owner with Voltaire for request IP/auth/rate
+limiting and deployment proxy configuration. Prioritize before release sign-off.
+
+2026-10-30 [current dependency-path triage](./BACKEND_DEPENDENCY_TRIAGE_2026-10-30.md)
+confirms 12 production affected-package entries (8 high / 4 moderate / 0 critical)
+after the proxy repair. Full development tree: 22 entries, including a critical
+Handlebars finding through ts-jest. Actual upload/body-parser paths are repair
+priorities; Prisma/PostgreSQL versus MySQL, Swagger/YAML and CSV option
+conditions are distinguished. No exploitation, dependency update or runtime
+change occurred; OBS-005 stays Open. Audit counts are affected packages including
+parent propagation, not independent exploits. The earlier baseline below is
+retained as historical evidence.
+
+`npm audit --omit=dev --json` reports the same 13 advisories on the unchanged
+backend dependency baseline and the isolated XLSX branch: 4 moderate, 8 high,
+1 critical. No newly affected package is reported after adding the pinned XLSX
+reader and fflate. This comparison is not a clean audit or security approval.
+
+The critical dependency is `proxy-addr` in the reported affected range
+`>=1.1.0 <2.0.8`; upstream advisory
+[GHSA-jqcg-44mw-7w3h](https://github.com/advisories/GHSA-jqcg-44mw-7w3h)
+concerns IPv4-mapped IPv6 trust-subnet IP spoofing. Actual applicability depends
+on resolved dependencies and proxy configuration and was not exploited here.
+Other affected package names are `@nestjs/platform-express`, `@nestjs/swagger`,
+`@prisma/config`, `body-parser`, `csv-parse`, `deepmerge-ts`, `fast-uri`,
+`js-yaml`, `multer`, `mysql2`, `prisma` and `qs`.
+
+Owner follow-up: review full current advisory details, map applicability,
+prepare the smallest compatible dependency updates with affected regressions,
+and rerun the audit. Do not run `npm audit fix --force`, silently dismiss the
+critical report, or claim deployment is secure from the XLSX tests. No shared
+dependency tree, running server, proxy setting or account changed in this check.
+
+OBS-005 follow-up, 2026-10-30: [compatible dependency patch](./DEPENDENCY_PATCH_CHECKPOINT_2026-10-30.md)
+updates parser/tooling dependencies and scoped Multer, then coordinates Prisma
+CLI/client/adapter 7.10.1 plus compatible fast-uri/brace-expansion resolutions.
+Earlier 136/222 results are retained in the guide. Final clean-install generation,
+build, 701 unit tests, 222 HTTP tests and 16 owned PostgreSQL collection checks
+pass. Full lint has zero errors and six unchanged-file warnings. The intentional
+SQL 42501 audit-permission failure verifies rollback; it is not a new outage.
+Production audit is now three moderate entries, full-tree three moderate/eight
+low, with zero high/critical in either scope. Residual findings keep OBS-005
+Open. The owned container was removed; no running app was restarted or shared
+record changed. These are source/owned-fixture results, not rollout acceptance.
+
+Subsequent YAML follow-up on the same branch: an exact-version js-yaml override
+updates Swagger's 5.3.0 to 5.4.1 without changing Swagger/Nest majors or YAML
+3.x/4.x. The initial parent-scoped attempt produced npm peer errors and was
+replaced before commit; final clean install and `npm ls` pass. The maintained
+CI-wired synthetic Swagger check passes eight assertions and build passes.
+Latest audits report one moderate production entry (csv-parse), full-tree one
+moderate/eight low, zero high/critical. Earlier test counts retain their own
+graph scope. No new application defect or rollout is claimed; OBS-005 stays Open.
+
+Subsequent CSV follow-up pins csv-parse 7.0.3 (explicit major transition).
+Seven synthetic parser assertions passed on 5.6.0 and its grouped duplicate-
+prototype-header assertion failed; all eight pass on 7.0.3. That upstream option
+is not enabled by BioSphere, so this is not a live app exploit finding. The
+upgraded graph passed 701 unit/222 HTTP tests; removal of one redundant type
+assertion then passed build, 40 import-unit/72 specimen-HTTP tests and lint.
+Both maintained compatibility checks are wired into CI. Production audit now
+exits 0 with zero findings; full audit retains eight low development entries.
+No running app or shared data was changed. OBS-005 stays Open for residual
+tooling disposition, independent review and deployment verification; do not
+claim the entire system secure from an audit snapshot.
 
 ### OBS-004 - Public submission feedback can obscure an uncertain outcome
 
