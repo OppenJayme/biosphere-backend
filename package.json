@@ -23,6 +23,7 @@
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "evaluate:faq": "jest --config ./test/jest-faq-evaluation.json --runInBand",
+    "evaluate:faq:curator": "cross-env NODE_OPTIONS=--experimental-vm-modules jest --config ./test/jest-faq-curator-evaluation.json --runInBand",
     "test:faq-review:db": "cross-env RUN_FAQ_REVIEW_DISPOSABLE_DB=true node --experimental-vm-modules node_modules/jest/bin/jest.js --config ./test/jest-faq-review-db.json --runInBand",
     "test:collections:db": "cross-env RUN_COLLECTIONS_DISPOSABLE_DB=true node --experimental-vm-modules node_modules/jest/bin/jest.js --config ./test/jest-collections-db.json --runInBand",
     "test:backup-history:db": "cross-env RUN_BACKUP_HISTORY_DISPOSABLE_DB=true node --experimental-vm-modules node_modules/jest/bin/jest.js --config ./test/jest-backup-history-db.json --runInBand",

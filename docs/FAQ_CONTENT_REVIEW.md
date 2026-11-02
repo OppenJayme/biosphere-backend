@@ -2,6 +2,15 @@
 
 ## Operating decision
 
+2026-11-02 content follow-up: [intake #224](https://github.com/OppenJayme/biosphere-backend/pull/224)
+records the user's responses to thirty questions and later clarifications,
+including incomplete and unanswered items. An isolated
+[curator-content evaluation](./FAQ_CURATOR_CONTENT_EVALUATION_2026-11-02.md)
+now passes 33/33 working cases using seventeen draft answer candidates, without
+changing matching rules or activating shared entries. The older fictional
+25-case set below retains its own scope; neither result is a visitor-study
+accuracy score or independent approval of the proposed public wording.
+
 Use the existing laptop-only demo setup. Do not create hosting accounts, paid AI
 services, scheduled jobs or shared database migrations for this slice. Keep the
 optional question-review collection disabled. Existing service plans/limits are
