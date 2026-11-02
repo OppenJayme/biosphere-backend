@@ -117,9 +117,11 @@ scope eligibility, not thresholds or a supported-language promise.
 2026-11-02 update: the user supplied thirty museum FAQ answers. The
 [content intake and clarification sheet](./FAQ_CONTENT_INTAKE_2026-11-02.md)
 now records all answers, proposed public wording, exceptions and internal-data
-boundaries. Authoritative approver/source and confirmation dates remain
-unprovided; November 2 is the received date only. Several facts are incomplete
-or ambiguous. No entry was created or activated. The older inventory below is
+boundaries. The user's follow-up confirms Sir Fidel as source/approver and
+October 30, 2026 as the confirmation date; November 2 is the received date.
+The school-tour limit is clarified as a maximum of 50 per batch, not a minimum.
+Exactly-five handling and other identified incomplete details remain pending.
+No entry was created or activated. The older inventory below is
 the October 25 checkpoint, not a claim that no answers have since arrived.
 
 This is a proposed review inventory, **not approved museum information**. Real

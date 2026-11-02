@@ -8,8 +8,10 @@ or active knowledge was changed and no public ask request was made here.
 
 Current content update - 2026-11-02: thirty answers have now been supplied by
 the user and transcribed into the [FAQ intake sheet](./FAQ_CONTENT_INTAKE_2026-11-02.md).
-Next is source/date confirmation and the sheet's precise factual clarifications,
-then approval/normal entry workflow and bounded visitor acceptance. Do not
+User follow-up confirms Sir Fidel as source/approver on October 30, 2026 and
+clarifies the school-tour limit as a maximum of 50 per batch. Next are only
+the remaining factual clarifications and normal entry/activation workflow for
+complete confirmed answers, followed by bounded visitor acceptance. Do not
 re-ask for every fact as if nothing was provided. No public activation, matcher
 change, paid service or database write is included in this documentation slice.
 
