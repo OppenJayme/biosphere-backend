@@ -98,14 +98,29 @@ describe('FaqAssistantService', () => {
     });
   });
 
-  it('answers approved visit how-to knowledge while still pointing to the form', async () => {
+  it('answers approved visit how-to knowledge while still pointing to a form', async () => {
     faqDelegate.findMany.mockResolvedValue([HOURS, VISIT_HOWTO]);
 
     const result = await service.ask({ question: 'Cancel my visit request' });
 
     expect(result.outcome).toBe(FaqAssistantOutcome.ANSWERED);
     expect(result.answer?.id).toBe(VISIT_HOWTO.id);
-    expect(result.redirect).toBe(FaqAssistantRedirect.VISIT_REQUEST);
+    // Cancelling a sent request goes through a General Inquiry.
+    expect(result.redirect).toBe(FaqAssistantRedirect.GENERAL_INQUIRY);
+  });
+
+  it('sends unmatched change or cancel requests to a General Inquiry', async () => {
+    faqDelegate.findMany.mockResolvedValue([HOURS]);
+
+    const result = await service.ask({
+      question: 'Reschedule my museum visit',
+    });
+
+    expect(result).toMatchObject({
+      outcome: FaqAssistantOutcome.VISIT_REQUEST_REDIRECT,
+      message: FAQ_VISIT_REQUEST_MESSAGE,
+      redirect: FaqAssistantRedirect.GENERAL_INQUIRY,
+    });
   });
 
   it('lists active suggestions without management fields', async () => {

@@ -26,6 +26,7 @@ const inquiryRecord = (overrides: Record<string, unknown> = {}) => ({
   created_at: CREATED_AT,
   updated_at: CREATED_AT,
   consent_accepted_at: CREATED_AT,
+  visit_reference_code: null,
   visit_request: null,
   ...overrides,
 });
@@ -167,6 +168,7 @@ describe('InquiriesService', () => {
         full_name: 'Juan Dela Cruz',
         email_address: 'juan@example.com',
         inquiry_type: 'GENERAL',
+        visit_reference_code: null,
         status: 'PENDING',
         consent_accepted_at: expect.any(Date),
       }),
@@ -249,6 +251,7 @@ describe('InquiriesService', () => {
         name: 'Juan Dela Cruz',
         email: 'juan@example.com',
         status: InquiryStatus.PENDING,
+        visitReferenceCode: null,
         visitRequestId: VISIT_ID,
       }),
     ]);
@@ -257,7 +260,26 @@ describe('InquiriesService', () => {
     );
   });
 
-  it('searches name, email, organization, type, and message', async () => {
+  it('stores the visit reference number a follow-up inquiry quotes', async () => {
+    inquiryDelegate.create.mockResolvedValue(
+      inquiryRecord({ visit_reference_code: '9A81836F' }),
+    );
+
+    await service.create({
+      name: 'Juan Dela Cruz',
+      email: 'juan@example.com',
+      inquiryType: 'VISIT_FOLLOW_UP',
+      visitReferenceCode: '9A81836F',
+      message: 'Please cancel our visit.',
+      consentAccepted: true,
+    });
+
+    expect(inquiryDelegate.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ visit_reference_code: '9A81836F' }),
+    });
+  });
+
+  it('searches name, email, organization, type, message, and visit reference', async () => {
     inquiryDelegate.findMany.mockResolvedValue([]);
 
     await service.findAll({ search: 'san carlos' });
@@ -273,6 +295,7 @@ describe('InquiriesService', () => {
             { organization_name: search },
             { inquiry_type: search },
             { message: search },
+            { visit_reference_code: search },
           ],
         },
       }),

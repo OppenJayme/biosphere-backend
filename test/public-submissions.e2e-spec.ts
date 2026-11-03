@@ -320,6 +320,15 @@ describe('Inquiries and visit requests (e2e)', () => {
       });
     });
 
+    it('stores a quoted visit reference number in upper case', async () => {
+      await request(app.getHttpServer())
+        .post('/inquiries')
+        .send({ ...validInquiry, visitReferenceCode: ' 9a81836f ' })
+        .expect(201);
+
+      expect(inquiries[0]).toMatchObject({ visit_reference_code: '9A81836F' });
+    });
+
     it.each([
       ['missing consent', { ...validInquiry, consentAccepted: undefined }],
       ['declined consent', { ...validInquiry, consentAccepted: false }],
@@ -327,6 +336,10 @@ describe('Inquiries and visit requests (e2e)', () => {
       ['an over-long name', { ...validInquiry, name: 'x'.repeat(101) }],
       ['an invalid email', { ...validInquiry, email: 'not-an-email' }],
       ['an invalid phone', { ...validInquiry, phone: 'call me' }],
+      [
+        'an invalid visit reference',
+        { ...validInquiry, visitReferenceCode: 'ABC' },
+      ],
       ['an unknown field', { ...validInquiry, address: 'Cebu' }],
     ])('rejects %s with 400 and stores nothing', async (_label, body) => {
       await request(app.getHttpServer())
