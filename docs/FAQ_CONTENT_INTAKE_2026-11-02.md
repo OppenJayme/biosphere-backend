@@ -81,6 +81,31 @@ unconfirmed draft wording as if they were helpful approved answers.
 
 ## Priority clarification list for the content owner
 
+### User clarification received 2026-11-03
+
+- The user says walk-ins are available to anyone already inside USC or
+  affiliated with USC. Outside visitors need an appointment because campus
+  entry is required; alumni are treated as outsiders for entry. Retain the
+  separately reported five-person appointment threshold and guided-tour
+  appointment rule. Check how these rules apply together before publication.
+- The user says the maximum of 50 visitors per batch applies to non-school
+  groups as well as school groups. Groups arrange their own schedules and are
+  encouraged to divide themselves into batches; this is not a curator-assigned
+  division. The current visit-request implementation still needs an owner review
+  for recording multiple batches and schedules.
+- The user provided no answer yet for the visitor change/cancellation channel
+  or follow-up when an approval email is not received. Keep both open for later.
+- On opening days, the user referred to Monday-Friday. The earlier interview
+  notes also state Saturday 8:00-11:00 AM. Preserve both statements as reported;
+  do not add Sunday hours or silently discard Saturday. Resolve the apparent
+  scope before approving public wording. No new Curator approval is inferred.
+
+These clarifications were relayed by the user on November 3; no separate
+Curator confirmation date for the revised text was provided. This sheet is
+review-only and does not activate FAQ entries or change visitor workflows.
+
+The November 3 clarification above supersedes the earlier user statements where
+they differ; the list below retains the original follow-up context.
 Retain the reported October 30 interview and November 2 user clarifications;
 the thresholds already relayed need not be re-asked as if no answer exists.
 Confirm the **scope, implementation and exact public wording** before activation:
