@@ -103,7 +103,30 @@ start, end), `filters`, `rowCount`, and `fileName`, or `error` on failure
 
 - Confidential reports (Inventory, Inquiry, Visit-Request, and Audit Log) carry a
   confidentiality notice on the first page and in every page footer or header.
-- Tables with more than six columns use landscape A4 pages.
+- PDF and DOCX reports are A4 portrait. The first page has a letterhead with
+  the University of San Carlos seal on the left, the BioSphere logo on the
+  right, and "University of San Carlos / USC Biological Museum" between them.
+  The logos are `assets/reports/usc-logo.png` and
+  `assets/reports/biosphere-logo.png`, read from the repository root, so a
+  deployment must include `assets/` next to `dist/`.
+- No printed text is smaller than 12 pt, including table cells, headers,
+  footers, and page numbers (`MIN_REPORT_FONT_SIZE`). The renderer tests check
+  every font size in the generated PDF and DOCX.
+- To fit portrait pages at 12 pt, the printed detail tables have five or six
+  columns. Some related fields share one cell on two lines, and a few fields
+  appear only in the CSV export:
+
+  | Report | Printed columns | CSV only |
+  | --- | --- | --- |
+  | Inventory | Accession No., Specimen (scientific / common name), Status, Qty, Condition, Storage Location | Category, Collection, Family, Classification, Public Display, Date Added |
+  | Inquiry | Received, Name / Organization, Email / Contact No., Type, Status | Reviewed By |
+  | Visit Request | Submitted, Contact Person / Organization, Email / Contact No., Visitors, Status / Schedule | Reviewed By |
+  | QR and AR Exhibits | Specimen / Accession No., Status, Published, AR Enabled (with asset count), Media | Public Slug, Created |
+  | Audit Log | Recorded, Account / Role, Module / Action, Result, Details (with record type) | Record ID |
+
+  The CSV export keeps every column, one field per column. The Report Scope
+  box no longer repeats the reporting period, which is in the report header.
+- A table short enough to fit on one page is not split across pages.
 - CSV files are UTF-8 with a byte-order mark and CRLF line endings. Cells that
   start with `=`, `+`, `-`, `@`, a tab, or a carriage return get a leading `'`,
   so spreadsheet apps don't run them as formulas.
