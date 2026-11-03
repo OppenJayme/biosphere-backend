@@ -1,5 +1,57 @@
 # BioSphere Specimen Media Guide
 
+## Curator preview checkpoint - 2026-11-03
+
+After manual Curator sign-in, a temporary browser tab opened the existing TEST
+specimen `5b8e55d4-af0f-4263-9b0e-349b4b314f20` media page. It returned 200,
+displayed the media heading, and loaded the one detected signed private-image
+preview. The temporary tab blocked non-read methods and observed zero attempts;
+the signed-in window was left open. No URL, credentials or image data were
+recorded. Two other image elements did not match the signed-preview URL pattern;
+their identity was not established, so they do not establish a media failure.
+This checks an authorized preview, not URL expiry,
+wrong-pair access, Developer endpoint denial, or independent acceptance. Served
+source/build revisions were not independently repinned for this checkpoint.
+CAT-011 remains In progress.
+
+### Curator wrong-specimen read checkpoint - 2026-11-04
+
+Using the previously signed-in Curator session and a temporary frontend bound to
+`127.0.0.1:43177`, the actual local backend received GETs for the existing TEST
+specimen/media pair and for the same media ID under a different existing TEST
+specimen (`585172b4-d99d-4f28-b765-65a5a12de24a`). Correct-pair metadata and
+signed-URL requests returned 200; both wrong-pair requests returned 404. The
+probe returned only status codes and object-presence booleans; it did not export
+tokens, response bodies or signed URLs. This tests live local backend behavior
+against the configured provider, not every deployment, concurrent changes or
+what fields a rejected response contains. No media record was modified. The
+temporary route uses existing session handling and a fixed local backend; its
+frontend checkout was `60ab28b`, and backend served revision was not repinned.
+Developer direct endpoint checks are recorded below; independent acceptance remains.
+
+### Developer direct endpoint checkpoint - 2026-11-04
+
+The previous Developer session returned 401 from the temporary frontend's
+session check; this did not reach the protected backend endpoints and was not
+counted as a role-denial pass. After a fresh manual Developer sign-in on the
+temporary loopback frontend, direct GETs to the local backend returned 403 for
+the correct TEST specimen/media pair's metadata and signed-URL endpoints, and
+also returned 403 for both requests under the other TEST specimen. The Curator
+positive and wrong-pair results above used the same fixed requests. The probe
+reported statuses only; it did not inspect error bodies, export credentials or
+signed URLs, or prove whether security-audit events were persisted. Normal
+authorization-denial audit entries may be created by the backend. This is live
+local role-gate evidence, not provider-wide security, concurrency, link expiry,
+or independent CAT-011 acceptance. The served backend revision was not repinned.
+
+In a separate manually signed-in Developer browser, opening the same media page
+in a temporary read-only tab redirected to `/developer`; the media heading was
+absent and no signed-image request was observed in that tab. No non-read request
+was observed or blocked. The Developer's original signed-in window stayed open.
+The 200 response was the destination page after redirect, not permission to
+view media. This is page-level evidence, not a direct backend-endpoint denial,
+proof of provider isolation, or independent acceptance.
+
 ## Read-only release closeout - 2026-10-29
 
 Owner-assisted Edge checks used the existing TEST media fixture
