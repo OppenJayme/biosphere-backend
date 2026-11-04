@@ -3153,7 +3153,7 @@ application failure; retain the original observation and cross-reference it.
 **Owner:** Kyer / Ivan, Cataloging; review with the lifecycle owner.
 **Status:** Source-inspected consistency risk; live inconsistent data not reproduced.
 
-`SpecimenDuplicatesService.buildWhere` excludes `status = ARCHIVED` but does not
+`SpecimenDuplicatesService.buildLookupWhere` excludes `status = ARCHIVED` but does not
 filter `archived_at`. Cataloging treats either indicator as archived. A legacy
 row with a timestamp and a different status is therefore not guaranteed to be
 excluded from duplicate candidates. No such shared record was queried or
