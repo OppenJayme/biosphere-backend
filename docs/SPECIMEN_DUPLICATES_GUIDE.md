@@ -9,6 +9,22 @@ Duplicate detection is **warning-only**. It never blocks a save, merges
 records, or deletes or archives anything. The curator reviews the warning
 and decides what to do (edit, archive, or keep both records).
 
+## Archived-match decision - 2026-11-04
+
+Kyer chose to keep active-only duplicate matching and document that decision.
+The current query excludes `status = ARCHIVED`. It does not also require
+`archived_at IS NULL`; a timestamp-only archived legacy/inconsistent record is
+not guaranteed to be excluded. This is the observed query scope, not proof that
+such an inconsistent record exists or cannot occur. No matcher change is made.
+REQ-4.4-21 (SRS PDF page 61, printed page 55) requires a warning for a manually
+entered/imported record that may duplicate an existing record, without an
+explicit archive exclusion. REQ-4.4-22 forbids automatic merge/delete; REQ-4.4-23
+covers distinct physical groups and other approved distinctions. Kyer's scope
+direction is recorded, but Curator/SRS disposition of the REQ-4.4-21 exclusion
+is **blocking CAT-014 acceptance**. Also reconcile timestamp/status archive
+semantics with Cataloging before claiming all archived specimens are excluded.
+The dashboard enhancement below still needs its owners' separate scope decision.
+
 ## Duplicate-warning edit invalidation - 2026-10-27
 
 [DEF-026](./TEST_DEFECT_LOG.md#def-026---duplicate-result-remains-valid-after-typing-new-values)
@@ -70,7 +86,8 @@ should **not** resubmit. They should re-check with
 
 ## Matching rules
 
-Only active (non-archived) specimens are compared. Values are trimmed and
+The lookup excludes `status = ARCHIVED`; it does not test `archived_at`.
+See the November 4 scope/disposition note above. Values are trimmed and
 compared case-insensitively. This is exactly the database lookup (trimmed
 value, case-insensitive equality), so the in-memory comparison never claims
 a match the lookup could not fetch. Inner whitespace is **not** collapsed, so
@@ -168,9 +185,9 @@ Acceptance checks:
 - Link the indicator to an agreed review destination; do not auto-merge or
   reimplement matching logic independently in the dashboard.
 
-The acceptance plan asks for archived matches, while the currently documented
-matcher excludes archived specimens. Treat that discrepancy as an outstanding
-rule/coverage check, not as a passed test or permission to change the policy.
+The original acceptance wording mentioned archived matches. The November 4
+user decision above keeps the current active-only matcher; use the revised
+CAT-014 row for acceptance and preserve the older evidence as dated history.
 
 ## CAT-014 verification evidence - 2026-10-12
 
@@ -206,10 +223,11 @@ current route, and issue a fresh uncached lookup after failure.
 
 These suites mock Prisma/Supabase or frontend API/router dependencies. They do
 not simulate a real Supabase outage or run a browser against the live database.
-No live data was changed and no running servers were stopped. Remaining items
-include browser pending/error/retry behavior, archived-record policy alignment,
-and the review/dashboard follow-ups above. CAT-014 is partially verified, not
-fully accepted.
+No live data was changed and no running servers were stopped. At this dated
+checkpoint browser recovery, archived-policy alignment and review/dashboard
+follow-ups remained. Later sections record recovery evidence and November 4
+user direction; Curator/SRS disposition remains blocking, not an unasked user
+preference. CAT-014 is not fully accepted.
 
 ## CAT-014 duplicate-review batch - 2026-10-23
 
@@ -217,7 +235,8 @@ Existing isolated regressions passed on backend `d04ede2` and frontend `d4d216b`
 23 duplicate-service tests, 49 protected Cataloging HTTP tests and 15 frontend
 duplicate contracts (**87 total**, including broader HTTP workflows, not 87
 separate duplicate acceptance cases). Database/Supabase and frontend API/router
-boundaries are mocked; archive-policy approval and live concurrency are not implied.
+boundaries are mocked; this dated run supplies neither Curator/SRS archive-policy
+approval nor live concurrency. November 4 user direction is recorded above.
 
 A signed-in read-only browser check used existing test specimen
 `79d5a204-c21d-4df6-b0bb-ebbfe1877975`, with its names copied into an unsaved
@@ -234,8 +253,8 @@ server on port 3002, without replacing the older production build on port 3000.
 No specimen, lot, storage, publication or account records were changed.
 
 CAT-014 remains In progress: DEF-020 awaits merged/deployed independent retest;
-archived-match policy still conflicts with the active-only implementation and
-needs a team/curator decision. Discoverable saved-record review remains an
+the broad REQ-4.4-21 scope still needs Curator/SRS disposition of November 4's
+user-directed active-only scope. Discoverable saved-record review remains an
 explicit follow-up, while dashboard indication stays with John/Charles. This
 batch authorizes no archive-policy or dashboard implementation.
 
@@ -250,6 +269,6 @@ diagnostic scheduling assumption timed out and is documented as inconclusive,
 not a functional failure. No form was saved or museum data changed.
 
 DEF-020 remains Ready for retest for independent acceptance and complete stale
-in-flight coverage. CAT-014 stays In progress for those limits and the existing
-archived-match policy/saved-review decisions. Do not repeat the already passing
+in-flight coverage. CAT-014 stays In progress for those limits, the November 4
+Curator/SRS scope disposition and saved-review decisions. Do not repeat the already passing
 owner failure/retry sequence merely because the overall row is not yet closed.

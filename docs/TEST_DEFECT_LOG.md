@@ -3147,6 +3147,25 @@ These are recorded signals, not confirmed application defects or closed issues.
 Promote an observation to a DEF entry when reproduction establishes an
 application failure; retain the original observation and cross-reference it.
 
+### OBS-006 - Duplicate lookup and Cataloging use different archive indicators
+
+**Reported:** 2026-11-04 by MarQtie in backend PR #229 review at `5ec2301`.
+**Owner:** Kyer / Ivan, Cataloging; review with the lifecycle owner.
+**Status:** Source-inspected consistency risk; live inconsistent data not reproduced.
+
+`SpecimenDuplicatesService.buildLookupWhere` excludes `status = ARCHIVED` but does not
+filter `archived_at`. Cataloging treats either indicator as archived. A legacy
+row with a timestamp and a different status is therefore not guaranteed to be
+excluded from duplicate candidates. No such shared record was queried or
+created for this observation. The duplicate guide now describes the actual
+status filter rather than claiming all archived records are excluded.
+
+Before accepting CAT-014, reconcile the lifecycle definition, the REQ-4.4-21
+Curator/SRS scope disposition and the treatment of inconsistent legacy data.
+Use an owned fixture if reproduction is needed; do not modify shared history
+or silently infer that this state is impossible. This documentation change does
+not fix the query or approve an archive-policy change.
+
 ### OBS-005 - Existing production dependency security advisories
 
 **Current component disposition - 2026-10-29:** backend #217 is merged, and the
