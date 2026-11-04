@@ -107,6 +107,7 @@ system is not a reason to postpone all fixes until the end.
 
 | ID      | Date       | Module                     | Summary                                                                 | Severity    | Priority | Status | Owner                   |
 | ------- | ---------- | -------------------------- | ----------------------------------------------------------------------- | ----------- | -------- | ------ | ----------------------- |
+| [DEF-031](#def-031---timestamp-only-archived-records-appear-as-duplicate-candidates) | 2026-11-04 | Cataloging / Duplicates | Timestamp-only archived records pass the status-only candidate filter | S3 Moderate | P2 | Ready for retest | Kyer / Ivan; MarQtie finding |
 | [DEF-030](#def-030---lot-history-fails-on-a-database-enum-ahead-of-the-client) | 2026-10-31 | Inventory / Lot history | Retained TEMPORARY_ABSENCE cannot be decoded by develop Prisma; frontend also rejects the historical response value | S2 Major | P1 | Ready for retest | John / Inventory; Kyer assisting; Charles report |
 | [DEF-029](#def-029---xlsx-xml-guard-rescans-unclosed-tags-quadratically) | 2026-10-29 | Cataloging / XLSX parser | Malformed unclosed XML tags trigger excessive synchronous regex rescanning | S2 Major | P1 | Verified (bounded independent retest) | Kyer; Voltaire independent retest |
 | [DEF-028](#def-028---public-dialog-focus-escapes-and-is-not-restored-on-close) | 2026-10-28 | Public Website / Inquiry and visit dialog | Keyboard focus leaves the open dialog and closing fails to return focus to its opening button | S3 Moderate | P2 | Verified | John/Charles public forms; Kyer assisted repair |
@@ -139,6 +140,29 @@ system is not a reason to postpone all fixes until the end.
 | [DEF-015](#def-015---audit-http-fixture-omits-the-security-audit-create-method) | 2026-10-19 | Audit / HTTP test fixture | Missing security-audit create mock logs an error despite green denial test | S3 Moderate | P2 | Ready for retest | Audit tests / coordinate with Auth |
 
 ## 3. Defect details
+
+### DEF-031 - Timestamp-only archived records appear as duplicate candidates
+
+**Found:** 2026-11-04; MarQtie's OBS-006 source finding, reproduced against owned PostgreSQL.
+**Owner:** Kyer / Ivan, Cataloging. **Severity/priority:** S3 Moderate / P2.
+**Status:** Ready for retest; owner service/SQL reproduction and repair passed,
+not independent acceptance or a shared-database incident.
+
+The duplicate query rejected only `status = ARCHIVED`, while Cataloging treats
+either that status or non-null `archived_at` as archived. A schema-valid
+synthetic record with Uncataloged status and an archive timestamp was returned
+as a possible duplicate. No inconsistent live record was created or inspected.
+
+The approved public-service/real-PostgreSQL regression failed first: it returned
+the timestamp-only record beside active Uncataloged and Cataloged controls.
+Adding `archived_at: null` to the shared lookup excludes it and passes the same
+test. Status-only and fully archived rows remain excluded; active controls
+remain present. Existing 23 duplicate units pass. The repair changes no record,
+matching score, merge/delete behavior or Inventory operation.
+
+Repeat and scope: [archive consistency regression](./SPECIMEN_DUPLICATES_GUIDE.md#archive-indicator-consistency-repair---2026-11-04).
+Curator/SRS disposition of REQ-4.4-21's archive exclusion remains blocking
+CAT-014 acceptance; fixing query consistency does not settle that policy.
 
 ### DEF-030 - Lot history fails on a database enum ahead of the client
 
@@ -3152,6 +3176,10 @@ application failure; retain the original observation and cross-reference it.
 **Reported:** 2026-11-04 by MarQtie in backend PR #229 review at `5ec2301`.
 **Owner:** Kyer / Ivan, Cataloging; review with the lifecycle owner.
 **Status:** Source-inspected consistency risk; live inconsistent data not reproduced.
+
+**2026-11-04 update:** reproduced in an owned PostgreSQL fixture and promoted
+to DEF-031. Its narrow query repair is Ready for retest; the original finding
+below is retained as history, not a description of the repaired lookup.
 
 `SpecimenDuplicatesService.buildLookupWhere` excludes `status = ARCHIVED` but does not
 filter `archived_at`. Cataloging treats either indicator as archived. A legacy

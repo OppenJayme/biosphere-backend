@@ -379,6 +379,7 @@ export class SpecimenDuplicatesService {
 
     return {
       status: { not: 'ARCHIVED' },
+      archived_at: null,
       ...(excludeSpecimenIds.length > 0
         ? { id: { notIn: excludeSpecimenIds } }
         : {}),

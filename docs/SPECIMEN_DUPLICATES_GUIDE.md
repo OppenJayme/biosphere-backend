@@ -12,18 +12,45 @@ and decides what to do (edit, archive, or keep both records).
 ## Archived-match decision - 2026-11-04
 
 Kyer chose to keep active-only duplicate matching and document that decision.
-The current query excludes `status = ARCHIVED`. It does not also require
-`archived_at IS NULL`; a timestamp-only archived legacy/inconsistent record is
-not guaranteed to be excluded. This is the observed query scope, not proof that
-such an inconsistent record exists or cannot occur. No matcher change is made.
+The lookup now requires both a non-`ARCHIVED` status and `archived_at IS NULL`,
+matching Cataloging's treatment of either indicator as archived. The earlier
+status-only filter and timestamp-only gap were reproduced and repaired under
+DEF-031 below; no existing specimen status or timestamp is rewritten.
 REQ-4.4-21 (SRS PDF page 61, printed page 55) requires a warning for a manually
 entered/imported record that may duplicate an existing record, without an
 explicit archive exclusion. REQ-4.4-22 forbids automatic merge/delete; REQ-4.4-23
 covers distinct physical groups and other approved distinctions. Kyer's scope
 direction is recorded, but Curator/SRS disposition of the REQ-4.4-21 exclusion
-is **blocking CAT-014 acceptance**. Also reconcile timestamp/status archive
-semantics with Cataloging before claiming all archived specimens are excluded.
+is **blocking CAT-014 acceptance**. The archive-indicator consistency repair
+does not obtain that institutional scope decision or sign off CAT-014.
 The dashboard enhancement below still needs its owners' separate scope decision.
+
+## Archive-indicator consistency repair - 2026-11-04
+
+MarQtie's OBS-006 review finding is reproduced as
+[DEF-031](./TEST_DEFECT_LOG.md#def-031---timestamp-only-archived-records-appear-as-duplicate-candidates).
+The public duplicate service was called against a fresh owned PostgreSQL
+database through real Prisma 7.10.1. Five otherwise matching synthetic records
+covered active Uncataloged, active Cataloged, status-only archived,
+timestamp-only archived and both archive indicators. Before the change the
+timestamp-only row incorrectly appeared beside the two active matches. Adding
+`archived_at: null` to the existing non-ARCHIVED query makes that regression
+pass while preserving both active controls. No threshold, scoring, public
+response or archive state changes.
+
+Run `npm run test:duplicates:db` with the existing pinned local Docker image.
+The opt-in helper creates and removes only its owned loopback/tmpfs database,
+accepts no supplied database URL, and seeds no shared records. This service/SQL
+test is outside default CI discovery and does not prove browser behavior,
+live inconsistent data, concurrency or independent acceptance. The existing
+23 duplicate unit tests also pass; their query-shape expectation is aligned
+with the added filter rather than counted as independent SQL proof.
+Supporting checks passed: 41 import unit tests, 72 specimen HTTP tests,
+changed-TypeScript lint, backend build and documentation whitespace checks.
+The import suite intentionally logs its simulated connection-reset failure;
+that expected negative-case log is not a failed test or live outage. Dependencies
+and the generated client used the existing 7.10.1 installation in an owned
+verification checkout; no production server was rebuilt or restarted.
 
 ## Duplicate-warning edit invalidation - 2026-10-27
 
@@ -86,7 +113,7 @@ should **not** resubmit. They should re-check with
 
 ## Matching rules
 
-The lookup excludes `status = ARCHIVED`; it does not test `archived_at`.
+The lookup excludes `status = ARCHIVED` or a non-null `archived_at`.
 See the November 4 scope/disposition note above. Values are trimmed and
 compared case-insensitively. This is exactly the database lookup (trimmed
 value, case-insensitive equality), so the in-memory comparison never claims
