@@ -9,6 +9,16 @@ Duplicate detection is **warning-only**. It never blocks a save, merges
 records, or deletes or archives anything. The curator reviews the warning
 and decides what to do (edit, archive, or keep both records).
 
+## Archived-match decision - 2026-11-04
+
+Kyer chose to keep active-only duplicate matching and document that decision.
+Archived specimens are excluded from the current duplicate-warning comparison;
+their absence is not an unavailable scan or proof that no historical duplicate
+exists. This resolves the CAT-014 wording mismatch without changing the matcher.
+The decision is user/project direction, not a separately obtained Curator or
+SRS amendment. Independent acceptance and any required SRS reconciliation remain.
+The dashboard enhancement below still needs its owners' separate scope decision.
+
 ## Duplicate-warning edit invalidation - 2026-10-27
 
 [DEF-026](./TEST_DEFECT_LOG.md#def-026---duplicate-result-remains-valid-after-typing-new-values)
@@ -168,9 +178,9 @@ Acceptance checks:
 - Link the indicator to an agreed review destination; do not auto-merge or
   reimplement matching logic independently in the dashboard.
 
-The acceptance plan asks for archived matches, while the currently documented
-matcher excludes archived specimens. Treat that discrepancy as an outstanding
-rule/coverage check, not as a passed test or permission to change the policy.
+The original acceptance wording mentioned archived matches. The November 4
+user decision above keeps the current active-only matcher; use the revised
+CAT-014 row for acceptance and preserve the older evidence as dated history.
 
 ## CAT-014 verification evidence - 2026-10-12
 
