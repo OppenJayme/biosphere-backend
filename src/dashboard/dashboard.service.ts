@@ -18,6 +18,7 @@ const UNCATEGORIZED = 'Uncategorized';
 
 const ACTIVE_SPECIMEN = {
   status: { not: 'ARCHIVED' },
+  archived_at: null,
 } satisfies Prisma.specimenWhereInput;
 
 const SPECIMEN_ROW_SELECT = {
@@ -160,7 +161,7 @@ export class DashboardService {
         select: { id: true, public_slug: true },
       }),
       this.prisma.specimen.findMany({
-        where: { status: 'UNCATALOGED' },
+        where: { status: 'UNCATALOGED', archived_at: null },
         orderBy: [{ updated_at: 'desc' }, { id: 'asc' }],
         take: CATALOGING_QUEUE_LIMIT,
         select: SPECIMEN_ROW_SELECT,

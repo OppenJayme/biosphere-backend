@@ -71,7 +71,10 @@ export class ReportBuilderService {
     context: ReportContext,
   ): Promise<ReportDocument> {
     const range = periodFilter(context.period);
-    const notArchived = { status: { not: 'ARCHIVED' as const } };
+    const notArchived = {
+      status: { not: 'ARCHIVED' as const },
+      archived_at: null,
+    };
     const [
       specimensByStatus,
       specimensByCategory,

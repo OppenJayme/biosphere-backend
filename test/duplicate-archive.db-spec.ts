@@ -7,7 +7,7 @@ import { SpecimenDuplicatesService } from '../src/specimens/specimen-duplicates.
 import { DisposableFaqPostgres } from './support/disposable-faq-postgres';
 import { seedFaqReviewAuthTables } from './support/faq-review-database-app';
 
-describe('Duplicate archive scope on owned PostgreSQL (OBS-006)', () => {
+describe('Duplicate archive scope on owned PostgreSQL (DEF-031)', () => {
   let database: DisposableFaqPostgres;
   let prisma: PrismaService;
   let service: SpecimenDuplicatesService;

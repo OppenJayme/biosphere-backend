@@ -1,5 +1,14 @@
 # BioSphere Curator Dashboard Guide
 
+## Archive-read consistency - 2026-11-04
+
+The active category/possible-duplicate breakdowns and Cataloging queue now
+require null `archived_at` as well as the relevant non-archived status. Historical
+all-record totals, stored-status distributions, additions/trends and recent
+history are unchanged. This is the user-authorized, John/Charles-owned downstream
+[DEF-032 repair](./TEST_DEFECT_LOG.md#def-032---timestamp-only-archives-leak-into-active-catalog-and-breakdowns),
+with owned PostgreSQL/public-service evidence; it is not whole-module acceptance.
+
 `GET /dashboard/summary` gives the curator dashboard (SRS §4.3) its totals and
 short lists in one request. Every number is computed in the database, so the
 dashboard no longer downloads full specimen, inquiry, or visit-request lists to

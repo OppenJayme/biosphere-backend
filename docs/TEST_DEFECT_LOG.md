@@ -107,6 +107,7 @@ system is not a reason to postpone all fixes until the end.
 
 | ID      | Date       | Module                     | Summary                                                                 | Severity    | Priority | Status | Owner                   |
 | ------- | ---------- | -------------------------- | ----------------------------------------------------------------------- | ----------- | -------- | ------ | ----------------------- |
+| [DEF-032](#def-032---timestamp-only-archives-leak-into-active-catalog-and-breakdowns) | 2026-11-04 | Cataloging / Dashboard / Reports | Timestamp-only archived records appear in active reads and consolidated active quantities | S3 Moderate | P2 | Ready for retest | Kyer / Ivan; John / Charles downstream review |
 | [DEF-031](#def-031---timestamp-only-archived-records-appear-as-duplicate-candidates) | 2026-11-04 | Cataloging / Duplicates | Timestamp-only archived records pass the status-only candidate filter | S3 Moderate | P2 | Ready for retest | Kyer / Ivan; MarQtie finding |
 | [DEF-030](#def-030---lot-history-fails-on-a-database-enum-ahead-of-the-client) | 2026-10-31 | Inventory / Lot history | Retained TEMPORARY_ABSENCE cannot be decoded by develop Prisma; frontend also rejects the historical response value | S2 Major | P1 | Ready for retest | John / Inventory; Kyer assisting; Charles report |
 | [DEF-029](#def-029---xlsx-xml-guard-rescans-unclosed-tags-quadratically) | 2026-10-29 | Cataloging / XLSX parser | Malformed unclosed XML tags trigger excessive synchronous regex rescanning | S2 Major | P1 | Verified (bounded independent retest) | Kyer; Voltaire independent retest |
@@ -141,6 +142,52 @@ system is not a reason to postpone all fixes until the end.
 
 ## 3. Defect details
 
+### DEF-032 - Timestamp-only archives leak into active catalog and breakdowns
+
+**Found:** 2026-11-04 in MarQtie's backend #230 review, reproduced in owned SQL.
+**Owners:** Kyer / Ivan, Cataloging; John / Charles, Dashboard and Reports.
+The user explicitly requested these downstream fixes after being notified of
+their ownership. **Severity/priority:** S3 Moderate / P2.
+**Status:** Ready for retest; owner SQL/service checks pass, independent and
+deployed acceptance pending. No inconsistent shared record was inspected.
+
+The legacy list and default search checked only status. Dashboard active
+category/duplicate breakdowns and the Uncataloged queue, plus consolidated
+report active category/condition/quantity breakdowns, likewise admitted a row
+with a non-null archive timestamp and a different stored status.
+
+An owned PostgreSQL fixture uses the repository's `0_init` baseline and a
+minimal synthetic external-auth reference, not a full Supabase deployment or
+all-migration replay. Five synthetic specimen states and three synthetic lots
+demonstrate the error through real Prisma and public services. Before each
+repair, search/list returned a third record instead of two; Dashboard included
+an archived category/queue row; report active lots were 3 and quantity 106
+instead of 2 and 7. The historical all-record total correctly remained 5.
+
+The scoped predicates now require null `archived_at` for active reads. Explicit
+ARCHIVED searches retain stored-status filtering; direct legacy details remain
+readable. Historical all-record totals, status distributions, trends, recent
+history and Inventory report behavior are unchanged; no record is rewritten.
+Five SQL/service checks pass, including these preservation controls. Run
+`npm run test:archive-reads:db` with the existing pinned local Docker image.
+
+The helper accepts no supplied database URL and creates/removes only its owned
+loopback/tmpfs database. Real auth, browser flows, emitted report files, live
+inconsistent data and concurrency are not covered. The pre-existing pg
+concurrent-query deprecation warning is visible; it was not suppressed or fixed
+as part of this scope. Existing HTTP/regression and build results belong in
+the PR validation. This opt-in SQL suite is outside ordinary CI discovery.
+REQ-4.4-21's Curator/SRS archive-scope disposition remains a separate blocker.
+
+Supporting validation: 65 existing unit tests and 84 existing protected HTTP
+tests passed across the affected services/controllers. The HTTP run emitted
+OBS-003's missing `audit_log.create` adapter error; source inspection identifies
+the Dashboard consumer fixture without that adapter. This is not a clean
+denial-audit persistence result, and no logger was suppressed. Changed-TypeScript
+lint, the backend build, document-link checks and whitespace checks passed.
+The initial SQL fixture lacked the baseline's external `auth.users` reference;
+adding a synthetic table corrected setup before the behavioral failures above.
+
 ### DEF-031 - Timestamp-only archived records appear as duplicate candidates
 
 **Found:** 2026-11-04; MarQtie's OBS-006 source finding, reproduced against owned PostgreSQL.
@@ -163,6 +210,9 @@ matching score, merge/delete behavior or Inventory operation.
 Repeat and scope: [archive consistency regression](./SPECIMEN_DUPLICATES_GUIDE.md#archive-indicator-consistency-repair---2026-11-04).
 Curator/SRS disposition of REQ-4.4-21's archive exclusion remains blocking
 CAT-014 acceptance; fixing query consistency does not settle that policy.
+The separate Cataloging search, Dashboard active breakdown and consolidated
+report follow-ups are tracked in DEF-032; DEF-031 does not claim that every
+codebase consumer shares one archive interpretation.
 
 ### DEF-030 - Lot history fails on a database enum ahead of the client
 
@@ -3499,6 +3549,12 @@ Ignored read-only diagnostic: frontend
 was undertaken, and no known records or running processes were modified.
 
 ### OBS-003 - Isolated HTTP tests log missing security-audit mock adapters
+
+**2026-11-04 scoped follow-up:** the DEF-032 regression run passed 84 tests in
+the specimen, Dashboard, Dashboard-consumer and Reports HTTP suites, while a
+denial logged the same missing-adapter error. `dashboard-consumers.e2e-spec.ts`
+does not provide `audit_log`; its role-denial assertion is not audit-persistence
+evidence. No auth/audit production or fixture repair is claimed by DEF-032.
 
 **Observed:** 2026-10-24 consolidated backend regression, checkout `44b661d`
 **Disposition:** Test-harness coverage limitation; no live audit failure established

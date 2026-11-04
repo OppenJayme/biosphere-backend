@@ -10,7 +10,7 @@ approval and a passing engineering test are evidence, not module acceptance.
 
 The authoritative statuses remain in the
 [acceptance register](./ACCEPTANCE_TEST_PLAN.md#cataloging-management).
-At this checkpoint Cataloging has 10 Pass rows, 5 In progress rows and 1
+After DEF-032's legacy-state reproduction, Cataloging has 9 Pass rows, 6 In progress rows and 1
 Partial pass row. Storage has four scoped Pass rows; STO-004 explicitly retains
 its combined Inventory criterion and independent-sign-off gap. No result is
 promoted by counting it.
@@ -19,7 +19,7 @@ promoted by counting it.
 | --- | --- | --- |
 | CAT-002/003/004 | Draft defaults, core editing/no-change behavior, one taxonomy record and revisions passed | Review existing results; repeat only if report, build change or defect warrants it |
 | CAT-005/006/007/008/009 | Date checks, readiness, completion, reopening, public eligibility and history/audit have scoped passes | Verify the documented business rules and evidence; Cataloging checks the prepared lot but does not own quantities or placement |
-| CAT-010/012 | Tag relationships and catalog search/filter/sort/pagination passed | Review the remaining related usability/performance defect dispositions separately |
+| CAT-010/012 | Tag relationships and ordinary catalog search/filter/sort/pagination passed; DEF-032 adds a reproduced legacy archive gap with an owner-tested repair | Review DEF-032 independently without discarding earlier ordinary search evidence; usability/performance dispositions remain separate |
 | CAT-001 | User-reported collision UI pass, disposable SQL/HTTP checks and independent SQL result | Confirm the identified release target and accept/retest the collection UI evidence; do not recreate the SQL suite as an untested item |
 | CAT-011 | Image lifecycle and recovery evidence; unpinned local [Curator preview](./SPECIMEN_MEDIA_GUIDE.md#curator-preview-checkpoint---2026-11-03), [Developer redirect](./SPECIMEN_MEDIA_GUIDE.md#developer-page-redirect-checkpoint---2026-11-03), [Curator 200/404](./SPECIMEN_MEDIA_GUIDE.md#curator-wrong-specimen-read-checkpoint---2026-11-04) and [Developer 403](./SPECIMEN_MEDIA_GUIDE.md#developer-direct-endpoint-checkpoint---2026-11-04) | Review each dated checkpoint and remaining limits; recovered launch provenance does not pin the backend compiled build used at execution. Release-specific acceptance remains pending |
 | CAT-013 | Live mixed CSV and XLSX preview/selection/commit/same-preview retry passed; invalid rows excluded | Confirm real museum-template suitability and disposition of concurrency/durability limits; keep synthetic fixture IDs out of real holdings/demo totals |

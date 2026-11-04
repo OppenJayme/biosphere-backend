@@ -157,7 +157,7 @@ export class SpecimensService {
 
   async findAll(): Promise<Specimen[]> {
     const specimens = await this.prisma.specimen.findMany({
-      where: { status: { not: 'ARCHIVED' } },
+      where: { status: { not: 'ARCHIVED' }, archived_at: null },
       orderBy: { created_at: 'desc' },
     });
 
@@ -810,6 +810,7 @@ export class SpecimensService {
     const createdAt = this.buildCreatedAtFilter(query);
     const where: Prisma.specimenWhereInput = {
       status: query.status ?? { not: 'ARCHIVED' },
+      archived_at: query.status === SpecimenStatus.ARCHIVED ? undefined : null,
       collection_id: query.collectionId,
       specimen_category: query.specimenCategory
         ? {
