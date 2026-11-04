@@ -397,6 +397,7 @@ export class ReportBuilderService {
     const conditionTotals: { key: string; values: number[] }[] = [];
     let totalQuantity = 0;
     let totalLots = 0;
+    const printedRows: ReportCell[][] = [];
 
     const rows = specimens.map((specimen): ReportCell[] => {
       increment(statusCounts, specimen.status);
@@ -413,6 +414,20 @@ export class ReportBuilderService {
           values: [1, lot.quantity],
         });
       }
+      const conditions = distinctCaseInsensitive(
+        specimen.specimen_lot.map((lot) => lot.condition_class),
+      );
+      const storagePaths = distinct(
+        specimen.specimen_lot.map((lot) => storagePath(lot.storage_unit_id)),
+      );
+      printedRows.push([
+        specimen.accession_number,
+        stacked(specimen.scientific_name, specimen.common_name),
+        SPECIMEN_STATUS_LABELS[specimen.status],
+        quantity,
+        conditions.join('; ') || null,
+        storagePaths.join('\n') || null,
+      ]);
       return [
         specimen.accession_number,
         specimen.scientific_name,
@@ -424,12 +439,8 @@ export class ReportBuilderService {
         specimen.classification_status,
         specimen.public_display_allowed ? 'Yes' : 'No',
         quantity,
-        distinctCaseInsensitive(
-          specimen.specimen_lot.map((lot) => lot.condition_class),
-        ).join('; ') || null,
-        distinct(
-          specimen.specimen_lot.map((lot) => storagePath(lot.storage_unit_id)),
-        ).join('; ') || null,
+        conditions.join('; ') || null,
+        storagePaths.join('; ') || null,
         formatReportDate(specimen.created_at),
       ];
     });
@@ -451,6 +462,17 @@ export class ReportBuilderService {
         'Date Added',
       ],
       rows,
+    };
+    const printed: ReportTable = {
+      columns: [
+        'Accession No.',
+        'Specimen',
+        'Status',
+        'Qty',
+        'Condition',
+        'Storage Location',
+      ],
+      rows: printedRows,
     };
 
     const filters = this.describeFilters(context, {
@@ -501,7 +523,7 @@ export class ReportBuilderService {
         mergeCaseInsensitive(conditionTotals),
       ),
       heading('Specimen Inventory'),
-      { kind: 'table', table: detail },
+      { kind: 'table', table: printed },
     ];
 
     return this.document(context, {
@@ -542,6 +564,7 @@ export class ReportBuilderService {
     });
 
     const statusCounts = new Map<string, number>();
+    const printedRows: ReportCell[][] = [];
     const detail: ReportTable = {
       columns: [
         'Received',
@@ -555,6 +578,13 @@ export class ReportBuilderService {
       ],
       rows: inquiries.map((inquiry): ReportCell[] => {
         increment(statusCounts, inquiry.status);
+        printedRows.push([
+          formatReportDate(inquiry.created_at),
+          stacked(inquiry.full_name, inquiry.organization_name),
+          stacked(inquiry.email_address, inquiry.contact_number),
+          inquiry.inquiry_type,
+          INQUIRY_STATUS_LABELS[inquiry.status],
+        ]);
         return [
           formatReportDate(inquiry.created_at),
           inquiry.full_name,
@@ -592,7 +622,19 @@ export class ReportBuilderService {
         ),
       ),
       heading('Inquiry Details'),
-      { kind: 'table', table: detail },
+      {
+        kind: 'table',
+        table: {
+          columns: [
+            'Received',
+            'Name / Organization',
+            'Email / Contact No.',
+            'Type',
+            'Status',
+          ],
+          rows: printedRows,
+        },
+      },
     ];
 
     return this.document(context, {
@@ -636,6 +678,7 @@ export class ReportBuilderService {
 
     const statusCounts = new Map<string, number>();
     const visitorCounts = new Map<string, number>();
+    const printedRows: ReportCell[][] = [];
     const detail: ReportTable = {
       columns: [
         'Submitted',
@@ -651,6 +694,20 @@ export class ReportBuilderService {
       rows: visits.map((visit): ReportCell[] => {
         increment(statusCounts, visit.status);
         increment(visitorCounts, visit.status, visit.visitor_count);
+        const schedule = visit.approved_date
+          ? `${formatDateOnly(visit.approved_date)}${
+              visit.approved_start_time && visit.approved_end_time
+                ? ` ${formatTimeOnly(visit.approved_start_time)}-${formatTimeOnly(visit.approved_end_time)}`
+                : ''
+            }`
+          : null;
+        printedRows.push([
+          formatReportDate(visit.created_at),
+          stacked(visit.contact_person, visit.organization_name),
+          stacked(visit.email_address, visit.contact_number),
+          visit.visitor_count,
+          stacked(VISIT_STATUS_LABELS[visit.status], schedule),
+        ]);
         return [
           formatReportDate(visit.created_at),
           visit.contact_person,
@@ -659,13 +716,7 @@ export class ReportBuilderService {
           visit.contact_number,
           visit.visitor_count,
           VISIT_STATUS_LABELS[visit.status],
-          visit.approved_date
-            ? `${formatDateOnly(visit.approved_date)}${
-                visit.approved_start_time && visit.approved_end_time
-                  ? ` ${formatTimeOnly(visit.approved_start_time)}-${formatTimeOnly(visit.approved_end_time)}`
-                  : ''
-              }`
-            : null,
+          schedule,
           visit.user_account?.full_name ?? null,
         ];
       }),
@@ -692,7 +743,19 @@ export class ReportBuilderService {
         ]),
       ),
       heading('Visit-Request Details'),
-      { kind: 'table', table: detail },
+      {
+        kind: 'table',
+        table: {
+          columns: [
+            'Submitted',
+            'Contact Person / Organization',
+            'Email / Contact No.',
+            'Visitors',
+            'Status / Schedule',
+          ],
+          rows: printedRows,
+        },
+      },
     ];
 
     return this.document(context, {
@@ -745,6 +808,7 @@ export class ReportBuilderService {
 
     const statusCounts = new Map<string, number>();
     let arEnabledCount = 0;
+    const printedRows: ReportCell[][] = [];
     const detail: ReportTable = {
       columns: [
         'Specimen',
@@ -761,6 +825,17 @@ export class ReportBuilderService {
         increment(statusCounts, exhibit.status);
         const arEnabled = exhibit.ar_asset.some((asset) => asset.is_enabled);
         if (arEnabled) arEnabledCount += 1;
+        const assets = exhibit.ar_asset.length;
+        printedRows.push([
+          stacked(
+            specimenName(exhibit.specimen),
+            exhibit.specimen.accession_number,
+          ),
+          EXHIBIT_STATUS_LABELS[exhibit.status],
+          formatReportDate(exhibit.published_at),
+          `${arEnabled ? 'Yes' : 'No'} (${assets} ${assets === 1 ? 'asset' : 'assets'})`,
+          exhibit._count.exhibit_media,
+        ]);
         return [
           specimenName(exhibit.specimen),
           exhibit.specimen.accession_number,
@@ -797,7 +872,19 @@ export class ReportBuilderService {
         ['AR-enabled', arEnabledCount],
       ]),
       heading('Exhibit Details'),
-      { kind: 'table', table: detail },
+      {
+        kind: 'table',
+        table: {
+          columns: [
+            'Specimen / Accession No.',
+            'Status',
+            'Published',
+            'AR Enabled',
+            'Media',
+          ],
+          rows: printedRows,
+        },
+      },
     ];
 
     return this.document(context, {
@@ -854,6 +941,7 @@ export class ReportBuilderService {
     });
 
     const resultCounts = new Map<string, number>();
+    const printedRows: ReportCell[][] = [];
     const detail: ReportTable = {
       columns: [
         'Recorded (PHT)',
@@ -868,18 +956,33 @@ export class ReportBuilderService {
       ],
       rows: entries.map((entry): ReportCell[] => {
         increment(resultCounts, entry.status);
+        const account = entry.user_account?.full_name ?? 'No account';
+        const role = entry.user_account
+          ? ACCOUNT_ROLE_LABELS[entry.user_account.role]
+          : null;
+        const details = summarizeAuditDetails(entry.details);
+        printedRows.push([
+          formatReportDateTime(entry.created_at),
+          stacked(account, role),
+          stacked(entry.module, entry.action),
+          AUDIT_RESULT_LABELS[entry.status],
+          stacked(
+            entry.affected_record_type
+              ? `Record: ${entry.affected_record_type}`
+              : null,
+            details,
+          ),
+        ]);
         return [
           formatReportDateTime(entry.created_at),
-          entry.user_account?.full_name ?? 'No account',
-          entry.user_account
-            ? ACCOUNT_ROLE_LABELS[entry.user_account.role]
-            : null,
+          account,
+          role,
           entry.module,
           entry.action,
           AUDIT_RESULT_LABELS[entry.status],
           entry.affected_record_type,
           entry.affected_record_id,
-          summarizeAuditDetails(entry.details),
+          details,
         ];
       }),
     };
@@ -906,7 +1009,19 @@ export class ReportBuilderService {
         ),
       ),
       heading('Audit Entries'),
-      { kind: 'table', table: detail },
+      {
+        kind: 'table',
+        table: {
+          columns: [
+            'Recorded (PHT)',
+            'Account / Role',
+            'Module / Action',
+            'Result',
+            'Details',
+          ],
+          rows: printedRows,
+        },
+      },
     ];
 
     return this.document(context, {
@@ -925,8 +1040,8 @@ export class ReportBuilderService {
     const applied = Object.entries(filters).filter(
       (entry): entry is [string, string] => Boolean(entry[1]),
     );
+    // The reporting period itself is printed in the report header.
     return keyValues([
-      ['Period', context.period.label],
       [
         'Period applies to',
         REPORT_DEFINITIONS[context.dto.type].periodAppliesTo,
@@ -972,6 +1087,14 @@ function table(
   rows: ReportCell[][],
 ): ReportBlock {
   return { kind: 'table', table: { title, columns, rows } };
+}
+
+/**
+ * Printed reports fit portrait pages by stacking two related fields in one
+ * cell, one per line. The CSV export keeps them as separate columns.
+ */
+function stacked(...parts: (string | null)[]): string | null {
+  return parts.filter(Boolean).join('\n') || null;
 }
 
 function sum(values: number[]): number {
