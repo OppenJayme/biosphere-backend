@@ -14,7 +14,17 @@ wrong-pair access, Developer endpoint denial, or independent acceptance. Served
 source/build revisions were not independently repinned for this checkpoint.
 CAT-011 remains In progress.
 
-### Curator wrong-specimen read checkpoint - 2026-11-04
+## Developer page-redirect checkpoint - 2026-11-03
+
+In a separate manually signed-in Developer browser, opening the same media page
+in a temporary read-only tab redirected to `/developer`; the media heading was
+absent and no signed-image request was observed in that tab. No non-read request
+was observed or blocked. The Developer's original signed-in window stayed open.
+The 200 response was the destination page after redirect, not permission to
+view media. This is page-level evidence, not a direct backend-endpoint denial,
+proof of provider isolation, or independent acceptance.
+
+## Curator wrong-specimen read checkpoint - 2026-11-04
 
 Using the previously signed-in Curator session and a temporary frontend bound to
 `127.0.0.1:43177`, the actual local backend received GETs for the existing TEST
@@ -29,7 +39,7 @@ temporary route uses existing session handling and a fixed local backend; its
 frontend checkout was `60ab28b`, and backend served revision was not repinned.
 Developer direct endpoint checks are recorded below; independent acceptance remains.
 
-### Developer direct endpoint checkpoint - 2026-11-04
+## Developer direct endpoint checkpoint - 2026-11-04
 
 The previous Developer session returned 401 from the temporary frontend's
 session check; this did not reach the protected backend endpoints and was not
@@ -44,13 +54,17 @@ authorization-denial audit entries may be created by the backend. This is live
 local role-gate evidence, not provider-wide security, concurrency, link expiry,
 or independent CAT-011 acceptance. The served backend revision was not repinned.
 
-In a separate manually signed-in Developer browser, opening the same media page
-in a temporary read-only tab redirected to `/developer`; the media heading was
-absent and no signed-image request was observed in that tab. No non-read request
-was observed or blocked. The Developer's original signed-in window stayed open.
-The 200 response was the destination page after redirect, not permission to
-view media. This is page-level evidence, not a direct backend-endpoint denial,
-proof of provider isolation, or independent acceptance.
+## Backend provenance recovery - 2026-11-04
+
+The retained November 1 startup manifest names source
+`4de07c6fd42a0207f1c3d7ab4b9b20a7fd16e3f0` and the owned
+`merged-backend-20261101/dist/main.js` build. A later process check found the
+known backend process still launched from that path, with November 1 creation
+time, and the current entry-file hash matches the saved manifest. This supports
+launch provenance, but no complete compiled-build hash was captured alongside
+the November 3/4 requests. Therefore their backend build remains **unpinned**;
+do not use these observations as acceptance of current develop or #221's
+deployment. Pin both served builds before a release-specific acceptance run.
 
 ## Read-only release closeout - 2026-10-29
 

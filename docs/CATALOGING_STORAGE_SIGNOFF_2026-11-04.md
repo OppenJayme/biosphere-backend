@@ -1,6 +1,7 @@
 # Cataloging and Storage sign-off review - 2026-11-04
 
-Owner: Kyer Jayme. Independent reviewer and decision: **pending**.
+Owners: Kyer Jayme and Ivan, following the Kyer/Ivan ownership in `CLAUDE.md`.
+Each owner's acceptance and an independent reviewer decision are **pending**.
 This is the finite acceptance handoff for these two modules. It does not sign
 off Inventory, FAQ, Offline, Audit, Reports or the entire project. Source PR
 approval and a passing engineering test are evidence, not module acceptance.
@@ -20,9 +21,9 @@ promoted by counting it.
 | CAT-005/006/007/008/009 | Date checks, readiness, completion, reopening, public eligibility and history/audit have scoped passes | Verify the documented business rules and evidence; Cataloging checks the prepared lot but does not own quantities or placement |
 | CAT-010/012 | Tag relationships and catalog search/filter/sort/pagination passed | Review the remaining related usability/performance defect dispositions separately |
 | CAT-001 | User-reported collision UI pass, disposable SQL/HTTP checks and independent SQL result | Confirm the identified release target and accept/retest the collection UI evidence; do not recreate the SQL suite as an untested item |
-| CAT-011 | Image lifecycle manual evidence, recovery tests, November 3 Curator preview, November 4 correct-pair 200/wrong-pair 404 and Developer 403 | Review the [media checkpoint](./SPECIMEN_MEDIA_GUIDE.md#curator-preview-checkpoint---2026-11-03) and decide remaining limits explicitly; backend served revision was not repinned |
+| CAT-011 | Image lifecycle and recovery evidence; unpinned local [Curator preview](./SPECIMEN_MEDIA_GUIDE.md#curator-preview-checkpoint---2026-11-03), [Developer redirect](./SPECIMEN_MEDIA_GUIDE.md#developer-page-redirect-checkpoint---2026-11-03), [Curator 200/404](./SPECIMEN_MEDIA_GUIDE.md#curator-wrong-specimen-read-checkpoint---2026-11-04) and [Developer 403](./SPECIMEN_MEDIA_GUIDE.md#developer-direct-endpoint-checkpoint---2026-11-04) | Review each dated checkpoint and remaining limits; recovered launch provenance does not pin the backend compiled build used at execution. Release-specific acceptance remains pending |
 | CAT-013 | Live mixed CSV and XLSX preview/selection/commit/same-preview retry passed; invalid rows excluded | Confirm real museum-template suitability and disposition of concurrency/durability limits; keep synthetic fixture IDs out of real holdings/demo totals |
-| CAT-014 | Recorded matcher/manual, request failure/retry and six independent component scenarios | Review [active-only direction](./SPECIMEN_DUPLICATES_GUIDE.md#archived-match-decision---2026-11-04), live-result and response-ordering limits; archived inclusion is no longer an unasked user question |
+| CAT-014 | Recorded matcher/manual, request failure/retry and six independent component scenarios | User preference is recorded, but Curator/SRS disposition of the REQ-4.4-21 archive exclusion blocks acceptance; reconcile status/timestamp semantics as explained in the [scope note](./SPECIMEN_DUPLICATES_GUIDE.md#archived-match-decision---2026-11-04), plus live-result and ordering limits |
 | CAT-015 | Local keyboard/detail checks plus six user-reported phone Chrome LAN/touch checks passed | Review existing phone evidence and accessibility limits; do not claim unspecified device/version details |
 | CAT-016 | Incomplete restoration, cancel/error/reload and audit passed live; complete restoration passed isolated HTTP | Decide the evidence required for the defensive legacy branch; see the fixture constraint below |
 | STO-001/002/003 | Root/nested hierarchy, cycle rejection, valid/invalid editing and persistence passed | Review existing UI/backend evidence; no new Inventory fixture is needed for these cases |
@@ -55,7 +56,7 @@ promoted by counting it.
    template when available. Curator/owner decides archive versus separated
    test/demo retention of synthetic records; preserve history and audit. A
    reviewed import test does not authorize deleting or recategorizing records.
-6. **Record named acceptance.** The owner and at least one independent teammate
+6. **Record named acceptance.** Both owners and at least one independent teammate
    complete the decision below after the critical workflows and failure/retry
    evidence are accepted and relevant regression checks are green. Produce one
    scoped final integration pass if the reviewer needs it; do not restart all
@@ -72,10 +73,10 @@ A generated report does not itself establish independent human sign-off.
 
 ## Decision record
 
-| Module | Owner acceptance/date | Independent reviewer/date | Result | Accepted limitations and evidence |
-| --- | --- | --- | --- | --- |
-| Cataloging Management | Pending | Pending | Pending | Record specific accepted scope; no blanket completion claim |
-| Storage Location Management | Pending | Pending | Pending | Include John's combined restriction result and DEF-010 disposition |
+| Module | Kyer acceptance/date | Ivan acceptance/date | Independent reviewer/date | Result | Accepted limitations and evidence |
+| --- | --- | --- | --- | --- | --- |
+| Cataloging Management | Pending | Pending | Pending | Pending | Include REQ-4.4-21 Curator/SRS disposition; no blanket completion claim |
+| Storage Location Management | Pending | Pending | Pending | Pending | Include John's combined restriction result and DEF-010 disposition |
 
 No new test execution, data change, requirement amendment or acceptance status
 is claimed by this documentation handoff. Local validation is link inspection,
