@@ -13,7 +13,7 @@ export const FAQ_CONTEXT_MESSAGE =
   'I could not find an approved answer for that follow-up. Please ask a complete museum question, choose an approved FAQ, or send a General Inquiry.';
 
 export const FAQ_VISIT_REQUEST_MESSAGE =
-  'The assistant cannot submit, approve, change, or cancel Visit Requests. Please use the Visit Request form or contact the curator.';
+  'The assistant cannot submit, approve, change, or cancel Visit Requests. To request a visit, use the Visit Request form. To follow up on, change, or cancel a request you already sent, send a General Inquiry with your reference number.';
 
 export enum FaqAssistantOutcome {
   ANSWERED = 'ANSWERED',

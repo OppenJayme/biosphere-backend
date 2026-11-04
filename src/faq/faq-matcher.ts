@@ -113,6 +113,10 @@ const VISIT_TRANSACTION_TERMS = new Set([
   'reschedule',
 ]);
 
+// Transactions on a request the visitor already sent. These go to a General
+// Inquiry with the reference number, not to a new Visit Request.
+const VISIT_CHANGE_TERMS = new Set(['cancel', 'modify', 'reschedule']);
+
 const VISIT_SUBJECT_TERMS = new Set([
   'visit',
   'request',
@@ -349,5 +353,14 @@ export function isVisitRequestTransaction(query: string): boolean {
   return (
     tokens.some((token) => VISIT_TRANSACTION_TERMS.has(token)) &&
     tokens.some((token) => VISIT_SUBJECT_TERMS.has(token))
+  );
+}
+
+// A visit-request transaction that changes or cancels an existing request.
+export function isVisitRequestChange(query: string): boolean {
+  const tokens = normalizeFaqText(query).split(' ').map(stem);
+  return (
+    isVisitRequestTransaction(query) &&
+    tokens.some((token) => VISIT_CHANGE_TERMS.has(token))
   );
 }

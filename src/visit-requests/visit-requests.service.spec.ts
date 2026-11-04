@@ -418,6 +418,7 @@ describe('VisitRequestsService', () => {
       expect(email.text).toContain('Reference number: 11111111');
       // Curator approval is not USC campus-entry approval (REQ-4.9-13).
       expect(email.text).toContain('USC campus entry is processed separately');
+      expect(email.text).toContain('To change or cancel your visit request');
       expect(email.text).not.toMatch(/confirmed/i);
       expect(historyDelegate.create).toHaveBeenCalledWith({
         data: expect.objectContaining({

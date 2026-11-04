@@ -21,6 +21,7 @@ import { Prisma } from '../generated/prisma/client';
 import { MailService } from '../mail/mail.service';
 import {
   REFERENCE_CODE_PATTERN,
+  VISIT_CHANGE_GUIDANCE,
   VisitorEmailContent,
   buildVisitorEmail,
   formatLongDate,
@@ -561,6 +562,7 @@ export class VisitRequestsService {
           `Good news: the museum has approved the schedule below for ${requestLine}.`,
           // APPROVED_BY_CURATOR is not campus-entry approval (REQ-4.9-13).
           'This approves your museum visit schedule only. USC campus entry is processed separately, and the museum will contact you with any update.',
+          VISIT_CHANGE_GUIDANCE,
         ],
         details: [
           ['Date', formatLongDate(schedule.date)],

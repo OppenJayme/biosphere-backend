@@ -57,6 +57,21 @@ export class CreateInquiryDto {
   @MaxLength(100)
   inquiryType?: string;
 
+  @ApiPropertyOptional({
+    example: '9A81836F',
+    description:
+      'Reference number of a visit request this inquiry follows up on, changes, or cancels',
+  })
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim().toUpperCase() : value,
+  )
+  @IsString()
+  @Matches(/^[0-9A-F]{8}$/, {
+    message: 'visitReferenceCode must be the 8-character reference number',
+  })
+  visitReferenceCode?: string;
+
   @ApiProperty({
     example: 'Can we bring a class of 20 for a field trip?',
     maxLength: 2000,

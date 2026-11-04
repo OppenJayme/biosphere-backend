@@ -53,6 +53,13 @@ export class Inquiry {
   @ApiProperty()
   message!: string;
 
+  @ApiPropertyOptional({
+    nullable: true,
+    description:
+      'Visit request reference number the visitor quoted, for a follow-up, change, or cancellation',
+  })
+  visitReferenceCode!: string | null;
+
   @ApiProperty({ enum: InquiryStatus })
   status!: InquiryStatus;
 

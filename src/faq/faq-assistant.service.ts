@@ -16,6 +16,7 @@ import {
   PublicFaqQuestion,
 } from './entities/faq-assistant.entity';
 import {
+  isVisitRequestChange,
   isVisitRequestTransaction,
   matchFaqEntries,
   normalizeFaqText,
@@ -116,6 +117,11 @@ export class FaqAssistantService {
     }
     const { best, related, ambiguous } = match;
     const visitTransaction = isVisitRequestTransaction(dto.question);
+    // Changes to a sent request go through a General Inquiry; the Visit
+    // Request form would only create a duplicate request.
+    const visitRedirect = isVisitRequestChange(dto.question)
+      ? FaqAssistantRedirect.GENERAL_INQUIRY
+      : FaqAssistantRedirect.VISIT_REQUEST;
     const relatedQuestions = related.map(({ entry }) =>
       this.toPublicQuestion(entry),
     );
@@ -126,7 +132,7 @@ export class FaqAssistantService {
         answer: null,
         related: relatedQuestions,
         message: FAQ_CLARIFICATION_MESSAGE,
-        redirect: visitTransaction ? FaqAssistantRedirect.VISIT_REQUEST : null,
+        redirect: visitTransaction ? visitRedirect : null,
         notice: FAQ_ASSISTANT_NOTICE,
       };
     }
@@ -140,7 +146,7 @@ export class FaqAssistantService {
         },
         related: relatedQuestions,
         message: visitTransaction ? FAQ_VISIT_REQUEST_MESSAGE : null,
-        redirect: visitTransaction ? FaqAssistantRedirect.VISIT_REQUEST : null,
+        redirect: visitTransaction ? visitRedirect : null,
         notice: FAQ_ASSISTANT_NOTICE,
       };
     }
@@ -157,7 +163,7 @@ export class FaqAssistantService {
           ? FAQ_CONTEXT_MESSAGE
           : FAQ_NO_MATCH_MESSAGE,
       redirect: visitTransaction
-        ? FaqAssistantRedirect.VISIT_REQUEST
+        ? visitRedirect
         : FaqAssistantRedirect.GENERAL_INQUIRY,
       notice: FAQ_ASSISTANT_NOTICE,
     };
