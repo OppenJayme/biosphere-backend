@@ -25,7 +25,7 @@ promoted by counting it.
 | CAT-013 | Live mixed CSV and XLSX preview/selection/commit/same-preview retry passed; invalid rows excluded | Confirm real museum-template suitability and disposition of concurrency/durability limits; keep synthetic fixture IDs out of real holdings/demo totals |
 | CAT-014 | Recorded matcher/manual, request failure/retry and six independent component scenarios; DEF-031 service/SQL archive-indicator regression passed | User preference is recorded, but Curator/SRS disposition of REQ-4.4-21 blocks acceptance. Review the [consistency repair](./SPECIMEN_DUPLICATES_GUIDE.md#archive-indicator-consistency-repair---2026-11-04) separately from that scope decision, plus live-result and ordering limits |
 | CAT-015 | Local keyboard/detail checks plus six user-reported phone Chrome LAN/touch checks passed | Review existing phone evidence and accessibility limits; do not claim unspecified device/version details |
-| CAT-016 | Incomplete restoration, cancel/error/reload and audit passed live; complete restoration passed isolated HTTP | Decide the evidence required for the defensive legacy branch; see the fixture constraint below |
+| CAT-016 | Incomplete restoration, cancel/error/reload and audit passed live; complete legacy restoration/retry now passes owned PostgreSQL plus existing isolated HTTP checks | Independently review the [November 5 SQL evidence and limits](./CATALOG_RESTORATION_VERIFICATION.md#owned-postgresql-legacy-restoration---2026-11-05); no live Inventory fixture or automatic full sign-off |
 | STO-001/002/003 | Root/nested hierarchy, cycle rejection, valid/invalid editing and persistence passed | Review existing UI/backend evidence; no new Inventory fixture is needed for these cases |
 | STO-004 | Unsafe archive rejection, post-merge active/archive display and isolated permission/edit/move protection passed | Obtain John's combined Inventory restriction result and independent disposition of DEF-010 |
 
@@ -49,8 +49,9 @@ promoted by counting it.
    readiness requires one, and lot changes reject archived specimens. Therefore
    an ordinary sequential live fixture cannot produce a fully ready archived
    specimen. The [restoration guide](./CATALOG_RESTORATION_VERIFICATION.md)
-   records isolated defensive coverage. The reviewer decides whether that is
-   sufficient or an owned legacy/disposable database case is required. No
+   records the November 5 owned legacy/PostgreSQL result alongside isolated HTTP
+   and prior live incomplete restoration. The reviewer now decides whether this
+   combined evidence is sufficient, with concurrency/browser limits stated. No
    automatic live waiver, inventory reactivation or weakened archive rule.
 5. **Review actual museum imports and test data.** Validate the relevant approved
    template when available. Curator/owner decides archive versus separated
@@ -78,6 +79,8 @@ A generated report does not itself establish independent human sign-off.
 | Cataloging Management | Pending | Pending | Pending | Pending | Include REQ-4.4-21 Curator/SRS disposition; no blanket completion claim |
 | Storage Location Management | Pending | Pending | Pending | Pending | Include John's combined restriction result and DEF-010 disposition |
 
-No new test execution, data change, requirement amendment or acceptance status
-is claimed by this documentation handoff. Local validation is link inspection,
+The original November 4 handoff did not claim new test execution, data changes,
+requirement amendments or acceptance. The linked November 5 restoration evidence
+is a later bounded addition; acceptance status remains unchanged. Original local
+validation was link inspection,
 register-count reconciliation and `git diff --check`.
