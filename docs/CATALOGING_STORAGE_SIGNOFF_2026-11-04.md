@@ -6,6 +6,36 @@ This is the finite acceptance handoff for these two modules. It does not sign
 off Inventory, FAQ, Offline, Audit, Reports or the entire project. Source PR
 approval and a passing engineering test are evidence, not module acceptance.
 
+## Five acceptance decisions - reconciled 2026-11-05
+
+Snapshot: merged backend `51f6764`. This is a decision checklist using existing
+evidence, not five new tests. Follow linked PRs/current register for later status.
+
+| Decision | Evidence already available | What completes the decision |
+| --- | --- | --- |
+| 1. Identify the accepted release | Dated manual, SQL/HTTP and phone results below; newer backend fixes are merged | Record actual frontend source/build, backend source/build and target reference. Reuse earlier results with their scope; request only specific missing checks or approved limitation dispositions for this release. A source commit alone does not identify a running build. |
+| 2. Reconcile duplicate policy | John records Sir Fidel's active-only approval in [#237](https://github.com/OppenJayme/biosphere-backend/pull/237), based on his November 5 statement; code already uses that policy | Review/integrate that decision and its provenance. #237 is open at this snapshot; do not repeat the already-answered user-preference question or invent a direct Curator signature. CAT-014 still needs its separate behavior/evidence disposition. |
+| 3. Dispose of Cataloging evidence/defects | Core lifecycle, imports, restoration, phone and UI recovery already have the results linked below; #231 has source approval, #232 positive review | Owners/reviewer explicitly accept the applicable evidence, identify a reproducible remaining failure, or document an authorized limitation. Cover CAT-001/011/012/013/014/015/016 and relevant defect IDs; do not turn baseline-only or unpinned runs into deployed proof. Pending Reports [#238](https://github.com/OppenJayme/biosphere-backend/pull/238) is a separate owner-reviewed follow-up, not automatically merged or a new Cataloging test campaign. |
+| 4. Dispose of Storage acceptance | STO-001/002/003 results plus John's merged #236 restriction evidence below | Reviewer accepts/rejects the combined STO-004 evidence and records DEF-010 disposition. Do not recreate or modify live Inventory lots to repeat the same owned check. |
+| 5. Record named module acceptance | Existing register and this evidence handoff | Kyer, Ivan and an independent reviewer identify their accepted scope, dates, release and limitations in the decision record. No signatures, defect closures or module acceptance are inferred here. |
+
+For decision 3, review existing dispositions rather than requeue every defect:
+collection uniqueness (DEF-001), list/phone/preview (003/007), tags/media controls
+and history (004/005/006/012/013/014), filters/pending feedback (008/011),
+request failure/retry/ordering (020/021/022/026), and legacy archive reads
+(031/032). A limitation is not permission to waive unresolved security or
+data-integrity behavior. Storage uses DEF-010 separately. Other modules' defects
+do not silently become Cataloging/Storage obligations.
+
+### Reviewer response record
+
+Record this in the decision section or existing review thread, not as a fabricated
+test execution: reviewer/role/date; frontend and backend release/build/target;
+CAT/STO cases and defect IDs reviewed; evidence used; any newly executed steps
+and observations; accepted limitations versus unresolved failures; and the
+explicit result (**accepted scope**, **changes required**, or **decision pending**).
+Code approval alone is not a replacement. No message is sent by this handoff.
+
 ## Existing results to retain
 
 The authoritative statuses remain in the
@@ -33,8 +63,10 @@ promoted by counting it.
 
 1. **Identify the release being accepted.** Record frontend build/source, backend
    build/source and a private target identifier. Existing passing runs stay tied
-   to their original environments. John's #221 restart/retest is reported work
-   until he supplies the actual result; do not mark the Lots page fixed here.
+   to their original environments. The supplied [backend report](./BACKEND_REPORT_INTAKE_2026-11-05.md)
+   now records the affected #221 API/Lots-page local pass at `06545c0`; DEF-030
+   retains its missing frontend/tester/deployment and related-consumer limits.
+   Do not keep describing that successful local subcase as untested.
 2. **Resolve remaining defect dispositions.** Use the
    [defect summary](./TEST_DEFECT_LOG.md#2-summary), especially DEF-001,
    DEF-003 through DEF-008, DEF-010 through DEF-014, DEF-020/021/022 and DEF-026.
@@ -111,11 +143,13 @@ deployed Supabase. Independent review of this result and of DEF-010 remains.
 
 ## Independent black-box report intake
 
-The forthcoming Claude report is not yet evidence in this record. When supplied,
-map each result to CAT/STO IDs, the actual steps/input/expected/observed result,
+The supplied [backend progress report](./evidence/backend-progress-2026-11-05.pdf)
+and [its attributed intake](./BACKEND_REPORT_INTAKE_2026-11-05.md) are now available.
+They report backend `06545c0` checks, not whole frontend/mutation acceptance.
+Map any additional report to CAT/STO IDs and actual input/expected/observed result,
 environment/build, tester and date. Distinguish real observations from static
-code review, mocked responses and proposed tests. Link reproducible defects to
-existing IDs where possible; retain conflicting evidence for investigation.
+review, mocked responses and proposed tests. Link reproducible defects to
+existing IDs; retain conflicting evidence for investigation.
 A generated report does not itself establish independent human sign-off.
 
 ## Decision record

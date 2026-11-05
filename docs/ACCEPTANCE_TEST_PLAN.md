@@ -7,6 +7,13 @@
 
 ## Start here
 
+2026-11-05 Cataloging/Storage closeout: the [five-decision checklist](./CATALOGING_STORAGE_SIGNOFF_2026-11-04.md#five-acceptance-decisions---reconciled-2026-11-05)
+reconciles merged #231/#232/#233/#234 and John's #236 restriction evidence.
+It distinguishes existing passes from release identification, policy integration,
+defect disposition and named acceptance. #237's relayed Curator decision and
+#238's Reports follow-up are open at that snapshot. No tests were rerun or case,
+defect or owner-signature statuses promoted by this documentation update.
+
 2026-10-28 integration/reviewer follow-up: backend #205 and frontend #90 are
 merged into develop with passing integration PR CI. The [current handoff](./COMPLETION_HANDOFF.md#current-independent-review-checkpoint---2026-10-28)
 records the verified revisions and Voltaire's completed independent report:
