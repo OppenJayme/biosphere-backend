@@ -1,4 +1,10 @@
-import { ConflictException, Injectable } from '@nestjs/common';
+import {
+  ConflictException,
+  HttpException,
+  HttpStatus,
+  Injectable,
+  Logger,
+} from '@nestjs/common';
 import { createHash } from 'node:crypto';
 import { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
@@ -6,17 +12,42 @@ import { CreateSpecimenDto } from '../specimens/dto/create-specimen.dto';
 import { SpecimensService } from '../specimens/specimens.service';
 import { SyncSpecimenDraftDto } from './dto/sync-specimen-draft.dto';
 import { OfflineSpecimenDraftSyncResult } from './entities/offline-specimen-draft-sync-result.entity';
+import {
+  OFFLINE_SYNC_AUDIT_ACTION,
+  OFFLINE_SYNC_AUDIT_MODULE,
+  OFFLINE_SYNC_AUDIT_RECORD_TYPE,
+} from './offline-sync-audit';
 
 const SERIALIZABLE_RETRY_LIMIT = 3;
 
 @Injectable()
 export class OfflineSyncService {
+  private readonly logger = new Logger(OfflineSyncService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly specimens: SpecimensService,
   ) {}
 
   async syncSpecimenDraft(
+    dto: SyncSpecimenDraftDto,
+    actingCuratorAccountId: string,
+  ): Promise<OfflineSpecimenDraftSyncResult> {
+    try {
+      return await this.synchronize(dto, actingCuratorAccountId);
+    } catch (error) {
+      // Recorded after the transaction rolled back, so the rejection survives
+      // and the curator gets an in-system SYNC_FAILED alert (REQ-4.3-05).
+      await this.recordRejection(
+        dto.clientDraftId,
+        actingCuratorAccountId,
+        error,
+      );
+      throw error;
+    }
+  }
+
+  private async synchronize(
     dto: SyncSpecimenDraftDto,
     actingCuratorAccountId: string,
   ): Promise<OfflineSpecimenDraftSyncResult> {
@@ -73,6 +104,41 @@ export class OfflineSyncService {
         specimen,
       };
     });
+  }
+
+  // Stores the reason and status only, never the draft content. An audit
+  // failure is logged and must not replace the original rejection.
+  private async recordRejection(
+    clientDraftId: string,
+    actingCuratorAccountId: string,
+    error: unknown,
+  ): Promise<void> {
+    const statusCode =
+      error instanceof HttpException
+        ? error.getStatus()
+        : HttpStatus.INTERNAL_SERVER_ERROR;
+    const reason =
+      error instanceof HttpException
+        ? error.message
+        : 'The server could not synchronize the draft.';
+    try {
+      await this.prisma.audit_log.create({
+        data: {
+          user_id: actingCuratorAccountId,
+          affected_record_id: clientDraftId,
+          affected_record_type: OFFLINE_SYNC_AUDIT_RECORD_TYPE,
+          action: OFFLINE_SYNC_AUDIT_ACTION,
+          module: OFFLINE_SYNC_AUDIT_MODULE,
+          status: 'FAILED',
+          details: { reason, statusCode },
+        },
+      });
+    } catch (auditError) {
+      this.logger.error(
+        'Could not record the rejected offline draft in the audit log',
+        auditError instanceof Error ? auditError.stack : String(auditError),
+      );
+    }
   }
 
   private fingerprint(draft: CreateSpecimenDto): string {

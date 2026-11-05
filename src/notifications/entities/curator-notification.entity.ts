@@ -6,6 +6,15 @@ export enum CuratorNotificationType {
   // The visitor receipt or the curator alert for a submission was not
   // delivered (SRS 3.4: delivery failures are surfaced in-system).
   SUBMISSION_EMAIL_FAILED = 'SUBMISSION_EMAIL_FAILED',
+  // Operational alerts kept in-system rather than emailed (REQ-4.3-05,
+  // REQ-4.3-10). Each stays until its own condition is resolved.
+  // The server rejected the acting curator's offline draft; cleared when the
+  // same draft ID later synchronizes.
+  SYNC_FAILED = 'SYNC_FAILED',
+  // A recorded backup failed with no completed backup since.
+  BACKUP_FAILED = 'BACKUP_FAILED',
+  // The acting curator's report failed with no later success of that type.
+  REPORT_FAILED = 'REPORT_FAILED',
 }
 
 // Matches audit_log.affected_record_type, so the frontend opens the record
@@ -13,6 +22,11 @@ export enum CuratorNotificationType {
 export enum NotificationRecordType {
   INQUIRY = 'inquiry',
   VISIT_REQUEST = 'visit_request',
+  // recordId is the client draft ID, so the device can match its own draft.
+  OFFLINE_DRAFT = 'offline_draft',
+  BACKUP = 'backup_history',
+  // recordId is the report-history entry (audit event) ID.
+  REPORT = 'report',
 }
 
 // One in-system alert. It carries no visitor personal data (REQ-4.3-08):
@@ -48,7 +62,7 @@ export class CuratorNotification {
 
   @ApiProperty({
     description:
-      'When the visitor submitted the record, or when the email failed',
+      'When the visitor submitted the record, or when the email, sync, backup or report failed',
   })
   createdAt!: Date;
 }
@@ -81,6 +95,12 @@ export class CuratorNotificationFeed {
     description: 'Undelivered receipts and curator alerts on pending records',
   })
   emailFailures!: number;
+
+  @ApiProperty({
+    description:
+      'Unresolved sync, backup and report failures visible to this curator',
+  })
+  operationalAlerts!: number;
 
   @ApiProperty({
     type: [CuratorNotification],

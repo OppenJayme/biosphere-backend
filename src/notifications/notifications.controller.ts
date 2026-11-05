@@ -17,7 +17,7 @@ export class NotificationsController {
   @Get()
   @ApiOperation({
     summary:
-      'New inquiries and visit requests awaiting review, newest first (curator-only)',
+      'New inquiries and visit requests awaiting review, plus unresolved sync, backup and report failures, newest first (curator-only)',
   })
   @ApiOkResponse({ type: CuratorNotificationFeed })
   getFeed(

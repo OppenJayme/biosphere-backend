@@ -10,6 +10,8 @@ describe('NotificationsService', () => {
     inquiry: { findMany: jest.fn() },
     visit_request: { findMany: jest.fn() },
     audit_log: { findMany: jest.fn() },
+    backup_history: { findMany: jest.fn() },
+    offline_draft_sync: { findMany: jest.fn() },
   };
   let service: NotificationsService;
 
@@ -26,6 +28,8 @@ describe('NotificationsService', () => {
       { id: VISIT_ID, created_at: new Date('2026-09-02T00:00:00.000Z') },
     ]);
     prisma.audit_log.findMany.mockResolvedValue([]);
+    prisma.backup_history.findMany.mockResolvedValue([]);
+    prisma.offline_draft_sync.findMany.mockResolvedValue([]);
     service = new NotificationsService(prisma as unknown as PrismaService);
   });
 
@@ -122,6 +126,7 @@ describe('NotificationsService', () => {
       pendingInquiries: 0,
       pendingVisitRequests: 0,
       emailFailures: 0,
+      operationalAlerts: 0,
       items: [],
     });
     expect(prisma.audit_log.findMany).not.toHaveBeenCalled();
@@ -132,5 +137,186 @@ describe('NotificationsService', () => {
 
     expect(feed.items).toHaveLength(2);
     expect(feed.total).toBe(3);
+  });
+  describe('operational alerts (REQ-4.3-05, REQ-4.3-10)', () => {
+    const ACCOUNT = '44444444-4444-4444-8444-444444444444';
+    const DRAFT = '55555555-5555-4555-8555-555555555555';
+    const SYNC_EVENT = '66666666-6666-4666-8666-666666666661';
+    const REPORT_EVENT = '66666666-6666-4666-8666-666666666662';
+    const BACKUP = '77777777-7777-4777-8777-777777777777';
+    type Where = { where: { module?: string; status?: string } };
+
+    beforeEach(() => {
+      prisma.inquiry.findMany.mockResolvedValue([]);
+      prisma.visit_request.findMany.mockResolvedValue([]);
+    });
+
+    function auditRows(rows: {
+      sync?: unknown[];
+      reportFailed?: unknown[];
+      reportSuccess?: unknown[];
+    }) {
+      prisma.audit_log.findMany.mockImplementation(({ where }: Where) => {
+        if (where.module === 'offline-sync')
+          return Promise.resolve(rows.sync ?? []);
+        if (where.module === 'reports')
+          return Promise.resolve(
+            where.status === 'FAILED'
+              ? (rows.reportFailed ?? [])
+              : (rows.reportSuccess ?? []),
+          );
+        return Promise.resolve([]);
+      });
+    }
+
+    it('shows the latest rejection per draft until the draft synchronizes', async () => {
+      auditRows({
+        sync: [
+          {
+            id: SYNC_EVENT,
+            affected_record_id: DRAFT,
+            created_at: new Date('2026-11-05T02:00:00Z'),
+          },
+          {
+            id: REPORT_EVENT,
+            affected_record_id: DRAFT,
+            created_at: new Date('2026-11-05T01:00:00Z'),
+          },
+        ],
+      });
+
+      const feed = await service.getFeed(20, ACCOUNT);
+
+      expect(feed.operationalAlerts).toBe(1);
+      expect(feed.items).toEqual([
+        {
+          id: `SYNC_FAILED:${SYNC_EVENT}`,
+          type: 'SYNC_FAILED',
+          title: 'An offline draft could not be synchronized',
+          recordType: 'offline_draft',
+          recordId: DRAFT,
+          referenceCode: '55555555',
+          createdAt: new Date('2026-11-05T02:00:00Z'),
+        },
+      ]);
+      expect(prisma.audit_log.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            module: 'offline-sync',
+            status: 'FAILED',
+            user_id: ACCOUNT,
+          }) as unknown,
+        }),
+      );
+
+      prisma.offline_draft_sync.findMany.mockResolvedValue([
+        {
+          client_draft_id: DRAFT,
+          synchronized_at: new Date('2026-11-05T03:00:00Z'),
+        },
+      ]);
+      expect((await service.getFeed(20, ACCOUNT)).operationalAlerts).toBe(0);
+    });
+
+    it('keeps a payload conflict whose receipt predates the rejection', async () => {
+      auditRows({
+        sync: [
+          {
+            id: SYNC_EVENT,
+            affected_record_id: DRAFT,
+            created_at: new Date('2026-11-05T02:00:00Z'),
+          },
+        ],
+      });
+      prisma.offline_draft_sync.findMany.mockResolvedValue([
+        {
+          client_draft_id: DRAFT,
+          synchronized_at: new Date('2026-11-04T00:00:00Z'),
+        },
+      ]);
+
+      expect((await service.getFeed(20, ACCOUNT)).operationalAlerts).toBe(1);
+    });
+
+    it('clears a report failure once the same type succeeds later', async () => {
+      const failed = {
+        id: REPORT_EVENT,
+        details: { reportType: 'INVENTORY' },
+        created_at: new Date('2026-11-05T01:00:00Z'),
+      };
+      auditRows({ reportFailed: [failed] });
+      expect((await service.getFeed(20, ACCOUNT)).items[0]).toMatchObject({
+        id: `REPORT_FAILED:${REPORT_EVENT}`,
+        recordType: 'report',
+        recordId: REPORT_EVENT,
+      });
+
+      auditRows({
+        reportFailed: [failed],
+        reportSuccess: [
+          {
+            details: { reportType: 'VISIT_REQUEST_SUMMARY' },
+            created_at: new Date('2026-11-05T02:00:00Z'),
+          },
+        ],
+      });
+      expect((await service.getFeed(20, ACCOUNT)).operationalAlerts).toBe(1);
+
+      auditRows({
+        reportFailed: [failed],
+        reportSuccess: [
+          {
+            details: { reportType: 'INVENTORY' },
+            created_at: new Date('2026-11-05T02:00:00Z'),
+          },
+        ],
+      });
+      expect((await service.getFeed(20, ACCOUNT)).operationalAlerts).toBe(0);
+    });
+
+    it('shows backup failures newer than the last completed backup of that type', async () => {
+      prisma.backup_history.findMany.mockImplementation(({ where }: Where) =>
+        Promise.resolve(
+          where.status === 'FAILED'
+            ? [
+                {
+                  id: BACKUP,
+                  backup_type: 'SCHEDULED_FULL',
+                  started_at: new Date('2026-11-05T01:00:00Z'),
+                  completed_at: new Date('2026-11-05T01:05:00Z'),
+                },
+                {
+                  id: '77777777-7777-4777-8777-777777777778',
+                  backup_type: 'INCREMENTAL',
+                  started_at: new Date('2026-11-04T01:00:00Z'),
+                  completed_at: null,
+                },
+              ]
+            : [
+                {
+                  backup_type: 'INCREMENTAL',
+                  started_at: new Date('2026-11-04T05:00:00Z'),
+                },
+              ],
+        ),
+      );
+
+      // Backups concern every curator, so no account is needed.
+      const feed = await service.getFeed();
+
+      expect(feed.operationalAlerts).toBe(1);
+      expect(feed.items[0]).toMatchObject({
+        id: `BACKUP_FAILED:${BACKUP}`,
+        type: 'BACKUP_FAILED',
+        recordType: 'backup_history',
+        createdAt: new Date('2026-11-05T01:05:00Z'),
+      });
+    });
+
+    it('omits personal sync and report alerts without an account', async () => {
+      await service.getFeed();
+
+      expect(prisma.audit_log.findMany).not.toHaveBeenCalled();
+    });
   });
 });

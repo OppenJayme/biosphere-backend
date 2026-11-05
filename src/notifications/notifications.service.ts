@@ -20,8 +20,39 @@ import {
   ALERT_AUDIT_ACTION,
   RECEIPT_AUDIT_ACTION,
 } from './submission-notifications.service';
+import {
+  OFFLINE_SYNC_AUDIT_ACTION,
+  OFFLINE_SYNC_AUDIT_MODULE,
+} from '../offline-sync/offline-sync-audit';
+import {
+  REPORT_AUDIT_ACTION,
+  REPORT_AUDIT_MODULE,
+} from '../reports/reports.service';
 
 const PENDING_ORDER = [{ created_at: 'desc' as const }, { id: 'asc' as const }];
+
+// Rows arrive newest first; keep the first row for each key.
+function latestBy<T>(rows: T[], key: (row: T) => string): T[] {
+  const seen = new Set<string>();
+  return rows.filter((row) => {
+    const value = key(row);
+    if (seen.has(value)) return false;
+    seen.add(value);
+    return true;
+  });
+}
+
+function reportTypeOf(row: { details: unknown }): string {
+  const details = row.details as { reportType?: unknown } | null;
+  return typeof details?.reportType === 'string' ? details.reportType : '';
+}
+
+const OPERATIONAL_TITLES = {
+  [CuratorNotificationType.SYNC_FAILED]:
+    'An offline draft could not be synchronized',
+  [CuratorNotificationType.BACKUP_FAILED]: 'A backup failed',
+  [CuratorNotificationType.REPORT_FAILED]: 'A report could not be generated',
+} as const;
 
 const FAILURE_TITLES: Record<string, string> = {
   [RECEIPT_AUDIT_ACTION]: 'Receipt email to the visitor was not delivered',
@@ -31,6 +62,8 @@ const FAILURE_TITLES: Record<string, string> = {
 // In-system alerts for new public submissions (REQ-4.8-08, REQ-4.9-07,
 // REQ-4.3-05), plus undelivered submission emails, which SRS 3.4 requires
 // to be surfaced in-system. Source alerts stay derived from Pending records.
+// Operational alerts (sync, backup and report failures) derive from audit and
+// backup history and clear when their failure is resolved (REQ-4.3-10).
 // Optional recipient state never changes those business records or audit events.
 @Injectable()
 export class NotificationsService {
@@ -47,9 +80,9 @@ export class NotificationsService {
     limit = DEFAULT_NOTIFICATION_LIMIT,
     accountId?: string,
   ): Promise<CuratorNotificationFeed> {
-    if (!this.stateEnabled) return this.sourceFeed(limit);
+    if (!this.stateEnabled) return this.sourceFeed(limit, accountId);
     if (!accountId) throw new UnauthorizedException();
-    const source = await this.sourceFeed(Number.MAX_SAFE_INTEGER);
+    const source = await this.sourceFeed(Number.MAX_SAFE_INTEGER, accountId);
     const states = source.items.length
       ? await this.prisma.user_notification_state.findMany({
           where: {
@@ -79,7 +112,7 @@ export class NotificationsService {
       throw new ServiceUnavailableException(
         'Notification state is not enabled.',
       );
-    const source = await this.sourceFeed(Number.MAX_SAFE_INTEGER);
+    const source = await this.sourceFeed(Number.MAX_SAFE_INTEGER, accountId);
     if (!source.items.some((item) => item.id === dto.notificationId)) {
       throw new NotFoundException('Notification is no longer available.');
     }
@@ -98,9 +131,10 @@ export class NotificationsService {
 
   private async sourceFeed(
     limit = DEFAULT_NOTIFICATION_LIMIT,
+    accountId?: string,
   ): Promise<CuratorNotificationFeed> {
     const select = { id: true, created_at: true };
-    const [inquiries, visitRequests] = await Promise.all([
+    const [inquiries, visitRequests, operational] = await Promise.all([
       this.prisma.inquiry.findMany({
         where: { status: 'PENDING' },
         select,
@@ -111,6 +145,7 @@ export class NotificationsService {
         select,
         orderBy: PENDING_ORDER,
       }),
+      this.operationalAlerts(accountId),
     ]);
 
     const pendingIds = [...inquiries, ...visitRequests].map((row) => row.id);
@@ -171,6 +206,7 @@ export class NotificationsService {
           ? { id: `SUBMISSION_EMAIL_FAILED:${row.id}` }
           : {}),
       })),
+      ...operational,
     ].sort(
       (a, b) =>
         b.createdAt.getTime() - a.createdAt.getTime() ||
@@ -182,7 +218,166 @@ export class NotificationsService {
       pendingInquiries: inquiries.length,
       pendingVisitRequests: visitRequests.length,
       emailFailures: failures.length,
+      operationalAlerts: operational.length,
       items: items.slice(0, limit),
+    };
+  }
+
+  // Failures that stay internal (REQ-4.3-10). Sync and report failures belong
+  // to the curator who hit them; backup failures concern every curator.
+  private async operationalAlerts(
+    accountId?: string,
+  ): Promise<CuratorNotification[]> {
+    const [syncFailures, backupFailures, reportFailures] = await Promise.all([
+      accountId ? this.unresolvedSyncFailures(accountId) : [],
+      this.unresolvedBackupFailures(),
+      accountId ? this.unresolvedReportFailures(accountId) : [],
+    ]);
+    return [...syncFailures, ...backupFailures, ...reportFailures];
+  }
+
+  // Latest rejection per draft, until that draft ID synchronizes later.
+  private async unresolvedSyncFailures(
+    accountId: string,
+  ): Promise<CuratorNotification[]> {
+    const failures = await this.prisma.audit_log.findMany({
+      where: {
+        module: OFFLINE_SYNC_AUDIT_MODULE,
+        action: OFFLINE_SYNC_AUDIT_ACTION,
+        status: 'FAILED',
+        user_id: accountId,
+        affected_record_id: { not: null },
+      },
+      select: { id: true, affected_record_id: true, created_at: true },
+      orderBy: PENDING_ORDER,
+    });
+    const latest = latestBy(failures, (row) => row.affected_record_id!);
+    if (latest.length === 0) return [];
+
+    const receipts = await this.prisma.offline_draft_sync.findMany({
+      where: {
+        created_by: accountId,
+        client_draft_id: { in: latest.map((row) => row.affected_record_id!) },
+      },
+      select: { client_draft_id: true, synchronized_at: true },
+    });
+    const syncedAt = new Map(
+      receipts.map((row) => [row.client_draft_id, row.synchronized_at]),
+    );
+    return latest
+      .filter((row) => {
+        const synced = syncedAt.get(row.affected_record_id!);
+        return !synced || synced <= row.created_at;
+      })
+      .map((row) =>
+        this.operationalNotification(
+          CuratorNotificationType.SYNC_FAILED,
+          NotificationRecordType.OFFLINE_DRAFT,
+          row.id,
+          row.affected_record_id!,
+          row.created_at,
+        ),
+      );
+  }
+
+  // Failed backups newer than the last completed backup of the same type.
+  private async unresolvedBackupFailures(): Promise<CuratorNotification[]> {
+    const [failures, completed] = await Promise.all([
+      this.prisma.backup_history.findMany({
+        where: { status: 'FAILED' },
+        select: {
+          id: true,
+          backup_type: true,
+          started_at: true,
+          completed_at: true,
+        },
+        orderBy: [{ started_at: 'desc' }, { id: 'asc' }],
+      }),
+      this.prisma.backup_history.findMany({
+        where: { status: 'COMPLETED' },
+        distinct: ['backup_type'],
+        select: { backup_type: true, started_at: true },
+        orderBy: [{ backup_type: 'asc' }, { started_at: 'desc' }],
+      }),
+    ]);
+    const lastCompleted = new Map(
+      completed.map((row) => [row.backup_type, row.started_at]),
+    );
+    return failures
+      .filter((row) => {
+        const completedAt = lastCompleted.get(row.backup_type);
+        return !completedAt || completedAt < row.started_at;
+      })
+      .map((row) =>
+        this.operationalNotification(
+          CuratorNotificationType.BACKUP_FAILED,
+          NotificationRecordType.BACKUP,
+          row.id,
+          row.id,
+          row.completed_at ?? row.started_at,
+        ),
+      );
+  }
+
+  // Latest failure per report type, until that type generates successfully.
+  private async unresolvedReportFailures(
+    accountId: string,
+  ): Promise<CuratorNotification[]> {
+    const where = {
+      module: REPORT_AUDIT_MODULE,
+      action: REPORT_AUDIT_ACTION,
+      user_id: accountId,
+    };
+    const failures = await this.prisma.audit_log.findMany({
+      where: { ...where, status: 'FAILED' },
+      select: { id: true, details: true, created_at: true },
+      orderBy: PENDING_ORDER,
+    });
+    const latest = latestBy(failures, (row) => reportTypeOf(row));
+    if (latest.length === 0) return [];
+
+    const oldest = latest[latest.length - 1].created_at;
+    const successes = await this.prisma.audit_log.findMany({
+      where: { ...where, status: 'SUCCESS', created_at: { gt: oldest } },
+      select: { details: true, created_at: true },
+    });
+    return latest
+      .filter(
+        (failure) =>
+          !successes.some(
+            (success) =>
+              reportTypeOf(success) === reportTypeOf(failure) &&
+              success.created_at > failure.created_at,
+          ),
+      )
+      .map((row) =>
+        this.operationalNotification(
+          CuratorNotificationType.REPORT_FAILED,
+          NotificationRecordType.REPORT,
+          row.id,
+          row.id,
+          row.created_at,
+        ),
+      );
+  }
+
+  // Keyed by the source event, which the state table accepts as TYPE:uuid.
+  private operationalNotification(
+    type: keyof typeof OPERATIONAL_TITLES,
+    recordType: NotificationRecordType,
+    eventId: string,
+    recordId: string,
+    createdAt: Date,
+  ): CuratorNotification {
+    return {
+      ...this.toNotification(
+        type,
+        recordType,
+        OPERATIONAL_TITLES[type],
+        recordId,
+        createdAt,
+      ),
+      id: `${type}:${eventId}`,
     };
   }
 
