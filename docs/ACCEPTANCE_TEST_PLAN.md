@@ -7,6 +7,13 @@
 
 ## Start here
 
+2026-11-06 identified-release checkpoint: both prepared builds passed and the
+user-authorized missing inquiry-reference migration was applied and verified.
+The bounded Curator [Cataloging/Storage read-only smoke](./CATALOGING_STORAGE_SIGNOFF_2026-11-04.md#identified-release-read-only-checkpoint---2026-11-06)
+passed against the identified sources/build and configured target. Existing
+servers were preserved. This adds release-specific read evidence; it does not
+promote case/defect statuses or replace owner and independent acceptance.
+
 2026-11-05 Cataloging/Storage closeout: the [five-decision checklist](./CATALOGING_STORAGE_SIGNOFF_2026-11-04.md#five-acceptance-decisions---reconciled-2026-11-05)
 reconciles merged #231/#232/#233/#234 and John's #236 restriction evidence.
 It distinguishes existing passes from release identification, policy integration,
