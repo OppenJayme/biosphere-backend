@@ -28,6 +28,17 @@ identifiers. `from` and `to` are inclusive `startedAt` bounds and must contain
 
 ## Deliberately deferred operations
 
+The [proposed backup/recovery procedure](./BACKUP_RECOVERY_PROCEDURE.md),
+[approval record](./BACKUP_RECOVERY_APPROVAL.md) and
+[rehearsal template](./BACKUP_RECOVERY_REHEARSAL_TEMPLATE.md) now make the
+deployment work concrete, with a [one-page Curator checklist](./BACKUP_RECOVERY_CURATOR_CHECKLIST.md).
+Revised November 5 for $0 recurring spend, automated routine operation, Supabase
+Free and qualified technical help on demand, they do not assume an always-on
+backup server or permanent administrator. No provider/destination ownership,
+capacity or recovery objective is approved or measured here. They do not implement a runner or authorize shared exports,
+restores, scheduling or retention deletion. BAK-002 remains Deferred until its
+execution gates are satisfied; backup-history metadata is not restore evidence.
+
 Backup scheduling, retention, encryption, storage destination, failure alerts,
 restore execution, and restore verification remain deployment-level decisions.
 They must not be added as ordinary application CRUD or inferred from this read
