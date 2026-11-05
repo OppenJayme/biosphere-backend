@@ -344,8 +344,8 @@ export class AuthService {
 
     // The password has changed by now, so neither of these may fail the
     // request. Both outcomes go in the audit entry instead. The provider
-    // normally ends every session on an admin password update, in which case
-    // it refuses this token; that also means the sessions are gone.
+    // normally revokes the user's sessions on an admin password update, in
+    // which case it refuses this sign-out; that still counts as revoked.
     const { error: sessionError } = await this.supabase.auth.admin.signOut(
       change.token,
       'global',

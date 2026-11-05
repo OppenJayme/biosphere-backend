@@ -125,6 +125,8 @@ BioSphere account as both actor and affected record when it is known.
 | Inactive or unlinked account using a still-valid token | `ACCESS_DENIED` | `DENIED` | `reason`, `method`, `path` |
 | Signed-in role not allowed on the route, e.g. a Developer opening a curator route | `ACCESS_DENIED` | `DENIED` | `reason: ROLE_NOT_PERMITTED`, `role`, `requiredRoles`, `method`, `path` |
 
+- `sessionsEnded` means the user's sessions and refresh tokens were revoked. An access token issued
+  earlier can remain valid until its JWT expiry.
 - Passwords, access and refresh tokens, and other secrets are never recorded.
   The attempted email is recorded, trimmed and lowercased, so failed sign-ins
   can be reviewed. `path` excludes the query string, which may carry personal

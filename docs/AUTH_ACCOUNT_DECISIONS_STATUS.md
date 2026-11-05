@@ -17,7 +17,7 @@ remain.
 | --- | --- | --- | --- |
 | Curator activate and deactivate | REQ-4.1-08 | Not built, not complete | Museum approval of the procedure |
 | Curator handover | REQ-4.1-09, REQ-4.1-11 | Separate successor account available; no handover action or handover audit | Museum approval of the procedure |
-| Inactivity timeout | REQ-4.1-05 | Built and enforced by the frontend; 30 minutes accepted by the team for the $0 baseline | Final requirement and client acceptance |
+| Inactivity timeout | REQ-4.1-05 | Partial: built and enforced by the frontend, including an offline lock; 30 minutes is a team decision for the $0 baseline | Final requirement and client acceptance |
 | Public signup | REQ-4.1-03 | Turned off and retested on hosted; all four retest steps passed | Nothing |
 | Invite and reset expiry | REQ-4.1-19 | Single use proven; hosted value is 3600 seconds, not an approved period | Approved period |
 | Real email delivery | REQ-4.1-07, REQ-4.1-10 | Invite, recovery and password-change emails each reached a USC inbox through Brevo; production deliverability not accepted | USC IT decision on the sender |
@@ -118,11 +118,17 @@ These are development team decisions. They are not museum approval and not SRS r
 
 | Control | Enforced by | Status |
 | --- | --- | --- |
-| 30-minute BioSphere web inactivity logout | Application frontend | Built. Calls Supabase sign-out, clears the session cookies and requires a new sign-in. |
+| 30-minute BioSphere web inactivity logout | Application frontend | Built. Calls Supabase sign-out, clears the session cookies and requires a new sign-in. Offline, the open workspace locks instead and signs out when connectivity returns. |
 | Protected API authentication | Backend, validating the token with Supabase Auth on each request | Built |
 | Inactive BioSphere accounts | Backend | Rejected on each request |
 | Provider-level inactivity or time-box | Supabase | Not enabled on the current Free deployment; both fields read 0 (never) |
 | Residual access token lifetime | JWT expiry, currently 3600 seconds | Accepted limitation unless the tier or configuration changes |
+
+Password change and sign-out revoke the user's sessions and refresh tokens. Do not describe them as
+immediately invalidating every access token: an already-issued JWT can remain valid until its expiry.
+
+The offline lock hides the page and blocks input, but does not encrypt data on the device. After a
+lock, the curator must reconnect and sign in again before continuing offline work.
 
 The timeout is not server-side idle-session termination. Sign-out runs when an open tab or the next
 page request detects the idle period. If neither happens, for example a closed browser, an issued
@@ -174,3 +180,5 @@ The outgoing account is deactivated and kept, not deleted, so historical attribu
 - Check what the Unsubscribe option on Auth email does in Brevo before production.
 
 **Deployment.** Set `NEXT_PUBLIC_SESSION_IDLE_MINUTES` in each frontend deployment before building it.
+If merges deploy automatically, deploy the backend before the frontend: the new invite flow needs
+the backend to set the chosen password.
