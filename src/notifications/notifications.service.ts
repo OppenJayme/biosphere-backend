@@ -28,6 +28,7 @@ import {
   REPORT_AUDIT_ACTION,
   REPORT_AUDIT_MODULE,
 } from '../reports/reports.service';
+import { REPORT_TIMEZONE } from '../reports/report-period';
 
 const PENDING_ORDER = [{ created_at: 'desc' as const }, { id: 'asc' as const }];
 
@@ -36,7 +37,40 @@ const OPERATIONAL_TITLES = {
     'An offline draft could not be synchronized',
   [CuratorNotificationType.BACKUP_FAILED]: 'A backup failed',
   [CuratorNotificationType.REPORT_FAILED]: 'A report could not be generated',
+  [CuratorNotificationType.SPECIMEN_ARCHIVED]: 'A specimen was archived',
+  [CuratorNotificationType.SPECIMEN_RESTORED]:
+    'An archived specimen was restored',
+  [CuratorNotificationType.LOT_MOVED]:
+    'Specimens were moved to another storage location',
+  [CuratorNotificationType.LOT_DEACCESSIONED]: 'Specimens were deaccessioned',
+  [CuratorNotificationType.LOT_MISSING_LOSS]:
+    'Specimens were recorded missing or lost',
+  [CuratorNotificationType.RECORD_INCOMPLETE]:
+    'A specimen has been Uncataloged for more than 7 days',
 } as const;
+
+// Days a change event stays in the feed, and days a specimen may stay
+// Uncataloged before it is flagged; both in museum calendar days.
+const CHANGE_EVENT_DAYS = 7;
+const INCOMPLETE_RECORD_DAYS = 7;
+
+// The significant operations that notify other curators (team decision,
+// 2026-11-06). These audit actions are written by SpecimensService and
+// SpecimenLotsService; every other action stays in the audit log only.
+const CHANGE_EVENT_TYPES = {
+  ARCHIVE_SPECIMEN: CuratorNotificationType.SPECIMEN_ARCHIVED,
+  RESTORE_SPECIMEN: CuratorNotificationType.SPECIMEN_RESTORED,
+  MOVE_SPECIMEN_LOT: CuratorNotificationType.LOT_MOVED,
+} as const;
+const LOSS_EVENT_TYPES = {
+  DEACCESSION: CuratorNotificationType.LOT_DEACCESSIONED,
+  MISSING_LOSS: CuratorNotificationType.LOT_MISSING_LOSS,
+} as const;
+// Actions that start a new Uncataloged period for an existing specimen.
+const UNCATALOGED_AGAIN_ACTIONS = [
+  'REOPEN_SPECIMEN_CATALOGING',
+  'RESTORE_SPECIMEN',
+];
 
 const FAILURE_TITLES: Record<string, string> = {
   [RECEIPT_AUDIT_ACTION]: 'Receipt email to the visitor was not delivered',
@@ -118,19 +152,22 @@ export class NotificationsService {
     accountId?: string,
   ): Promise<CuratorNotificationFeed> {
     const select = { id: true, created_at: true };
-    const [inquiries, visitRequests, operational] = await Promise.all([
-      this.prisma.inquiry.findMany({
-        where: { status: 'PENDING' },
-        select,
-        orderBy: PENDING_ORDER,
-      }),
-      this.prisma.visit_request.findMany({
-        where: { status: 'PENDING' },
-        select,
-        orderBy: PENDING_ORDER,
-      }),
-      this.operationalAlerts(accountId),
-    ]);
+    const [inquiries, visitRequests, operational, changes, incomplete] =
+      await Promise.all([
+        this.prisma.inquiry.findMany({
+          where: { status: 'PENDING' },
+          select,
+          orderBy: PENDING_ORDER,
+        }),
+        this.prisma.visit_request.findMany({
+          where: { status: 'PENDING' },
+          select,
+          orderBy: PENDING_ORDER,
+        }),
+        this.operationalAlerts(accountId),
+        accountId ? this.changeEventAlerts(accountId) : [],
+        this.incompleteRecordAlerts(),
+      ]);
 
     const pendingIds = [...inquiries, ...visitRequests].map((row) => row.id);
     const failures =
@@ -191,6 +228,8 @@ export class NotificationsService {
           : {}),
       })),
       ...operational,
+      ...changes,
+      ...incomplete,
     ].sort(
       (a, b) =>
         b.createdAt.getTime() - a.createdAt.getTime() ||
@@ -203,6 +242,8 @@ export class NotificationsService {
       pendingVisitRequests: visitRequests.length,
       emailFailures: failures.length,
       operationalAlerts: operational.length,
+      changeEvents: changes.length,
+      incompleteRecords: incomplete.length,
       items: items.slice(0, limit),
     };
   }
@@ -328,6 +369,103 @@ export class NotificationsService {
         row.id,
         row.id,
         row.created_at,
+      ),
+    );
+  }
+
+  // Significant changes by other curators in the last 7 calendar days. Each
+  // operation writes exactly one audit row, so there is one alert per event;
+  // the actor never sees their own successful changes (team decision).
+  private async changeEventAlerts(
+    accountId: string,
+  ): Promise<CuratorNotification[]> {
+    const rows = await this.prisma.$queryRaw<
+      Array<{
+        id: string;
+        action: string;
+        specimen_id: string;
+        adjustment_type: string | null;
+        created_at: Date;
+      }>
+    >`
+      SELECT a.id, a.action,
+        CASE WHEN a.module = 'specimens' THEN a.affected_record_id::text
+          ELSE a.details->>'specimenId' END AS specimen_id,
+        a.details->>'adjustmentType' AS adjustment_type,
+        a.created_at
+      FROM public.audit_log a
+      WHERE a.status = 'SUCCESS'
+        AND a.user_id IS DISTINCT FROM ${accountId}::uuid
+        AND (a.created_at AT TIME ZONE ${REPORT_TIMEZONE})::date
+          >= (now() AT TIME ZONE ${REPORT_TIMEZONE})::date - ${CHANGE_EVENT_DAYS}::int
+        AND (
+          (a.module = 'specimens'
+            AND a.action IN ('ARCHIVE_SPECIMEN', 'RESTORE_SPECIMEN'))
+          OR (a.module = 'specimen_lots' AND a.action = 'MOVE_SPECIMEN_LOT')
+          OR (a.module = 'specimen_lots'
+            AND a.action = 'ADJUST_SPECIMEN_LOT_QUANTITY'
+            AND a.details->>'adjustmentType' IN ('DEACCESSION', 'MISSING_LOSS'))
+        )
+      ORDER BY a.created_at DESC, a.id DESC
+    `;
+    return rows.flatMap((row) => {
+      const type =
+        row.action === 'ADJUST_SPECIMEN_LOT_QUANTITY'
+          ? LOSS_EVENT_TYPES[
+              row.adjustment_type as keyof typeof LOSS_EVENT_TYPES
+            ]
+          : CHANGE_EVENT_TYPES[row.action as keyof typeof CHANGE_EVENT_TYPES];
+      // A lot row without its specimen cannot open a record; skip it.
+      if (!type || !row.specimen_id) return [];
+      return [
+        this.operationalNotification(
+          type,
+          NotificationRecordType.SPECIMEN,
+          row.id,
+          row.specimen_id,
+          row.created_at,
+        ),
+      ];
+    });
+  }
+
+  // Active specimens Uncataloged for more than 7 calendar days, counted from
+  // creation or the latest reopen/restore. Visible to every curator; resolves
+  // once cataloged or archived. A new Uncataloged period gets a new key, so a
+  // dismissal from an earlier period does not hide it.
+  private async incompleteRecordAlerts(): Promise<CuratorNotification[]> {
+    const rows = await this.prisma.$queryRaw<
+      Array<{ specimen_id: string; period_id: string; overdue_at: Date }>
+    >`
+      SELECT s.id AS specimen_id,
+        COALESCE(e.id, s.id) AS period_id,
+        (((GREATEST(s.created_at, COALESCE(e.created_at, s.created_at))
+          AT TIME ZONE ${REPORT_TIMEZONE})::date + ${INCOMPLETE_RECORD_DAYS + 1}::int)::timestamp
+          AT TIME ZONE ${REPORT_TIMEZONE}) AS overdue_at
+      FROM public.specimen s
+      LEFT JOIN LATERAL (
+        SELECT a.id, a.created_at FROM public.audit_log a
+        WHERE a.affected_record_id = s.id
+          AND a.module = 'specimens'
+          AND a.action = ANY(${UNCATALOGED_AGAIN_ACTIONS}::text[])
+          AND a.status = 'SUCCESS'
+        ORDER BY a.created_at DESC, a.id DESC
+        LIMIT 1
+      ) e ON true
+      WHERE s.status = 'UNCATALOGED'
+        AND s.archived_at IS NULL
+        AND (GREATEST(s.created_at, COALESCE(e.created_at, s.created_at))
+          AT TIME ZONE ${REPORT_TIMEZONE})::date
+          < (now() AT TIME ZONE ${REPORT_TIMEZONE})::date - ${INCOMPLETE_RECORD_DAYS}::int
+      ORDER BY overdue_at DESC, s.id DESC
+    `;
+    return rows.map((row) =>
+      this.operationalNotification(
+        CuratorNotificationType.RECORD_INCOMPLETE,
+        NotificationRecordType.SPECIMEN,
+        row.period_id,
+        row.specimen_id,
+        row.overdue_at,
       ),
     );
   }

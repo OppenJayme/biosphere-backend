@@ -15,6 +15,16 @@ export enum CuratorNotificationType {
   BACKUP_FAILED = 'BACKUP_FAILED',
   // The acting curator's report failed with no later success of that type.
   REPORT_FAILED = 'REPORT_FAILED',
+  // Significant changes made by another curator, shown for 7 calendar days
+  // (REQ-4.3-10). Routine edits stay in the audit log only.
+  SPECIMEN_ARCHIVED = 'SPECIMEN_ARCHIVED',
+  SPECIMEN_RESTORED = 'SPECIMEN_RESTORED',
+  LOT_MOVED = 'LOT_MOVED',
+  LOT_DEACCESSIONED = 'LOT_DEACCESSIONED',
+  LOT_MISSING_LOSS = 'LOT_MISSING_LOSS',
+  // An active specimen Uncataloged for more than 7 calendar days; cleared
+  // once it is cataloged or archived.
+  RECORD_INCOMPLETE = 'RECORD_INCOMPLETE',
 }
 
 // Matches audit_log.affected_record_type, so the frontend opens the record
@@ -27,6 +37,8 @@ export enum NotificationRecordType {
   BACKUP = 'backup_history',
   // recordId is the report-history entry (audit event) ID.
   REPORT = 'report',
+  // recordId is the specimen ID; lot events open the specimen's lots.
+  SPECIMEN = 'specimen',
 }
 
 // One in-system alert. It carries no visitor personal data (REQ-4.3-08):
@@ -101,6 +113,17 @@ export class CuratorNotificationFeed {
       'Unresolved sync, backup and report failures visible to this curator',
   })
   operationalAlerts!: number;
+
+  @ApiProperty({
+    description:
+      "Other curators' archive, restore, lot-move and deaccession/loss events from the last 7 calendar days",
+  })
+  changeEvents!: number;
+
+  @ApiProperty({
+    description: 'Active specimens Uncataloged for more than 7 calendar days',
+  })
+  incompleteRecords!: number;
 
   @ApiProperty({
     type: [CuratorNotification],
