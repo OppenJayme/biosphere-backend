@@ -177,11 +177,6 @@ describe('NotificationsService', () => {
             affected_record_id: DRAFT,
             created_at: new Date('2026-11-05T02:00:00Z'),
           },
-          {
-            id: REPORT_EVENT,
-            affected_record_id: DRAFT,
-            created_at: new Date('2026-11-05T01:00:00Z'),
-          },
         ],
       });
 
@@ -199,6 +194,7 @@ describe('NotificationsService', () => {
           createdAt: new Date('2026-11-05T02:00:00Z'),
         },
       ]);
+      // The latest rejection per draft is chosen in the database, bounded.
       expect(prisma.audit_log.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: expect.objectContaining({
@@ -206,19 +202,21 @@ describe('NotificationsService', () => {
             status: 'FAILED',
             user_id: ACCOUNT,
           }) as unknown,
+          distinct: ['affected_record_id'],
+          orderBy: [{ affected_record_id: 'asc' }, { created_at: 'desc' }],
+          take: 100,
         }),
       );
 
       prisma.offline_draft_sync.findMany.mockResolvedValue([
-        {
-          client_draft_id: DRAFT,
-          synchronized_at: new Date('2026-11-05T03:00:00Z'),
-        },
+        { client_draft_id: DRAFT },
       ]);
       expect((await service.getFeed(20, ACCOUNT)).operationalAlerts).toBe(0);
     });
 
-    it('keeps a payload conflict whose receipt predates the rejection', async () => {
+    it('excludes a content conflict for a draft that already synchronized', async () => {
+      // The receipt predates the rejection: the draft is already a specimen and
+      // the conflicting re-send can never sync, so it is not left unresolved.
       auditRows({
         sync: [
           {
@@ -229,13 +227,13 @@ describe('NotificationsService', () => {
         ],
       });
       prisma.offline_draft_sync.findMany.mockResolvedValue([
-        {
-          client_draft_id: DRAFT,
-          synchronized_at: new Date('2026-11-04T00:00:00Z'),
-        },
+        { client_draft_id: DRAFT },
       ]);
 
-      expect((await service.getFeed(20, ACCOUNT)).operationalAlerts).toBe(1);
+      const feed = await service.getFeed(20, ACCOUNT);
+
+      expect(feed.operationalAlerts).toBe(0);
+      expect(feed.items).toEqual([]);
     });
 
     it('clears a report failure once the same type succeeds later', async () => {
@@ -274,28 +272,17 @@ describe('NotificationsService', () => {
       expect((await service.getFeed(20, ACCOUNT)).operationalAlerts).toBe(0);
     });
 
-    it('shows backup failures newer than the last completed backup of that type', async () => {
+    it('resolves backup failures by completion time, per backup type', async () => {
+      const recoveredAt = new Date('2026-11-04T05:00:00Z');
       prisma.backup_history.findMany.mockImplementation(({ where }: Where) =>
         Promise.resolve(
-          where.status === 'FAILED'
-            ? [
-                {
-                  id: BACKUP,
-                  backup_type: 'SCHEDULED_FULL',
-                  started_at: new Date('2026-11-05T01:00:00Z'),
-                  completed_at: new Date('2026-11-05T01:05:00Z'),
-                },
-                {
-                  id: '77777777-7777-4777-8777-777777777778',
-                  backup_type: 'INCREMENTAL',
-                  started_at: new Date('2026-11-04T01:00:00Z'),
-                  completed_at: null,
-                },
-              ]
+          where.status === 'COMPLETED'
+            ? [{ backup_type: 'INCREMENTAL', completed_at: recoveredAt }]
             : [
                 {
-                  backup_type: 'INCREMENTAL',
-                  started_at: new Date('2026-11-04T05:00:00Z'),
+                  id: BACKUP,
+                  started_at: new Date('2026-11-05T01:00:00Z'),
+                  completed_at: new Date('2026-11-05T01:05:00Z'),
                 },
               ],
         ),
@@ -304,6 +291,35 @@ describe('NotificationsService', () => {
       // Backups concern every curator, so no account is needed.
       const feed = await service.getFeed();
 
+      expect(prisma.backup_history.findMany).toHaveBeenNthCalledWith(
+        1,
+        expect.objectContaining({
+          where: { status: 'COMPLETED', completed_at: { not: null } },
+          distinct: ['backup_type'],
+          orderBy: [{ backup_type: 'asc' }, { completed_at: 'desc' }],
+        }),
+      );
+      // Failures of a recovered type count only if they ended after the
+      // recovery completed; unrecovered types are always unresolved.
+      expect(prisma.backup_history.findMany).toHaveBeenNthCalledWith(
+        2,
+        expect.objectContaining({
+          where: {
+            status: 'FAILED',
+            OR: [
+              { backup_type: { notIn: ['INCREMENTAL'] } },
+              {
+                backup_type: 'INCREMENTAL',
+                OR: [
+                  { completed_at: { gt: recoveredAt } },
+                  { completed_at: null, started_at: { gt: recoveredAt } },
+                ],
+              },
+            ],
+          },
+          take: 100,
+        }),
+      );
       expect(feed.operationalAlerts).toBe(1);
       expect(feed.items[0]).toMatchObject({
         id: `BACKUP_FAILED:${BACKUP}`,

@@ -161,11 +161,17 @@ and leaves the feed once its failure is resolved:
 
 | Type | Source | Visible to | Resolved when | `recordType` / `recordId` |
 | --- | --- | --- | --- | --- |
-| `SYNC_FAILED` | `audit_log` FAILED rows, module `offline-sync`, action `SYNC_SPECIMEN_DRAFT`, written when the server rejects an offline draft | The curator who synchronized | That client draft ID later synchronizes | `offline_draft` / client draft ID |
-| `BACKUP_FAILED` | `backup_history` rows with status `FAILED` | Every curator | A later backup of the same `backup_type` completes | `backup_history` / backup ID |
+| `SYNC_FAILED` | `audit_log` FAILED rows, module `offline-sync`, action `SYNC_SPECIMEN_DRAFT`, written when the server rejects an offline draft | The curator who synchronized | A receipt exists for that client draft ID (its content is already a specimen) | `offline_draft` / client draft ID |
+| `BACKUP_FAILED` | `backup_history` rows with status `FAILED` | Every curator | A backup of the same `backup_type` completes after the failure ended (by completion time) | `backup_history` / backup ID |
 | `REPORT_FAILED` | Existing `GENERATE_REPORT` audit rows with status `FAILED` | The curator who generated it | The same report type later succeeds for that curator | `report` / report-history (audit) ID |
 
 Only the latest unresolved failure per draft or per report type is listed.
+A content conflict on an already-synchronized draft ID is not an unresolved
+failure: the re-send can never sync, and the record is corrected online
+(REQ-4.14-10); the device keeps its own local alert. Backup recovery compares
+completion times (`completed_at`, or `started_at` for an unfinished failure),
+so overlapping runs resolve correctly. Each lookup filters in the database and
+scans at most the 100 newest rows.
 The feed adds `operationalAlerts`, a count of unresolved failures that, like
 `pendingInquiries` and `emailFailures`, is not reduced by dismissal. Keys are
 `TYPE:<source event UUID>`, so read/dismiss works through the existing

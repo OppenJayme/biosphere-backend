@@ -47,6 +47,9 @@ function reportTypeOf(row: { details: unknown }): string {
   return typeof details?.reportType === 'string' ? details.reportType : '';
 }
 
+// Bounds each operational lookup; only the newest unresolved failures matter.
+const OPERATIONAL_SCAN_LIMIT = 100;
+
 const OPERATIONAL_TITLES = {
   [CuratorNotificationType.SYNC_FAILED]:
     'An offline draft could not be synchronized',
@@ -236,7 +239,10 @@ export class NotificationsService {
     return [...syncFailures, ...backupFailures, ...reportFailures];
   }
 
-  // Latest rejection per draft, until that draft ID synchronizes later.
+  // Latest rejection per draft whose content never reached the server. Once a
+  // receipt exists for the draft ID, its content is a specimen; a conflicting
+  // re-send cannot sync and is corrected by editing that record online
+  // (REQ-4.14-10), so it is not an unresolved sync failure.
   private async unresolvedSyncFailures(
     accountId: string,
   ): Promise<CuratorNotification[]> {
@@ -248,27 +254,26 @@ export class NotificationsService {
         user_id: accountId,
         affected_record_id: { not: null },
       },
+      // One row per draft, its latest rejection, chosen in the database.
+      distinct: ['affected_record_id'],
       select: { id: true, affected_record_id: true, created_at: true },
-      orderBy: PENDING_ORDER,
+      orderBy: [{ affected_record_id: 'asc' }, { created_at: 'desc' }],
+      take: OPERATIONAL_SCAN_LIMIT,
     });
-    const latest = latestBy(failures, (row) => row.affected_record_id!);
-    if (latest.length === 0) return [];
+    if (failures.length === 0) return [];
 
     const receipts = await this.prisma.offline_draft_sync.findMany({
       where: {
         created_by: accountId,
-        client_draft_id: { in: latest.map((row) => row.affected_record_id!) },
+        client_draft_id: {
+          in: failures.map((row) => row.affected_record_id!),
+        },
       },
-      select: { client_draft_id: true, synchronized_at: true },
+      select: { client_draft_id: true },
     });
-    const syncedAt = new Map(
-      receipts.map((row) => [row.client_draft_id, row.synchronized_at]),
-    );
-    return latest
-      .filter((row) => {
-        const synced = syncedAt.get(row.affected_record_id!);
-        return !synced || synced <= row.created_at;
-      })
+    const synchronized = new Set(receipts.map((row) => row.client_draft_id));
+    return failures
+      .filter((row) => !synchronized.has(row.affected_record_id!))
       .map((row) =>
         this.operationalNotification(
           CuratorNotificationType.SYNC_FAILED,
@@ -280,43 +285,43 @@ export class NotificationsService {
       );
   }
 
-  // Failed backups newer than the last completed backup of the same type.
+  // A failure is recovered when a backup of the same type completes after the
+  // failure ended, by completion time, so overlapping runs resolve correctly.
   private async unresolvedBackupFailures(): Promise<CuratorNotification[]> {
-    const [failures, completed] = await Promise.all([
-      this.prisma.backup_history.findMany({
-        where: { status: 'FAILED' },
-        select: {
-          id: true,
-          backup_type: true,
-          started_at: true,
-          completed_at: true,
-        },
-        orderBy: [{ started_at: 'desc' }, { id: 'asc' }],
-      }),
-      this.prisma.backup_history.findMany({
-        where: { status: 'COMPLETED' },
-        distinct: ['backup_type'],
-        select: { backup_type: true, started_at: true },
-        orderBy: [{ backup_type: 'asc' }, { started_at: 'desc' }],
-      }),
-    ]);
-    const lastCompleted = new Map(
-      completed.map((row) => [row.backup_type, row.started_at]),
+    const recovered = await this.prisma.backup_history.findMany({
+      where: { status: 'COMPLETED', completed_at: { not: null } },
+      distinct: ['backup_type'],
+      select: { backup_type: true, completed_at: true },
+      orderBy: [{ backup_type: 'asc' }, { completed_at: 'desc' }],
+    });
+    const failures = await this.prisma.backup_history.findMany({
+      where: {
+        status: 'FAILED',
+        OR: [
+          { backup_type: { notIn: recovered.map((row) => row.backup_type) } },
+          ...recovered.map((row) => ({
+            backup_type: row.backup_type,
+            // The failure ended (or, unfinished, started) after the recovery.
+            OR: [
+              { completed_at: { gt: row.completed_at! } },
+              { completed_at: null, started_at: { gt: row.completed_at! } },
+            ],
+          })),
+        ],
+      },
+      select: { id: true, started_at: true, completed_at: true },
+      orderBy: [{ started_at: 'desc' }, { id: 'asc' }],
+      take: OPERATIONAL_SCAN_LIMIT,
+    });
+    return failures.map((row) =>
+      this.operationalNotification(
+        CuratorNotificationType.BACKUP_FAILED,
+        NotificationRecordType.BACKUP,
+        row.id,
+        row.id,
+        row.completed_at ?? row.started_at,
+      ),
     );
-    return failures
-      .filter((row) => {
-        const completedAt = lastCompleted.get(row.backup_type);
-        return !completedAt || completedAt < row.started_at;
-      })
-      .map((row) =>
-        this.operationalNotification(
-          CuratorNotificationType.BACKUP_FAILED,
-          NotificationRecordType.BACKUP,
-          row.id,
-          row.id,
-          row.completed_at ?? row.started_at,
-        ),
-      );
   }
 
   // Latest failure per report type, until that type generates successfully.
@@ -332,6 +337,7 @@ export class NotificationsService {
       where: { ...where, status: 'FAILED' },
       select: { id: true, details: true, created_at: true },
       orderBy: PENDING_ORDER,
+      take: OPERATIONAL_SCAN_LIMIT,
     });
     const latest = latestBy(failures, (row) => reportTypeOf(row));
     if (latest.length === 0) return [];
