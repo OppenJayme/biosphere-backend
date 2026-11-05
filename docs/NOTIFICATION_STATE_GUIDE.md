@@ -151,3 +151,33 @@ agreed live slice, while independent notification sign-off and stated broader
 release/provider/accessibility limits remain separate. The owner-only
 verification section above is historical; live evidence is now recorded in the
 linked deployment checkpoint.
+
+## Operational alerts - 2026-11-05
+
+Implemented on `feat/operational-notifications-20261105`; not yet deployed or
+accepted. `GET /notifications` now also returns failures that SRS REQ-4.3-05
+and REQ-4.3-10 require to stay in-system. Each derives from existing records
+and leaves the feed once its failure is resolved:
+
+| Type | Source | Visible to | Resolved when | `recordType` / `recordId` |
+| --- | --- | --- | --- | --- |
+| `SYNC_FAILED` | `audit_log` FAILED rows, module `offline-sync`, action `SYNC_SPECIMEN_DRAFT`, written when the server rejects an offline draft | The curator who synchronized | That client draft ID later synchronizes | `offline_draft` / client draft ID |
+| `BACKUP_FAILED` | `backup_history` rows with status `FAILED` | Every curator | A later backup of the same `backup_type` completes | `backup_history` / backup ID |
+| `REPORT_FAILED` | Existing `GENERATE_REPORT` audit rows with status `FAILED` | The curator who generated it | The same report type later succeeds for that curator | `report` / report-history (audit) ID |
+
+Only the latest unresolved failure per draft or per report type is listed.
+The feed adds `operationalAlerts`, a count of unresolved failures that, like
+`pendingInquiries` and `emailFailures`, is not reduced by dismissal. Keys are
+`TYPE:<source event UUID>`, so read/dismiss works through the existing
+`PATCH /notifications/state`.
+
+Rejected-draft audit rows store only `reason` and `statusCode`, never the draft
+content. The audit write happens after the sync transaction rolls back, and an
+audit failure is logged without replacing the client's original error.
+
+Migration `20261105000000_extend_notification_state_types` widens the
+`notification_state_key` CHECK to accept the three new prefixes. It changes no
+table, column or RLS policy and must go through the normal approved migration
+workflow before `NOTIFICATION_STATE_ENABLED` deployments can mark these alerts.
+The frontend feed schema is a strict enum and must add the new `type` and
+`recordType` values before this reaches a shared deployment.
