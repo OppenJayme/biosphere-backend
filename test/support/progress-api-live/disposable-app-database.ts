@@ -96,7 +96,12 @@ export class DisposableAppDatabase {
         throw new Error('Invalid container identity.');
       docker(['start', db.id]);
       const ports = JSON.parse(
-        docker(['inspect', '--format', '{{json .NetworkSettings.Ports}}', db.id]),
+        docker([
+          'inspect',
+          '--format',
+          '{{json .NetworkSettings.Ports}}',
+          db.id,
+        ]),
       ) as Record<string, Array<{ HostIp: string; HostPort: string }>>;
       const binding = ports['5432/tcp'];
       if (binding?.length !== 1 || binding[0].HostIp !== '127.0.0.1')
@@ -128,7 +133,9 @@ export class DisposableAppDatabase {
   private async applySchema() {
     await this.admin.query(AUTH_STUB);
     const dir = resolve(__dirname, '../../../prisma/migrations');
-    for (const name of readdirSync(dir).filter((n) => !n.endsWith('.toml')).sort())
+    for (const name of readdirSync(dir)
+      .filter((n) => !n.endsWith('.toml'))
+      .sort())
       await this.admin.query(
         readFileSync(resolve(dir, name, 'migration.sql'), 'utf8'),
       );

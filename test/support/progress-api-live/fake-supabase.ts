@@ -4,7 +4,12 @@
  * SUPABASE_URL, so guards, services and Prisma run unmodified while no
  * request can reach the team's hosted Supabase project.
  */
-import { createServer, IncomingMessage, Server, ServerResponse } from 'node:http';
+import {
+  createServer,
+  IncomingMessage,
+  Server,
+  ServerResponse,
+} from 'node:http';
 import { randomUUID } from 'node:crypto';
 import type { AddressInfo } from 'node:net';
 import type { Client } from 'pg';
@@ -174,7 +179,9 @@ export class FakeSupabase {
       return this.json(res, 200, this.userJson(user));
     }
 
-    const adminUser = url.pathname.match(/^\/auth\/v1\/admin\/users\/([\w-]+)$/);
+    const adminUser = url.pathname.match(
+      /^\/auth\/v1\/admin\/users\/([\w-]+)$/,
+    );
     if (adminUser && req.method === 'PUT') {
       const user = this.users.get(adminUser[1]);
       if (!user) return this.json(res, 404, { msg: 'User not found' });
@@ -201,7 +208,9 @@ export class FakeSupabase {
     }
 
     // Storage: signed URL, upload, remove
-    const sign = url.pathname.match(/^\/storage\/v1\/object\/sign\/([^/]+)\/(.+)$/);
+    const sign = url.pathname.match(
+      /^\/storage\/v1\/object\/sign\/([^/]+)\/(.+)$/,
+    );
     if (sign && req.method === 'POST')
       return this.json(res, 200, {
         signedURL: `/object/sign/${sign[1]}/${sign[2]}?token=fake`,
@@ -229,7 +238,9 @@ export class FakeSupabase {
       );
     }
 
-    return this.json(res, 404, { msg: `fake supabase: no route ${url.pathname}` });
+    return this.json(res, 404, {
+      msg: `fake supabase: no route ${url.pathname}`,
+    });
   }
 }
 
@@ -248,7 +259,7 @@ export function installOutboundGuard() {
   const original = globalThis.fetch;
   const emails: CapturedEmail[] = [];
   const blocked: string[] = [];
-  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+  globalThis.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = new URL(
       typeof input === 'string'
         ? input
@@ -259,7 +270,9 @@ export function installOutboundGuard() {
     if (url.hostname === '127.0.0.1' || url.hostname === 'localhost')
       return original(input, init);
     if (url.hostname === 'api.brevo.com') {
-      const payload = JSON.parse(String(init?.body ?? '{}')) as {
+      const payload = JSON.parse(
+        typeof init?.body === 'string' ? init.body : '{}',
+      ) as {
         to?: Array<{ email: string }>;
         subject?: string;
         htmlContent?: string;
@@ -269,14 +282,19 @@ export function installOutboundGuard() {
         subject: payload.subject ?? '',
         html: payload.htmlContent ?? '',
       });
-      return new Response(JSON.stringify({ messageId: `<fake-${randomUUID()}>` }), {
-        status: 201,
-        headers: { 'content-type': 'application/json' },
-      });
+      return new Response(
+        JSON.stringify({ messageId: `<fake-${randomUUID()}>` }),
+        {
+          status: 201,
+          headers: { 'content-type': 'application/json' },
+        },
+      );
     }
     blocked.push(url.href);
-    throw new TypeError(`Outbound request to ${url.hostname} blocked by the live API harness`);
-  }) as typeof fetch;
+    throw new TypeError(
+      `Outbound request to ${url.hostname} blocked by the live API harness`,
+    );
+  };
   return {
     emails,
     blocked,
