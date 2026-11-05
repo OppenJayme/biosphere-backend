@@ -670,7 +670,7 @@ were not rerun for prose changes.
 | STO-001 | Create a root and nested storage hierarchy            | The hierarchy reloads with correct parent-child relationships | **Pass**                                             |
 | STO-002 | Attempt self-parenting and descendant cycles          | Both operations are rejected without changing the hierarchy   | **Pass**; UI manual + automated backend verification |
 | STO-003 | Edit storage metadata and specimen-holding capability | Valid changes persist and invalid values are rejected clearly | **Pass**                                             |
-| STO-004 | Exercise approved archive restrictions                | Referenced/unsafe locations cannot be archived incorrectly    | **Pass** for original restrictions; DEF-010 post-merge display and isolated HTTP checks passed; combined Inventory criterion/sign-off pending |
+| STO-004 | Exercise approved archive restrictions                | Referenced/unsafe locations cannot be archived incorrectly    | **Pass** for original restrictions; DEF-010 post-merge display and isolated HTTP checks passed; [John's Inventory restriction result](./CATALOGING_STORAGE_SIGNOFF_2026-11-04.md#inventory-restriction-result-for-sto-004---2026-11-05) passed on owned PostgreSQL 2026-11-05 (archived units reject lot create/move/condition change/increase; inventory unchanged). Independent review and DEF-010 disposition pending |
 
 STO-001 evidence recorded on 2026-10-04: a disposable top-level room and its
 nested storage locations were created with the intended parent-child

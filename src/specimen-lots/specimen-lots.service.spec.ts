@@ -291,6 +291,67 @@ describe('SpecimenLotsService', () => {
     expect(lotDelegate.create).not.toHaveBeenCalled();
   });
 
+  // STO-004: an archived location must not receive specimens by any route.
+  it('rejects moves, condition changes and increases into an archived storage unit without mutating lots', async () => {
+    const archivedUnit = {
+      id: TARGET_STORAGE_UNIT_ID,
+      holds_specimens: true,
+      archived_at: TEST_DATE,
+    };
+    const archivedMessage =
+      'Archived storage units cannot receive specimen lots.';
+
+    lotDelegate.findFirst.mockResolvedValueOnce(lotRecord({ quantity: 10 }));
+    storageUnitDelegate.findUnique.mockResolvedValueOnce(archivedUnit);
+    await expect(
+      service.move(
+        SPECIMEN_ID,
+        LOT_ID,
+        { targetStorageUnitId: TARGET_STORAGE_UNIT_ID, quantity: 4 },
+        ACCOUNT_ID,
+      ),
+    ).rejects.toThrow(archivedMessage);
+
+    // A replacement lot created by a condition change stays at the source
+    // location, so that location is rechecked.
+    lotDelegate.findFirst.mockResolvedValueOnce(
+      lotRecord({ quantity: 10, storage_unit_id: TARGET_STORAGE_UNIT_ID }),
+    );
+    storageUnitDelegate.findUnique.mockResolvedValueOnce(archivedUnit);
+    await expect(
+      service.changeCondition(
+        SPECIMEN_ID,
+        LOT_ID,
+        { targetConditionClass: 'FAIR', quantity: 3, reason: 'Damage noted' },
+        ACCOUNT_ID,
+      ),
+    ).rejects.toThrow(archivedMessage);
+
+    lotDelegate.findFirst.mockResolvedValueOnce(
+      lotRecord({ quantity: 10, storage_unit_id: TARGET_STORAGE_UNIT_ID }),
+    );
+    storageUnitDelegate.findUnique.mockResolvedValueOnce(archivedUnit);
+    await expect(
+      service.adjustQuantity(
+        SPECIMEN_ID,
+        LOT_ID,
+        {
+          adjustmentType: QuantityAdjustmentType.ADDITION,
+          quantityDelta: 1,
+          expectedQuantity: 10,
+          reason: 'New specimens received',
+        },
+        ACCOUNT_ID,
+      ),
+    ).rejects.toThrow(archivedMessage);
+
+    expect(lotDelegate.create).not.toHaveBeenCalled();
+    expect(lotDelegate.update).not.toHaveBeenCalled();
+    expect(lotDelegate.updateMany).not.toHaveBeenCalled();
+    expect(lotTransactionDelegate.create).not.toHaveBeenCalled();
+    expect(revisionDelegate.create).not.toHaveBeenCalled();
+  });
+
   it('rejects a matching active lot instead of bypassing adjustment history', async () => {
     lotDelegate.findFirst.mockResolvedValue({ id: LOT_ID });
 
