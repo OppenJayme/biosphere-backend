@@ -107,6 +107,16 @@ and institutional decisions recorded independently in DEF-030.
 
 ### Integration sequence after disposition
 
+The supplied [BioSphere Backend Progress_11_5_2026.pdf](./evidence/backend-progress-2026-11-05.pdf)
+(pages 4-5; [copy provenance](./evidence/README.md)) reports a
+November 3-4 Curator retest at local backend `06545c0`: the affected history
+endpoint returned 200 with both retained entries and the Lots page displayed
+Temporary absence. This is a reported local pass, not an agent-executed rerun
+or proof of the deployed release. [DEF-030](./TEST_DEFECT_LOG.md#def-030---lot-history-fails-on-a-database-enum-ahead-of-the-client)
+records provenance, missing frontend/tester details and remaining consumer and
+deployment scope. Preserve that evidence rather than repeatedly treating the
+original symptom as untested.
+
 After that disposition and backend review/merge, regenerate/rebuild/restart
 the integrated sources through the agreed controlled rollout. Check
 the reported specimen read-only after rollout and record its actual outcome.
