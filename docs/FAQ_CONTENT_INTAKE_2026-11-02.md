@@ -6,6 +6,13 @@ This is an editorial review sheet, not a public knowledge activation or a claim
 that every answer is complete or institutionally approved. No database entry,
 status, matcher rule, alias, threshold or visitor-facing page was changed.
 
+Later execution: on November 6, the user explicitly authorized publication of
+the seventeen prepared entries. The [publication record](./FAQ_KNOWLEDGE_GUIDE.md#approved-content-publication-and-public-widget-checkpoint---2026-11-06)
+records the real Curator create/edit/activation workflow and 28 passing public
+widget checks. This review sheet retains the source/clarification trail; unknown
+rows were not activated, and the original review-only statements describe the
+intake stage rather than undoing that later specific authorization.
+
 ## Source and approval record
 
 **S01** means the user's responses to thirty questions received on 2026-11-02.

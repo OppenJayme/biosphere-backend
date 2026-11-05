@@ -2,6 +2,11 @@
 
 ## Operating decision
 
+2026-11-06 subsequent publication: the user explicitly authorized the prepared
+set. [Seventeen real entries are now active and 28 public-widget checks passed](./FAQ_KNOWLEDGE_GUIDE.md#approved-content-publication-and-public-widget-checkpoint---2026-11-06).
+The isolated evaluations below remain separate historical/development evidence;
+they must not substitute for, or obscure, the recorded real execution.
+
 2026-11-06 content reconciliation: the user's November 3 visitor/group
 clarifications are integrated into the intake and synthetic candidates.
 [Thirty-six isolated public HTTP cases pass](./FAQ_CURATOR_CONTENT_EVALUATION_2026-11-02.md#november-6-clarification-reconciliation),

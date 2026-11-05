@@ -1,5 +1,72 @@
 # BioSphere FAQ Knowledge Management Guide
 
+## Approved-content publication and public-widget checkpoint - 2026-11-06
+
+The user explicitly requested adding the prepared approved entries through the
+Curator workflow, activating them and checking the public assistant. This is
+authorization for this publication, not a new independently verified Curator
+interview or institutional sign-off. Facts retain the reported October 30
+Sir Fidel source and November 2/3 clarification provenance in the
+[intake sheet](./FAQ_CONTENT_INTAKE_2026-11-02.md).
+
+Executed by Codex/Playwright using the user's manually signed-in Curator session:
+backend `0a864d4`, frontend `30d6cc7`, production build
+`fg3bSJZZZz_Oe-dE_DpRs`, separate loopback ports 43180/43181, and the configured
+hosted database target confirmed by the user. Content came from the seventeen
+reconciled candidates at `78f7b32`. Runtime matcher code/thresholds and database
+schema were unchanged. The later notification release is outside this checkpoint.
+
+**Publication result: 17 approved entries active.** Eleven were created inactive
+and explicitly activated. Six existing overlapping entries were edited in place:
+admission, appointment/guided tours, group batches, photography, handling and
+location. Four of those six were inactive and explicitly activated; the other
+two were already active and their approved content was updated. Existing IDs
+and history were retained. No synthetic fixture UUIDs were inserted, direct SQL
+seed used, entry deleted/archived, or unrelated record changed.
+
+The preflight found an active school-group answer incorrectly giving weekday
+hours through 5 PM. Its overlapping entry now contains the approved batch answer.
+Previously inactive admission/location/handling drafts were also replaced with
+the approved content rather than activated unchanged. Prior values and operation
+receipts are retained privately, and the normal protected audit trail remains.
+
+Each save was read back through the Curator form and compared across question,
+answer, category, alternative wording and keywords. Each published entry showed
+the active-state control. A final full-list reload found 30 total entries, exactly
+one active row for each of the seventeen approved questions, and all thirteen
+unrelated pre-existing question/category/status/update-time rows unchanged.
+This is row-summary preservation, not a full database-diff claim. Representative
+weekday creation/activation, admission update/activation and already-active batch
+update were visible in the protected audit UI. All mutations used the ordinary
+authenticated Server Actions/API and confirmation dialogs; no credentials were
+copied or exported.
+
+**Real signed-out public widget: 28/28 checks passed**, without mocked responses:
+
+| Check group | Observed result |
+| --- | --- |
+| 17 canonical questions | Real public HTTP 200/ANSWERED responses matched persisted entry IDs and exact approved answer text; each answer rendered in the widget |
+| Five alternate/critical questions | Entrance fee, four USC students, exactly five visitors, alumni campus entry and non-school batch size returned the intended approved answer |
+| Opening-hours ambiguity and selection | Two/three-choice clarification without an answer; selecting Saturday returned its approved answer |
+| Two-turn bounded context | Weekday answer followed by `How about Saturday?` returned the approved Saturday answer |
+| Two unsupported questions | Species identification and an unspecified curator phone number returned NO_MATCH with General Inquiry referral |
+
+The public browser was a separate fresh context with no auth-token cookies;
+canonical ask requests carried no Authorization header. No inquiries, visit
+requests or consented unanswered-question submissions were made. The public
+request guard recorded zero blocked requests; the existing rate limits were not
+disabled. Publication completed around 02:12 and final persistence/audit checks
+at 02:15 on November 6, Asia/Singapore.
+
+This supplies live create/edit/activation and bounded public-answer evidence.
+It does not prove deactivation exclusion, all inactive/archived exclusions on
+this release, concurrency, every possible paraphrase/language, duplicate-policy
+enforcement, official deployed hosting, every unrelated legacy answer's accuracy,
+or independent module acceptance. No remaining unknown contact, cancellation,
+document or Sunday facts were invented or activated. Optional question collection
+and paid AI services were not enabled. Publication is complete; remaining case
+dispositions and review should use this evidence rather than repeat the batch.
+
 Current answer-quality checkpoint: [content review and 25-case synthetic HTTP
 evaluation](./FAQ_CONTENT_REVIEW.md), now 25/25 passing after bounded scope
 checks; the original 23/25 diagnostic is retained. DEF-024 is Ready for retest,

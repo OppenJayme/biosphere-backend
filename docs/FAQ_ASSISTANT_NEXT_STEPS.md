@@ -4,6 +4,18 @@ Source review checkpoint, not feature acceptance or approval to publish test
 answers. Backend reviewed at `a3961d1`; frontend at `9ea97c7`. No chatbot code
 or active knowledge was changed and no public ask request was made here.
 
+## Publication update - 2026-11-06
+
+The user subsequently explicitly authorized publication of the prepared set.
+The [real Curator-workflow publication and signed-out public-widget check](./FAQ_KNOWLEDGE_GUIDE.md#approved-content-publication-and-public-widget-checkpoint---2026-11-06)
+completed: seventeen entries active (eleven created, six existing entries
+corrected), twenty-eight public checks passed, final reload/persistence and
+representative audit readback passed. No runtime matcher change or paid service
+was needed. The earlier review-only directions below retain their dated scope;
+do not continue describing this publication batch as unexecuted. Remaining
+deactivation/exclusion and duplicate-policy dispositions plus independent
+acceptance are separate; unknown facts remain unpublished.
+
 ## Content update - 2026-11-02
 
 November 6 reconciliation: the user's November 3 walk-in/outsider and all-group
