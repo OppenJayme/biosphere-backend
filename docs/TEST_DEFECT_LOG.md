@@ -161,8 +161,8 @@ remain present. Existing 23 duplicate units pass. The repair changes no record,
 matching score, merge/delete behavior or Inventory operation.
 
 Repeat and scope: [archive consistency regression](./SPECIMEN_DUPLICATES_GUIDE.md#archive-indicator-consistency-repair---2026-11-04).
-Curator/SRS disposition of REQ-4.4-21's archive exclusion remains blocking
-CAT-014 acceptance; fixing query consistency does not settle that policy.
+Fixing query consistency did not settle the REQ-4.4-21 archive-exclusion policy;
+that active-only scope was separately approved by Sir Fidel (reported by John on 2026-11-05).
 
 ### DEF-030 - Lot history fails on a database enum ahead of the client
 
