@@ -29,7 +29,7 @@ describe('Per-curator notification state, owned PostgreSQL and real HTTP', () =>
   });
   beforeEach(async () => {
     await database.admin.query(
-      'TRUNCATE user_notification_state, audit_log, visit_request, inquiry CASCADE',
+      'TRUNCATE user_notification_state, audit_log, visit_request, inquiry, backup_history, offline_draft_sync CASCADE',
     );
     await database.admin.query("UPDATE user_account SET status = 'ACTIVE'");
     await database.admin.query(
@@ -251,6 +251,77 @@ describe('Per-curator notification state, owned PostgreSQL and real HTTP', () =>
     }
     await change('NEW_INQUIRY:' + INQUIRY_ID, 'READ').expect(200);
     expect((await feed().expect(200)).body.unreadTotal).toBe(2);
+  });
+  it('shows unresolved operational alerts per curator and lets them be read and dismissed', async () => {
+    const curator = '11111111-1111-4111-8111-111111111111';
+    const draftId = '88888888-8888-4888-8888-888888888888';
+    const syncFailure = '99999999-9999-4999-8999-999999999991';
+    const reportFailure = '99999999-9999-4999-8999-999999999992';
+    const backupFailure = '99999999-9999-4999-8999-999999999993';
+    await database.admin.query(
+      `INSERT INTO audit_log(id,user_id,affected_record_id,affected_record_type,action,module,status,details,created_at) VALUES
+      ($1,$4,$2,'offline_draft','SYNC_SPECIMEN_DRAFT','offline-sync','FAILED','{"statusCode":409}',NOW() - INTERVAL '2 hours'),
+      ($3,$4,NULL,'report','GENERATE_REPORT','reports','FAILED','{"reportType":"INVENTORY"}',NOW() - INTERVAL '1 hour')`,
+      [syncFailure, draftId, reportFailure, curator],
+    );
+    await database.admin.query(
+      `INSERT INTO backup_history(id,created_by,backup_type,status,started_at) VALUES
+      ($1,$2,'SCHEDULED_FULL','FAILED',NOW() - INTERVAL '30 minutes')`,
+      [backupFailure, curator],
+    );
+    const mine = (await feed().expect(200)).body as Feed & {
+      operationalAlerts: number;
+    };
+    expect(mine.operationalAlerts).toBe(3);
+    expect(mine.items.map((item) => item.id)).toEqual(
+      expect.arrayContaining([
+        `SYNC_FAILED:${syncFailure}`,
+        `REPORT_FAILED:${reportFailure}`,
+        `BACKUP_FAILED:${backupFailure}`,
+      ]),
+    );
+    // Sync and report failures belong to the curator who hit them.
+    const other = (await feed('other-curator-fixture').expect(200)).body as {
+      operationalAlerts: number;
+    };
+    expect(other.operationalAlerts).toBe(1);
+
+    // The widened key constraint accepts every new prefix.
+    await change(`BACKUP_FAILED:${backupFailure}`, 'READ').expect(200);
+    await change(`SYNC_FAILED:${syncFailure}`, 'DISMISSED').expect(200);
+    const after = (await feed().expect(200)).body as Feed & {
+      operationalAlerts: number;
+    };
+    // Like the other work counts, operationalAlerts counts unresolved
+    // failures; dismissal only hides the item for this curator.
+    expect(after.operationalAlerts).toBe(3);
+    expect(after.items.map((item) => item.id)).not.toContain(
+      `SYNC_FAILED:${syncFailure}`,
+    );
+    expect(
+      after.items.find((item) => item.id === `BACKUP_FAILED:${backupFailure}`)
+        ?.readAt,
+    ).toBeTruthy();
+
+    // Later success resolves the report and backup alerts; the dismissed sync
+    // failure still counts because that draft never synchronized.
+    await database.admin.query(
+      `INSERT INTO audit_log(user_id,affected_record_type,action,module,status,details)
+      VALUES ($1,'report','GENERATE_REPORT','reports','SUCCESS','{"reportType":"INVENTORY"}')`,
+      [curator],
+    );
+    await database.admin.query(
+      `INSERT INTO backup_history(created_by,backup_type,status,started_at,completed_at)
+      VALUES ($1,'SCHEDULED_FULL','COMPLETED',NOW(),NOW())`,
+      [curator],
+    );
+    const resolved = (await feed().expect(200)).body as Feed & {
+      operationalAlerts: number;
+    };
+    expect(resolved.operationalAlerts).toBe(1);
+    expect(
+      resolved.items.filter((item) => /^(BACKUP|REPORT)_FAILED:/.test(item.id)),
+    ).toEqual([]);
   });
   it('enforces recipient uniqueness, key constraints and fail-closed client RLS in PostgreSQL', async () => {
     await change('NEW_INQUIRY:' + INQUIRY_ID, 'READ').expect(200);

@@ -36,13 +36,26 @@ export async function seedNotificationsDatabase(admin: Client) {
       VALUES ('${OTHER_NOTIFICATION_CURATOR}', '${AUTH_B}', 'Other synthetic curator', 'CURATOR', 'ACTIVE');
   `);
   for (const file of [
+    'database/sql/015_backup_history.sql',
     'database/sql/016_inquiry.sql',
     'database/sql/017_visit_request.sql',
     'prisma/migrations/20261028000000_add_user_notification_state/migration.sql',
+    'prisma/migrations/20261105000000_extend_notification_state_types/migration.sql',
   ]) {
     await admin.query(readFileSync(resolve(__dirname, '../..', file), 'utf8'));
   }
-  await admin.query('GRANT SELECT ON inquiry, visit_request TO service_role');
+  // Only the receipt columns the feed reads; the specimen table is out of scope here.
+  await admin.query(`
+    CREATE TABLE offline_draft_sync (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(), created_by UUID NOT NULL,
+      client_draft_id UUID NOT NULL, specimen_id UUID NOT NULL,
+      payload_fingerprint CHAR(64) NOT NULL,
+      synchronized_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      UNIQUE (created_by, client_draft_id)
+    )`);
+  await admin.query(
+    'GRANT SELECT ON inquiry, visit_request, backup_history, offline_draft_sync TO service_role',
+  );
 }
 
 export async function createNotificationsDatabaseApp(
