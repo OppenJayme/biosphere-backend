@@ -30,7 +30,6 @@ function prismaMock() {
           return [
             { status: 'UNCATALOGED', _count: { _all: 3 } },
             { status: 'CATALOGED', _count: { _all: 5 } },
-            { status: 'ARCHIVED', _count: { _all: 1 } },
           ];
         }
         if (args.by.length === 2) {
@@ -65,7 +64,9 @@ function prismaMock() {
           { specimen_category: 'Reptile', _count: { _all: 1 } },
         ];
       }),
-      count: jest.fn(() => 2),
+      count: jest.fn((args: { where: { OR?: unknown } }) =>
+        args.where.OR ? 1 : 2,
+      ),
       findMany: jest.fn((args: { where?: { status?: string } }) =>
         args.where?.status === 'UNCATALOGED'
           ? [specimenRow('q1')]
@@ -151,7 +152,7 @@ describe('DashboardService', () => {
     type CountArgs = { where: { created_at: { gte: Date; lt?: Date } } };
     const monthCalls = (
       prisma.specimen.count.mock.calls as unknown as [CountArgs][]
-    ).filter(([args]) => args.where.created_at.lt);
+    ).filter(([args]) => args.where.created_at?.lt);
     expect(monthCalls).toHaveLength(12);
     expect(monthCalls[11][0]).toEqual({
       where: {
@@ -194,7 +195,11 @@ describe('DashboardService', () => {
       where: {
         archived_at: null,
         status: 'PUBLISHED',
-        specimen: { status: 'CATALOGED', public_display_allowed: true },
+        specimen: {
+          status: 'CATALOGED',
+          archived_at: null,
+          public_display_allowed: true,
+        },
       },
     });
   });

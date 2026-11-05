@@ -1,5 +1,15 @@
 # BioSphere Reports Guide
 
+## Archive-read consistency - 2026-11-04
+
+Consolidated active category, condition and lot quantity breakdowns now exclude
+either archive indicator. Historical all-record totals/status distributions and
+period activity, and the Inventory report's existing status-filter behavior,
+are preserved. The user authorized this narrow John/Charles-owned follow-up;
+[DEF-032](./TEST_DEFECT_LOG.md#def-032---timestamp-only-archives-leak-into-active-catalog-and-breakdowns)
+records real SQL/public-builder evidence. No emitted file, shared report record,
+upload, quantity or schema change was tested or performed by this fixture.
+
 This module implements the reports and export portion of SRS Section 4.7
 (REQ-4.7-04 to REQ-4.7-16) for the five approved core report types in §4.7.4,
 plus the audit-log export the SRS Audit Logs page describes (Figure 20,

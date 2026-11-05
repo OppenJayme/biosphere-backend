@@ -1,5 +1,18 @@
 # BioSphere Curator Dashboard Guide
 
+## Archive-read consistency - 2026-11-04
+
+The active category/possible-duplicate breakdowns and Cataloging queue require
+null `archived_at` as well as the relevant non-archived status. Following the
+November 5 review, status cards use effective archive membership: either an
+ARCHIVED status or a non-null archive timestamp belongs to Archived. Each card
+therefore matches the corresponding Cataloging status-filter total, including
+legacy rows. The live-exhibit count also excludes timestamp-only archives.
+All-record totals, additions/trends and recent history remain unchanged; stored
+specimen details are not rewritten. This is the user-authorized, John/Charles-owned downstream
+[DEF-032 repair](./TEST_DEFECT_LOG.md#def-032---timestamp-only-archives-leak-into-active-catalog-and-breakdowns),
+with owned PostgreSQL/public-service evidence; it is not whole-module acceptance.
+
 `GET /dashboard/summary` gives the curator dashboard (SRS §4.3) its totals and
 short lists in one request. Every number is computed in the database, so the
 dashboard no longer downloads full specimen, inquiry, or visit-request lists to
@@ -14,7 +27,7 @@ Responses are sent with `Cache-Control: no-store`.
 
 | Field | Meaning |
 | --- | --- |
-| `specimens.total`, `specimens.byStatus` | All specimen records, and counts for `UNCATALOGED`, `CATALOGED`, and `ARCHIVED` (REQ-4.3-01) |
+| `specimens.total`, `specimens.byStatus` | All specimen records, partitioned into active `UNCATALOGED`/`CATALOGED` and effective `ARCHIVED` (either archive indicator), matching Cataloging status filters (REQ-4.3-01). Stored status values are preserved in record details. |
 | `specimens.addedThisMonth` | Records created since midnight on the 1st of this month, Philippine time |
 | `specimens.byCategory` | Active (non-archived) records by specimen category, largest first. Blank categories count as `Uncategorized`; spellings that differ only in case are merged under the most common spelling |
 | `specimens.addedByMonth` | Records created in each of the last 12 Philippine-time months, oldest first, as `{ month: "YYYY-MM", count }` |
