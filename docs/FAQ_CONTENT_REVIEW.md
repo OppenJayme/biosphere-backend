@@ -2,6 +2,13 @@
 
 ## Operating decision
 
+2026-11-06 content reconciliation: the user's November 3 visitor/group
+clarifications are integrated into the intake and synthetic candidates.
+[Thirty-six isolated public HTTP cases pass](./FAQ_CURATOR_CONTENT_EVALUATION_2026-11-02.md#november-6-clarification-reconciliation),
+including three independently specified content checks observed red before
+correcting the drafts. This is still review-only content, not activation or
+approval of exact wording. The November 2 result below retains its dated scope.
+
 2026-11-02 content follow-up: [intake #224](https://github.com/OppenJayme/biosphere-backend/pull/224)
 records the user's responses to thirty questions and later clarifications,
 including incomplete and unanswered items. An isolated

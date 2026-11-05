@@ -1,6 +1,37 @@
 # Curator-content readiness evaluation - 2026-11-02
 
-## Result and purpose
+## November 6 clarification reconciliation
+
+**36/36 isolated public HTTP checks pass** on backend base `9ec3fc7` using the
+same seventeen review-only candidates and the S05 clarification trail in the
+[intake sheet](./FAQ_CONTENT_INTAKE_2026-11-02.md#source-and-approval-record).
+The older 33-case checkpoint below remains historical evidence.
+
+Three additional checks independently require the relayed answer content through
+`POST /faq/assistant/ask`: eligible parties under five may walk in; alumni's free
+admission does not waive outsider appointment/campus-entry requirements; and
+the 50-person maximum applies to school and non-school batches, divided by the
+visiting group. Each failed against the older candidate wording before its
+corresponding candidate was corrected, then passed. The original 33 checks also
+pass with the reconciled candidates. The prior school-tour question is retained
+as an alias of the broader batch question.
+
+This updates editorial fixtures and review documentation only. It does not
+change runtime matcher code, thresholds, database content, lifecycle status,
+visitor workflows or language capabilities. ACTIVE remains synthetic in the
+isolated adapter. Prisma Client was generated locally using a synthetic
+unreachable URL as setup; generation made no database connection. No shared
+server was restarted or FAQ entry activated. These known working cases are
+neither a held-out accuracy study nor approval of exact wording or aliases.
+
+Next: content owner approves the exact candidate answers/aliases to publish,
+or names the individual wording changes required. Unanswered contact, document,
+change/cancellation and missing-email follow-up details remain deferred; they
+need not block unrelated entries. Public activation and live lifecycle checks
+require a separate explicit publishing step. No new Curator interview is
+required for the already supplied walk-in/group answers.
+
+## Original November 2 result and purpose
 
 **33/33 working quality cases pass** through the real public FAQ HTTP route,
 controller, validation, guards, service and matcher on backend base `4de07c6`.
@@ -16,13 +47,13 @@ made to obtain that result. This is a visible development evaluation, not an
 unseen benchmark, a visitor study, a scientific accuracy estimate or proof of
 general language/number understanding.
 
-## Reviewable content candidates
+## Original November 2 reviewable content candidates
 
-`test/fixtures/faq-curator-knowledge.ts` holds questions, exact stored-answer
+At that checkpoint, `test/fixtures/faq-curator-knowledge.ts` held questions, exact stored-answer
 wording, proposed aliases/keywords, category and source question numbers. The
 synthetic UUIDs identify isolated test entries; they are not shared FAQ IDs.
 
-These are synthetic editorial candidates, including user-relayed rules whose
+The November 2 candidates were synthetic editorial candidates, including user-relayed rules whose
 precise walk-in eligibility and non-school group limits remain unconfirmed.
 They need content-owner approval before any public activation. The visit form's
 current schedule, batch and notification behavior must also be reconciled with
@@ -50,7 +81,7 @@ restrictions, official phone/email, public self-service visit cancellation,
 specific campus-entry documents/directions and loan approval. No empty answer,
 `N/A`, sample fee or invented institutional detail is activated.
 
-## Coverage and limits
+## Original 33-case coverage and limits
 
 | Group | Cases | Expected behavior checked |
 | --- | --- | --- |

@@ -6,6 +6,15 @@ or active knowledge was changed and no public ask request was made here.
 
 ## Content update - 2026-11-02
 
+November 6 reconciliation: the user's November 3 walk-in/outsider and all-group
+batch clarifications are now reflected in the [intake](./FAQ_CONTENT_INTAKE_2026-11-02.md)
+and seventeen isolated editorial candidates. The [public HTTP evaluation](./FAQ_CURATOR_CONTENT_EVALUATION_2026-11-02.md#november-6-clarification-reconciliation)
+passes 36/36 working cases after three red/green content checks. No runtime
+matcher change, shared write or public activation occurred. Next is approval of
+the exact candidate wording/aliases, then an explicitly authorized publishing
+and live lifecycle check. Do not ask the already supplied walk-in/group rules
+again or let unanswered unrelated contact/cancellation details block all content.
+
 The user supplied responses to thirty questions, including incomplete and
 unanswered items. The [FAQ intake sheet](./FAQ_CONTENT_INTAKE_2026-11-02.md)
 records reported interview facts, later user clarifications, and unresolved

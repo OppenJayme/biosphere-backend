@@ -1,7 +1,7 @@
 /**
- * Review-only content candidates from FAQ intake #224 (S01-S04).
+ * Review-only content candidates from FAQ intake #224 (S01-S05).
  * Source: Sir Fidel via the user, conversation reported 2026-10-30; clarifications received
- * 2026-11-02. IDs are synthetic; aliases/keywords are editorial proposals.
+ * 2026-11-02 and 2026-11-03. IDs are synthetic; aliases/keywords are editorial proposals.
  * ACTIVE below exists only in the isolated HTTP adapter. Never seed/activate
  * this fixture in a shared database as an incidental evaluation step.
  */
@@ -88,7 +88,7 @@ export const curatorFaqDrafts: Draft[] = [
     id: CURATOR_FAQ_IDS.appointment,
     question: 'When is an appointment required?',
     answer:
-      'Parties of five or more and guided tours require an appointment. For walk-in eligibility for smaller parties, contact the museum curator. Outside visitors, including alumni, must follow campus entry.',
+      'Fewer than five visitors already inside USC or affiliated with USC may walk in informally. Parties of five or more and guided tours require an appointment. Outside visitors, including alumni, require an appointment and campus-entry clearance. USC affiliation does not itself grant campus entry.',
     alternative_wording: [
       'Can USC students walk in?',
       'Do five visitors need an appointment?',
@@ -101,7 +101,7 @@ export const curatorFaqDrafts: Draft[] = [
     id: CURATOR_FAQ_IDS.campus,
     question: 'Do outside visitors need campus entry?',
     answer:
-      'Outside visitors, including alumni, must follow the campus-entry process. Alumni are admitted free but are considered outsiders for campus entry. If arriving in a vehicle, have the campus guard inspect it and direct the driver to the designated parking area.',
+      'Outside visitors, including alumni, require an appointment and campus-entry clearance. Alumni are admitted free but are considered outsiders for campus entry. If arriving in a vehicle, have the campus guard inspect it and direct the driver to the designated parking area.',
     alternative_wording: ['Do alumni need campus entry?'],
     keywords: ['campus entry', 'outside visitors', 'alumni'],
     category: 'Admission and Access',
@@ -109,10 +109,13 @@ export const curatorFaqDrafts: Draft[] = [
   },
   {
     id: CURATOR_FAQ_IDS.batch,
-    question: 'What is the maximum school-tour batch size?',
+    question: 'What is the maximum tour batch size?',
     answer:
-      'School tours accommodate a maximum of 50 visitors per batch. Larger school groups require separate timed batches, managed by the visiting group. Parties of five or more require an appointment. Contact the museum curator about limits for other groups.',
-    alternative_wording: ['How many visitors can join one tour batch?'],
+      'A maximum of 50 visitors can be accommodated per batch, for school and non-school groups. Larger groups arrange their own division into separate timed batches; the curator does not divide the group. Parties of five or more require an appointment. A submitted request is not confirmation of a schedule.',
+    alternative_wording: [
+      'How many visitors can join one tour batch?',
+      'What is the maximum school-tour batch size?',
+    ],
     keywords: ['maximum', 'batch', '50', 'school tour'],
     category: 'Group Visits',
     sourceQuestions: [16],
