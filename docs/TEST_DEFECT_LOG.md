@@ -204,8 +204,9 @@ The scoped predicates require null `archived_at` for active reads. Following
 the November 5 review repair below, explicit ARCHIVED searches match either
 archive indicator, and Dashboard cards use that same partition. Direct legacy
 details preserve stored status/timestamp values. All-record totals, trends,
-recent history, consolidated report historical status distributions and Inventory
-report behavior are unchanged; no record is rewritten. Six SQL/service checks
+recent history and Inventory report behavior are unchanged; consolidated current
+status counts now follow the same membership after the later follow-up below.
+No record is rewritten. Six SQL/service checks
 now pass, including archive discovery/filter/pagination and live-exhibit controls. Run
 `npm run test:archive-reads:db` with the existing pinned local Docker image.
 
@@ -249,7 +250,19 @@ No shared constraint migration or historical-row repair is introduced. These
 separate read queries do not establish a single concurrent database snapshot.
 The updated suite passed 6/6 SQL cases, 88 existing unit cases and 84 existing
 HTTP cases; the HTTP run still exposes the documented OBS-003 adapter warning.
-Independent review of the new head and deployed acceptance remain pending.
+MarQtie approved #231 at `168dce0`, and it is now merged. That source approval
+does not establish deployed acceptance. The later report follow-up below still
+requires its own review.
+
+**Consolidated report follow-up - 2026-11-05:** John's later [nonblocking review](https://github.com/OppenJayme/biosphere-backend/pull/231#discussion_r4475936341)
+identified the intentionally preserved raw-status report breakdown as a remaining
+inconsistency with the corrected Dashboard. The strengthened public-builder/real
+SQL assertion reproduced 2 Uncataloged / 1 Cataloged / 2 Archived, then passed
+at 1 / 1 / 3 after sharing effective membership. Total records remain 5 and
+active lots/quantity 2/7. Stored rows, period activity and Inventory detail
+filters are unchanged. See the [report guide](./REPORTS_GUIDE.md#consolidated-status-consistency-follow-up---2026-11-05)
+for scope and limits. This supplements the same defect, not a new duplicate ID
+or independent acceptance of the follow-up.
 
 ### DEF-031 - Timestamp-only archived records appear as duplicate candidates
 
