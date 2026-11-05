@@ -155,6 +155,7 @@ NO_SRS = {
 }
 
 NOTES = {
+    "REQ-4.1-03": "Hosted signup turned off and retested 5 Nov: rejected with 422, existing sign-in and test invite passed.",
     "REQ-4.1-05": "Logout works through Supabase. No inactivity timeout in the backend.",
     "REQ-4.1-07": "Curator path works end to end. See the inconclusive password-guard note.",
     "REQ-4.1-08": "No route. Only developers can change status.",

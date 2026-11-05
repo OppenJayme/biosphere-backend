@@ -91,7 +91,7 @@ The repo's own suites also pass with hosted values overridden: **unit 715/715, e
 | --- | --- | --- | --- | --- | --- | --- |
 | REQ-4.1-01 | Authenticate active curators | High | Done | 9 / 0 | Voltaire |  |
 | REQ-4.1-02 | Separate credentials per curator | High | Done | 8 / 0 | Voltaire |  |
-| REQ-4.1-03 | No public self-registration | High | Done | 2 / 0 | Voltaire |  |
+| REQ-4.1-03 | No public self-registration | High | Done | 2 / 0 | Voltaire | Hosted signup turned off and retested 5 Nov: rejected with 422, existing sign-in and test invite passed. |
 | REQ-4.1-04 | Protected session after login | High | Done | 4 / 0 | Voltaire |  |
 | REQ-4.1-05 | Logout and inactivity timeout | High | Partial | 3 / 1 | Voltaire | Logout works through Supabase. No inactivity timeout in the backend. |
 | REQ-4.1-06 | Block unauthenticated access | High | Done | 521 / 0 | Voltaire |  |
@@ -664,10 +664,10 @@ The overall gap is modest, but it hides where the risk is. §4.15 is the cleares
 | --- | --- | --- | --- |
 | No backup job, restore procedure or full test | REQ-4.15-05 to -09, -11, and turnover | USC/DCISM approval of server, schedule and destination | Kyer, with USC/DCISM |
 | No approved backup plan | REQ-4.15-12 | USC/DCISM decision | USC/DCISM |
-| Curators cannot activate, deactivate or hand over | REQ-4.1-08, -09 | Team decision on the procedure, as the 4 Nov report notes | Voltaire |
+| Curators cannot activate, deactivate or hand over | REQ-4.1-08, -09 | Museum approval of the procedure; see `docs/AUTH_ACCOUNT_DECISIONS_STATUS.md` | Voltaire |
 | Allowed storage type matrix not written | REQ-4.6-12 | Agreed matrix | Kyer, Ivan |
 | Duplicate archive exclusion undecided | CAT-014 acceptance | Curator/SRS disposition | Kyer, Curator |
-| Hosted settings unverified | REQ-4.1-19 expiry; Brevo delivery | Read-only check by someone with hosted access | Voltaire |
+| Hosted settings unverified | REQ-4.1-19 expiry; Brevo delivery | Approved expiry period; USC-approved production sender. Hosted values are in `docs/AUTH_ACCOUNT_DECISIONS_STATUS.md` | Voltaire |
 
 ## Work remaining
 
