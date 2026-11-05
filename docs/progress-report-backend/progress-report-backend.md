@@ -9,6 +9,8 @@ Generated 2026-11-05 from `develop` @ `06545c0`. Any difference from the last pr
 
 **Review corrections (PR #240 review, 2026-11-05).** REQ-4.1-03 was marked Done because the backend exposes no sign-up route. The review found that the hosted Supabase project still has "Allow new users to sign up" enabled, so public Auth sign-up remains possible. REQ-4.1-03 is now Partial until sign-up is disabled in the hosted project and verified. The figures below are recalculated. (The hosted setting was reported by the reviewer and not re-checked in this run, which never contacts the shared project.)
 
+**Later verification (2026-11-05).** After that review observation, frontend PR #104 recorded a read-only check of the hosted Supabase settings (`GET /auth/v1/settings` returned `disable_signup=true`, evidence SUP-01) showing public sign-up is now disabled. This report keeps REQ-4.1-03 **Partial** because its figures describe the `06545c0` baseline, when the review observed sign-up enabled. Under the current hosted configuration REQ-4.1-03 can be counted Done; re-check it after any Supabase project change. This run did not contact the hosted project; the verification is cited from PR #104.
+
 **Canonical report.** This folder (`docs/progress-report-backend/`, PR #240) is the team's canonical backend progress report and evidence set. The different copy committed on `feat/auth-account-gaps-20261105` is to be removed from that branch before it is proposed, so the two are never merged as competing versions.
 
 ## Overall
