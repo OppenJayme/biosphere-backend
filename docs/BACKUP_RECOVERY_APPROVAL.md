@@ -48,11 +48,16 @@ coverage at each gate. A failed or incomplete verification leaves that gate open
 
 ## Approval statement
 
-Approver name/role and authority: **Pending**  
-Procedure revision/commit and approved deviations: **Pending**  
-Approved source/host/destination record reference: **Pending**  
-Primary/alternate acceptance and date: **Pending**  
-Institutional approval and date: **Pending**  
+Approver name/role and authority: **Pending**
+
+Procedure revision/commit and approved deviations: **Pending**
+
+Approved source/host/destination record reference: **Pending**
+
+Primary/alternate acceptance and date: **Pending**
+
+Institutional approval and date: **Pending**
+
 Next review date: **Pending**
 
 This record approves only the explicitly completed gates. It does not authorize

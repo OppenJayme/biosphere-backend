@@ -41,21 +41,32 @@ Do not replace expected outcomes with executed results before running the check.
 | Recovery timing | Observed checkpoint gap and elapsed recovery meet approved values or have explicit exception | Not run |
 | Cleanup | Only approved owned target/staging cleaned; source, retained snapshots and existing services unaffected | Not run |
 
-Recovery declaration time / verified ready time: **Pending**  
-Observed elapsed recovery time: **Pending**  
-Observed recovery-point gap and data loss: **Pending**  
-Unexpected external requests/writes: **Pending**  
-Failure/defect IDs and unresolved differences: **Pending**  
+Recovery declaration time / verified ready time: **Pending**
+
+Observed elapsed recovery time: **Pending**
+
+Observed recovery-point gap and data loss: **Pending**
+
+Unexpected external requests/writes: **Pending**
+
+Failure/defect IDs and unresolved differences: **Pending**
+
 Source/database/file changes actually performed: **Pending**
 
 ## Decision
 
-Overall result: **Not run**  
-Coverage: **Pending; distinguish DB-only, synthetic full-service and intended-source full-service**  
-Curator data validation and date: **Pending**  
-Independent technical review and date: **Pending**  
-Approved limitations or rejected evidence: **Pending**  
-BAK-001 / BAK-002 disposition: **Unchanged pending execution and acceptance**  
+Overall result: **Not run**
+
+Coverage: **Pending; distinguish DB-only, synthetic full-service and intended-source full-service**
+
+Curator data validation and date: **Pending**
+
+Independent technical review and date: **Pending**
+
+Approved limitations or rejected evidence: **Pending**
+
+BAK-001 / BAK-002 disposition: **Unchanged pending execution and acceptance**
+
 Remaining resources, custodian and cleanup/retention date: **Pending**
 
 Commit only sanitized summaries. Full manifests, dumps, objects, Auth details,
