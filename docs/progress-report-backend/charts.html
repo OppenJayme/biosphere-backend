@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Backend Progress Charts</title>
+<style>
+:root {
+  color-scheme: light;
+  --surface: #fcfcfb; --panel: #ffffff; --line: #e4e3df; --track: #efeeea;
+  --text: #0b0b0b; --text-2: #52514e;
+  --series-1: #2a78d6; --series-2: #eb6834;
+  --good: #0ca30c; --warning: #fab219; --critical: #d03b3b; --neutral: #a9a8a2;
+}
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) {
+    color-scheme: dark;
+    --surface: #1a1a19; --panel: #232322; --line: #3a3a38; --track: #2e2e2c;
+    --text: #f0efec; --text-2: #c3c2b7;
+    --series-1: #3987e5; --series-2: #d95926; --neutral: #77766f;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --surface: #1a1a19; --panel: #232322; --line: #3a3a38; --track: #2e2e2c;
+  --text: #f0efec; --text-2: #c3c2b7;
+  --series-1: #3987e5; --series-2: #d95926; --neutral: #77766f;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--surface); color: var(--text); font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+main { max-width: 980px; margin: 0 auto; padding: 32px 16px 64px; }
+h1 { font-size: 26px; margin: 0 0 4px; font-weight: 650; }
+h2 { font-size: 17px; margin: 0 0 4px; font-weight: 650; }
+.sub { color: var(--text-2); margin: 0 0 16px; }
+section { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 20px; margin-top: 16px; }
+.hero { display: flex; gap: 32px; flex-wrap: wrap; align-items: flex-end; margin-bottom: 18px; }
+.big { font-size: 52px; font-weight: 680; line-height: 1; font-variant-numeric: tabular-nums; }
+.stat { font-size: 24px; font-weight: 620; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.label { color: var(--text-2); font-size: 13px; margin-top: 4px; }
+.stack { display: flex; gap: 2px; height: 14px; }
+.stack > div { min-width: 3px; }
+.stack > div:first-child { border-radius: 4px 0 0 4px; }
+.stack > div:last-child { border-radius: 0 4px 4px 0; }
+.legend { display: flex; gap: 16px; flex-wrap: wrap; margin: 10px 0 0; color: var(--text-2); font-size: 13px; }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; }
+.row { display: grid; grid-template-columns: minmax(150px, 250px) 1fr 104px; gap: 12px; align-items: center; padding: 5px 0; border-radius: 4px; }
+.row:hover, .row:focus { background: var(--track); outline: none; }
+.row .name { font-size: 13.5px; overflow-wrap: anywhere; }
+.row .val { text-align: right; font-size: 13px; color: var(--text-2); font-variant-numeric: tabular-nums; }
+.track { background: var(--track); border-radius: 0 4px 4px 0; }
+.bar { height: 12px; border-radius: 0 4px 4px 0; }
+.pair { display: grid; gap: 2px; }
+.scale { display: grid; grid-template-columns: minmax(150px, 250px) 1fr 104px; gap: 12px; color: var(--text-2); font-size: 12px; margin-bottom: 4px; }
+.scale div:nth-child(2) { display: flex; justify-content: space-between; }
+#tip { position: fixed; pointer-events: none; z-index: 9; background: var(--text); color: var(--surface); padding: 6px 9px; border-radius: 6px; font-size: 12.5px; max-width: 280px; display: none; }
+details { margin-top: 12px; }
+summary { cursor: pointer; color: var(--text-2); font-size: 13px; }
+.scroll { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; margin-top: 8px; }
+th, td { text-align: left; padding: 5px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; }
+@media (max-width: 640px) {
+  .row, .scale { grid-template-columns: 1fr 104px; }
+  .row .name { grid-column: 1 / -1; }
+  .scale div:first-child { display: none; }
+  .big { font-size: 44px; }
+}
+</style>
+</head>
+<body>
+<main>
+  <h1>Backend progress</h1>
+  <p class="sub" id="meta"></p>
+
+  <section>
+    <h2>Overall backend progress</h2>
+    <p class="sub">Weighted share of backend SRS requirements that are Done.</p>
+    <div class="hero" id="hero"></div>
+    <div class="stack" id="stack"></div>
+    <div class="legend" id="stackLegend"></div>
+  </section>
+
+  <section>
+    <h2>Progress per module</h2>
+    <p class="sub">Lowest first. §4.15 backup and recovery is the largest gap.</p>
+    <div id="modules"></div>
+  </section>
+
+  <section>
+    <h2>Progress per owner</h2>
+    <p class="sub">Shared modules count in full for each owner.</p>
+    <div id="owners"></div>
+  </section>
+
+  <section>
+    <h2>Tests per module</h2>
+    <p class="sub">Each check is counted under the module that owns its endpoint.</p>
+    <div id="tests"></div>
+    <div class="legend"><span><i style="background:var(--good)"></i>Passed</span><span><i style="background:var(--critical)"></i>Failed</span></div>
+  </section>
+
+  <section>
+    <h2>Last report vs verified</h2>
+    <p class="sub">The last report is a frontend report, so its figures measure a different side of each section.</p>
+    <div class="legend" style="margin:0 0 10px"><span><i style="background:var(--series-1)"></i>Last report (4 Nov)</span><span><i style="background:var(--series-2)"></i>Verified backend</span></div>
+    <div id="compare"></div>
+    <details><summary>Show all figures as a table</summary><div class="scroll" id="tableWrap"></div></details>
+  </section>
+</main>
+<div id="tip" role="status"></div>
+<script>
+const D = {"overall": 88.9, "claimed": 95, "gap": -6.1, "commit": "be0571f", "passed": 1734, "failed": 24, "unclear": 12, "status": [{"name": "Done", "count": 151}, {"name": "Partial", "count": 10}, {"name": "Not Started", "count": 9}, {"name": "N/A", "count": 22}], "modules": [{"key": "4.1", "name": "\u00a74.1 Authentication and accounts", "owner": "Voltaire", "percent": 64.9, "lastReportPercent": 75, "status": "Partial", "alignment": "Aligned", "testsPassed": 67, "testsFailed": 9}, {"key": "4.2", "name": "\u00a74.2 Developer functions", "owner": "Voltaire", "percent": 77.8, "lastReportPercent": 100, "status": "Partial", "alignment": "Overstated", "testsPassed": 111, "testsFailed": 6}, {"key": "4.3", "name": "\u00a74.3 Dashboard and notifications", "owner": "Charles, John", "percent": 86.7, "lastReportPercent": 89, "status": "Partial", "alignment": "Aligned", "testsPassed": 44, "testsFailed": 1}, {"key": "4.4", "name": "\u00a74.4 Inventory and cataloging", "owner": "Kyer, Ivan", "percent": 100.0, "lastReportPercent": 100, "status": "Done", "alignment": "Aligned", "testsPassed": 442, "testsFailed": 0}, {"key": "4.5", "name": "\u00a74.5 Lots and quantities", "owner": "John", "percent": 100.0, "lastReportPercent": 100, "status": "Done", "alignment": "Aligned", "testsPassed": 137, "testsFailed": 0}, {"key": "4.6", "name": "\u00a74.6 Storage locations", "owner": "Kyer, Ivan", "percent": 91.3, "lastReportPercent": 100, "status": "Partial", "alignment": "Overstated", "testsPassed": 160, "testsFailed": 1}, {"key": "4.7", "name": "\u00a74.7 Search, reports and export", "owner": "John", "percent": 100.0, "lastReportPercent": 100, "status": "Done", "alignment": "Aligned", "testsPassed": 136, "testsFailed": 0}, {"key": "4.8", "name": "\u00a74.8 General inquiries", "owner": "Charles, John", "percent": 100.0, "lastReportPercent": 100, "status": "Done", "alignment": "Aligned", "testsPassed": 99, "testsFailed": 0}, {"key": "4.9", "name": "\u00a74.9 Visit requests", "owner": "Charles", "percent": 100.0, "lastReportPercent": 100, "status": "Done", "alignment": "Aligned", "testsPassed": 113, "testsFailed": 0}, {"key": "4.10", "name": "\u00a74.10 Public website", "owner": "Charles, John, Voltaire", "percent": 100.0, "lastReportPercent": 100, "status": "Done", "alignment": "Aligned", "testsPassed": 13, "testsFailed": 0}, {"key": "4.11", "name": "\u00a74.11 FAQ assistant", "owner": "Kyer", "percent": 100.0, "lastReportPercent": 100, "status": "Done", "alignment": "Aligned", "testsPassed": 134, "testsFailed": 0}, {"key": "4.12", "name": "\u00a74.12 QR exhibits", "owner": "Voltaire", "percent": 100.0, "lastReportPercent": 100, "status": "Done", "alignment": "Aligned", "testsPassed": 184, "testsFailed": 0}, {"key": "4.13", "name": "\u00a74.13 WebAR", "owner": "Voltaire", "percent": 100.0, "lastReportPercent": 100, "status": "Done", "alignment": "Aligned", "testsPassed": 11, "testsFailed": 0}, {"key": "4.14", "name": "\u00a74.14 Offline drafts and sync", "owner": "Kyer", "percent": 100.0, "lastReportPercent": 100, "status": "Done", "alignment": "Aligned", "testsPassed": 20, "testsFailed": 0}, {"key": "4.15", "name": "\u00a74.15 Audit, backup and recovery", "owner": "Kyer", "percent": 33.3, "lastReportPercent": 83, "status": "Partial", "alignment": "Aligned", "testsPassed": 63, "testsFailed": 7}], "owners": [{"name": "Voltaire", "percent": 81.7, "modules": "\u00a74.1, \u00a74.2, \u00a74.10, \u00a74.12, \u00a74.13"}, {"name": "Kyer", "percent": 84.9, "modules": "\u00a74.4, \u00a74.6, \u00a74.11, \u00a74.14, \u00a74.15"}, {"name": "Charles", "percent": 97.1, "modules": "\u00a74.3, \u00a74.8, \u00a74.9, \u00a74.10"}, {"name": "Ivan", "percent": 97.1, "modules": "\u00a74.4, \u00a74.6"}, {"name": "John", "percent": 97.8, "modules": "\u00a74.3, \u00a74.5, \u00a74.7, \u00a74.8, \u00a74.10"}]};
+const el = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const STATUS = { Done: 'var(--good)', Partial: 'var(--warning)', 'Not Started': 'var(--critical)', 'N/A': 'var(--neutral)' };
+
+el('meta').textContent = `develop @ ${D.commit} · SRS v0.10 · tested 5 Nov 2026 on a local throwaway stack`;
+el('hero').innerHTML = [
+  [`${D.overall}%`, 'Verified backend', 'big'],
+  [`${D.claimed}%`, 'Last report (frontend)', 'stat'],
+  [`${D.gap} pts`, 'Gap', 'stat'],
+  [`${D.passed.toLocaleString()}`, 'Tests passed', 'stat'],
+  [`${D.failed}`, 'Tests failed', 'stat'],
+  [`${D.unclear}`, 'Inconclusive', 'stat'],
+].map(([v, l, c]) => `<div><div class="${c}">${v}</div><div class="label">${l}</div></div>`).join('');
+
+const total = D.status.reduce((a, s) => a + s.count, 0);
+el('stack').innerHTML = D.status.map((s) => `<div data-tip="${esc(s.name)}: ${s.count} requirements" style="flex:${s.count};background:${STATUS[s.name]}"></div>`).join('');
+el('stackLegend').innerHTML = D.status.map((s) => `<span><i style="background:${STATUS[s.name]}"></i>${esc(s.name)} ${s.count}</span>`).join('') + `<span>of ${total} requirements</span>`;
+
+const scale = '<div class="scale"><div></div><div><span>0%</span><span>50%</span><span>100%</span></div><div></div></div>';
+const row = (name, tip, inner, val) => `<div class="row" tabindex="0" data-tip="${esc(tip)}"><div class="name">${esc(name)}</div><div>${inner}</div><div class="val">${val}</div></div>`;
+const bar = (pct, color) => `<div class="track"><div class="bar" style="width:${pct}%;background:${color}"></div></div>`;
+
+el('modules').innerHTML = scale + [...D.modules].sort((a, b) => a.percent - b.percent)
+  .map((m) => row(m.name, `${m.name}: ${m.percent}% · ${m.owner} · ${m.status}`, bar(m.percent, 'var(--series-1)'), `${m.percent}%`)).join('');
+
+el('owners').innerHTML = scale + D.owners
+  .map((o) => row(o.name, `${o.name}: ${o.percent}% across ${o.modules}`, bar(o.percent, 'var(--series-1)'), `${o.percent}%`)).join('');
+
+const max = Math.max(...D.modules.map((m) => m.testsPassed + m.testsFailed));
+el('tests').innerHTML = D.modules.map((m) => {
+  const width = 100 * (m.testsPassed + m.testsFailed) / max;
+  const inner = `<div class="stack" style="height:12px;width:${width}%"><div style="flex:${m.testsPassed};background:var(--good)"></div>${m.testsFailed ? `<div style="flex:${m.testsFailed};background:var(--critical)"></div>` : ''}</div>`;
+  return row(m.name, `${m.name}: ${m.testsPassed} passed, ${m.testsFailed} failed`, inner, `${m.testsPassed} / ${m.testsFailed}`);
+}).join('');
+
+el('compare').innerHTML = scale + D.modules.map((m) => {
+  const inner = `<div class="pair">${bar(m.lastReportPercent, 'var(--series-1)')}${bar(m.percent, 'var(--series-2)')}</div>`;
+  return row(m.name, `${m.name}: last report ${m.lastReportPercent}%, verified ${m.percent}% · ${m.alignment}`, inner, `${m.lastReportPercent}% → ${m.percent}%`);
+}).join('');
+
+el('tableWrap').innerHTML = `<table><thead><tr><th>Module</th><th>Owner</th><th class="n">Verified</th><th class="n">Last report</th><th>Alignment</th><th class="n">Passed</th><th class="n">Failed</th></tr></thead><tbody>${
+  D.modules.map((m) => `<tr><td>${esc(m.name)}</td><td>${esc(m.owner)}</td><td class="n">${m.percent}%</td><td class="n">${m.lastReportPercent}%</td><td>${esc(m.alignment)}</td><td class="n">${m.testsPassed}</td><td class="n">${m.testsFailed}</td></tr>`).join('')
+}</tbody></table>`;
+
+const tip = el('tip');
+const show = (t, x, y) => {
+  tip.textContent = t; tip.style.display = 'block';
+  tip.style.left = `${Math.max(8, Math.min(x + 12, innerWidth - tip.offsetWidth - 8))}px`;
+  tip.style.top = `${Math.max(8, y - tip.offsetHeight - 10)}px`;
+};
+document.addEventListener('mousemove', (e) => {
+  const t = e.target.closest?.('[data-tip]');
+  if (t) show(t.dataset.tip, e.clientX, e.clientY); else tip.style.display = 'none';
+});
+document.addEventListener('focusin', (e) => {
+  const t = e.target.closest?.('[data-tip]');
+  if (t) { const r = t.getBoundingClientRect(); show(t.dataset.tip, r.left, r.top); }
+});
+document.addEventListener('focusout', () => { tip.style.display = 'none'; });
+</script>
+</body>
+</html>

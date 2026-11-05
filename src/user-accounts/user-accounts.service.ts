@@ -11,7 +11,10 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { SUPABASE_CLIENT } from '../supabase/supabase.constants';
-import { ONBOARDING_PENDING_KEY } from '../auth/onboarding';
+import {
+  authUsersPastInvite,
+  ONBOARDING_PENDING_KEY,
+} from '../auth/onboarding';
 import type { AuthenticatedUser } from '../auth/types/auth.types';
 import type { InviteCuratorDto } from './dto/invite-curator.dto';
 import {
@@ -58,11 +61,12 @@ export class UserAccountsService {
       orderBy: { created_at: 'desc' },
       select: USER_ACCOUNT_SELECT,
     });
-    const withPassword = await this.authUsersWithPassword(
+    const pastInvite = await authUsersPastInvite(
+      this.prisma,
       rows.map((row) => row.auth_user_id),
     );
     return rows.map((row) =>
-      this.toSummary(row, withPassword.has(row.auth_user_id)),
+      this.toSummary(row, pastInvite.has(row.auth_user_id)),
     );
   }
 
@@ -163,27 +167,6 @@ export class UserAccountsService {
     return this.toSummary(row, false);
   }
 
-  /**
-   * Auth users that have set a password. An invite only counts as accepted
-   * once the new curator sets one: opening the link alone already confirms
-   * the email and records a sign-in. The database does the check, so no
-   * password hash is ever read.
-   */
-  private async authUsersWithPassword(ids: string[]): Promise<Set<string>> {
-    if (ids.length === 0) return new Set();
-    const users = await this.prisma.users.findMany({
-      where: {
-        id: { in: ids },
-        AND: [
-          { encrypted_password: { not: null } },
-          { encrypted_password: { not: '' } },
-        ],
-      },
-      select: { id: true },
-    });
-    return new Set(users.map((user) => user.id));
-  }
-
   /** Removes a half-created invite so its link stops working and a retry can succeed. */
   private async rollBackInvite(authUserId: string, email: string) {
     const { error } = await this.supabase.auth.admin.deleteUser(authUserId);
@@ -238,14 +221,14 @@ export class UserAccountsService {
 
   private toSummary(
     row: UserAccountRecord,
-    passwordSet: boolean,
+    inviteAccepted: boolean,
   ): UserAccountSummary {
     return {
       id: row.id,
       fullName: row.full_name,
       email: row.users.email,
       status: UserAccountStatus[row.status],
-      inviteAccepted: passwordSet,
+      inviteAccepted,
       lastSignInAt: row.users.last_sign_in_at,
       createdAt: row.created_at,
     };

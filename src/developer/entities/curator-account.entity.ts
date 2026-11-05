@@ -10,6 +10,9 @@ export class CuratorAccountEntity {
   fullName!: string;
   role!: UserRole;
   status!: AccountStatus;
+  // False until the invited curator has set a password. Status stays ACTIVE
+  // while an invitation is pending, so this is what tells the two apart.
+  inviteAccepted!: boolean;
   avatarPath?: string | null;
   createdAt!: Date;
   updatedAt!: Date;

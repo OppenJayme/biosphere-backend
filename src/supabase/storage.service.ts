@@ -146,6 +146,20 @@ export class StorageService {
     return data.path;
   }
 
+  async download(bucket: StorageBucket, path: string): Promise<Buffer> {
+    const { data, error } = await this.supabase.storage
+      .from(bucket)
+      .download(path);
+
+    if (error || !data) {
+      throw new InternalServerErrorException(
+        `Failed to read file from ${bucket}`,
+      );
+    }
+
+    return Buffer.from(await data.arrayBuffer());
+  }
+
   async remove(bucket: StorageBucket, path: string): Promise<void> {
     const { error } = await this.supabase.storage.from(bucket).remove([path]);
 

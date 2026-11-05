@@ -118,6 +118,10 @@ BioSphere account as both actor and affected record when it is known.
 | Wrong email or password | `LOGIN` | `FAILED` | `email`, `reason: INVALID_CREDENTIALS`, `providerCode` |
 | Valid credentials but no BioSphere account | `LOGIN` | `DENIED` | `email`, `reason: NO_ACCOUNT` |
 | Valid credentials but inactive account | `LOGIN` | `DENIED` | `email`, `reason: INACTIVE_ACCOUNT` |
+| Invited user sets their first password | `ONBOARDING_COMPLETED` | `SUCCESS` or `FAILED` | `method`, `reason` when failed |
+| User changes their own password | `PASSWORD_CHANGED` | `SUCCESS` or `FAILED` | `sessionsEnded`, `confirmationEmailSent`, or `reason`, `providerCode` when failed |
+| Reset code requested | `PASSWORD_RECOVERY_REQUESTED` | `SUCCESS` or `FAILED` | `email`, `providerCode` when failed; no account is linked for an unknown email |
+| Password set with a reset code | `PASSWORD_RESET` | `SUCCESS`, `FAILED` or `DENIED` | `sessionsEnded`, `confirmationEmailSent`, or `reason` |
 | Inactive or unlinked account using a still-valid token | `ACCESS_DENIED` | `DENIED` | `reason`, `method`, `path` |
 | Signed-in role not allowed on the route, e.g. a Developer opening a curator route | `ACCESS_DENIED` | `DENIED` | `reason: ROLE_NOT_PERMITTED`, `role`, `requiredRoles`, `method`, `path` |
 

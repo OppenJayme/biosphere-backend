@@ -3,7 +3,12 @@ import type { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
 export type SecurityAuditAction =
-  'LOGIN' | 'ACCESS_DENIED' | 'ONBOARDING_COMPLETED';
+  | 'LOGIN'
+  | 'ACCESS_DENIED'
+  | 'ONBOARDING_COMPLETED'
+  | 'PASSWORD_CHANGED'
+  | 'PASSWORD_RECOVERY_REQUESTED'
+  | 'PASSWORD_RESET';
 export type SecurityAuditResult = 'SUCCESS' | 'FAILED' | 'DENIED';
 
 export interface SecurityAuditEvent {
