@@ -130,8 +130,19 @@ describe('UserAccountsService', () => {
           { encrypted_password: { not: '' } },
         ],
       },
-      select: { id: true },
+      select: { id: true, raw_app_meta_data: true },
     });
+  });
+
+  it('keeps an invite pending while the flag is set, even with a stored hash', async () => {
+    const { service, usersFindMany } = build([accountRow()]);
+    usersFindMany.mockResolvedValue([
+      { id: 'auth-1', raw_app_meta_data: { onboarding_pending: true } },
+    ]);
+
+    const [account] = await service.list();
+
+    expect(account.inviteAccepted).toBe(false);
   });
 
   it('skips the password lookup when there are no curators', async () => {

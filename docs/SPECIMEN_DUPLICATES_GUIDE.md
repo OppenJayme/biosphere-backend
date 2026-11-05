@@ -19,10 +19,14 @@ DEF-031 below; no existing specimen status or timestamp is rewritten.
 REQ-4.4-21 (SRS PDF page 61, printed page 55) requires a warning for a manually
 entered/imported record that may duplicate an existing record, without an
 explicit archive exclusion. REQ-4.4-22 forbids automatic merge/delete; REQ-4.4-23
-covers distinct physical groups and other approved distinctions. Kyer's scope
-direction is recorded, but Curator/SRS disposition of the REQ-4.4-21 exclusion
-is **blocking CAT-014 acceptance**. The archive-indicator consistency repair
-does not obtain that institutional scope decision or sign off CAT-014.
+covers distinct physical groups and other approved distinctions.
+
+**Curator disposition - 2026-11-05:** John reported that Sir Fidel, the
+museum's authorized representative, approved Kyer's active-only scope for
+REQ-4.4-21: duplicate warnings compare against active specimens only, and
+archived records are excluded. This clears the scope blocker on CAT-014; it
+does not by itself accept CAT-014, whose live-result, stale-response and
+independent-acceptance limits remain. No matcher change is needed.
 The dashboard enhancement below still needs its owners' separate scope decision.
 
 ## Archive-indicator consistency repair - 2026-11-04
@@ -253,8 +257,8 @@ not simulate a real Supabase outage or run a browser against the live database.
 No live data was changed and no running servers were stopped. At this dated
 checkpoint browser recovery, archived-policy alignment and review/dashboard
 follow-ups remained. Later sections record recovery evidence and November 4
-user direction; Curator/SRS disposition remains blocking, not an unasked user
-preference. CAT-014 is not fully accepted.
+user direction; the active-only scope was later approved by Sir Fidel (reported by John on 2026-11-05).
+CAT-014 is not fully accepted.
 
 ## CAT-014 duplicate-review batch - 2026-10-23
 
@@ -280,8 +284,8 @@ server on port 3002, without replacing the older production build on port 3000.
 No specimen, lot, storage, publication or account records were changed.
 
 CAT-014 remains In progress: DEF-020 awaits merged/deployed independent retest;
-the broad REQ-4.4-21 scope still needs Curator/SRS disposition of November 4's
-user-directed active-only scope. Discoverable saved-record review remains an
+the REQ-4.4-21 scope question was open at this checkpoint; the active-only
+scope was later approved by Sir Fidel (reported by John on 2026-11-05). Discoverable saved-record review remains an
 explicit follow-up, while dashboard indication stays with John/Charles. This
 batch authorizes no archive-policy or dashboard implementation.
 
@@ -296,6 +300,6 @@ diagnostic scheduling assumption timed out and is documented as inconclusive,
 not a functional failure. No form was saved or museum data changed.
 
 DEF-020 remains Ready for retest for independent acceptance and complete stale
-in-flight coverage. CAT-014 stays In progress for those limits, the November 4
-Curator/SRS scope disposition and saved-review decisions. Do not repeat the already passing
+in-flight coverage. CAT-014 stays In progress for those limits and saved-review
+decisions; the active-only scope was approved by Sir Fidel (reported by John on 2026-11-05). Do not repeat the already passing
 owner failure/retry sequence merely because the overall row is not yet closed.

@@ -204,8 +204,9 @@ The scoped predicates require null `archived_at` for active reads. Following
 the November 5 review repair below, explicit ARCHIVED searches match either
 archive indicator, and Dashboard cards use that same partition. Direct legacy
 details preserve stored status/timestamp values. All-record totals, trends,
-recent history, consolidated report historical status distributions and Inventory
-report behavior are unchanged; no record is rewritten. Six SQL/service checks
+recent history and Inventory report behavior are unchanged; consolidated current
+status counts now follow the same membership after the later follow-up below.
+No record is rewritten. Six SQL/service checks
 now pass, including archive discovery/filter/pagination and live-exhibit controls. Run
 `npm run test:archive-reads:db` with the existing pinned local Docker image.
 
@@ -215,7 +216,8 @@ inconsistent data and concurrency are not covered. The pre-existing pg
 concurrent-query deprecation warning is visible; it was not suppressed or fixed
 as part of this scope. Existing HTTP/regression and build results belong in
 the PR validation. This opt-in SQL suite is outside ordinary CI discovery.
-REQ-4.4-21's Curator/SRS archive-scope disposition remains a separate blocker.
+REQ-4.4-21's archive scope was a separate decision; the active-only scope was
+later approved by Sir Fidel (reported by John on 2026-11-05).
 
 Supporting validation: 65 existing unit tests and 84 existing protected HTTP
 tests passed across the affected services/controllers. The HTTP run emitted
@@ -249,7 +251,19 @@ No shared constraint migration or historical-row repair is introduced. These
 separate read queries do not establish a single concurrent database snapshot.
 The updated suite passed 6/6 SQL cases, 88 existing unit cases and 84 existing
 HTTP cases; the HTTP run still exposes the documented OBS-003 adapter warning.
-Independent review of the new head and deployed acceptance remain pending.
+MarQtie approved #231 at `168dce0`, and it is now merged. That source approval
+does not establish deployed acceptance. The later report follow-up below still
+requires its own review.
+
+**Consolidated report follow-up - 2026-11-05:** John's later [nonblocking review](https://github.com/OppenJayme/biosphere-backend/pull/231#discussion_r4475936341)
+identified the intentionally preserved raw-status report breakdown as a remaining
+inconsistency with the corrected Dashboard. The strengthened public-builder/real
+SQL assertion reproduced 2 Uncataloged / 1 Cataloged / 2 Archived, then passed
+at 1 / 1 / 3 after sharing effective membership. Total records remain 5 and
+active lots/quantity 2/7. Stored rows, period activity and Inventory detail
+filters are unchanged. See the [report guide](./REPORTS_GUIDE.md#consolidated-status-consistency-follow-up---2026-11-05)
+for scope and limits. This supplements the same defect, not a new duplicate ID
+or independent acceptance of the follow-up.
 
 ### DEF-031 - Timestamp-only archived records appear as duplicate candidates
 
@@ -271,8 +285,8 @@ remain present. Existing 23 duplicate units pass. The repair changes no record,
 matching score, merge/delete behavior or Inventory operation.
 
 Repeat and scope: [archive consistency regression](./SPECIMEN_DUPLICATES_GUIDE.md#archive-indicator-consistency-repair---2026-11-04).
-Curator/SRS disposition of REQ-4.4-21's archive exclusion remains blocking
-CAT-014 acceptance; fixing query consistency does not settle that policy.
+Fixing query consistency did not settle the REQ-4.4-21 archive-exclusion policy;
+that active-only scope was separately approved by Sir Fidel (reported by John on 2026-11-05).
 The separate Cataloging search, Dashboard active breakdown and consolidated
 report follow-ups are tracked in DEF-032; DEF-031 does not claim that every
 codebase consumer shares one archive interpretation.

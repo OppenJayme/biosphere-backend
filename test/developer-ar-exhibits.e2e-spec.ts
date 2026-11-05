@@ -5,6 +5,7 @@ import { App } from 'supertest/types';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { StorageService } from '../src/supabase/storage.service';
+import { glbBytes } from './fixtures/glb';
 import { SUPABASE_CLIENT } from '../src/supabase/supabase.constants';
 
 // Mocked-database coverage for the Developer's AR exhibit picker and the
@@ -24,9 +25,7 @@ describe('Developer AR exhibits (e2e)', () => {
   const assetId = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
   // An asset left on the archived exhibit: cleanup-only.
   const archivedAssetId = 'ffffffff-ffff-4fff-8fff-ffffffffffff';
-  const glbHeader = Buffer.from([
-    0x67, 0x6c, 0x54, 0x46, 0x02, 0x00, 0x00, 0x00, 0x0c, 0x00, 0x00, 0x00,
-  ]);
+  const glbHeader = glbBytes();
   const authorizationReference = 'Curator AR approval memo 2026-07';
 
   let app: INestApplication<App>;
@@ -34,7 +33,11 @@ describe('Developer AR exhibits (e2e)', () => {
   let arAssetCreate: jest.Mock;
   let arAssetUpdate: jest.Mock;
   let auditLogCreate: jest.Mock;
-  let storageMock: { upload: jest.Mock; remove: jest.Mock };
+  let storageMock: {
+    upload: jest.Mock;
+    remove: jest.Mock;
+    download: jest.Mock;
+  };
 
   const developerAccountId = '44444444-4444-4444-8444-444444444444';
 
@@ -156,6 +159,7 @@ describe('Developer AR exhibits (e2e)', () => {
         (_bucket: string, folder: string) => `${folder}/model.glb`,
       ),
       remove: jest.fn(() => Promise.resolve()),
+      download: jest.fn(() => Promise.resolve(glbBytes())),
     };
 
     const prismaMock = {

@@ -1,7 +1,10 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { ACTIVE_SPECIMEN_WHERE } from '../specimens/specimen-archive.policy';
+import {
+  ACTIVE_SPECIMEN_WHERE,
+  ARCHIVED_SPECIMEN_WHERE,
+} from '../specimens/specimen-archive.policy';
 import { resolveStorageLocations } from '../storage-locations/storage-location-paths';
 import { findStorageSubtreeIds } from '../storage-locations/storage-subtree';
 import type { GenerateReportDto } from './dto/generate-report.dto';
@@ -75,6 +78,7 @@ export class ReportBuilderService {
     const notArchived = ACTIVE_SPECIMEN_WHERE;
     const [
       specimensByStatus,
+      archivedSpecimens,
       specimensByCategory,
       lotsByCondition,
       activeLotTotals,
@@ -92,8 +96,10 @@ export class ReportBuilderService {
     ] = await Promise.all([
       this.prisma.specimen.groupBy({
         by: ['status'],
+        where: ACTIVE_SPECIMEN_WHERE,
         _count: { _all: true },
       }),
+      this.prisma.specimen.count({ where: ARCHIVED_SPECIMEN_WHERE }),
       this.prisma.specimen.groupBy({
         by: ['specimen_category'],
         where: notArchived,
@@ -161,6 +167,7 @@ export class ReportBuilderService {
     const specimenStatusCounts = countMap(
       specimensByStatus.map((row) => [row.status, row._count._all]),
     );
+    specimenStatusCounts.set('ARCHIVED', archivedSpecimens);
     const inquiryStatusCounts = countMap(
       inquiriesByStatus.map((row) => [row.status, row._count._all]),
     );
@@ -188,13 +195,10 @@ export class ReportBuilderService {
     const blocks: ReportBlock[] = [
       heading('1. Inventory Summary'),
       paragraph(
-        'Current totals as of report generation. Archived specimens are excluded from category and condition breakdowns.',
+        'Current totals as of report generation. Either archive status or an archive timestamp counts as Archived. Archived specimens are excluded from category and condition breakdowns.',
       ),
       keyValues([
-        [
-          'Total specimen records',
-          sum(specimensByStatus.map((row) => row._count._all)),
-        ],
+        ['Total specimen records', sum([...specimenStatusCounts.values()])],
         ...enumRows(SPECIMEN_STATUS_LABELS, specimenStatusCounts),
         ['Active lots', activeLotTotals._count._all],
         ['Total specimens in active lots', activeLotTotals._sum.quantity ?? 0],

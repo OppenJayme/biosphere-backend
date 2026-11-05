@@ -20,6 +20,10 @@ import { extname } from 'node:path';
 import { SUPABASE_CLIENT } from '../supabase/supabase.constants';
 import { StorageService } from '../supabase/storage.service';
 import { PrismaService } from '../prisma/prisma.service';
+import {
+  authUsersPastInvite,
+  ONBOARDING_PENDING_KEY,
+} from '../auth/onboarding';
 import { OnboardCuratorDto } from './dto/onboard-curator.dto';
 import { UpdateCuratorStatusDto } from './dto/update-curator-status.dto';
 import {
@@ -33,8 +37,12 @@ import {
   AR_ASSET_STORAGE_BUCKET,
   MAX_AR_ASSET_SIZE_BYTES,
 } from './developer.constants';
+import { glbFileError } from './glb-validation';
 
 type AuditStatus = 'SUCCESS' | 'FAILED' | 'DENIED';
+
+const INVITE_NOT_COMPLETED =
+  'The invitation could not be completed and no account was created. Try again.';
 
 // An AR-deployable exhibit: the curator has marked it for AR preparation in
 // the exhibit module (REQ-4.13-02, SRS 4.2.2), it is not archived, and its
@@ -81,13 +89,42 @@ export class DeveloperService {
       orderBy: { created_at: 'desc' },
     });
 
-    return rows.map((row) => this.toCuratorAccountEntity(row));
+    const pastInvite = await authUsersPastInvite(
+      this.prisma,
+      rows.map((row) => row.auth_user_id),
+    );
+
+    return rows.map((row) =>
+      this.toCuratorAccountEntity(row, pastInvite.has(row.auth_user_id)),
+    );
   }
 
   async onboardInitialCurator(
     dto: OnboardCuratorDto,
     actingDeveloperId: string,
   ): Promise<CuratorAccountEntity> {
+    // Checked first because the provider re-invites an unconfirmed user
+    // instead of refusing, which would then collide with their account row.
+    const existing = await this.prisma.users.findFirst({
+      where: { email: { equals: dto.email, mode: 'insensitive' } },
+      select: { id: true },
+    });
+    if (existing) {
+      await this.recordAudit({
+        actingAuthUserId: actingDeveloperId,
+        action: 'ONBOARD_CURATOR',
+        affectedRecordType: 'user_account',
+        status: 'FAILED',
+        details: {
+          email: dto.email,
+          reason: 'Email already belongs to an account.',
+        },
+      });
+      throw new ConflictException(
+        'An account with this email address already exists.',
+      );
+    }
+
     const { data, error } = await this.supabase.auth.admin.inviteUserByEmail(
       dto.email,
       {
@@ -109,12 +146,15 @@ export class DeveloperService {
       );
     }
 
+    // The pending flag keeps the invite session out of protected APIs until
+    // a password is set. Only the service key can write app_metadata.
     const { error: metadataError } =
       await this.supabase.auth.admin.updateUserById(data.user.id, {
-        app_metadata: { role: 'CURATOR' },
+        app_metadata: { role: 'CURATOR', [ONBOARDING_PENDING_KEY]: true },
       });
 
     if (metadataError) {
+      await this.rollBackInvite(data.user.id, dto.email);
       await this.recordAudit({
         actingAuthUserId: actingDeveloperId,
         action: 'ONBOARD_CURATOR',
@@ -122,10 +162,7 @@ export class DeveloperService {
         status: 'FAILED',
         details: { email: dto.email, reason: metadataError.message },
       });
-      throw new InternalServerErrorException(
-        'The onboarding invitation was sent, but the curator role could ' +
-          'not be assigned. Please contact an administrator before retrying.',
-      );
+      throw new InternalServerErrorException(INVITE_NOT_COMPLETED);
     }
 
     let accountRow: user_account;
@@ -142,9 +179,15 @@ export class DeveloperService {
     } catch (insertError) {
       this.logger.error(
         `Auth invite sent to ${dto.email} but the user_account record ` +
-          'could not be created — manual reconciliation required.',
+          'could not be created.',
         insertError instanceof Error ? insertError.stack : insertError,
       );
+      // A unique violation means the auth user already has an account, so it
+      // is not this request's half-created invite and must not be removed.
+      const duplicate =
+        insertError instanceof Prisma.PrismaClientKnownRequestError &&
+        insertError.code === 'P2002';
+      if (!duplicate) await this.rollBackInvite(data.user.id, dto.email);
       await this.recordAudit({
         actingAuthUserId: actingDeveloperId,
         action: 'ONBOARD_CURATOR',
@@ -152,10 +195,12 @@ export class DeveloperService {
         status: 'FAILED',
         details: { email: dto.email, reason: this.errorMessage(insertError) },
       });
-      throw new InternalServerErrorException(
-        'The onboarding invitation was sent, but the curator account record ' +
-          'could not be created. Please contact an administrator before retrying.',
-      );
+      if (duplicate) {
+        throw new ConflictException(
+          'An account with this email address already exists.',
+        );
+      }
+      throw new InternalServerErrorException(INVITE_NOT_COMPLETED);
     }
 
     await this.recordAudit({
@@ -167,7 +212,8 @@ export class DeveloperService {
       details: { email: dto.email },
     });
 
-    return this.toCuratorAccountEntity(accountRow);
+    // Nobody has used the link yet.
+    return this.toCuratorAccountEntity(accountRow, false);
   }
 
   async updateCuratorStatus(
@@ -230,7 +276,14 @@ export class DeveloperService {
       },
     });
 
-    return this.toCuratorAccountEntity(updated);
+    const pastInvite = await authUsersPastInvite(this.prisma, [
+      updated.auth_user_id,
+    ]);
+
+    return this.toCuratorAccountEntity(
+      updated,
+      pastInvite.has(updated.auth_user_id),
+    );
   }
 
   // ===========================================================
@@ -402,6 +455,10 @@ export class DeveloperService {
             );
           }
 
+          if (dto.isEnabled && !file) {
+            await this.assertStoredModelValid(existing);
+          }
+
           const updateData: Prisma.ar_assetUncheckedUpdateInput = {};
           let previousStoragePath: string | null = null;
 
@@ -521,6 +578,7 @@ export class DeveloperService {
 
         if (isEnabled) {
           await this.assertCurrentExhibitDeployable(existing, 'activated');
+          await this.assertStoredModelValid(existing);
         }
       },
     );
@@ -722,6 +780,20 @@ export class DeveloperService {
     }
   }
 
+  // Activation re-reads the stored model, because assets uploaded before the
+  // backend checked GLB structure may still reference external files.
+  private async assertStoredModelValid(asset: ar_asset): Promise<void> {
+    if (asset.model_format !== 'glb') return;
+
+    const message = glbFileError(
+      await this.storageService.download(
+        AR_ASSET_STORAGE_BUCKET,
+        asset.storage_path,
+      ),
+    );
+    if (message) throw new BadRequestException(message);
+  }
+
   // Mirrors DEPLOYABLE_EXHIBIT for an exhibit that is already loaded.
   private isDeployable(exhibit: {
     ar_selected_at: Date | null;
@@ -764,6 +836,11 @@ export class DeveloperService {
         `File extension ".${extension}" does not match the declared model format "${modelFormat}".`,
       );
     }
+
+    if (modelFormat === 'glb') {
+      const message = glbFileError(file.buffer);
+      if (message) throw new BadRequestException(message);
+    }
   }
 
   /**
@@ -780,6 +857,17 @@ export class DeveloperService {
     return `${frontendUrl}${normalizedPath}`;
   }
 
+  /** Removes a half-created invite so its link stops working and a retry can succeed. */
+  private async rollBackInvite(authUserId: string, email: string) {
+    const { error } = await this.supabase.auth.admin.deleteUser(authUserId);
+    if (error) {
+      this.logger.error(
+        `Invite for ${email} failed and auth user ${authUserId} could not be ` +
+          `removed — manual reconciliation required: ${error.message}`,
+      );
+    }
+  }
+
   private errorMessage(error: unknown): string {
     if (error instanceof Prisma.PrismaClientKnownRequestError) {
       return `${error.code}: ${error.message}`;
@@ -787,13 +875,17 @@ export class DeveloperService {
     return error instanceof Error ? error.message : 'Unknown error';
   }
 
-  private toCuratorAccountEntity(row: user_account): CuratorAccountEntity {
+  private toCuratorAccountEntity(
+    row: user_account,
+    inviteAccepted: boolean,
+  ): CuratorAccountEntity {
     return {
       id: row.id,
       authUserId: row.auth_user_id,
       fullName: row.full_name,
       role: row.role,
       status: row.status,
+      inviteAccepted,
       avatarPath: row.avatar_path,
       createdAt: row.created_at,
       updatedAt: row.updated_at,

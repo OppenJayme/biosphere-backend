@@ -533,10 +533,7 @@ describe('ReportBuilderService', () => {
       prismaMock.specimen.groupBy.mockImplementation(({ by }) =>
         Promise.resolve(
           by[0] === 'status'
-            ? [
-                { status: 'CATALOGED', _count: { _all: 8 } },
-                { status: 'ARCHIVED', _count: { _all: 1 } },
-              ]
+            ? [{ status: 'CATALOGED', _count: { _all: 8 } }]
             : [
                 { specimen_category: 'entomology', _count: { _all: 2 } },
                 { specimen_category: 'Entomology', _count: { _all: 2 } },
@@ -549,7 +546,10 @@ describe('ReportBuilderService', () => {
         _count: { _all: 0 },
         _sum: { quantity: null },
       });
-      prismaMock.specimen.count.mockResolvedValue(3);
+      prismaMock.specimen.count.mockImplementation(
+        ({ where }: { where: { OR?: unknown } }) =>
+          Promise.resolve(where.OR ? 1 : 3),
+      );
       prismaMock.specimen_revision_history.count.mockResolvedValue(2);
       prismaMock.specimen_lot_transaction.groupBy.mockResolvedValue([]);
       prismaMock.inquiry.groupBy.mockResolvedValue([]);

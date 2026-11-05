@@ -9,6 +9,7 @@ import { AuthService } from '../../src/auth/auth.service';
 import { SupabaseAuthGuard } from '../../src/auth/guards/supabase-auth.guard';
 import { RolesGuard } from '../../src/auth/guards/roles.guard';
 import { SecurityAuditService } from '../../src/auth/security-audit.service';
+import { MailService } from '../../src/mail/mail.service';
 import { GLOBAL_RATE_LIMIT } from '../../src/config/rate-limit.config';
 import {
   FaqReviewQueueController,
@@ -61,6 +62,7 @@ export async function createFaqReviewDatabaseApp(connectionString: string) {
       FaqReviewService,
       AuthService,
       SecurityAuditService,
+      MailService,
       {
         provide: SUPABASE_CLIENT,
         useValue: {

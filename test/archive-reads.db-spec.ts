@@ -128,7 +128,7 @@ describe('Archive read consistency on owned PostgreSQL', () => {
     expect(statusTotals).toEqual([1, 1, 3]);
   });
 
-  it('consolidated active breakdowns exclude archived quantities but keep all-record history totals', async () => {
+  it('consolidated statuses match effective archive membership while preserving totals and active quantities', async () => {
     const dto = Object.assign(new GenerateReportDto(), {
       type: ReportType.CONSOLIDATED_OPERATIONS,
       format: ReportFormat.CSV,
@@ -149,6 +149,9 @@ describe('Archive read consistency on owned PostgreSQL', () => {
     );
     expect(values).toMatchObject({
       'Total specimen records': 5,
+      Uncataloged: 1,
+      Cataloged: 1,
+      Archived: 3,
       'Active lots': 2,
       'Total specimens in active lots': 7,
     });
