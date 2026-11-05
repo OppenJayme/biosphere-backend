@@ -26,9 +26,55 @@ lot reactivation. Keep this as defensive/legacy-state coverage; do not mutate
 John's lots or weaken archive rules to manufacture a live fixture. This source
 reasoning is not proof against races, legacy data or direct database changes.
 
-CAT-016 remains Partial pass. Next owner/reviewer decision is the appropriate
-owned legacy/disposable fixture and evidence needed for that conditional branch;
-no live-case waiver, policy change or full restoration acceptance is inferred.
+CAT-016 remains Partial pass. The November 5 owned PostgreSQL check below now
+covers that conditional branch against real SQL. Independent disposition of the
+combined evidence remains; no live-case waiver, policy change or full
+restoration acceptance is inferred.
+
+## Owned PostgreSQL legacy restoration - 2026-11-05
+
+`npm run test:restoration:db` exercises the public Cataloging restoration and
+readiness services with real Prisma/PostgreSQL. Inventory and Audit public read
+services verify the result; no internal services or database adapters are mocked.
+The explicit opt-in helper owns a fresh loopback Docker container and accepts
+no environment-supplied database URL. It seeds repository `0_init` SQL and a
+minimal external `auth.users` FK reference, not a Supabase login environment or
+a full migration/deployment rehearsal.
+
+The single synthetic legacy specimen has complete required catalog data, one
+active lot of quantity 3, one inactive lot of quantity 9, and retained archive
+history. The application role can read Inventory but has no lot/storage write
+grants. Successful restoration and public readback establish:
+
+- Current requirements are met; the same record becomes Cataloged, with public
+  display off and current archive markers cleared.
+- Accession, original creation time and notes survive.
+- Both active and inactive lots, their quantities and storage assignments remain
+  unchanged. Only the active quantity counts in the summary; no lot history is added.
+- Original archive revision/audit survive. One status revision and one successful
+  restore audit are added, including actor, result and original archive markers.
+- A repeated restore returns `restored: false` without another revision or audit.
+
+Result: **1/1 owned SQL workflow and 16/16 existing protected HTTP regressions
+passed**. A temporary mutation forcing the complete record to Uncataloged made
+the SQL test fail at the expected status assertion; restoring the unchanged
+production logic returned it to green. No production behavior fix was required.
+
+The initial fixture attempted Archived plus public-display true; PostgreSQL's
+existing `specimen_public_display_requires_cataloged` check correctly rejected
+that setup. The fixture was corrected to public-display false; the constraint
+was not relaxed. This was a fixture error, not an application defect. Existing
+mock-backed HTTP tests separately cover defensive clearing of a legacy true flag.
+The run retained the known Node VM experimental and `pg` concurrent-query
+deprecation warnings; neither was suppressed.
+
+Source base: backend `be0571f`. Dependencies were reused from the installed
+Prisma 7.10.1 checkout with a separately generated worktree client; this was not
+a fresh dependency install. The suite is opt-in and outside default CI discovery;
+a normal green CI run alone does not prove this Docker check ran. No shared
+database, running server, browser session or Inventory-owned lot was changed.
+Real concurrent restoration/rollback, deployed authentication, browser behavior
+for this complete legacy branch and independent acceptance remain separate.
 
 ## Scope and decision
 
@@ -129,7 +175,8 @@ the same locked dependencies, Turbopack and public CI placeholders, without
 copying local environment files or altering the running production build.
 
 The live Cataloged restore branch was **not** tested: no Inventory-owned active
-lot was created/reactivated to manufacture that condition. That branch is
-covered by the protected HTTP fixture. Real database concurrency, failure
-rollback and independent team sign-off remain unverified. This is not full
-module acceptance or a production-security certification.
+lot was created/reactivated to manufacture that condition. That branch is now
+covered by both the protected HTTP fixture and the November 5 owned SQL check
+above. Real database concurrency, failure rollback and independent team sign-off
+remain unverified. This is not full module acceptance or a production-security
+certification.
