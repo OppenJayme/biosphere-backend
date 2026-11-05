@@ -31,25 +31,6 @@ import {
 
 const PENDING_ORDER = [{ created_at: 'desc' as const }, { id: 'asc' as const }];
 
-// Rows arrive newest first; keep the first row for each key.
-function latestBy<T>(rows: T[], key: (row: T) => string): T[] {
-  const seen = new Set<string>();
-  return rows.filter((row) => {
-    const value = key(row);
-    if (seen.has(value)) return false;
-    seen.add(value);
-    return true;
-  });
-}
-
-function reportTypeOf(row: { details: unknown }): string {
-  const details = row.details as { reportType?: unknown } | null;
-  return typeof details?.reportType === 'string' ? details.reportType : '';
-}
-
-// Bounds each operational lookup; only the newest unresolved failures matter.
-const OPERATIONAL_SCAN_LIMIT = 100;
-
 const OPERATIONAL_TITLES = {
   [CuratorNotificationType.SYNC_FAILED]:
     'An offline draft could not be synchronized',
@@ -242,47 +223,38 @@ export class NotificationsService {
   // Latest rejection per draft whose content never reached the server. Once a
   // receipt exists for the draft ID, its content is a specimen; a conflicting
   // re-send cannot sync and is corrected by editing that record online
-  // (REQ-4.14-10), so it is not an unresolved sync failure.
+  // (REQ-4.14-10), so it is not an unresolved sync failure. The database
+  // returns only unresolved drafts, so the count is exact and needs no cap.
   private async unresolvedSyncFailures(
     accountId: string,
   ): Promise<CuratorNotification[]> {
-    const failures = await this.prisma.audit_log.findMany({
-      where: {
-        module: OFFLINE_SYNC_AUDIT_MODULE,
-        action: OFFLINE_SYNC_AUDIT_ACTION,
-        status: 'FAILED',
-        user_id: accountId,
-        affected_record_id: { not: null },
-      },
-      // One row per draft, its latest rejection, chosen in the database.
-      distinct: ['affected_record_id'],
-      select: { id: true, affected_record_id: true, created_at: true },
-      orderBy: [{ affected_record_id: 'asc' }, { created_at: 'desc' }],
-      take: OPERATIONAL_SCAN_LIMIT,
-    });
-    if (failures.length === 0) return [];
-
-    const receipts = await this.prisma.offline_draft_sync.findMany({
-      where: {
-        created_by: accountId,
-        client_draft_id: {
-          in: failures.map((row) => row.affected_record_id!),
-        },
-      },
-      select: { client_draft_id: true },
-    });
-    const synchronized = new Set(receipts.map((row) => row.client_draft_id));
-    return failures
-      .filter((row) => !synchronized.has(row.affected_record_id!))
-      .map((row) =>
-        this.operationalNotification(
-          CuratorNotificationType.SYNC_FAILED,
-          NotificationRecordType.OFFLINE_DRAFT,
-          row.id,
-          row.affected_record_id!,
-          row.created_at,
-        ),
-      );
+    const rows = await this.prisma.$queryRaw<
+      Array<{ id: string; affected_record_id: string; created_at: Date }>
+    >`
+      SELECT DISTINCT ON (a.affected_record_id)
+        a.id, a.affected_record_id, a.created_at
+      FROM public.audit_log a
+      WHERE a.module = ${OFFLINE_SYNC_AUDIT_MODULE}
+        AND a.action = ${OFFLINE_SYNC_AUDIT_ACTION}
+        AND a.status = 'FAILED'
+        AND a.user_id = ${accountId}::uuid
+        AND a.affected_record_id IS NOT NULL
+        AND NOT EXISTS (
+          SELECT 1 FROM public.offline_draft_sync r
+          WHERE r.created_by = a.user_id
+            AND r.client_draft_id = a.affected_record_id
+        )
+      ORDER BY a.affected_record_id, a.created_at DESC, a.id DESC
+    `;
+    return rows.map((row) =>
+      this.operationalNotification(
+        CuratorNotificationType.SYNC_FAILED,
+        NotificationRecordType.OFFLINE_DRAFT,
+        row.id,
+        row.affected_record_id,
+        row.created_at,
+      ),
+    );
   }
 
   // A failure is recovered when a backup of the same type completes after the
@@ -311,7 +283,6 @@ export class NotificationsService {
       },
       select: { id: true, started_at: true, completed_at: true },
       orderBy: [{ started_at: 'desc' }, { id: 'asc' }],
-      take: OPERATIONAL_SCAN_LIMIT,
     });
     return failures.map((row) =>
       this.operationalNotification(
@@ -324,47 +295,41 @@ export class NotificationsService {
     );
   }
 
-  // Latest failure per report type, until that type generates successfully.
+  // Latest failure per report type with no later success of that type for
+  // the same curator. Both checks run in the database (the success lookup is
+  // an EXISTS per failure), so the result is exact and bounded by report types.
   private async unresolvedReportFailures(
     accountId: string,
   ): Promise<CuratorNotification[]> {
-    const where = {
-      module: REPORT_AUDIT_MODULE,
-      action: REPORT_AUDIT_ACTION,
-      user_id: accountId,
-    };
-    const failures = await this.prisma.audit_log.findMany({
-      where: { ...where, status: 'FAILED' },
-      select: { id: true, details: true, created_at: true },
-      orderBy: PENDING_ORDER,
-      take: OPERATIONAL_SCAN_LIMIT,
-    });
-    const latest = latestBy(failures, (row) => reportTypeOf(row));
-    if (latest.length === 0) return [];
-
-    const oldest = latest[latest.length - 1].created_at;
-    const successes = await this.prisma.audit_log.findMany({
-      where: { ...where, status: 'SUCCESS', created_at: { gt: oldest } },
-      select: { details: true, created_at: true },
-    });
-    return latest
-      .filter(
-        (failure) =>
-          !successes.some(
-            (success) =>
-              reportTypeOf(success) === reportTypeOf(failure) &&
-              success.created_at > failure.created_at,
-          ),
-      )
-      .map((row) =>
-        this.operationalNotification(
-          CuratorNotificationType.REPORT_FAILED,
-          NotificationRecordType.REPORT,
-          row.id,
-          row.id,
-          row.created_at,
-        ),
-      );
+    const rows = await this.prisma.$queryRaw<
+      Array<{ id: string; created_at: Date }>
+    >`
+      SELECT DISTINCT ON (f.details->>'reportType') f.id, f.created_at
+      FROM public.audit_log f
+      WHERE f.module = ${REPORT_AUDIT_MODULE}
+        AND f.action = ${REPORT_AUDIT_ACTION}
+        AND f.status = 'FAILED'
+        AND f.user_id = ${accountId}::uuid
+        AND NOT EXISTS (
+          SELECT 1 FROM public.audit_log s
+          WHERE s.module = f.module
+            AND s.action = f.action
+            AND s.status = 'SUCCESS'
+            AND s.user_id = f.user_id
+            AND s.details->>'reportType' IS NOT DISTINCT FROM f.details->>'reportType'
+            AND s.created_at > f.created_at
+        )
+      ORDER BY f.details->>'reportType', f.created_at DESC, f.id DESC
+    `;
+    return rows.map((row) =>
+      this.operationalNotification(
+        CuratorNotificationType.REPORT_FAILED,
+        NotificationRecordType.REPORT,
+        row.id,
+        row.id,
+        row.created_at,
+      ),
+    );
   }
 
   // Keyed by the source event, which the state table accepts as TYPE:uuid.

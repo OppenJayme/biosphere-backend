@@ -374,6 +374,59 @@ describe('Per-curator notification state, owned PostgreSQL and real HTTP', () =>
         .map((item) => item.recordId),
     ).toEqual([neverSynced]);
   });
+  it('counts every unresolved failure exactly beyond 100 events and lists the newest first', async () => {
+    const curator = '11111111-1111-4111-8111-111111111111';
+    // 150 drafts rejected (one second apart, newest last), plus 5 rejected
+    // drafts that already have receipts and so are not unresolved.
+    await database.admin.query(
+      `INSERT INTO audit_log(user_id,affected_record_id,affected_record_type,action,module,status,details,created_at)
+      SELECT $1, md5('draft-' || n)::uuid, 'offline_draft', 'SYNC_SPECIMEN_DRAFT',
+        'offline-sync', 'FAILED', '{"statusCode":409}',
+        NOW() - INTERVAL '1 hour' + n * INTERVAL '1 second'
+      FROM generate_series(1, 155) AS n`,
+      [curator],
+    );
+    await database.admin.query(
+      `INSERT INTO offline_draft_sync(created_by,client_draft_id,specimen_id,payload_fingerprint)
+      SELECT $1, md5('draft-' || n)::uuid, gen_random_uuid(), repeat('a',64)
+      FROM generate_series(151, 155) AS n`,
+      [curator],
+    );
+    // 120 failures of one report type collapse to its latest, unresolved one.
+    await database.admin.query(
+      `INSERT INTO audit_log(user_id,affected_record_type,action,module,status,details,created_at)
+      SELECT $1, 'report', 'GENERATE_REPORT', 'reports', 'FAILED',
+        '{"reportType":"INVENTORY"}', NOW() - INTERVAL '2 hours' + n * INTERVAL '1 second'
+      FROM generate_series(1, 120) AS n`,
+      [curator],
+    );
+
+    const body = (await feed('curator-fixture', 5).expect(200)).body as {
+      operationalAlerts: number;
+      items: Array<{ type: string; recordId: string }>;
+    };
+    expect(body.operationalAlerts).toBe(151);
+    expect(body.items).toHaveLength(5);
+    // The newest unresolved rejection is draft 150 (151-155 have receipts).
+    // The seeded submission alerts are newer still, so check the first sync item.
+    const newest = await database.admin.query(
+      "SELECT md5('draft-150')::uuid::text AS id",
+    );
+    expect(
+      body.items.find((item) => item.type === 'SYNC_FAILED')?.recordId,
+    ).toBe(newest.rows[0].id);
+
+    // One later success resolves all 120 failures of that report type.
+    await database.admin.query(
+      `INSERT INTO audit_log(user_id,affected_record_type,action,module,status,details)
+      VALUES ($1,'report','GENERATE_REPORT','reports','SUCCESS','{"reportType":"INVENTORY"}')`,
+      [curator],
+    );
+    expect(
+      ((await feed().expect(200)).body as { operationalAlerts: number })
+        .operationalAlerts,
+    ).toBe(150);
+  });
   it('enforces recipient uniqueness, key constraints and fail-closed client RLS in PostgreSQL', async () => {
     await change('NEW_INQUIRY:' + INQUIRY_ID, 'READ').expect(200);
     await expect(

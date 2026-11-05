@@ -170,8 +170,10 @@ A content conflict on an already-synchronized draft ID is not an unresolved
 failure: the re-send can never sync, and the record is corrected online
 (REQ-4.14-10); the device keeps its own local alert. Backup recovery compares
 completion times (`completed_at`, or `started_at` for an unfinished failure),
-so overlapping runs resolve correctly. Each lookup filters in the database and
-scans at most the 100 newest rows.
+so overlapping runs resolve correctly. Each lookup returns only unresolved
+failures from the database (`DISTINCT ON` the latest per draft or report type,
+`NOT EXISTS` for receipts and later successes), so `operationalAlerts` is exact
+however many failure events exist; the display `limit` only trims `items`.
 The feed adds `operationalAlerts`, a count of unresolved failures that, like
 `pendingInquiries` and `emailFailures`, is not reduced by dismissal. Keys are
 `TYPE:<source event UUID>`, so read/dismiss works through the existing

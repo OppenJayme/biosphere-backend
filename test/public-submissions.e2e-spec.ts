@@ -234,7 +234,7 @@ describe('Inquiries and visit requests (e2e)', () => {
       },
       // The feed's operational alerts read these; no failures exist here.
       backup_history: { findMany: jest.fn(() => []) },
-      offline_draft_sync: { findMany: jest.fn(() => []) },
+      $queryRaw: jest.fn(() => []),
       audit_log: {
         create: auditCreate,
         findMany: jest.fn(
@@ -242,23 +242,19 @@ describe('Inquiries and visit requests (e2e)', () => {
             where,
           }: {
             where: {
-              action: string | { in: string[] };
+              action: { in: string[] };
               status: string;
               affected_record_id: { in: string[] };
             };
-          }) => {
-            // Operational-alert lookups filter one action; none are seeded.
-            const action = where.action;
-            if (typeof action === 'string') return [];
-            return audits.filter(
+          }) =>
+            audits.filter(
               (entry) =>
-                action.in.includes(entry.action as string) &&
+                where.action.in.includes(entry.action as string) &&
                 entry.status === where.status &&
                 where.affected_record_id.in.includes(
                   entry.affected_record_id as string,
                 ),
-            );
-          },
+            ),
         ),
       },
       $transaction: jest.fn((callback: (client: unknown) => unknown) =>

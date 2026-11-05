@@ -12,6 +12,7 @@ describe('NotificationsService', () => {
     audit_log: { findMany: jest.fn() },
     backup_history: { findMany: jest.fn() },
     offline_draft_sync: { findMany: jest.fn() },
+    $queryRaw: jest.fn(),
   };
   let service: NotificationsService;
 
@@ -30,6 +31,7 @@ describe('NotificationsService', () => {
     prisma.audit_log.findMany.mockResolvedValue([]);
     prisma.backup_history.findMany.mockResolvedValue([]);
     prisma.offline_draft_sync.findMany.mockResolvedValue([]);
+    prisma.$queryRaw.mockResolvedValue([]);
     service = new NotificationsService(prisma as unknown as PrismaService);
   });
 
@@ -151,26 +153,22 @@ describe('NotificationsService', () => {
       prisma.visit_request.findMany.mockResolvedValue([]);
     });
 
-    function auditRows(rows: {
-      sync?: unknown[];
-      reportFailed?: unknown[];
-      reportSuccess?: unknown[];
-    }) {
-      prisma.audit_log.findMany.mockImplementation(({ where }: Where) => {
-        if (where.module === 'offline-sync')
-          return Promise.resolve(rows.sync ?? []);
-        if (where.module === 'reports')
-          return Promise.resolve(
-            where.status === 'FAILED'
-              ? (rows.reportFailed ?? [])
-              : (rows.reportSuccess ?? []),
-          );
-        return Promise.resolve([]);
-      });
+    // The database returns only unresolved rows; route by the queried table.
+    function unresolvedRows(rows: { sync?: unknown[]; reports?: unknown[] }) {
+      prisma.$queryRaw.mockImplementation((strings: TemplateStringsArray) =>
+        Promise.resolve(
+          strings.join('?').includes('offline_draft_sync')
+            ? (rows.sync ?? [])
+            : (rows.reports ?? []),
+        ),
+      );
+    }
+    function sqlOf(call: number) {
+      return (prisma.$queryRaw.mock.calls[call][0] as string[]).join('?');
     }
 
-    it('shows the latest rejection per draft until the draft synchronizes', async () => {
-      auditRows({
+    it('maps unresolved sync failures for the acting curator', async () => {
+      unresolvedRows({
         sync: [
           {
             id: SYNC_EVENT,
@@ -194,82 +192,52 @@ describe('NotificationsService', () => {
           createdAt: new Date('2026-11-05T02:00:00Z'),
         },
       ]);
-      // The latest rejection per draft is chosen in the database, bounded.
-      expect(prisma.audit_log.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: expect.objectContaining({
-            module: 'offline-sync',
-            status: 'FAILED',
-            user_id: ACCOUNT,
-          }) as unknown,
-          distinct: ['affected_record_id'],
-          orderBy: [{ affected_record_id: 'asc' }, { created_at: 'desc' }],
-          take: 100,
-        }),
-      );
-
-      prisma.offline_draft_sync.findMany.mockResolvedValue([
-        { client_draft_id: DRAFT },
-      ]);
-      expect((await service.getFeed(20, ACCOUNT)).operationalAlerts).toBe(0);
+      const sync = sqlOf(0);
+      // Latest rejection per draft, drafts with a receipt excluded, no cap.
+      expect(sync).toContain('DISTINCT ON (a.affected_record_id)');
+      expect(sync).toContain('NOT EXISTS');
+      expect(sync).not.toMatch(/LIMIT/i);
+      expect(prisma.$queryRaw.mock.calls[0]).toContain(ACCOUNT);
     });
 
-    it('excludes a content conflict for a draft that already synchronized', async () => {
-      // The receipt predates the rejection: the draft is already a specimen and
-      // the conflicting re-send can never sync, so it is not left unresolved.
-      auditRows({
-        sync: [
-          {
-            id: SYNC_EVENT,
-            affected_record_id: DRAFT,
-            created_at: new Date('2026-11-05T02:00:00Z'),
-          },
+    it('maps unresolved report failures and checks success in the database', async () => {
+      unresolvedRows({
+        reports: [
+          { id: REPORT_EVENT, created_at: new Date('2026-11-05T01:00:00Z') },
         ],
       });
-      prisma.offline_draft_sync.findMany.mockResolvedValue([
-        { client_draft_id: DRAFT },
-      ]);
 
       const feed = await service.getFeed(20, ACCOUNT);
 
-      expect(feed.operationalAlerts).toBe(0);
-      expect(feed.items).toEqual([]);
-    });
-
-    it('clears a report failure once the same type succeeds later', async () => {
-      const failed = {
-        id: REPORT_EVENT,
-        details: { reportType: 'INVENTORY' },
-        created_at: new Date('2026-11-05T01:00:00Z'),
-      };
-      auditRows({ reportFailed: [failed] });
-      expect((await service.getFeed(20, ACCOUNT)).items[0]).toMatchObject({
+      expect(feed.items[0]).toMatchObject({
         id: `REPORT_FAILED:${REPORT_EVENT}`,
+        type: 'REPORT_FAILED',
         recordType: 'report',
         recordId: REPORT_EVENT,
       });
+      const reports = sqlOf(1);
+      expect(reports).toContain("DISTINCT ON (f.details->>'reportType')");
+      expect(reports).toMatch(/NOT EXISTS[\s\S]*'SUCCESS'/);
+      expect(reports).not.toMatch(/LIMIT/i);
+    });
 
-      auditRows({
-        reportFailed: [failed],
-        reportSuccess: [
-          {
-            details: { reportType: 'VISIT_REQUEST_SUMMARY' },
-            created_at: new Date('2026-11-05T02:00:00Z'),
-          },
-        ],
+    it('counts every unresolved failure, not only the displayed items', async () => {
+      unresolvedRows({
+        sync: Array.from({ length: 150 }, (_, index) => ({
+          id: `66666666-6666-4666-8666-${String(index).padStart(12, '0')}`,
+          affected_record_id: `55555555-5555-4555-8555-${String(index).padStart(12, '0')}`,
+          created_at: new Date(Date.UTC(2026, 10, 5, 0, 0, index)),
+        })),
       });
-      expect((await service.getFeed(20, ACCOUNT)).operationalAlerts).toBe(1);
 
-      auditRows({
-        reportFailed: [failed],
-        reportSuccess: [
-          {
-            details: { reportType: 'INVENTORY' },
-            created_at: new Date('2026-11-05T02:00:00Z'),
-          },
-        ],
-      });
-      expect((await service.getFeed(20, ACCOUNT)).operationalAlerts).toBe(0);
+      const feed = await service.getFeed(5, ACCOUNT);
+
+      expect(feed.operationalAlerts).toBe(150);
+      expect(feed.items).toHaveLength(5);
+      // Newest first, regardless of the order the database returned them in.
+      expect(feed.items[0].createdAt).toEqual(
+        new Date(Date.UTC(2026, 10, 5, 0, 2, 29)),
+      );
     });
 
     it('resolves backup failures by completion time, per backup type', async () => {
@@ -317,7 +285,6 @@ describe('NotificationsService', () => {
               },
             ],
           },
-          take: 100,
         }),
       );
       expect(feed.operationalAlerts).toBe(1);
@@ -332,7 +299,7 @@ describe('NotificationsService', () => {
     it('omits personal sync and report alerts without an account', async () => {
       await service.getFeed();
 
-      expect(prisma.audit_log.findMany).not.toHaveBeenCalled();
+      expect(prisma.$queryRaw).not.toHaveBeenCalled();
     });
   });
 });
