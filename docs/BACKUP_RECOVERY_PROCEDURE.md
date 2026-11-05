@@ -1,23 +1,38 @@
 # BioSphere backup and recovery procedure
 
-**Prepared:** 2026-11-05. **Status:** proposed operating procedure, not approved
-or implemented. **Assessed source:** backend `be0571f`; Supabase Free confirmed
-by Kyer on November 5. No hosted credentials, artifacts or project settings were
+**Prepared/revised:** 2026-11-05. **Status:** proposed $0, automated,
+low-maintenance procedure, not approved or implemented. **Assessed source:**
+backend `77a8b54`; Supabase Free and no recurring infrastructure budget confirmed
+by Kyer. No hosted credentials, artifacts or project settings were
 inspected. No backup, restore, migration, scheduler or notification was executed.
 
 ## 1. Decision and present capability
 
-Use a deployment-owned backup job, an encrypted restic repository on approved
-independent storage, and an isolated Supabase-compatible recovery environment.
-Keep backup execution outside the ordinary Nest/Next request path. Retain the
+Use a replaceable free scheduled runner, an encrypted independent backup
+destination with measured available capacity, and an isolated Supabase-compatible
+recovery environment. No dedicated always-on backup server or permanently
+staffed technical operator is assumed. Keep execution outside the ordinary
+Nest/Next request path. Retain the
 existing Curator-only Backup History API; do not add a general administrator
 dashboard or give routine Developer accounts access to visitor/backup data.
 
 Supabase recommends exports and off-site copies for Free projects. Its database
 backups do not contain Storage object bytes. Provider backup availability is
 therefore not our recovery strategy. See [Supabase backup documentation][sb-backups].
-Free software does not guarantee free capacity, bandwidth or an always-on host.
-The owner must approve those resources before enabling the job.
+The baseline must fit $0 recurring infrastructure spend; paid features are not
+an MVP dependency. This is a budget constraint, not evidence that every required
+service already fits it. A free destination, application hosting and scheduler
+remain to be selected/validated. Never silently upgrade, add billable resources,
+reduce required backup coverage or claim unlimited capacity when a limit is hit.
+
+Routine capture, feasible verification, retention and status generation should
+be automated. The Curator is the business/system owner, monitoring high-level
+status and account continuity and requesting help for exceptions. Technical
+recovery, secret rotation, broken automation and provider/deployment changes
+require qualified on-demand help. The Curator is not expected to run PostgreSQL,
+CLI, Docker, restic or server-maintenance commands. This model does not promise
+zero future maintenance or indefinite support from the graduating team. See the
+[Curator checklist](./BACKUP_RECOVERY_CURATOR_CHECKLIST.md).
 
 The current `src/backup` module only reads history. `artifactAvailable` means
 a path was recorded, not that bytes exist or a restore succeeded. The repository
@@ -47,8 +62,8 @@ security/safety/recoverability pages 92-95; operational-email exclusion page 104
 
 The SRS excludes general operational email and SMS. Backup failure reporting
 must use approved operational/in-system alerts and audit records, not silently
-extend Brevo visitor email to backup messages. A database outage also requires
-host monitoring that does not depend on the failed database.
+extend Brevo visitor email. An app badge cannot report an app outage: assess
+independent missed-run detection and explicitly record any remaining gap.
 
 ## 3. Proposed policy for approval
 
@@ -56,13 +71,13 @@ These are recommendations, not SRS-mandated numbers or measured service promises
 
 | Item | Proposed operating value |
 | --- | --- |
-| Routine schedule | 06:00 and 18:00 Asia/Manila daily on an institution-controlled always-on host; one run at a time. A student's sleeping laptop is not the deployment scheduler. |
-| Recovery point objective (RPO) | At most 24 hours of committed server data lost. Twice-daily capture gives recovery margin; alert at 18 hours since the last eligible checkpoint and escalate at 24. Track checkpoint age, not merely job completion time. |
-| Recovery time objective (RTO) | Target 8 elapsed hours from incident declaration to verified service release, including approvals and provisioning. Measure in rehearsal; publish a revised target if resources cannot meet it. |
-| Maintenance window | Prefer off-hours; target at most 15 minutes for final write freeze/capture after initial media prefetch. This limit requires measurement and an implemented maintenance mechanism. Exceeding it requires the operator's explicit continuation/abort decision. |
+| Routine schedule | Start with a proposed daily 06:17 Asia/Manila run, away from the top of the hour, using free hosted execution; one run at a time. Twice daily is optional only after capacity/runtime/egress measurements support it. No schedule is enabled or guaranteed by this document. |
+| Recovery point objective (RPO) | Aspirational 24-hour checkpoint spacing during healthy daily execution, not a guaranteed maximum loss. Delays/failures can make the last usable checkpoint older. Always show/measure its actual timestamp and age; acknowledge any gap beyond the approved objective. |
+| Recovery time objective (RTO) | No end-to-end time commitment without available qualified help. Retain eight hours only as a provisional hands-on technical rehearsal benchmark, not the incident-to-recovery promise from the original draft. Measure assistance wait, approval/provisioning and technical execution separately; total incident time includes all of them. |
+| Maintenance window | Automate the shortest measured off-hours write-freeze/drain. Fifteen minutes is an initial rehearsal threshold, not an SLA. Timeout/abort must safely release only the job-owned gate and retain the last good checkpoint without waiting for a staffed operator. A longer window needs explicit approval. |
 | Extra captures | Before approved deployments, migrations or bulk corrections, and before/after a recovery cutover when safe. Never run a migration merely to make a backup succeed. |
-| Retention | Keep the newest seven daily checkpoints and four weekly checkpoints, plus a protected turnover checkpoint for 30 days. No indefinite monthly archive by default. USC privacy/retention approval may change these values. |
-| Verification | Every run: manifest, byte/hash and independent-readback checks. Weekly: repository integrity check. Monthly and after material schema/Auth/storage changes: complete isolated restore. One complete rehearsal before turnover is mandatory. |
+| Retention | Propose seven daily checkpoints initially. Four weekly copies and a turnover checkpoint for 30 days are optional only if measured free capacity and privacy approval allow. Values are not accepted until measured/approved; never silently prune required history or the last usable copy to stay free. |
+| Verification | Automate manifest/hash/readback every run and periodic repository integrity checks within runner limits. Complete one reviewed full-service restore before turnover; repeat after material schema/Auth/storage changes with qualified support. Quarterly full-rehearsal review is a planning candidate, not a claim of funded recurring support. A health check alone is not a full restore. |
 | Capacity | Measure current database, object bytes, daily changes and export traffic; budget retention and transfer headroom before activation. Alert at 80% approved capacity. No automatic paid upgrade or silent coverage reduction. |
 
 The first full object export may be large. Later captures should transfer only
@@ -70,6 +85,78 @@ new/changed objects into protected staging while producing a complete logical
 checkpoint. Restic can avoid storing repeated content, but it does not reduce
 Supabase downloads by itself. Actual Free-plan quotas must be checked privately
 by the project owner; no quota or zero-cost guarantee is inferred here.
+
+### Free-service facts and selection gates
+
+Official documentation checked November 5, 2026, not an inspection of the team's
+actual account usage:
+
+- [Supabase pricing][sb-pricing] lists Free at 500 MB database, 1 GB file storage,
+  and 5 GB uncached plus 5 GB cached transfer; Free projects can pause after a
+  week of inactivity. Do not assume background exports prevent pausing.
+- [Database backups][sb-backups] documents daily managed backups for paid plans
+  and recommends Free exports/off-site copies. Our baseline therefore requires
+  its own automated export. Database backup omits actual Storage file bytes.
+- [Egress accounting][sb-egress] distinguishes cached and uncached pools and
+  counts exported data against applicable allowances shared with normal use.
+  As a worked budget, a 100 MB daily export is roughly 3 GB per 30 days before
+  media and normal traffic; compression and actual transfer must be measured.
+  Deduplicated destination storage does not by itself prevent repeated downloads.
+- Pro is an optional future improvement, not a prerequisite: its published offer
+  includes daily backups retained seven days and larger allowances. Funding and
+  activation require a later decision; file backup/verification still matter.
+
+Select an approved independent destination before choosing its encryption tool.
+It must fit measured retention and restore traffic, permit institutional data
+and automated access, and remain recoverable without a student's account. No
+free storage provider, existing university quota or permission is assumed.
+Another bucket in the source Supabase project is not the sole recovery copy.
+
+### Replaceable scheduled execution
+
+GitHub Actions is a practical candidate because the project already uses it and
+hosted execution avoids managing a backup server. It is not a permanent mandated
+provider. [GitHub billing][gh-billing] distinguishes free standard public runners
+from private-repository usage allowances and artifact/cache storage. Existing CI
+shares the applicable budget. Do not make private source public to obtain free
+minutes, or use public logs/artifacts/Git commits as the raw backup store.
+
+[Scheduled workflows][gh-schedule] run from the default branch and may be delayed
+or dropped. Public-repository schedules can disable after 60 days without
+repository activity. Verify the actual repository/account/default branch and
+turnover access; do not assume active museum use keeps a repository schedule
+alive. No heartbeat commits or artificial activity are a substitute for ownership
+and supported provider operation.
+
+The runner contract remains portable: protected source credentials in, encrypted
+complete checkpoint/manifest and sanitized result out, with bounded retries,
+one-run locking, runtime/byte limits and idempotent history updates. A replacement
+institution-approved free runner must pass the same rehearsal. Persistent object
+inventory/checksums must live in approved private storage; an ephemeral runner
+must not rely on its cache surviving to avoid re-downloading every file.
+Never expose backup secrets to pull-request/fork jobs or execute untrusted
+branches with them. Restrict workflow modification, use least permissions and
+pin dependencies/actions; secret masking alone does not prevent exfiltration.
+
+### Business ownership and exceptional technical support
+
+The Curator controls continuity of approved museum/project accounts, sees clear
+backup status, authorizes business recovery and validates restored holdings.
+Routine operation is automated. A qualified person is engaged on demand for
+recovery or maintenance exceptions; no permanently assigned primary/alternate
+administrator, on-call shift, contractor or future IT support is assumed.
+Availability and any one-time cost of exceptional help are unresolved; a $0
+recurring infrastructure budget does not promise free professional recovery.
+
+Before turnover, record recovery access for GitHub/repository, Supabase, app
+hosting, backup storage, domains where applicable, recovery mailbox and MFA.
+Prefer institution/project-controlled organization ownership with individually
+authorized users and recoverable MFA, not a shared password or departing student's
+personal mailbox/phone. Separate key escrow can be an approved sealed/vaulted
+record; its custody does not require a second daily technical operator. If an
+institution/project account or qualified contact route is unavailable, record an
+unresolved turnover risk instead of fabricating one. A Curator requests support;
+they do not debug the scheduler or execute secret-rotation commands.
 
 ## 4. Recovery set: what must travel together
 
@@ -80,7 +167,7 @@ by the project owner; no quota or zero-cost guarantee is inferred here.
 | Object files | Inventory every actual bucket and copy required bytes. Source declares `specimen-media`, `exhibit-media`, `ar-assets`, `user-avatars`, `inquiry-attachments`. A declared bucket may be empty/unused; record that result. Unknown nonempty buckets require owner disposition, not silent exclusion. Include draft/unpublished assets needed to preserve authorized records, not just public covers. |
 | Object configuration | Bucket IDs/names, access rules, MIME/size restrictions, necessary metadata/custom policies and object-key mappings. Preserve exact object keys. Storage metadata is not the file. Recreate/upload using supported Storage interfaces; do not invent internal Storage rows as a substitute for uploading bytes. |
 | Release/configuration | Both Git commit IDs, lockfiles, build/image provenance, PostgreSQL/Supabase/client/tool versions, migration names and exact checksums, approved static content, domain/TLS/DNS plan, Auth redirect/SMTP configuration, feature flags, CORS, storage settings and scheduler definitions. Record non-secret values separately from credential custody. |
-| Recovery secrets | Credential/rotation inventory and a separately protected institutional vault entry for necessary secrets and any applicable provider encryption root key. Recoverability of that vault must be demonstrated by the alternate operator. Never include decryption passwords alongside the only backup copy or in this repository. |
+| Recovery secrets | Credential/rotation inventory and separately protected, approved recoverable key escrow for necessary secrets and any applicable provider encryption root key. Demonstrate retrieval without the graduating team's accounts/devices. This does not assume USC provides a vault or second operator. Never store decryption passwords alongside the only backup copy or in Git. |
 
 Unsynchronized IndexedDB drafts exist only on their originating devices. Server
 backup cannot recover them. Preserve devices and ask owners to retain pending
@@ -95,9 +182,10 @@ and its actual generated dump; do not assume a command named `dump` includes Aut
 
 ## 5. Permissions, encryption and copies
 
-Assign institutional roles in the approval record: accountable USC/DCISM owner,
-primary operator, alternate/key custodian, Curator data validator and independent
-reviewer. Team authors may prepare tooling but are not perpetual operators.
+Record the Curator business owner, automated service identity, key/account custody
+arrangement and route for requesting authorized on-demand technical help in the
+approval record. Independent technical review is required for the turnover
+rehearsal, not a permanently staffed role. No student is assigned perpetual support.
 
 - Source capture uses a dedicated role with the minimum verified read/export
   privileges and Storage download access. RLS must not silently omit required
@@ -109,28 +197,31 @@ reviewer. Team authors may prepare tooling but are not perpetual operators.
   permissions, separate from BioSphere's two routine application roles.
 - Use authenticated encrypted repositories (proposed: restic), TLS with server
   identity verification for remote access, protected OS secret files/vaults,
-  and an encrypted staging volume. No secrets in CLI URLs, shell history,
+  and protected ephemeral or encrypted staging with verified cleanup.
+  No secrets in CLI URLs, shell history,
   process listings, CI logs or public Actions artifacts. Tool credentials must
   enter through a tested protected configuration mechanism, not printed args.
-- Keep the live service, an encrypted recovery copy on approved infrastructure,
-  and an independent off-site/offline encrypted copy in a separate failure and
-  credential domain. If only one independent copy is initially available, record
-  that exception; do not claim three-copy resilience. Another bucket in the same
-  Supabase project is not the independent recovery copy.
+- Require the live service plus at least one encrypted complete independent
+  recovery copy in a different failure/account domain. A second independent or
+  offline copy is desirable if available at $0; it is not assumed funded.
+  Record single-copy deletion/account-lockout risk and the accepted custody/
+  restore test. Do not claim three-copy resilience.
 - Separate writer access from retention/deletion administration. Prefer enforced
   append-only/offline protection where available; encryption alone cannot stop
-  an attacker deleting a repository. An authorized custodian reviews pruning.
+  an attacker deleting a repository. Automate only an approved bounded retention
+  policy that was rehearsed; changing it or resolving holds needs authorization.
 - Keep the authoritative verification manifest inside the authenticated backup;
   a loose SHA-256 file alone does not establish provenance. A sanitized external
   run ledger identifies the snapshot/run without exposing paths or personal data.
 
-Restic is a proposed dependency, not installed or approved by this document.
+Restic is one candidate encryption/retention tool, not a mandatory curator-managed
+service, installed dependency or assumption about destination compatibility.
 Pin and verify tool releases before implementation. See its [repository][restic-repos],
 [restore][restic-restore] and [retention][restic-retention] documentation.
 
 ## 6. Preflight: stop unless these checks pass
 
-1. The approval record identifies the source project/environment, host and exact
+1. The approval record identifies the source project/environment, runner and exact
    destination. A connection-string match alone does not establish deployment
    identity. Do not place passwords/project connection strings in the public record.
 2. Inventory PostgreSQL/Supabase versions, extensions, roles, Auth/Storage
@@ -140,7 +231,7 @@ Pin and verify tool releases before implementation. See its [repository][restic-
 3. Pin the capture/restore toolchain compatible with those versions. Use an
    approved direct connection or session pooler, not the runtime transaction
    pooler; verify network/TLS and permissions without writing source data.
-4. Verify independent repository access, capacity and alternate key retrieval.
+4. Verify independent repository access, capacity and non-student-dependent key retrieval.
    The source backup account cannot delete retained snapshots. Confirm no raw
    staging/artifact location is within Git, a web root, cloud-sync personal folder
    or application-served uploads.
@@ -157,11 +248,11 @@ Pin and verify tool releases before implementation. See its [repository][restic-
 The runner below is an implementation contract, not an existing command.
 Schedule it only after a synthetic end-to-end rehearsal and approval.
 
-1. Allocate a random run ID and append STARTED to the independent host ledger.
+1. Allocate a random run ID and append STARTED to the independent private ledger.
    Create `backup_history` IN_PROGRESS through the deployment job identity when
    the source is available. Use null `created_by` for a service actor, with its
    technical identity in the correlated audit/ledger. Never forge a Curator ID.
-2. Acquire the single-run lock. Prefetch object changes into encrypted staging
+2. Acquire the single-run lock. Prefetch object changes into protected staging
    using paginated listings and bounded concurrency; retain version/hash metadata.
    Never propagate a source deletion into retained backup snapshots.
 3. Enter the approved write-freeze window. Drain in-flight writes and pause
@@ -181,19 +272,22 @@ Schedule it only after a synthetic end-to-end rehearsal and approval.
    unreadable required object or object changed during capture fails coverage.
 6. Seal the recovery set with the manifest from section 10. After the local
    complete set is durable, release the maintenance gate and resume writers in
-   the recorded order. If capture fails, release only the gate this job owns,
-   preserve the failed result and last known-good backup, and alert the operator.
-7. Write the encrypted snapshot to the approved repository and independent copy.
+   the recorded order. If capture fails or the runner disappears, the verified
+   gate lease must expire safely; preserve the failure and last good backup and
+   surface understandable failure/overdue status. Do not leave the museum
+   permanently read-only waiting for a technical operator.
+7. Write the encrypted snapshot to the approved independent destination and any
+   additionally approved copies within the measured budget.
    Require tool exit success, manifest reconciliation and repository readback of
    the captured run; a listable snapshot alone is not enough. Restore its manifest
    and verify snapshot/file inventory and hashes. Mark source history COMPLETED
-   only when required copies and checks succeed; otherwise FAILED. Record actual
+   only when required coverage, copies and checks succeed; otherwise FAILED. Record actual
    checkpoint/finish time, copy status and verification level in the private ledger.
 8. Append a correlated backup audit result when the database is available. Publish
    sanitized history to Curator reads. The completion row/audit is normally newer
    than its own snapshot: preserve the independent ledger so recovery does not
    depend on a completion event having existed at checkpoint T.
-9. Apply only the approved retention policy, in a separate controlled job after
+9. Apply only the approved retention policy, in a separate automated job after
    verification. Review a dry-run and exact snapshot/host grouping before any
    removal. Never prune the last known-good or incident-held snapshot. Check
    repository health afterward. Partial failures do not trigger destructive cleanup.
@@ -212,20 +306,26 @@ verification, with evidence retained securely according to policy.
 
 | Event | Required behavior |
 | --- | --- |
-| Export/object/encryption/copy failure | Failed attempt, no COMPLETED state; retain last good snapshot and sanitized error/run ID. Signal operator promptly; proposed delivery within 15 minutes. |
-| Source DB unavailable | Independent host ledger and monitor remain authoritative. Queue a correlated history/audit result for later safe reconciliation; never invent successful source writes. |
-| Host/job never starts | An independent watchdog checks expected run/checkpoint freshness; scheduler exit handling alone cannot detect a dead host. Alert/escalate using the approved institutional monitoring channel. |
-| Run stuck IN_PROGRESS | Watchdog compares run deadline/heartbeat, alerts and requires operator investigation. Do not blindly kill unrelated processes or overlap another backup. |
-| Operator unavailable | Alert alternate and accountable owner; record acknowledgment and incident decision. Proposed acknowledgment within one staffed hour; approve off-hours coverage explicitly. |
+| Export/object/encryption/copy failure | Failed attempt, no COMPLETED state; retain last good checkpoint and sanitized error/run ID. Show an understandable Curator warning and escalation route; delivery timing is measured, not guaranteed. |
+| Source DB unavailable | Independent private ledger remains the evidence source; queue correlated history/audit reconciliation. App status may be unavailable too. Never invent successful writes or claim queued alerts were delivered. |
+| Runner/job never starts | Independent free heartbeat/freshness detection is preferred if a supportable approved option exists. At minimum the working app checks last success age when opened; this cannot notify while nobody opens it or the app is down. No-start detection/delivery remains an acceptance gap until implemented/tested or formally scoped. |
+| Run stuck IN_PROGRESS | Bound execution/retries and safe gate expiry; surface failed/stale state without overlapping runs. Request on-demand help rather than require constant technical monitoring. |
+| Help unavailable | Curator records the incident/request. No guaranteed acknowledgment or recovery time; retain data/devices and safe state until qualified help is engaged. No funded on-call service is assumed. |
 | Restore check fails | Record restore FAILED, quarantine target and preserve evidence; no cutover, no success notification and no destructive fallback. |
 
-The proposed alert route is an existing USC/DCISM monitored host incident
-console/pager plus BioSphere's protected operational alert when the app is up.
-If no such monitored route exists, that is an implementation/approval blocker;
-an unobserved log file or dashboard badge is not failure notification. Do not add
-operational email/SMS against the SRS merely to fill this gap. Delivery adapter,
-watchdog, technical-operator access and acknowledgment need testing; none exists
-for backup operations in the assessed repository.
+Do not assume a USC/DCISM pager or monitoring team exists. Proposed Curator UI:
+show last eligible checkpoint time/age and explicit unknown/failed/overdue status,
+with a short instruction to retain work and request help. Never show green solely
+because a synthetic history row says COMPLETED. A proposed daily policy warns
+after 24 hours without an eligible checkpoint and escalates visually at 48 hours;
+these are indicators, not guaranteed RPO bounds. No history means UNKNOWN.
+
+This UI is not implemented by the existing Backup History reader. An unobserved
+badge/log is not proactive failure delivery. Test the approved in-system signal
+and recipient behavior and any independent missed-run route. If free resources
+cannot meet REQ-4.15-06/approved alert expectations, record the limitation and
+seek a requirements disposition; do not mark it satisfied. No new operational
+email/SMS integration is proposed.
 
 Existing history has IN_PROGRESS/COMPLETED/FAILED only. Define COMPLETED as
 capture-and-copy verified, not full-restoration verified. Record full restore
@@ -241,7 +341,9 @@ run-ID/verification fields; schema/ledger integration is still to be designed.
 
 ## 9. Recovery procedure: isolated rehearsal and real incident
 
-1. **Declare and authorize.** Identify incident/rehearsal ID, scope, operator,
+1. **Declare and authorize.** The Curator identifies the business incident and
+   requests qualified on-demand technical help. That person records incident/
+   rehearsal ID, scope, operator,
    approver, affected release and acceptable checkpoint. Preserve current evidence.
    Treat a suspected compromise as a security incident: use trusted tooling,
    rotate exposed credentials and choose a clean checkpoint, not automatically
@@ -332,8 +434,17 @@ deletion/reconciliation record. Do not invent a retention policy in this runbook
 
 ## 11. Implementation order and finish line
 
-1. Approve the concrete policy, custody and monitored host/destinations using the
-   [decision record](./BACKUP_RECOVERY_APPROVAL.md). List unresolved fields explicitly.
+Before defense, prepare the design, actual synthetic rehearsal evidence if
+available and honest remaining gates. Institutional approval may be completed
+after defense if official deployment is later; it is still required before that
+deployment. One full reviewed backup/restore is required before turnover.
+Confirm academic timing with the adviser. A prototype/defense demonstration
+does not establish official production approval or waive the SRS.
+
+1. Record the $0 constraints, source/runner/destination candidates, account/key
+   custody and approval questions in the [decision record](./BACKUP_RECOVERY_APPROVAL.md).
+   First measure synthetic/authorized data size, change rate, transfer and runner
+   usage. Do not invent spare institutional capacity or a permanent maintainer.
 2. Implement source/target allowlists, export/Storage inventory adapters,
    write-freeze/drain, protected staging and encrypted snapshot verification.
 3. Implement schedule/locking, independent result ledger, idempotent history/audit
@@ -346,9 +457,11 @@ deletion/reconciliation record. Do not invent a retention policy in this runbook
    the approved private disposable full-service target. Complete the verification
    and [rehearsal record](./BACKUP_RECOVERY_REHEARSAL_TEMPLATE.md). No deployment
    cutover is implied. Record whether real or synthetic source was actually used.
-6. Enable approved scheduling only after successful reviewed recovery, operator
-   handover and retention/alert tests. Update BAK-001/002 with the evidence level;
-   documenting a plan alone does not close either case or certify section 4.15.
+6. Enable approved scheduling only after successful reviewed recovery, Curator
+   account/checklist handover, recovery-key retrieval and retention/alert tests.
+   Explicitly accept or resolve on-demand-support and missed-run limitations.
+   Update BAK-001/002 with actual evidence; documentation, a metadata screen or
+   an untested free workflow alone closes neither case nor SRS section 4.15.
 
 No copy-paste production restore commands are supplied before target identity,
 tool version, managed-schema export scope and custody are settled. The next
@@ -370,11 +483,17 @@ verified. Record those facts at preflight rather than assume their defaults.
 Official technical sources checked November 5, 2026:
 
 - [Supabase database backups][sb-backups]
+- [Supabase pricing][sb-pricing] and [egress accounting][sb-egress]
+- [GitHub scheduled workflows][gh-schedule] and [Actions billing][gh-billing]
 - [Supabase CLI migration and managed-service recovery][sb-cli]
 - [PostgreSQL pg_dump][pg-dump] and [pg_restore][pg-restore]
 - [Restic repositories][restic-repos], [restore][restic-restore] and [retention][restic-retention]
 
 [sb-backups]: https://supabase.com/docs/guides/platform/backups
+[sb-pricing]: https://supabase.com/pricing
+[sb-egress]: https://supabase.com/docs/guides/platform/manage-your-usage/egress
+[gh-schedule]: https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#schedule
+[gh-billing]: https://docs.github.com/en/billing/concepts/product-billing/github-actions
 [sb-cli]: https://supabase.com/docs/guides/platform/migrating-within-supabase/backup-restore
 [pg-dump]: https://www.postgresql.org/docs/current/app-pgdump.html
 [pg-restore]: https://www.postgresql.org/docs/current/app-pgrestore.html
