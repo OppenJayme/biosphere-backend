@@ -107,6 +107,7 @@ system is not a reason to postpone all fixes until the end.
 
 | ID      | Date       | Module                     | Summary                                                                 | Severity    | Priority | Status | Owner                   |
 | ------- | ---------- | -------------------------- | ----------------------------------------------------------------------- | ----------- | -------- | ------ | ----------------------- |
+| [DEF-033](#def-033---exhibit-http-tests-inherit-the-local-public-site-url) | 2026-11-05 | Exhibits / HTTP test fixture | Local public URL changes three fixture URL/label expectations | S4 Minor | P2 | Ready for retest | Voltaire / Exhibits; Kyer assisting |
 | [DEF-032](#def-032---timestamp-only-archives-leak-into-active-catalog-and-breakdowns) | 2026-11-04 | Cataloging / Dashboard / Reports | Timestamp-only archived records appear in active reads and consolidated active quantities | S3 Moderate | P2 | Ready for retest | Kyer / Ivan; John / Charles downstream review |
 | [DEF-031](#def-031---timestamp-only-archived-records-appear-as-duplicate-candidates) | 2026-11-04 | Cataloging / Duplicates | Timestamp-only archived records pass the status-only candidate filter | S3 Moderate | P2 | Ready for retest | Kyer / Ivan; MarQtie finding |
 | [DEF-030](#def-030---lot-history-fails-on-a-database-enum-ahead-of-the-client) | 2026-10-31 | Inventory / Lot history | Retained TEMPORARY_ABSENCE cannot be decoded by develop Prisma; frontend also rejects the historical response value | S2 Major | P1 | Ready for retest | John / Inventory; Kyer assisting; Charles report |
@@ -141,6 +142,41 @@ system is not a reason to postpone all fixes until the end.
 | [DEF-015](#def-015---audit-http-fixture-omits-the-security-audit-create-method) | 2026-10-19 | Audit / HTTP test fixture | Missing security-audit create mock logs an error despite green denial test | S3 Moderate | P2 | Ready for retest | Audit tests / coordinate with Auth |
 
 ## 3. Defect details
+
+### DEF-033 - Exhibit HTTP tests inherit the local public site URL
+
+**Source:** User-supplied `BioSphere Backend Progress_11_5_2026.pdf`, pages 3-4;
+independently reproduced during this repair on backend base `be0571f`.
+**Severity / priority:** S4 Minor / P2; environment-dependent test failures,
+not an established product URL-generation defect.
+**Status:** Ready for retest; owner reproduction and repair checks pass,
+independent review pending.
+
+**Reproduction:** Run `test/exhibits.e2e-spec.ts` with synthetic process setting
+`PUBLIC_SITE_URL=https://external-config.example.invalid`. The existing public
+URL and label cases expect localhost, but the real QR service correctly honors
+the configured URL. The focused run produced the same three URL/label assertion
+failures reported in the PDF (8 passed, 49 skipped, 60 total). No external request
+to the synthetic destination was needed.
+
+**Repair:** Pin `PUBLIC_SITE_URL` to the fixture's localhost address before
+each test; restore the previous value, including absence, in `finally` after
+closing the test app. Only the test process environment changes. Production
+configuration, URL generation, labels and existing servers are untouched.
+
+**Verification - 2026-11-05:** All **60/60** tests in this HTTP file passed with
+the alternate synthetic URL still supplied to the process, and **60/60** passed
+again with that variable absent. Existing QR service unit tests passed **4/4**,
+including configured URL/fallback and production behavior. Changed-file lint
+and `git diff --check` passed. The PDF's 77-case exhibit total is not relabeled
+as this run: this named file contains 60 cases at the checked revision. Installed
+dependencies were reused and an isolated Prisma 7.10.1 client generated; this
+was not a clean install or a deployed QR/browser acceptance run.
+
+**Release follow-up:** The report separately warns about temporary tunnel URLs
+on printed labels. The deployment owner must verify the permanent public
+destination before printing. A test-fixture pin does not fix or validate live
+configuration; no user's `.env` was copied or edited for this reproduction.
 
 ### DEF-032 - Timestamp-only archives leak into active catalog and breakdowns
 
