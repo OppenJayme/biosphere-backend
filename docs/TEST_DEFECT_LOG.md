@@ -107,6 +107,8 @@ system is not a reason to postpone all fixes until the end.
 
 | ID      | Date       | Module                     | Summary                                                                 | Severity    | Priority | Status | Owner                   |
 | ------- | ---------- | -------------------------- | ----------------------------------------------------------------------- | ----------- | -------- | ------ | ----------------------- |
+| [DEF-033](#def-033---exhibit-http-tests-inherit-the-local-public-site-url) | 2026-11-05 | Exhibits / HTTP test fixture | Local public URL changes three fixture URL/label expectations | S4 Minor | P2 | Ready for retest | Voltaire / Exhibits; Kyer assisting |
+| [DEF-032](#def-032---timestamp-only-archives-leak-into-active-catalog-and-breakdowns) | 2026-11-04 | Cataloging / Dashboard / Reports | Timestamp-only archived records appear in active reads and consolidated active quantities | S3 Moderate | P2 | Ready for retest | Kyer / Ivan; John / Charles downstream review |
 | [DEF-031](#def-031---timestamp-only-archived-records-appear-as-duplicate-candidates) | 2026-11-04 | Cataloging / Duplicates | Timestamp-only archived records pass the status-only candidate filter | S3 Moderate | P2 | Ready for retest | Kyer / Ivan; MarQtie finding |
 | [DEF-030](#def-030---lot-history-fails-on-a-database-enum-ahead-of-the-client) | 2026-10-31 | Inventory / Lot history | Retained TEMPORARY_ABSENCE cannot be decoded by develop Prisma; frontend also rejects the historical response value | S2 Major | P1 | Ready for retest | John / Inventory; Kyer assisting; Charles report |
 | [DEF-029](#def-029---xlsx-xml-guard-rescans-unclosed-tags-quadratically) | 2026-10-29 | Cataloging / XLSX parser | Malformed unclosed XML tags trigger excessive synchronous regex rescanning | S2 Major | P1 | Verified (bounded independent retest) | Kyer; Voltaire independent retest |
@@ -141,6 +143,128 @@ system is not a reason to postpone all fixes until the end.
 
 ## 3. Defect details
 
+### DEF-033 - Exhibit HTTP tests inherit the local public site URL
+
+**Source:** User-supplied `BioSphere Backend Progress_11_5_2026.pdf`, pages 3-4;
+independently reproduced during this repair on backend base `be0571f`.
+**Severity / priority:** S4 Minor / P2; environment-dependent test failures,
+not an established product URL-generation defect.
+**Status:** Ready for retest; owner reproduction and repair checks pass,
+independent review pending.
+
+**Reproduction:** Run `test/exhibits.e2e-spec.ts` with synthetic process setting
+`PUBLIC_SITE_URL=https://external-config.example.invalid`. The existing public
+URL and label cases expect localhost, but the real QR service correctly honors
+the configured URL. The focused run produced the same three URL/label assertion
+failures reported in the PDF (8 passed, 49 skipped, 60 total). No external request
+to the synthetic destination was needed.
+
+**Repair:** Pin `PUBLIC_SITE_URL` to the fixture's localhost address before
+each test; restore the previous value, including absence, in `finally` after
+closing the test app. Only the test process environment changes. Production
+configuration, URL generation, labels and existing servers are untouched.
+
+**Verification - 2026-11-05:** All **60/60** tests in this HTTP file passed with
+the alternate synthetic URL still supplied to the process, and **60/60** passed
+again with that variable absent. Existing QR service unit tests passed **4/4**,
+including configured URL/fallback and production behavior. Changed-file lint
+and `git diff --check` passed. The PDF's 77-case exhibit total is not relabeled
+as this run: this named file contains 60 cases at the checked revision. Installed
+dependencies were reused and an isolated Prisma 7.10.1 client generated; this
+was not a clean install or a deployed QR/browser acceptance run.
+
+**Release follow-up:** The report separately warns about temporary tunnel URLs
+on printed labels. The deployment owner must verify the permanent public
+destination before printing. A test-fixture pin does not fix or validate live
+configuration; no user's `.env` was copied or edited for this reproduction.
+
+### DEF-032 - Timestamp-only archives leak into active catalog and breakdowns
+
+**Found:** 2026-11-04 in MarQtie's backend #230 review, reproduced in owned SQL.
+**Owners:** Kyer / Ivan, Cataloging; John / Charles, Dashboard and Reports.
+The user explicitly requested these downstream fixes after being notified of
+their ownership. **Severity/priority:** S3 Moderate / P2.
+**Status:** Ready for retest; owner SQL/service checks pass, independent and
+deployed acceptance pending. No inconsistent shared record was inspected.
+
+The legacy list and default search checked only status. Dashboard active
+category/duplicate breakdowns and the Uncataloged queue, plus consolidated
+report active category/condition/quantity breakdowns, likewise admitted a row
+with a non-null archive timestamp and a different stored status.
+
+An owned PostgreSQL fixture uses the repository's `0_init` baseline and a
+minimal synthetic external-auth reference, not a full Supabase deployment or
+all-migration replay. Five synthetic specimen states and three synthetic lots
+demonstrate the error through real Prisma and public services. Before each
+repair, search/list returned a third record instead of two; Dashboard included
+an archived category/queue row; report active lots were 3 and quantity 106
+instead of 2 and 7. The historical all-record total correctly remained 5.
+
+The scoped predicates require null `archived_at` for active reads. Following
+the November 5 review repair below, explicit ARCHIVED searches match either
+archive indicator, and Dashboard cards use that same partition. Direct legacy
+details preserve stored status/timestamp values. All-record totals, trends,
+recent history and Inventory report behavior are unchanged; consolidated current
+status counts now follow the same membership after the later follow-up below.
+No record is rewritten. Six SQL/service checks
+now pass, including archive discovery/filter/pagination and live-exhibit controls. Run
+`npm run test:archive-reads:db` with the existing pinned local Docker image.
+
+The helper accepts no supplied database URL and creates/removes only its owned
+loopback/tmpfs database. Real auth, browser flows, emitted report files, live
+inconsistent data and concurrency are not covered. The pre-existing pg
+concurrent-query deprecation warning is visible; it was not suppressed or fixed
+as part of this scope. Existing HTTP/regression and build results belong in
+the PR validation. This opt-in SQL suite is outside ordinary CI discovery.
+REQ-4.4-21's archive scope was a separate decision; the active-only scope was
+later approved by Sir Fidel (reported by John on 2026-11-05).
+
+Supporting validation: 65 existing unit tests and 84 existing protected HTTP
+tests passed across the affected services/controllers. The HTTP run emitted
+OBS-003's missing `audit_log.create` adapter error; source inspection identifies
+the Dashboard consumer fixture without that adapter. This is not a clean
+denial-audit persistence result, and no logger was suppressed. Changed-TypeScript
+lint, the backend build, document-link checks and whitespace checks passed.
+The initial SQL fixture lacked the baseline's external `auth.users` reference;
+adding a synthetic table corrected setup before the behavioral failures above.
+
+**Independent review repair - 2026-11-05:** MarQtie's [#231 review](https://github.com/OppenJayme/biosphere-backend/pull/231#pullrequestreview-5778830696)
+found that the original patch hid timestamp-only archives from every list,
+retained mismatching Dashboard status cards, and admitted timestamp-only archives
+to the live-exhibit count. The original preservation claim for stored-status-only
+archive search was incorrect; its SQL expectation has been corrected rather than
+treated as accepted behavior. Each finding was reproduced red at the public
+service/real PostgreSQL boundary before repair:
+
+- Archive search returned only IDs ending 0003/0005, missing 0004. It now returns
+  all three; a nonmatching text query returns none, and two-page results retain
+  all three once with total 3. Text OR is composed with archive OR through AND.
+- The five-record Dashboard partition was 2 Uncataloged / 1 Cataloged / 2 Archived;
+  it is now 1 / 1 / 3 and matches all three Cataloging status-filter totals.
+- A separate four-published-exhibit case counted two live instead of one. With
+  the archive timestamp enforced it yields one live / three unavailable. Its
+  two additional specimen controls are removed in finally in the owned fixture.
+
+`specimen-archive.policy.ts` centralizes active and archived SQL predicates for
+the touched Cataloging, duplicate, Dashboard and consolidated active-report reads.
+No shared constraint migration or historical-row repair is introduced. These
+separate read queries do not establish a single concurrent database snapshot.
+The updated suite passed 6/6 SQL cases, 88 existing unit cases and 84 existing
+HTTP cases; the HTTP run still exposes the documented OBS-003 adapter warning.
+MarQtie approved #231 at `168dce0`, and it is now merged. That source approval
+does not establish deployed acceptance. The later report follow-up below still
+requires its own review.
+
+**Consolidated report follow-up - 2026-11-05:** John's later [nonblocking review](https://github.com/OppenJayme/biosphere-backend/pull/231#discussion_r4475936341)
+identified the intentionally preserved raw-status report breakdown as a remaining
+inconsistency with the corrected Dashboard. The strengthened public-builder/real
+SQL assertion reproduced 2 Uncataloged / 1 Cataloged / 2 Archived, then passed
+at 1 / 1 / 3 after sharing effective membership. Total records remain 5 and
+active lots/quantity 2/7. Stored rows, period activity and Inventory detail
+filters are unchanged. See the [report guide](./REPORTS_GUIDE.md#consolidated-status-consistency-follow-up---2026-11-05)
+for scope and limits. This supplements the same defect, not a new duplicate ID
+or independent acceptance of the follow-up.
+
 ### DEF-031 - Timestamp-only archived records appear as duplicate candidates
 
 **Found:** 2026-11-04; MarQtie's OBS-006 source finding, reproduced against owned PostgreSQL.
@@ -161,8 +285,11 @@ remain present. Existing 23 duplicate units pass. The repair changes no record,
 matching score, merge/delete behavior or Inventory operation.
 
 Repeat and scope: [archive consistency regression](./SPECIMEN_DUPLICATES_GUIDE.md#archive-indicator-consistency-repair---2026-11-04).
-Curator/SRS disposition of REQ-4.4-21's archive exclusion remains blocking
-CAT-014 acceptance; fixing query consistency does not settle that policy.
+Fixing query consistency did not settle the REQ-4.4-21 archive-exclusion policy;
+that active-only scope was separately approved by Sir Fidel (reported by John on 2026-11-05).
+The separate Cataloging search, Dashboard active breakdown and consolidated
+report follow-ups are tracked in DEF-032; DEF-031 does not claim that every
+codebase consumer shares one archive interpretation.
 
 ### DEF-030 - Lot history fails on a database enum ahead of the client
 
@@ -173,8 +300,10 @@ queried directly during the repair.
 **Status:** Ready for retest; business decisions recorded 2026-11-01, see the
 disposition record below. Owner reproduction, isolated checks and both builds
 pass. Frozen-enum/read-only compatibility documentation is reconciled. Charles
-approved backend #221 and it was merged; controlled rollout/live retest and
-independent acceptance remain. The Prisma 7.10.1 database rerun passed on 2026-11-02.
+approved backend #221 and it was merged. The supplied November 5 report records
+a passing November 3-4 local API/Lots-page retest at `06545c0`; see below.
+Deployment identity, related consumer checks and independent final disposition
+remain. The Prisma 7.10.1 database rerun passed on 2026-11-02.
 
 **Actual:** The reported history endpoint returns 500. Source `0f80b67` contains
 an enum migration missing from develop's Prisma schema. An owned PostgreSQL
@@ -194,7 +323,30 @@ Write DTO/form choices remain the original seven; unsupported writes are
 rejected. No shared migration, row correction, rollback or runtime restart was
 performed. A later read-only preflight inspected the locally configured database;
 its identity as the shared deployment target is not independently confirmed.
-Independent and live retest pending.
+The later reported local API/page retest is recorded below; it does not verify
+every deployment or related consumer.
+
+**Supplied report retest - received 2026-11-05:**
+[BioSphere Backend Progress_11_5_2026.pdf](./evidence/backend-progress-2026-11-05.pdf),
+pages 4-5, reports testing on
+November 3-4 against a local backend build of develop `06545c0`, connected to
+hosted Supabase. As Curator, `GET /specimens/:id/lots/history` for
+`USC-BM-2026-0001` returned 200 with both entries, including the retained
+Temporary absence adjustment. The report also says the Lots page displayed
+the quantity adjustment. This is supplied report evidence, not a new execution
+by this agent. Tester identity, frontend revision/build and raw request evidence
+are not supplied in the PDF. It calls the target shared; its exact identity as
+the intended deployment is not independently established here.
+
+The original API/page symptom therefore has a **reported local retest pass**.
+No quantity or historical event was edited for this reconciliation. The report
+does not explicitly identify the unaffected-specimen control, retained-event
+report grouping or storage-inventory-history retests. Keep the aggregate status
+Ready for retest until the remaining scope is accepted or explicitly disposed
+of by the owner/reviewer; do not rerun the successful local subcase merely
+because the overall status is unchanged. Deployment verification remains separate.
+See [report intake and next actions](./BACKEND_REPORT_INTAKE_2026-11-05.md)
+and the [source hashes/copy provenance](./evidence/README.md).
 
 **User direction - 2026-10-31:** Kyer explicitly wants to retain the value and
 have a future borrowing option for current or successor curators. Record this
@@ -252,7 +404,8 @@ the historical enum value and (2) the reported quantity change under REQ-4.5-09 
 BR-08. If the Curator later gives a decision specific to (1), record it there.
 Preserve evidence and do not convert/delete historical events or recalculate
 quantities without a separately approved remediation. Charles approved #221;
-its deployment checks and live retest remain outstanding.
+its deployment checks and remaining retest disposition are separate from the
+reported local API/page pass above.
 
 **Read-only preflight - 2026-11-02:** Kyer relayed acceptance of retaining the
 adjustment and reaffirmed keeping the value. This is an accepted test action to
@@ -3499,6 +3652,12 @@ Ignored read-only diagnostic: frontend
 was undertaken, and no known records or running processes were modified.
 
 ### OBS-003 - Isolated HTTP tests log missing security-audit mock adapters
+
+**2026-11-04 scoped follow-up:** the DEF-032 regression run passed 84 tests in
+the specimen, Dashboard, Dashboard-consumer and Reports HTTP suites, while a
+denial logged the same missing-adapter error. `dashboard-consumers.e2e-spec.ts`
+does not provide `audit_log`; its role-denial assertion is not audit-persistence
+evidence. No auth/audit production or fixture repair is claimed by DEF-032.
 
 **Observed:** 2026-10-24 consolidated backend regression, checkout `44b661d`
 **Disposition:** Test-harness coverage limitation; no live audit failure established

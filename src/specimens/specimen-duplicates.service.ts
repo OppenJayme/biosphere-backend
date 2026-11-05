@@ -1,6 +1,7 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { ACTIVE_SPECIMEN_WHERE } from './specimen-archive.policy';
 import {
   DuplicateConfidence,
   DuplicateMatchField,
@@ -378,8 +379,7 @@ export class SpecimenDuplicatesService {
     if (or.length === 0) return null;
 
     return {
-      status: { not: 'ARCHIVED' },
-      archived_at: null,
+      ...ACTIVE_SPECIMEN_WHERE,
       ...(excludeSpecimenIds.length > 0
         ? { id: { notIn: excludeSpecimenIds } }
         : {}),

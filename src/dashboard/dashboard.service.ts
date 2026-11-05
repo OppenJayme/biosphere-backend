@@ -1,6 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import {
+  ACTIVE_SPECIMEN_WHERE,
+  ARCHIVED_SPECIMEN_WHERE,
+} from '../specimens/specimen-archive.policy';
 import { resolveStorageLocations } from '../storage-locations/storage-location-paths';
 import type {
   CategoryCount,
@@ -15,10 +19,6 @@ const CATALOGING_QUEUE_LIMIT = 5;
 const RECENT_SPECIMENS_LIMIT = 7;
 const PENDING_EXHIBITS_LIMIT = 3;
 const UNCATEGORIZED = 'Uncategorized';
-
-const ACTIVE_SPECIMEN = {
-  status: { not: 'ARCHIVED' },
-} satisfies Prisma.specimenWhereInput;
 
 const SPECIMEN_ROW_SELECT = {
   id: true,
@@ -99,6 +99,7 @@ export class DashboardService {
 
     const [
       byStatus,
+      archivedSpecimens,
       addedThisMonth,
       nameCategoryGroups,
       categoryGroups,
@@ -111,14 +112,19 @@ export class DashboardService {
       catalogingQueue,
       recentSpecimens,
     ] = await Promise.all([
-      this.prisma.specimen.groupBy({ by: ['status'], _count: { _all: true } }),
+      this.prisma.specimen.groupBy({
+        by: ['status'],
+        where: ACTIVE_SPECIMEN_WHERE,
+        _count: { _all: true },
+      }),
+      this.prisma.specimen.count({ where: ARCHIVED_SPECIMEN_WHERE }),
       this.prisma.specimen.count({
         where: { created_at: { gte: thisMonthStart } },
       }),
       this.prisma.specimen.groupBy({
         by: ['scientific_name', 'specimen_category'],
         where: {
-          ...ACTIVE_SPECIMEN,
+          ...ACTIVE_SPECIMEN_WHERE,
           scientific_name: { not: null },
           specimen_category: { not: null },
         },
@@ -126,7 +132,7 @@ export class DashboardService {
       }),
       this.prisma.specimen.groupBy({
         by: ['specimen_category'],
-        where: ACTIVE_SPECIMEN,
+        where: ACTIVE_SPECIMEN_WHERE,
         _count: { _all: true },
       }),
       Promise.all(
@@ -150,7 +156,11 @@ export class DashboardService {
           archived_at: null,
           status: 'PUBLISHED',
           // The public page re-checks these, so only such pages resolve.
-          specimen: { status: 'CATALOGED', public_display_allowed: true },
+          specimen: {
+            ...ACTIVE_SPECIMEN_WHERE,
+            status: 'CATALOGED',
+            public_display_allowed: true,
+          },
         },
       }),
       this.prisma.exhibit.findMany({
@@ -160,7 +170,7 @@ export class DashboardService {
         select: { id: true, public_slug: true },
       }),
       this.prisma.specimen.findMany({
-        where: { status: 'UNCATALOGED' },
+        where: { ...ACTIVE_SPECIMEN_WHERE, status: 'UNCATALOGED' },
         orderBy: [{ updated_at: 'desc' }, { id: 'asc' }],
         take: CATALOGING_QUEUE_LIMIT,
         select: SPECIMEN_ROW_SELECT,
@@ -174,6 +184,7 @@ export class DashboardService {
 
     const statusCounts = { UNCATALOGED: 0, CATALOGED: 0, ARCHIVED: 0 };
     for (const row of byStatus) statusCounts[row.status] = row._count._all;
+    statusCounts.ARCHIVED = archivedSpecimens;
 
     const exhibitCounts = { PUBLISHED: 0, UNPUBLISHED: 0, DISABLED: 0 };
     for (const row of exhibitsByStatus) {
