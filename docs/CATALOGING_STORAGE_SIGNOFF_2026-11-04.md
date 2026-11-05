@@ -93,7 +93,8 @@ Before and after the five attempts, the lots (ID, unit, condition, quantity,
 active), the lot-transaction count (0), the revision count (0) and the number of
 lots in B (1) were identical. As controls, moving 2 out of B into active C and
 reducing B by 1 both succeeded (B ended at 2, A stayed at 10, with 2
-transactions and 2 revisions). Result: **2/2 passed**. The cluster and the
+transactions and 2 revisions). Result: **all five rejection checks and both
+control operations passed**. The cluster and the
 temporary script were deleted afterwards; the script is not committed because
 the repository's disposable-database helper needs Docker, which this machine
 does not have.
