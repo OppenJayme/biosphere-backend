@@ -213,6 +213,13 @@ the new value; this is not Curator approval of a production idle-timeout policy.
 No new product defect was established by this checkpoint. Case/defect dispositions
 and both owners' plus an independent reviewer's acceptance below remain pending.
 
+Before opening this evidence PR, develop advanced to `9ec3fc7` with #240/#241.
+Those later changes include operational notification/offline-sync changes and
+`20261105000000_extend_notification_state_types`. They are outside this pinned
+checkpoint: the 10-migration result describes backend `0a864d4`, not that newer
+release. The later migration was not applied, and newer code was not served by
+these verification servers. This record must not be treated as its acceptance.
+
 | Module | Kyer acceptance/date | Ivan acceptance/date | Independent reviewer/date | Result | Accepted limitations and evidence |
 | --- | --- | --- | --- | --- | --- |
 | Cataloging Management | Pending | Pending | Pending | Pending | REQ-4.4-21 active-only duplicate scope approved by Sir Fidel (reported by John on 2026-11-05); no blanket completion claim |
