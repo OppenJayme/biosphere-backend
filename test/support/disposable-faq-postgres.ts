@@ -36,6 +36,10 @@ const DATABASE_PROFILES = {
     database: 'biosphere_offline_sync_disposable',
     optIn: 'RUN_OFFLINE_SYNC_DISPOSABLE_DB',
   },
+  'archive-reads': {
+    database: 'biosphere_archive_reads_disposable',
+    optIn: 'RUN_ARCHIVE_READS_DISPOSABLE_DB',
+  },
 } as const;
 type DatabaseScope = keyof typeof DATABASE_PROFILES;
 

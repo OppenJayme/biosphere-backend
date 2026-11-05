@@ -375,7 +375,7 @@ describe('SpecimensService', () => {
       }),
     ]);
     expect(specimenDelegate.findMany).toHaveBeenCalledWith({
-      where: { status: { not: 'ARCHIVED' } },
+      where: { status: { not: 'ARCHIVED' }, archived_at: null },
       orderBy: { created_at: 'desc' },
     });
   });
@@ -451,7 +451,9 @@ describe('SpecimensService', () => {
     expect(specimenDelegate.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({
-          status: SpecimenStatus.ARCHIVED,
+          AND: [
+            { OR: [{ status: 'ARCHIVED' }, { archived_at: { not: null } }] },
+          ],
           OR: expect.arrayContaining([{ id: SPECIMEN_ID }]),
         }),
       }),
