@@ -173,8 +173,10 @@ queried directly during the repair.
 **Status:** Ready for retest; business decisions recorded 2026-11-01, see the
 disposition record below. Owner reproduction, isolated checks and both builds
 pass. Frozen-enum/read-only compatibility documentation is reconciled. Charles
-approved backend #221 and it was merged; controlled rollout/live retest and
-independent acceptance remain. The Prisma 7.10.1 database rerun passed on 2026-11-02.
+approved backend #221 and it was merged. The supplied November 5 report records
+a passing November 3-4 local API/Lots-page retest at `06545c0`; see below.
+Deployment identity, related consumer checks and independent final disposition
+remain. The Prisma 7.10.1 database rerun passed on 2026-11-02.
 
 **Actual:** The reported history endpoint returns 500. Source `0f80b67` contains
 an enum migration missing from develop's Prisma schema. An owned PostgreSQL
@@ -194,7 +196,28 @@ Write DTO/form choices remain the original seven; unsupported writes are
 rejected. No shared migration, row correction, rollback or runtime restart was
 performed. A later read-only preflight inspected the locally configured database;
 its identity as the shared deployment target is not independently confirmed.
-Independent and live retest pending.
+The later reported local API/page retest is recorded below; it does not verify
+every deployment or related consumer.
+
+**Supplied report retest - received 2026-11-05:**
+`BioSphere Backend Progress_11_5_2026.pdf`, pages 4-5, reports testing on
+November 3-4 against a local backend build of develop `06545c0`, connected to
+hosted Supabase. As Curator, `GET /specimens/:id/lots/history` for
+`USC-BM-2026-0001` returned 200 with both entries, including the retained
+Temporary absence adjustment. The report also says the Lots page displayed
+the quantity adjustment. This is supplied report evidence, not a new execution
+by this agent. Tester identity, frontend revision/build and raw request evidence
+are not supplied in the PDF. It calls the target shared; its exact identity as
+the intended deployment is not independently established here.
+
+The original API/page symptom therefore has a **reported local retest pass**.
+No quantity or historical event was edited for this reconciliation. The report
+does not explicitly identify the unaffected-specimen control, retained-event
+report grouping or storage-inventory-history retests. Keep the aggregate status
+Ready for retest until the remaining scope is accepted or explicitly disposed
+of by the owner/reviewer; do not rerun the successful local subcase merely
+because the overall status is unchanged. Deployment verification remains separate.
+See [report intake and next actions](./BACKEND_REPORT_INTAKE_2026-11-05.md).
 
 **User direction - 2026-10-31:** Kyer explicitly wants to retain the value and
 have a future borrowing option for current or successor curators. Record this
@@ -252,7 +275,8 @@ the historical enum value and (2) the reported quantity change under REQ-4.5-09 
 BR-08. If the Curator later gives a decision specific to (1), record it there.
 Preserve evidence and do not convert/delete historical events or recalculate
 quantities without a separately approved remediation. Charles approved #221;
-its deployment checks and live retest remain outstanding.
+its deployment checks and remaining retest disposition are separate from the
+reported local API/page pass above.
 
 **Read-only preflight - 2026-11-02:** Kyer relayed acceptance of retaining the
 adjustment and reaffirmed keeping the value. This is an accepted test action to
