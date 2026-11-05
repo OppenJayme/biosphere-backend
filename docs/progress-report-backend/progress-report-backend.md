@@ -1,13 +1,22 @@
 # Backend progress report: biosphere-backend vs SRS v0.10
 
-Generated 2026-11-05 from `develop` @ `06545c0`. This is the same commit the last progress report examined, so any difference below is a reporting or testing difference, not new progress.
+> **Historical baseline, not current completion.** Every figure here describes
+> `develop` @ `06545c0` (3 Nov 2026), the commit the previous progress report
+> examined. `develop` has moved on since (37+ commits at review time), so do not
+> quote these percentages as the project's current completion.
+
+Generated 2026-11-05 from `develop` @ `06545c0`. Any difference from the last progress report is a reporting or testing difference, not new progress.
+
+**Review corrections (PR #240 review, 2026-11-05).** REQ-4.1-03 was marked Done because the backend exposes no sign-up route. The review found that the hosted Supabase project still has "Allow new users to sign up" enabled, so public Auth sign-up remains possible. REQ-4.1-03 is now Partial until sign-up is disabled in the hosted project and verified. The figures below are recalculated. (The hosted setting was reported by the reviewer and not re-checked in this run, which never contacts the shared project.)
+
+**Canonical report.** This folder (`docs/progress-report-backend/`, PR #240) is the team's canonical backend progress report and evidence set. The different copy committed on `feat/auth-account-gaps-20261105` is to be removed from that branch before it is proposed, so the two are never merged as competing versions.
 
 ## Overall
 
 | Measure | Value |
 | --- | --- |
-| **Verified backend progress** (Done only, weighted) | **89.6%** |
-| Same statuses scored the last report's way (Partial = 0.5) | 92.7% |
+| **Verified backend progress** (Done only, weighted) | **89.0%** |
+| Same statuses scored the last report's way (Partial = 0.5) | 92.4% |
 | Last report's claim (BioSphere Backend Progress, 3–4 Nov 2026) | 93% |
 | Live API cases | 789 run, **782 pass, 7 fail** (all 7 are genuine product gaps) |
 | Unit / E2E (Node 25 local) | 703/703; 440 pass, 3 fail (env `PUBLIC_SITE_URL`; exhibits 60/60 with default), 17 skipped |
@@ -89,44 +98,49 @@ The sources compared are the Backend Progress report (PR, 3–4 Nov, claims 93%)
 - **Last report.** "BioSphere Backend Progress", https://claude.ai/artifact/TfwD2P9CgCRiqe7vNtbbkj, dated 2026-11-03 (develop @ `06545c0`). It carries forward the per-requirement itemization of the 28 Oct Completion Report.
 - **Later reports.** No later report exists. No commits landed after it, so real progress since then is zero.
 
-**Verdict: broadly accurate, with one overstated module.**
+**Verdict: broadly accurate, with two overstated modules.**
 
 | | Value |
 | --- | --- |
 | Claimed overall | 93% |
-| Actual, Done-only (this report's formula) | 89.6% (**−3.4 pts**) |
-| Actual, same statuses scored the report's way | 92.7% (−0.3 pts) |
+| Actual, Done-only (this report's formula) | 89.0% (**−4.0 pts**) |
+| Actual, same statuses scored the report's way | 92.4% (−0.6 pts) |
 
-- **Where the gap comes from.** Almost all of it is the scoring method: the report gave half-credit to Partials. It is not a status error.
-- **The status error.** §4.2 was claimed at 97%, but the report's own gap list and the tests support 83%.
-- **Requirement rows (192).** Aligned 168, Overstated 0, Understated 1 (4.1-09), Not in report 23.
+- **Where the gap comes from.** Most of it is the scoring method: the report gave half-credit to Partials. The rest is two status errors.
+- **Status errors.**
+  - §4.2 was claimed at 97%, but the report's own gap list and the tests support 83%.
+  - §4.1 was claimed at 85%, but with REQ-4.1-03 corrected the same scoring gives 80%.
+- **Requirement rows (192).** Aligned 167, Overstated 1 (4.1-03), Understated 1 (4.1-09), Not in report 23.
+  - **4.1-03:** counted Done for the backend, but hosted Supabase still allows public sign-up (see the review correction above).
   - **4.1-09:** the successor-invite path existed since 7 Oct, before the report.
   - **The 23 "Not in report" rows:** frontend-only or provider-managed requirements whose backend applicability the report never itemized.
-- **Modules (15).** Aligned 14, Overstated 1 (§4.2), Understated 0, Not in report 0.
+- **Modules (15).** Aligned 13, Overstated 2 (§4.1, §4.2), Understated 0, Not in report 0. A module is Aligned when its status matches and today's statuses, scored the last report's way, are within 3 points of its claim.
 - **Missed by the report.** The Developer-onboarding gating defect (new), and an understated severity on the QR tunnel URL.
 
 ## Blockers
 
+- Public sign-up must be disabled in the hosted Supabase project and verified before REQ-4.1-03 can be Done (deployment/auth owner).
 - Backup/restore procedure and a disposable restore target (4.15) have not been approved.
 - A decision is needed on curator vs Developer account control (4.1-08/09).
 - The shared-DB content cleanup (FAQ placeholder, exhibit content, test records) and a permanent `PUBLIC_SITE_URL`/`FRONTEND_URL` are owed by the deployment and content owners.
 
 ## Work remaining
 
-1. Gate Developer-onboarded invitees, and expose invite state on `/developer/curators`.
-2. Build curator activation/handover, or record the scope decision.
-3. Add operational notifications (sync failure and the rest of 4.3-10).
-4. Build backup job, failure alert, restore, restore audit, and one documented backup/restore test (4.15-05..12).
-5. Add AR metadata/compatibility checks.
-6. Audit password events.
-7. Add an inactivity timeout.
+1. Disable public sign-up in the hosted Supabase Auth settings and verify it (REQ-4.1-03).
+2. Gate Developer-onboarded invitees, and expose invite state on `/developer/curators`.
+3. Build curator activation/handover, or record the scope decision.
+4. Add operational notifications (sync failure and the rest of 4.3-10).
+5. Build backup job, failure alert, restore, restore audit, and one documented backup/restore test (4.15-05..12).
+6. Add AR metadata/compatibility checks.
+7. Audit password events.
+8. Add an inactivity timeout.
 
 
 ## Module comparison table
 
 | Module | Owner | Last report % | Last report status | Verified % (Done only) | Verified % (last report's method) | Alignment |
 | --- | --- | --- | --- | --- | --- | --- |
-| §4.1 Authentication and Curator Account Management | Voltaire Ratilla | 85% | Partial | 73.3% | 83.3% | **Aligned** |
+| §4.1 Authentication and Curator Account Management | Voltaire Ratilla | 85% | Partial | 66.7% | 80.0% | **Overstated** |
 | §4.2 Restricted Developer Functions | Voltaire Ratilla | 97% | Partial | 66.7% | 83.3% | **Overstated** |
 | §4.3 Curator Dashboard and Notifications | Charles Boquecosa, John Gerozaga | 88% | Partial | 73.3% | 86.7% | **Aligned** |
 | §4.4 Specimen Inventory and Cataloging | Kyer Jayme, John Gerozaga | 100% | Done | 100.0% | 100.0% | **Aligned** |
@@ -151,12 +165,13 @@ Owners come from `docs/ACCEPTANCE_TEST_PLAN.md` §3. Git history corroborates th
 | Charles Boquecosa | §4.3, §4.8, §4.9, §4.10 | 36 | 94.3% | 97.1% |
 | John Gerozaga | §4.3, §4.4, §4.5, §4.7, §4.8, §4.10 | 70 | 97.1% | 98.6% |
 | Kyer Jayme | §4.4, §4.6, §4.7, §4.11, §4.14, §4.15 | 78 | 89.6% | 90.9% |
-| Voltaire Ratilla | §4.1, §4.2, §4.10, §4.12, §4.13 | 43 | 83.3% | 90.5% |
+| Voltaire Ratilla | §4.1, §4.2, §4.10, §4.12, §4.13 | 43 | 81.0% | 89.3% |
 
 ## Rows that are not Aligned
 
 | SRS ID | Module | Last report | Verified | Alignment | Why |
 | --- | --- | --- | --- | --- | --- |
+| REQ-4.1-03 | §4.1 | Done | Partial | **Overstated** | Backend exposes no sign-up route, but per PR #240 review (2026-11-05) the hosted Supabase project has "Allow new users to sign up" enabled, so public Auth sign-up is still possible (such users get no BioSphere account). Done only after sign-up is disabled in the hosted project and verified. |
 | REQ-4.1-09 | §4.1 | Not Started | Partial | **Understated** | A successor can be invited as a separate account, but there is no handover step linking/retaining/deactivating the outgoing account. |
 | REQ-4.1-10 | §4.1 | Not itemized | N/A | **Not in report** | not itemized; backend applicability not stated in the last report |
 | REQ-4.1-19 | §4.1 | Not itemized | N/A | **Not in report** | not itemized; backend applicability not stated in the last report |
@@ -184,15 +199,15 @@ Owners come from `docs/ACCEPTANCE_TEST_PLAN.md` §3. Git history corroborates th
 
 ## Requirement tables per module
 
-### §4.1 Authentication and Curator Account Management — 73.3%
+### §4.1 Authentication and Curator Account Management — 66.7%
 
-Owner: **Voltaire Ratilla** (Acceptance plan §3: Authentication and Access Control). Last report: 85% → verified 73.3%; **Aligned**. Done 11, Partial 3, Not Started 1 of 15 backend-applicable; API cases 552 passed / 4 failed.
+Owner: **Voltaire Ratilla** (Acceptance plan §3: Authentication and Access Control). Last report: 85% → verified 66.7%; **Overstated**. Done 10, Partial 4, Not Started 1 of 15 backend-applicable; API cases 552 passed / 4 failed.
 
 | SRS ID | Requirement | Status | Test result | Last report | Alignment | Owner |
 | --- | --- | --- | --- | --- | --- | --- |
 | REQ-4.1-01 | Authenticate registered, active curators before curator functions | **Done** | 3 pass / 0 fail | Done | Aligned | Voltaire Ratilla |
 | REQ-4.1-02 | Separate credentials per curator; no credential sharing | **Done** | 1 pass / 0 fail | Done | Aligned | Voltaire Ratilla |
-| REQ-4.1-03 | No public self-registration for curator accounts | **Done** | 0 pass / 0 fail; static: Route inventory: the only public auth routes are /auth/login and /auth/onboarding/complete; no sign-up route exists. | Done | Aligned | Voltaire Ratilla |
+| REQ-4.1-03 | No public self-registration for curator accounts | **Partial** | 0 pass / 0 fail; gap: Backend exposes no sign-up route, but per PR #240 review (2026-11-05) the hosted Supabase project has "Allow new users to sign up" enabled, so public Auth sign-up is still possible (such users get no BioSphere account). Done only after sign-up is disabled in the hosted project and verified.; static: Route inventory: the only public auth routes are /auth/login and /auth/onboarding/complete; no sign-up route exists. | Done | Overstated | Voltaire Ratilla |
 | REQ-4.1-04 | Protected authenticated session after login | **Done** | 2 pass / 0 fail | Done | Aligned | Voltaire Ratilla |
 | REQ-4.1-05 | Secure logout and session end after logout or approved inactivity timeout | **Partial** | 0 pass / 0 fail; gap: Logout is the frontend Supabase signOut; the backend rejects revoked sessions because it validates each token with Supabase, but there is no inactivity timeout. | Partial | Aligned | Voltaire Ratilla |
 | REQ-4.1-06 | Block unauthenticated access to protected routes, data and API operations | **Done** | 260 pass / 0 fail | Done | Aligned | Voltaire Ratilla |

@@ -8,16 +8,17 @@
     "claimedPercent": 93
   },
   "formula": "Module % = 100 x sum(w_i x [status_i = Done]) / sum(w_i) over backend-applicable requirements; w = 2 for High, 1 for Medium SRS priority. Partial and Not Started earn 0. Overall uses the same formula over all backend-applicable requirements.",
-  "overallPercent": 89.6,
-  "overallPercentLastReportMethod": 92.7,
+  "overallPercent": 89.0,
+  "overallPercentLastReportMethod": 92.4,
   "alignmentCounts": {
-    "Aligned": 168,
+    "Aligned": 167,
+    "Overstated": 1,
     "Understated": 1,
     "Not in report": 23
   },
   "moduleAlignmentCounts": {
-    "Aligned": 14,
-    "Overstated": 1
+    "Overstated": 2,
+    "Aligned": 13
   },
   "apiTests": {
     "cases": 789,
@@ -75,8 +76,8 @@
         "§4.13"
       ],
       "requirements": 43,
-      "percent": 83.3,
-      "percentLastReportMethod": 90.5
+      "percent": 81.0,
+      "percentLastReportMethod": 89.3
     }
   ],
   "ownershipNote": "Owners from docs/ACCEPTANCE_TEST_PLAN.md §3 (assignment list). Git history corroborates Kyer (OppenJayme/Kyer Ivan), Charles (Charles Benedict/WhiteBeard) and John (John Mark); the handle raidiniom is not mapped to a named member anywhere in the repo, so it is not used to assign ownership.",
@@ -86,15 +87,15 @@
       "section": "4.1",
       "owner": "Voltaire Ratilla",
       "ownerBasis": "Acceptance plan §3: Authentication and Access Control",
-      "percent": 73.3,
-      "percentLastReportMethod": 83.3,
+      "percent": 66.7,
+      "percentLastReportMethod": 80.0,
       "lastReportPercent": 85,
       "status": "Partial",
       "lastReportStatus": "Partial",
-      "alignment": "Aligned",
+      "alignment": "Overstated",
       "applicable": 15,
-      "done": 11,
-      "partial": 3,
+      "done": 10,
+      "partial": 4,
       "notStarted": 1,
       "testsPassed": 552,
       "testsFailed": 4,
@@ -148,13 +149,13 @@
             "(absence of any public sign-up route)"
           ],
           "weight": 2,
-          "status": "Done",
+          "status": "Partial",
           "lastReportStatus": "Done",
-          "alignment": "Aligned",
+          "alignment": "Overstated",
           "testsPassed": 0,
           "testsFailed": 0,
           "automatedEvidence": [],
-          "gap": null,
+          "gap": "Backend exposes no sign-up route, but per PR #240 review (2026-11-05) the hosted Supabase project has \"Allow new users to sign up\" enabled, so public Auth sign-up is still possible (such users get no BioSphere account). Done only after sign-up is disabled in the hosted project and verified.",
           "staticEvidence": "Route inventory: the only public auth routes are /auth/login and /auth/onboarding/complete; no sign-up route exists.",
           "failures": []
         },
