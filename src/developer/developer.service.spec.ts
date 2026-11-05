@@ -7,16 +7,23 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { Prisma } from '../generated/prisma/client';
 import { DeveloperService } from './developer.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { SUPABASE_CLIENT } from '../supabase/supabase.constants';
 import { StorageService } from '../supabase/storage.service';
+import { glbBytes } from '../../test/fixtures/glb';
+import { EXTERNAL_GLB_REFERENCES } from './glb-validation';
 
 // ---------------------------------------------------------------------------
 // Mocks
 // ---------------------------------------------------------------------------
 
 const prismaMock = {
+  users: {
+    findFirst: jest.fn(),
+    findMany: jest.fn(),
+  },
   user_account: {
     findMany: jest.fn(),
     create: jest.fn(),
@@ -43,6 +50,7 @@ const supabaseMock = {
     admin: {
       inviteUserByEmail: jest.fn(),
       updateUserById: jest.fn(),
+      deleteUser: jest.fn(),
     },
   },
 };
@@ -50,6 +58,7 @@ const supabaseMock = {
 const storageServiceMock = {
   upload: jest.fn(),
   remove: jest.fn(),
+  download: jest.fn(),
 };
 
 const FRONTEND_URL = 'https://app.biosphere.test';
@@ -70,7 +79,7 @@ function fakeFile(
     encoding: '7bit',
     mimetype: 'model/gltf-binary',
     size: 1024,
-    buffer: Buffer.from('fake glb bytes'),
+    buffer: glbBytes(),
     destination: '',
     filename: '',
     path: '',
@@ -125,6 +134,13 @@ describe('DeveloperService', () => {
       error: null,
     });
     storageServiceMock.remove.mockResolvedValue(undefined);
+    storageServiceMock.download.mockResolvedValue(glbBytes());
+    prismaMock.users.findFirst.mockResolvedValue(null);
+    prismaMock.users.findMany.mockResolvedValue([]);
+    supabaseMock.auth.admin.deleteUser.mockResolvedValue({
+      data: {},
+      error: null,
+    });
     prismaMock.exhibit.findUnique.mockResolvedValue(approvedExhibit());
 
     prismaMock.user_account.findUnique.mockResolvedValue({
@@ -165,6 +181,9 @@ describe('DeveloperService', () => {
       };
 
       prismaMock.user_account.findMany.mockResolvedValue([row]);
+      prismaMock.users.findMany.mockResolvedValue([
+        { id: 'auth-a', raw_app_meta_data: { role: 'CURATOR' } },
+      ]);
 
       const result = await service.listCuratorAccounts();
 
@@ -179,11 +198,35 @@ describe('DeveloperService', () => {
           fullName: 'Curator A',
           role: 'CURATOR',
           status: 'ACTIVE',
+          inviteAccepted: true,
           avatarPath: null,
           createdAt: row.created_at,
           updatedAt: row.updated_at,
         },
       ]);
+    });
+
+    it.each([
+      ['has no password', []],
+      [
+        'has the pending flag, even with a stored hash',
+        [
+          {
+            id: 'auth-a',
+            raw_app_meta_data: { onboarding_pending: true },
+          },
+        ],
+      ],
+    ])('reports a curator who %s as not accepted', async (_name, users) => {
+      prismaMock.user_account.findMany.mockResolvedValue([
+        { id: 'a', auth_user_id: 'auth-a', status: 'ACTIVE' },
+      ]);
+      prismaMock.users.findMany.mockResolvedValue(users);
+
+      const [curator] = await service.listCuratorAccounts();
+
+      expect(curator.status).toBe('ACTIVE');
+      expect(curator.inviteAccepted).toBe(false);
     });
   });
 
@@ -224,7 +267,7 @@ describe('DeveloperService', () => {
       );
       expect(supabaseMock.auth.admin.updateUserById).toHaveBeenCalledWith(
         'auth-user-1',
-        { app_metadata: { role: 'CURATOR' } },
+        { app_metadata: { role: 'CURATOR', onboarding_pending: true } },
       );
       expect(prismaMock.user_account.create).toHaveBeenCalledWith({
         data: {
@@ -240,6 +283,7 @@ describe('DeveloperService', () => {
         fullName: dto.fullName,
         role: 'CURATOR',
         status: 'ACTIVE',
+        inviteAccepted: false,
         avatarPath: null,
         createdAt: createdRow.created_at,
         updatedAt: createdRow.updated_at,
@@ -254,6 +298,74 @@ describe('DeveloperService', () => {
           }),
         }),
       );
+    });
+
+    it('refuses an email that already has an auth user, without re-inviting', async () => {
+      prismaMock.users.findFirst.mockResolvedValue({ id: 'auth-pending' });
+
+      await expect(
+        service.onboardInitialCurator(
+          { ...dto, email: 'NEW.Curator@example.com' },
+          ACTING_DEVELOPER_AUTH_ID,
+        ),
+      ).rejects.toThrow(ConflictException);
+
+      expect(prismaMock.users.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            email: { equals: 'NEW.Curator@example.com', mode: 'insensitive' },
+          },
+        }),
+      );
+      expect(supabaseMock.auth.admin.inviteUserByEmail).not.toHaveBeenCalled();
+      expect(prismaMock.user_account.create).not.toHaveBeenCalled();
+      expect(prismaMock.audit_log.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            action: 'ONBOARD_CURATOR',
+            status: 'FAILED',
+          }),
+        }),
+      );
+    });
+
+    it('removes the invite when the pending flag cannot be stored', async () => {
+      supabaseMock.auth.admin.inviteUserByEmail.mockResolvedValue({
+        data: { user: { id: 'auth-user-3' } },
+        error: null,
+      });
+      supabaseMock.auth.admin.updateUserById.mockResolvedValue({
+        data: {},
+        error: { message: 'provider down' },
+      });
+
+      await expect(
+        service.onboardInitialCurator(dto, ACTING_DEVELOPER_AUTH_ID),
+      ).rejects.toThrow(InternalServerErrorException);
+
+      expect(supabaseMock.auth.admin.deleteUser).toHaveBeenCalledWith(
+        'auth-user-3',
+      );
+      expect(prismaMock.user_account.create).not.toHaveBeenCalled();
+    });
+
+    it('keeps the auth user when the account row already exists', async () => {
+      supabaseMock.auth.admin.inviteUserByEmail.mockResolvedValue({
+        data: { user: { id: 'auth-user-4' } },
+        error: null,
+      });
+      prismaMock.user_account.create.mockRejectedValue(
+        new Prisma.PrismaClientKnownRequestError('duplicate', {
+          code: 'P2002',
+          clientVersion: 'test',
+        }),
+      );
+
+      await expect(
+        service.onboardInitialCurator(dto, ACTING_DEVELOPER_AUTH_ID),
+      ).rejects.toThrow(ConflictException);
+
+      expect(supabaseMock.auth.admin.deleteUser).not.toHaveBeenCalled();
     });
 
     it('throws ConflictException and audits FAILED when the invite errors', async () => {
@@ -290,6 +402,9 @@ describe('DeveloperService', () => {
         service.onboardInitialCurator(dto, ACTING_DEVELOPER_AUTH_ID),
       ).rejects.toThrow(InternalServerErrorException);
 
+      expect(supabaseMock.auth.admin.deleteUser).toHaveBeenCalledWith(
+        'auth-user-2',
+      );
       expect(prismaMock.audit_log.create).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
@@ -298,6 +413,114 @@ describe('DeveloperService', () => {
           }),
         }),
       );
+    });
+  });
+
+  // ===========================================================
+  // GLB structure — REQ-4.2-05
+  // ===========================================================
+  describe('GLB structure checks', () => {
+    const externalModel = glbBytes({ buffers: [{ uri: 'model.bin' }] });
+    const storedAsset = {
+      id: 'asset-1',
+      exhibit_id: 'exhibit-1',
+      storage_path: 'exhibit-1/old.glb',
+      model_format: 'glb',
+      is_enabled: false,
+    };
+
+    it('refuses an upload with external references before storing it', async () => {
+      await expect(
+        service.createArAsset(
+          fakeFile({ buffer: externalModel }),
+          {
+            exhibitId: 'exhibit-1',
+            modelFormat: 'glb',
+            authorizationReference: AUTH_REF,
+          },
+          ACTING_DEVELOPER_AUTH_ID,
+        ),
+      ).rejects.toThrow(EXTERNAL_GLB_REFERENCES);
+
+      expect(storageServiceMock.upload).not.toHaveBeenCalled();
+      expect(prismaMock.audit_log.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            action: 'CREATE_AR_ASSET',
+            status: 'FAILED',
+          }),
+        }),
+      );
+    });
+
+    it('does not parse a usdz model as glTF', async () => {
+      prismaMock.ar_asset.findUnique.mockResolvedValue({
+        ...storedAsset,
+        model_format: 'usdz',
+      });
+      prismaMock.ar_asset.update.mockResolvedValue({
+        ...storedAsset,
+        model_format: 'usdz',
+        is_enabled: true,
+      });
+
+      await service.setArAssetEnabled(
+        'asset-1',
+        true,
+        ACTING_DEVELOPER_AUTH_ID,
+        AUTH_REF,
+      );
+
+      expect(storageServiceMock.download).not.toHaveBeenCalled();
+    });
+
+    it('refuses to activate a stored model with external references', async () => {
+      prismaMock.ar_asset.findUnique.mockResolvedValue(storedAsset);
+      storageServiceMock.download.mockResolvedValue(externalModel);
+
+      await expect(
+        service.setArAssetEnabled(
+          'asset-1',
+          true,
+          ACTING_DEVELOPER_AUTH_ID,
+          AUTH_REF,
+        ),
+      ).rejects.toThrow(EXTERNAL_GLB_REFERENCES);
+
+      expect(storageServiceMock.download).toHaveBeenCalledWith(
+        'ar-assets',
+        'exhibit-1/old.glb',
+      );
+      expect(prismaMock.ar_asset.update).not.toHaveBeenCalled();
+    });
+
+    it('refuses to enable a stored model through a metadata update', async () => {
+      prismaMock.ar_asset.findUnique.mockResolvedValue(storedAsset);
+      storageServiceMock.download.mockResolvedValue(externalModel);
+
+      await expect(
+        service.updateArAsset(
+          'asset-1',
+          undefined,
+          { isEnabled: true, authorizationReference: AUTH_REF },
+          ACTING_DEVELOPER_AUTH_ID,
+        ),
+      ).rejects.toThrow(EXTERNAL_GLB_REFERENCES);
+
+      expect(prismaMock.ar_asset.update).not.toHaveBeenCalled();
+    });
+
+    it('does not re-read the stored model when deactivating', async () => {
+      prismaMock.ar_asset.findUnique.mockResolvedValue(storedAsset);
+      prismaMock.ar_asset.update.mockResolvedValue(storedAsset);
+
+      await service.setArAssetEnabled(
+        'asset-1',
+        false,
+        ACTING_DEVELOPER_AUTH_ID,
+      );
+
+      expect(storageServiceMock.download).not.toHaveBeenCalled();
     });
   });
 
@@ -384,6 +607,7 @@ describe('DeveloperService', () => {
         fullName: 'Curator One',
         role: 'CURATOR',
         status: 'INACTIVE',
+        inviteAccepted: false,
         avatarPath: null,
         createdAt: updatedRow.created_at,
         updatedAt: updatedRow.updated_at,

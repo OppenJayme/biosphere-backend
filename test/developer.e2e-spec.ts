@@ -8,6 +8,7 @@ import { PrismaClient } from '../src/generated/prisma/client';
 import { randomUUID } from 'node:crypto';
 import * as dotenv from 'dotenv';
 import { AppModule } from './../src/app.module';
+import { glbBytes } from './fixtures/glb';
 
 dotenv.config();
 
@@ -24,9 +25,7 @@ dotenv.config();
 
 const describeLiveDeveloperE2e =
   process.env.RUN_LIVE_DEVELOPER_E2E === 'true' ? describe : describe.skip;
-const VALID_GLB_HEADER = Buffer.from([
-  0x67, 0x6c, 0x54, 0x46, 0x02, 0x00, 0x00, 0x00, 0x0c, 0x00, 0x00, 0x00,
-]);
+const VALID_GLB_HEADER = glbBytes();
 const AUTHORIZATION_REFERENCE = 'Live e2e: curator AR approval memo';
 
 describeLiveDeveloperE2e('Developer module (live e2e)', () => {

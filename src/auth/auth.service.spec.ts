@@ -1,11 +1,13 @@
 import {
-  ConflictException,
+  BadRequestException,
   ForbiddenException,
   ServiceUnavailableException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
+import { AuthSessionMissingError } from '@supabase/supabase-js';
+import { MailService } from '../mail/mail.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { createSupabaseAuthClient } from '../supabase/supabase-auth-client.factory';
 import { SUPABASE_CLIENT } from '../supabase/supabase.constants';
@@ -20,7 +22,7 @@ const supabaseMock = {
   auth: {
     signInWithPassword: jest.fn(),
     getUser: jest.fn(),
-    admin: { updateUserById: jest.fn() },
+    admin: { updateUserById: jest.fn(), signOut: jest.fn() },
   },
 };
 
@@ -28,16 +30,17 @@ const supabaseMock = {
 const authClientMock = {
   auth: {
     signInWithPassword: jest.fn(),
+    resetPasswordForEmail: jest.fn(),
   },
 };
 
 const userAccountFindUnique = jest.fn();
-const usersCount = jest.fn();
+const usersFindFirst = jest.fn();
 const prismaMock = {
   user_account: {
     findUnique: userAccountFindUnique,
   },
-  users: { count: usersCount },
+  users: { findFirst: usersFindFirst },
 };
 
 const configServiceMock = {
@@ -45,6 +48,15 @@ const configServiceMock = {
 };
 
 const securityAuditMock = { record: jest.fn() };
+const mailMock = { send: jest.fn() };
+
+// Shaped like a provider access token; only the payload is ever read.
+function tokenWithAmr(method: string) {
+  const payload = Buffer.from(
+    JSON.stringify({ amr: [{ method, timestamp: 1 }] }),
+  ).toString('base64url');
+  return `header.${payload}.signature`;
+}
 
 const authUser = {
   id: 'auth-user-1',
@@ -71,6 +83,7 @@ describe('AuthService', () => {
         { provide: PrismaService, useValue: prismaMock },
         { provide: ConfigService, useValue: configServiceMock },
         { provide: SecurityAuditService, useValue: securityAuditMock },
+        { provide: MailService, useValue: mailMock },
       ],
     }).compile();
 
@@ -401,43 +414,20 @@ describe('AuthService', () => {
       });
     });
 
-    it('refuses to complete onboarding before a password exists', async () => {
+    it('sets the password and clears the flag in one provider update, audited without secrets', async () => {
       sessionFor(pendingUser);
-      usersCount.mockResolvedValue(0);
 
       await expect(
-        service.completeOnboarding('invite-session-token'),
-      ).rejects.toBeInstanceOf(ConflictException);
-
-      expect(usersCount).toHaveBeenCalledWith({
-        where: {
-          id: 'auth-user-1',
-          AND: [
-            { encrypted_password: { not: null } },
-            { encrypted_password: { not: '' } },
-          ],
-        },
-      });
-      expect(supabaseMock.auth.admin.updateUserById).not.toHaveBeenCalled();
-      expect(securityAuditMock.record).toHaveBeenCalledWith({
-        action: 'ONBOARDING_COMPLETED',
-        result: 'FAILED',
-        accountId: 'account-1',
-        details: { reason: 'PASSWORD_NOT_SET' },
-      });
-    });
-
-    it('completes onboarding once the password is set and audits it without secrets', async () => {
-      sessionFor(pendingUser);
-      usersCount.mockResolvedValue(1);
-
-      await expect(
-        service.completeOnboarding('invite-session-token'),
+        service.completeOnboarding('invite-session-token', 'chosen-password'),
       ).resolves.toEqual({ onboardingComplete: true });
 
+      expect(supabaseMock.auth.admin.updateUserById).toHaveBeenCalledTimes(1);
       expect(supabaseMock.auth.admin.updateUserById).toHaveBeenCalledWith(
         'auth-user-1',
-        { app_metadata: { onboarding_pending: false } },
+        {
+          app_metadata: { onboarding_pending: false },
+          password: 'chosen-password',
+        },
       );
       expect(securityAuditMock.record).toHaveBeenCalledWith({
         action: 'ONBOARDING_COMPLETED',
@@ -446,7 +436,19 @@ describe('AuthService', () => {
         details: { method: 'PASSWORD_SETUP' },
       });
       expect(auditedValues()).not.toContain('invite-session-token');
-      expect(auditedValues()).not.toMatch(/password"|token"|secret/i);
+      expect(auditedValues()).not.toContain('chosen-password');
+    });
+
+    it('reports a password the provider refuses and keeps the invite pending', async () => {
+      sessionFor(pendingUser);
+      supabaseMock.auth.admin.updateUserById.mockResolvedValue({
+        data: {},
+        error: { message: 'weak', code: 'weak_password', status: 422 },
+      });
+
+      await expect(
+        service.completeOnboarding('invite-session-token', 'password'),
+      ).rejects.toBeInstanceOf(BadRequestException);
     });
 
     it('allows protected access after onboarding is complete', async () => {
@@ -462,9 +464,8 @@ describe('AuthService', () => {
       sessionFor(onboardedUser);
 
       await expect(
-        service.completeOnboarding('session-token'),
+        service.completeOnboarding('session-token', 'another-password'),
       ).resolves.toEqual({ onboardingComplete: true });
-      expect(usersCount).not.toHaveBeenCalled();
       expect(supabaseMock.auth.admin.updateUserById).not.toHaveBeenCalled();
       expect(securityAuditMock.record).not.toHaveBeenCalled();
     });
@@ -477,7 +478,7 @@ describe('AuthService', () => {
       });
 
       await expect(
-        service.completeOnboarding('invite-session-token'),
+        service.completeOnboarding('invite-session-token', 'chosen-password'),
       ).rejects.toBeInstanceOf(ForbiddenException);
       expect(supabaseMock.auth.admin.updateUserById).not.toHaveBeenCalled();
     });
@@ -489,21 +490,20 @@ describe('AuthService', () => {
       });
 
       await expect(
-        service.completeOnboarding('bad-token'),
+        service.completeOnboarding('bad-token', 'chosen-password'),
       ).rejects.toBeInstanceOf(UnauthorizedException);
       expect(userAccountFindUnique).not.toHaveBeenCalled();
     });
 
     it('reports a provider failure instead of claiming completion', async () => {
       sessionFor(pendingUser);
-      usersCount.mockResolvedValue(1);
       supabaseMock.auth.admin.updateUserById.mockResolvedValue({
         data: {},
         error: { message: 'down' },
       });
 
       await expect(
-        service.completeOnboarding('invite-session-token'),
+        service.completeOnboarding('invite-session-token', 'chosen-password'),
       ).rejects.toBeInstanceOf(ServiceUnavailableException);
       expect(securityAuditMock.record).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -541,6 +541,287 @@ describe('AuthService', () => {
       });
       expect(auditedValues()).not.toContain('secret-password');
       expect(auditedValues()).not.toContain('access-token');
+    });
+  });
+
+  describe('passwords', () => {
+    const user = {
+      id: 'auth-user-1',
+      accountId: 'account-1',
+      email: 'curator@example.com',
+      role: 'CURATOR' as const,
+    };
+    const passwords = {
+      currentPassword: 'current-secret',
+      newPassword: 'replacement-secret',
+    };
+    const auditedSecrets = () =>
+      JSON.stringify(securityAuditMock.record.mock.calls);
+
+    beforeEach(() => {
+      supabaseMock.auth.admin.updateUserById.mockResolvedValue({
+        data: {},
+        error: null,
+      });
+      supabaseMock.auth.admin.signOut.mockResolvedValue({
+        data: null,
+        error: null,
+      });
+      authClientMock.auth.signInWithPassword.mockResolvedValue({
+        data: { session: { access_token: 'check' }, user: authUser },
+        error: null,
+      });
+      mailMock.send.mockResolvedValue({ delivered: true, result: 'SENT 1' });
+    });
+
+    describe('changePassword', () => {
+      it('confirms the current password, ends sessions, emails and audits', async () => {
+        await expect(
+          service.changePassword(user, 'session-token', passwords),
+        ).resolves.toEqual({ passwordChanged: true });
+
+        expect(authClientMock.auth.signInWithPassword).toHaveBeenCalledWith({
+          email: 'curator@example.com',
+          password: 'current-secret',
+        });
+        expect(supabaseMock.auth.signInWithPassword).not.toHaveBeenCalled();
+        expect(supabaseMock.auth.admin.updateUserById).toHaveBeenCalledWith(
+          'auth-user-1',
+          { password: 'replacement-secret' },
+        );
+        expect(supabaseMock.auth.admin.signOut).toHaveBeenCalledWith(
+          'session-token',
+          'global',
+        );
+        expect(mailMock.send).toHaveBeenCalledWith(
+          expect.objectContaining({ to: 'curator@example.com' }),
+        );
+        expect(JSON.stringify(mailMock.send.mock.calls)).not.toMatch(
+          /replacement-secret|current-secret|session-token/,
+        );
+        expect(securityAuditMock.record).toHaveBeenCalledWith({
+          action: 'PASSWORD_CHANGED',
+          result: 'SUCCESS',
+          accountId: 'account-1',
+          details: { sessionsEnded: true, confirmationEmailSent: true },
+        });
+        expect(auditedSecrets()).not.toMatch(/secret|session-token/);
+      });
+
+      it('refuses a wrong current password and changes nothing', async () => {
+        authClientMock.auth.signInWithPassword.mockResolvedValue({
+          data: { session: null, user: null },
+          error: { message: 'Invalid login credentials' },
+        });
+
+        await expect(
+          service.changePassword(user, 'session-token', passwords),
+        ).rejects.toBeInstanceOf(BadRequestException);
+
+        expect(supabaseMock.auth.admin.updateUserById).not.toHaveBeenCalled();
+        expect(mailMock.send).not.toHaveBeenCalled();
+        expect(securityAuditMock.record).toHaveBeenCalledWith({
+          action: 'PASSWORD_CHANGED',
+          result: 'FAILED',
+          accountId: 'account-1',
+          details: { reason: 'INVALID_CURRENT_PASSWORD' },
+        });
+      });
+
+      it('refuses a new password equal to the current one', async () => {
+        await expect(
+          service.changePassword(user, 'session-token', {
+            currentPassword: 'same-secret',
+            newPassword: 'same-secret',
+          }),
+        ).rejects.toBeInstanceOf(BadRequestException);
+        expect(authClientMock.auth.signInWithPassword).not.toHaveBeenCalled();
+      });
+
+      it('audits a provider failure and sends no confirmation', async () => {
+        supabaseMock.auth.admin.updateUserById.mockResolvedValue({
+          data: {},
+          error: { message: 'down', code: 'unexpected_failure', status: 500 },
+        });
+
+        await expect(
+          service.changePassword(user, 'session-token', passwords),
+        ).rejects.toBeInstanceOf(ServiceUnavailableException);
+
+        expect(mailMock.send).not.toHaveBeenCalled();
+        expect(securityAuditMock.record).toHaveBeenCalledWith({
+          action: 'PASSWORD_CHANGED',
+          result: 'FAILED',
+          accountId: 'account-1',
+          details: {
+            reason: 'PROVIDER_UPDATE_FAILED',
+            providerCode: 'unexpected_failure',
+          },
+        });
+      });
+
+      it('treats a token the provider already revoked as ended', async () => {
+        supabaseMock.auth.admin.signOut.mockResolvedValue({
+          data: null,
+          error: new AuthSessionMissingError(),
+        });
+
+        await service.changePassword(user, 'session-token', passwords);
+
+        expect(securityAuditMock.record).toHaveBeenCalledWith(
+          expect.objectContaining({
+            details: { sessionsEnded: true, confirmationEmailSent: true },
+          }),
+        );
+      });
+
+      it('keeps the change and records it when the email or sign-out fails', async () => {
+        supabaseMock.auth.admin.signOut.mockResolvedValue({
+          data: null,
+          error: { message: 'down', status: 500 },
+        });
+        mailMock.send.mockResolvedValue({
+          delivered: false,
+          result: 'FAILED 500',
+        });
+
+        await expect(
+          service.changePassword(user, 'session-token', passwords),
+        ).resolves.toEqual({ passwordChanged: true });
+
+        expect(securityAuditMock.record).toHaveBeenCalledWith(
+          expect.objectContaining({
+            result: 'SUCCESS',
+            details: { sessionsEnded: false, confirmationEmailSent: false },
+          }),
+        );
+      });
+    });
+
+    describe('requestPasswordRecovery', () => {
+      beforeEach(() => {
+        authClientMock.auth.resetPasswordForEmail.mockResolvedValue({
+          data: {},
+          error: null,
+        });
+      });
+
+      it('answers the same for known and unknown emails and audits both', async () => {
+        usersFindFirst.mockResolvedValueOnce({
+          user_account: { id: 'account-1' },
+        });
+        usersFindFirst.mockResolvedValueOnce(null);
+
+        const known = await service.requestPasswordRecovery('a@example.com');
+        const unknown = await service.requestPasswordRecovery('b@example.com');
+
+        expect(known).toEqual(unknown);
+        expect(securityAuditMock.record).toHaveBeenNthCalledWith(1, {
+          action: 'PASSWORD_RECOVERY_REQUESTED',
+          result: 'SUCCESS',
+          accountId: 'account-1',
+          details: { email: 'a@example.com' },
+        });
+        expect(securityAuditMock.record).toHaveBeenNthCalledWith(2, {
+          action: 'PASSWORD_RECOVERY_REQUESTED',
+          result: 'SUCCESS',
+          accountId: null,
+          details: { email: 'b@example.com' },
+        });
+      });
+
+      it('hides a provider failure from the caller but audits it', async () => {
+        usersFindFirst.mockResolvedValue(null);
+        authClientMock.auth.resetPasswordForEmail.mockResolvedValue({
+          data: null,
+          error: { message: 'limit', code: 'over_email_send_rate_limit' },
+        });
+
+        await expect(
+          service.requestPasswordRecovery('a@example.com'),
+        ).resolves.toEqual({ accepted: true });
+
+        expect(securityAuditMock.record).toHaveBeenCalledWith(
+          expect.objectContaining({
+            result: 'FAILED',
+            details: {
+              email: 'a@example.com',
+              providerCode: 'over_email_send_rate_limit',
+            },
+          }),
+        );
+      });
+    });
+
+    describe('resetPassword', () => {
+      beforeEach(() => {
+        supabaseMock.auth.getUser.mockResolvedValue({
+          data: { user: { ...authUser, app_metadata: { role: 'CURATOR' } } },
+          error: null,
+        });
+        userAccountFindUnique.mockResolvedValue({
+          id: 'account-1',
+          role: 'CURATOR',
+          status: 'ACTIVE',
+        });
+      });
+
+      it.each(['otp', 'recovery'])(
+        'resets with a session opened by %s, ends sessions and audits',
+        async (method) => {
+          const token = tokenWithAmr(method);
+
+          await expect(
+            service.resetPassword(token, 'replacement-secret'),
+          ).resolves.toEqual({ passwordReset: true });
+
+          expect(supabaseMock.auth.admin.updateUserById).toHaveBeenCalledWith(
+            'auth-user-1',
+            { password: 'replacement-secret' },
+          );
+          expect(supabaseMock.auth.admin.signOut).toHaveBeenCalledWith(
+            token,
+            'global',
+          );
+          expect(securityAuditMock.record).toHaveBeenCalledWith({
+            action: 'PASSWORD_RESET',
+            result: 'SUCCESS',
+            accountId: 'account-1',
+            details: { sessionsEnded: true, confirmationEmailSent: true },
+          });
+          expect(auditedSecrets()).not.toContain('replacement-secret');
+        },
+      );
+
+      it.each([
+        ['a password session', tokenWithAmr('password')],
+        ['a token with no readable claims', 'not-a-jwt'],
+      ])('refuses %s', async (_name, token) => {
+        await expect(
+          service.resetPassword(token, 'replacement-secret'),
+        ).rejects.toBeInstanceOf(ForbiddenException);
+
+        expect(supabaseMock.auth.admin.updateUserById).not.toHaveBeenCalled();
+        expect(securityAuditMock.record).toHaveBeenCalledWith({
+          action: 'PASSWORD_RESET',
+          result: 'DENIED',
+          accountId: 'account-1',
+          details: { reason: 'NOT_A_RECOVERY_SESSION' },
+        });
+      });
+
+      it('refuses an inactive account', async () => {
+        userAccountFindUnique.mockResolvedValue({
+          id: 'account-1',
+          role: 'CURATOR',
+          status: 'INACTIVE',
+        });
+
+        await expect(
+          service.resetPassword(tokenWithAmr('otp'), 'replacement-secret'),
+        ).rejects.toBeInstanceOf(ForbiddenException);
+        expect(supabaseMock.auth.admin.updateUserById).not.toHaveBeenCalled();
+      });
     });
   });
 });
