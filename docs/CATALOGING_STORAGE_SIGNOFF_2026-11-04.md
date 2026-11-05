@@ -27,7 +27,7 @@ promoted by counting it.
 | CAT-015 | Local keyboard/detail checks plus six user-reported phone Chrome LAN/touch checks passed | Review existing phone evidence and accessibility limits; do not claim unspecified device/version details |
 | CAT-016 | Incomplete restoration, cancel/error/reload and audit passed live; complete restoration passed isolated HTTP | Decide the evidence required for the defensive legacy branch; see the fixture constraint below |
 | STO-001/002/003 | Root/nested hierarchy, cycle rejection, valid/invalid editing and persistence passed | Review existing UI/backend evidence; no new Inventory fixture is needed for these cases |
-| STO-004 | Unsafe archive rejection, post-merge active/archive display and isolated permission/edit/move protection passed | Obtain John's combined Inventory restriction result and independent disposition of DEF-010 |
+| STO-004 | Unsafe archive rejection, post-merge active/archive display and isolated permission/edit/move protection passed; [John's Inventory restriction result](#inventory-restriction-result-for-sto-004---2026-11-05) passed on owned PostgreSQL | Review John's result and record independent disposition of DEF-010 |
 
 ## Remaining acceptance decisions, not an automatic new test campaign
 
@@ -41,10 +41,12 @@ promoted by counting it.
    Fixes with owner evidence are not all independently Verified. The reviewer
    records pass, a reproducible failure, or an explicit limitation/deferral.
    No unresolved security/data-integrity defect may be silently waived.
-3. **Confirm the Storage/Inventory boundary.** John should supply whether an
-   archived location is rejected for new lot placement/movement, with the test
-   target, fixture, result and unchanged quantity/location checks. If missing,
-   coordinate an owned isolated fixture with him; do not mutate his live lots.
+3. **Confirm the Storage/Inventory boundary.** John supplied the result on
+   November 5: an archived location is rejected for new lot placement, movement,
+   condition change and quantity increase, with quantities, locations and
+   history unchanged. See the
+   [Inventory restriction result](#inventory-restriction-result-for-sto-004---2026-11-05).
+   The reviewer decides whether it satisfies the combined STO-004 criterion.
 4. **Decide the restoration legacy branch.** Archive rejects active lots,
    readiness requires one, and lot changes reject archived specimens. Therefore
    an ordinary sequential live fixture cannot produce a fully ready archived
@@ -62,6 +64,49 @@ promoted by counting it.
    scoped final integration pass if the reviewer needs it; do not restart all
    passed historical tests without a reason.
 
+## Inventory restriction result for STO-004 - 2026-11-05
+
+Supplied by John (Inventory owner, GitHub MarQtie). The rule lives in
+`SpecimenLotsService.assertAssignableStorageUnit`, which every route that puts
+specimens into a location calls: `create`, `move` (target unit),
+`changeCondition` (the source unit, since a replacement lot stays there) and
+`adjustQuantity` for increases only. Reductions skip the check on purpose, so a
+legacy placement in an archived unit can still be emptied.
+
+**Owned PostgreSQL run.** Target: backend develop `be0571f`, Prisma 7.10.1,
+against a throwaway local PostgreSQL 17.6 cluster on loopback with every
+`prisma/migrations` folder applied by `prisma migrate deploy`. It was not
+Supabase, not a shared database and not a browser run. The fixture had one
+Uncataloged synthetic specimen, active drawers A and C, archived drawer B, a lot
+of 10 in A and a legacy lot of 5 in B. The public `SpecimenLotsService` was
+called directly against real Prisma.
+
+| Attempt | Result |
+| --- | --- |
+| Create a new lot in archived B | Rejected: "Archived storage units cannot receive specimen lots." |
+| Move 4 of the A lot into B | Rejected, same message |
+| Move all 10 of the A lot into B | Rejected, same message |
+| Change condition on 1 of the B lot | Rejected, same message |
+| Increase the B lot by 1 | Rejected, same message |
+
+Before and after the five attempts, the lots (ID, unit, condition, quantity,
+active), the lot-transaction count (0), the revision count (0) and the number of
+lots in B (1) were identical. As controls, moving 2 out of B into active C and
+reducing B by 1 both succeeded (B ended at 2, A stayed at 10, with 2
+transactions and 2 revisions). Result: **2/2 passed**. The cluster and the
+temporary script were deleted afterwards; the script is not committed because
+the repository's disposable-database helper needs Docker, which this machine
+does not have.
+
+**Committed regression.** `specimen-lots.service.spec.ts` now covers the move,
+condition-change and increase routes into an archived unit, alongside the
+existing create case. It fails when the archived check is disabled and passes
+with it. Lot and import unit tests passed 87/87, and the lot and
+storage-location HTTP tests passed 42/42.
+
+Not covered: concurrent archive-while-moving, the frontend Lots page, and
+deployed Supabase. Independent review of this result and of DEF-010 remains.
+
 ## Independent black-box report intake
 
 The forthcoming Claude report is not yet evidence in this record. When supplied,
@@ -76,7 +121,7 @@ A generated report does not itself establish independent human sign-off.
 | Module | Kyer acceptance/date | Ivan acceptance/date | Independent reviewer/date | Result | Accepted limitations and evidence |
 | --- | --- | --- | --- | --- | --- |
 | Cataloging Management | Pending | Pending | Pending | Pending | Include REQ-4.4-21 Curator/SRS disposition; no blanket completion claim |
-| Storage Location Management | Pending | Pending | Pending | Pending | Include John's combined restriction result and DEF-010 disposition |
+| Storage Location Management | Pending | Pending | Pending | Pending | John's restriction result supplied 2026-11-05 (see above); DEF-010 disposition still needed |
 
 No new test execution, data change, requirement amendment or acceptance status
 is claimed by this documentation handoff. Local validation is link inspection,
