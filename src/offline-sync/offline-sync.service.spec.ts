@@ -15,8 +15,10 @@ const receiptDelegate = {
   create: jest.fn(),
 };
 const transactionMock = jest.fn();
+const auditDelegate = { create: jest.fn() };
 const prismaMock = {
   offline_draft_sync: receiptDelegate,
+  audit_log: auditDelegate,
   $transaction: transactionMock,
 };
 const specimensMock = {
@@ -67,6 +69,7 @@ describe('OfflineSyncService', () => {
       },
     );
     createdReceiptFingerprint = undefined;
+    auditDelegate.create.mockResolvedValue({});
     specimensMock.createOfflineDraft.mockResolvedValue(specimen);
     specimensMock.findOneInTransaction.mockResolvedValue(specimen);
 
@@ -222,5 +225,50 @@ describe('OfflineSyncService', () => {
       'Collection changed.',
     );
     expect(receiptDelegate.create).not.toHaveBeenCalled();
+  });
+  it('audits a rejected draft for the SYNC_FAILED alert without its content', async () => {
+    receiptDelegate.findUnique.mockResolvedValue({
+      specimen_id: SPECIMEN_ID,
+      payload_fingerprint: '0'.repeat(64),
+    });
+
+    await expect(
+      service.syncSpecimenDraft(dto, ACCOUNT_ID),
+    ).rejects.toBeInstanceOf(ConflictException);
+    expect(auditDelegate.create).toHaveBeenCalledWith({
+      data: {
+        user_id: ACCOUNT_ID,
+        affected_record_id: DRAFT_ID,
+        affected_record_type: 'offline_draft',
+        action: 'SYNC_SPECIMEN_DRAFT',
+        module: 'offline-sync',
+        status: 'FAILED',
+        details: {
+          reason:
+            'This offline draft ID was already synchronized with different content.',
+          statusCode: 409,
+        },
+      },
+    });
+    expect(JSON.stringify(auditDelegate.create.mock.calls)).not.toContain(
+      'Testus specimenus',
+    );
+  });
+
+  it('writes no audit entry when the draft synchronizes', async () => {
+    await service.syncSpecimenDraft(dto, ACCOUNT_ID);
+
+    expect(auditDelegate.create).not.toHaveBeenCalled();
+  });
+
+  it('keeps the original rejection when the audit write fails', async () => {
+    specimensMock.createOfflineDraft.mockRejectedValue(
+      new ConflictException('Collection changed.'),
+    );
+    auditDelegate.create.mockRejectedValue(new Error('audit unavailable'));
+
+    await expect(service.syncSpecimenDraft(dto, ACCOUNT_ID)).rejects.toThrow(
+      'Collection changed.',
+    );
   });
 });

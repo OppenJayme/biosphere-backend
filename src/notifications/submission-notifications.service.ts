@@ -12,6 +12,10 @@ import { PrismaService } from '../prisma/prisma.service';
 import { buildCuratorAlertEmail } from './curator-alert-email';
 import { NotificationRecordType } from './entities/curator-notification.entity';
 
+// Public submissions only; operational alerts never send email.
+type SubmissionRecordType =
+  NotificationRecordType.INQUIRY | NotificationRecordType.VISIT_REQUEST;
+
 // Audit actions for the two submission emails. NotificationsService reads
 // their FAILED entries back to surface undelivered emails in-system.
 export const RECEIPT_AUDIT_ACTION = 'EMAIL_SUBMISSION_RECEIPT';
@@ -19,7 +23,7 @@ export const ALERT_AUDIT_ACTION = 'ALERT_CURATORS';
 
 // A public submission that has just been saved.
 export interface NewSubmission {
-  recordType: NotificationRecordType;
+  recordType: SubmissionRecordType;
   id: string;
   submittedAt: Date;
   visitorName: string;
@@ -28,19 +32,19 @@ export interface NewSubmission {
   receiptDetails?: Array<[string, string]>;
 }
 
-const RECORD_LABELS: Record<NotificationRecordType, string> = {
+const RECORD_LABELS: Record<SubmissionRecordType, string> = {
   [NotificationRecordType.INQUIRY]: 'general inquiry',
   [NotificationRecordType.VISIT_REQUEST]: 'visit request',
 };
 
-const AUDIT_MODULES: Record<NotificationRecordType, string> = {
+const AUDIT_MODULES: Record<SubmissionRecordType, string> = {
   [NotificationRecordType.INQUIRY]: 'inquiries',
   [NotificationRecordType.VISIT_REQUEST]: 'visit-requests',
 };
 
 // Curator workspace route that opens the record (frontend Public Website
 // page, which reads ?tab= and ?selected=).
-const CURATOR_RECORD_TABS: Record<NotificationRecordType, string> = {
+const CURATOR_RECORD_TABS: Record<SubmissionRecordType, string> = {
   [NotificationRecordType.INQUIRY]: 'inquiries',
   [NotificationRecordType.VISIT_REQUEST]: 'visits',
 };

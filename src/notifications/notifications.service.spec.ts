@@ -10,6 +10,9 @@ describe('NotificationsService', () => {
     inquiry: { findMany: jest.fn() },
     visit_request: { findMany: jest.fn() },
     audit_log: { findMany: jest.fn() },
+    backup_history: { findMany: jest.fn() },
+    offline_draft_sync: { findMany: jest.fn() },
+    $queryRaw: jest.fn(),
   };
   let service: NotificationsService;
 
@@ -26,6 +29,9 @@ describe('NotificationsService', () => {
       { id: VISIT_ID, created_at: new Date('2026-09-02T00:00:00.000Z') },
     ]);
     prisma.audit_log.findMany.mockResolvedValue([]);
+    prisma.backup_history.findMany.mockResolvedValue([]);
+    prisma.offline_draft_sync.findMany.mockResolvedValue([]);
+    prisma.$queryRaw.mockResolvedValue([]);
     service = new NotificationsService(prisma as unknown as PrismaService);
   });
 
@@ -122,6 +128,7 @@ describe('NotificationsService', () => {
       pendingInquiries: 0,
       pendingVisitRequests: 0,
       emailFailures: 0,
+      operationalAlerts: 0,
       items: [],
     });
     expect(prisma.audit_log.findMany).not.toHaveBeenCalled();
@@ -132,5 +139,167 @@ describe('NotificationsService', () => {
 
     expect(feed.items).toHaveLength(2);
     expect(feed.total).toBe(3);
+  });
+  describe('operational alerts (REQ-4.3-05, REQ-4.3-10)', () => {
+    const ACCOUNT = '44444444-4444-4444-8444-444444444444';
+    const DRAFT = '55555555-5555-4555-8555-555555555555';
+    const SYNC_EVENT = '66666666-6666-4666-8666-666666666661';
+    const REPORT_EVENT = '66666666-6666-4666-8666-666666666662';
+    const BACKUP = '77777777-7777-4777-8777-777777777777';
+    type Where = { where: { module?: string; status?: string } };
+
+    beforeEach(() => {
+      prisma.inquiry.findMany.mockResolvedValue([]);
+      prisma.visit_request.findMany.mockResolvedValue([]);
+    });
+
+    // The database returns only unresolved rows; route by the queried table.
+    function unresolvedRows(rows: { sync?: unknown[]; reports?: unknown[] }) {
+      prisma.$queryRaw.mockImplementation((strings: TemplateStringsArray) =>
+        Promise.resolve(
+          strings.join('?').includes('offline_draft_sync')
+            ? (rows.sync ?? [])
+            : (rows.reports ?? []),
+        ),
+      );
+    }
+    function sqlOf(call: number) {
+      return (prisma.$queryRaw.mock.calls[call][0] as string[]).join('?');
+    }
+
+    it('maps unresolved sync failures for the acting curator', async () => {
+      unresolvedRows({
+        sync: [
+          {
+            id: SYNC_EVENT,
+            affected_record_id: DRAFT,
+            created_at: new Date('2026-11-05T02:00:00Z'),
+          },
+        ],
+      });
+
+      const feed = await service.getFeed(20, ACCOUNT);
+
+      expect(feed.operationalAlerts).toBe(1);
+      expect(feed.items).toEqual([
+        {
+          id: `SYNC_FAILED:${SYNC_EVENT}`,
+          type: 'SYNC_FAILED',
+          title: 'An offline draft could not be synchronized',
+          recordType: 'offline_draft',
+          recordId: DRAFT,
+          referenceCode: '55555555',
+          createdAt: new Date('2026-11-05T02:00:00Z'),
+        },
+      ]);
+      const sync = sqlOf(0);
+      // Latest rejection per draft, drafts with a receipt excluded, no cap.
+      expect(sync).toContain('DISTINCT ON (a.affected_record_id)');
+      expect(sync).toContain('NOT EXISTS');
+      expect(sync).not.toMatch(/LIMIT/i);
+      expect(prisma.$queryRaw.mock.calls[0]).toContain(ACCOUNT);
+    });
+
+    it('maps unresolved report failures and checks success in the database', async () => {
+      unresolvedRows({
+        reports: [
+          { id: REPORT_EVENT, created_at: new Date('2026-11-05T01:00:00Z') },
+        ],
+      });
+
+      const feed = await service.getFeed(20, ACCOUNT);
+
+      expect(feed.items[0]).toMatchObject({
+        id: `REPORT_FAILED:${REPORT_EVENT}`,
+        type: 'REPORT_FAILED',
+        recordType: 'report',
+        recordId: REPORT_EVENT,
+      });
+      const reports = sqlOf(1);
+      expect(reports).toContain("DISTINCT ON (f.details->>'reportType')");
+      expect(reports).toMatch(/NOT EXISTS[\s\S]*'SUCCESS'/);
+      expect(reports).not.toMatch(/LIMIT/i);
+    });
+
+    it('counts every unresolved failure, not only the displayed items', async () => {
+      unresolvedRows({
+        sync: Array.from({ length: 150 }, (_, index) => ({
+          id: `66666666-6666-4666-8666-${String(index).padStart(12, '0')}`,
+          affected_record_id: `55555555-5555-4555-8555-${String(index).padStart(12, '0')}`,
+          created_at: new Date(Date.UTC(2026, 10, 5, 0, 0, index)),
+        })),
+      });
+
+      const feed = await service.getFeed(5, ACCOUNT);
+
+      expect(feed.operationalAlerts).toBe(150);
+      expect(feed.items).toHaveLength(5);
+      // Newest first, regardless of the order the database returned them in.
+      expect(feed.items[0].createdAt).toEqual(
+        new Date(Date.UTC(2026, 10, 5, 0, 2, 29)),
+      );
+    });
+
+    it('resolves backup failures by completion time, per backup type', async () => {
+      const recoveredAt = new Date('2026-11-04T05:00:00Z');
+      prisma.backup_history.findMany.mockImplementation(({ where }: Where) =>
+        Promise.resolve(
+          where.status === 'COMPLETED'
+            ? [{ backup_type: 'INCREMENTAL', completed_at: recoveredAt }]
+            : [
+                {
+                  id: BACKUP,
+                  started_at: new Date('2026-11-05T01:00:00Z'),
+                  completed_at: new Date('2026-11-05T01:05:00Z'),
+                },
+              ],
+        ),
+      );
+
+      // Backups concern every curator, so no account is needed.
+      const feed = await service.getFeed();
+
+      expect(prisma.backup_history.findMany).toHaveBeenNthCalledWith(
+        1,
+        expect.objectContaining({
+          where: { status: 'COMPLETED', completed_at: { not: null } },
+          distinct: ['backup_type'],
+          orderBy: [{ backup_type: 'asc' }, { completed_at: 'desc' }],
+        }),
+      );
+      // Failures of a recovered type count only if they ended after the
+      // recovery completed; unrecovered types are always unresolved.
+      expect(prisma.backup_history.findMany).toHaveBeenNthCalledWith(
+        2,
+        expect.objectContaining({
+          where: {
+            status: 'FAILED',
+            OR: [
+              { backup_type: { notIn: ['INCREMENTAL'] } },
+              {
+                backup_type: 'INCREMENTAL',
+                OR: [
+                  { completed_at: { gt: recoveredAt } },
+                  { completed_at: null, started_at: { gt: recoveredAt } },
+                ],
+              },
+            ],
+          },
+        }),
+      );
+      expect(feed.operationalAlerts).toBe(1);
+      expect(feed.items[0]).toMatchObject({
+        id: `BACKUP_FAILED:${BACKUP}`,
+        type: 'BACKUP_FAILED',
+        recordType: 'backup_history',
+        createdAt: new Date('2026-11-05T01:05:00Z'),
+      });
+    });
+
+    it('omits personal sync and report alerts without an account', async () => {
+      await service.getFeed();
+
+      expect(prisma.$queryRaw).not.toHaveBeenCalled();
+    });
   });
 });

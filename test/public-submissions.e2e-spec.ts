@@ -232,6 +232,9 @@ describe('Inquiries and visit requests (e2e)', () => {
             ),
         ),
       },
+      // The feed's operational alerts read these; no failures exist here.
+      backup_history: { findMany: jest.fn(() => []) },
+      $queryRaw: jest.fn(() => []),
       audit_log: {
         create: auditCreate,
         findMany: jest.fn(

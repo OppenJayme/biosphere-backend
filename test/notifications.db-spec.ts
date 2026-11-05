@@ -29,7 +29,7 @@ describe('Per-curator notification state, owned PostgreSQL and real HTTP', () =>
   });
   beforeEach(async () => {
     await database.admin.query(
-      'TRUNCATE user_notification_state, audit_log, visit_request, inquiry CASCADE',
+      'TRUNCATE user_notification_state, audit_log, visit_request, inquiry, backup_history, offline_draft_sync CASCADE',
     );
     await database.admin.query("UPDATE user_account SET status = 'ACTIVE'");
     await database.admin.query(
@@ -251,6 +251,181 @@ describe('Per-curator notification state, owned PostgreSQL and real HTTP', () =>
     }
     await change('NEW_INQUIRY:' + INQUIRY_ID, 'READ').expect(200);
     expect((await feed().expect(200)).body.unreadTotal).toBe(2);
+  });
+  it('shows unresolved operational alerts per curator and lets them be read and dismissed', async () => {
+    const curator = '11111111-1111-4111-8111-111111111111';
+    const draftId = '88888888-8888-4888-8888-888888888888';
+    const syncFailure = '99999999-9999-4999-8999-999999999991';
+    const reportFailure = '99999999-9999-4999-8999-999999999992';
+    const backupFailure = '99999999-9999-4999-8999-999999999993';
+    await database.admin.query(
+      `INSERT INTO audit_log(id,user_id,affected_record_id,affected_record_type,action,module,status,details,created_at) VALUES
+      ($1,$4,$2,'offline_draft','SYNC_SPECIMEN_DRAFT','offline-sync','FAILED','{"statusCode":409}',NOW() - INTERVAL '2 hours'),
+      ($3,$4,NULL,'report','GENERATE_REPORT','reports','FAILED','{"reportType":"INVENTORY"}',NOW() - INTERVAL '1 hour')`,
+      [syncFailure, draftId, reportFailure, curator],
+    );
+    await database.admin.query(
+      `INSERT INTO backup_history(id,created_by,backup_type,status,started_at) VALUES
+      ($1,$2,'SCHEDULED_FULL','FAILED',NOW() - INTERVAL '30 minutes')`,
+      [backupFailure, curator],
+    );
+    const mine = (await feed().expect(200)).body as Feed & {
+      operationalAlerts: number;
+    };
+    expect(mine.operationalAlerts).toBe(3);
+    expect(mine.items.map((item) => item.id)).toEqual(
+      expect.arrayContaining([
+        `SYNC_FAILED:${syncFailure}`,
+        `REPORT_FAILED:${reportFailure}`,
+        `BACKUP_FAILED:${backupFailure}`,
+      ]),
+    );
+    // Sync and report failures belong to the curator who hit them.
+    const other = (await feed('other-curator-fixture').expect(200)).body as {
+      operationalAlerts: number;
+    };
+    expect(other.operationalAlerts).toBe(1);
+
+    // The widened key constraint accepts every new prefix.
+    await change(`BACKUP_FAILED:${backupFailure}`, 'READ').expect(200);
+    await change(`SYNC_FAILED:${syncFailure}`, 'DISMISSED').expect(200);
+    const after = (await feed().expect(200)).body as Feed & {
+      operationalAlerts: number;
+    };
+    // Like the other work counts, operationalAlerts counts unresolved
+    // failures; dismissal only hides the item for this curator.
+    expect(after.operationalAlerts).toBe(3);
+    expect(after.items.map((item) => item.id)).not.toContain(
+      `SYNC_FAILED:${syncFailure}`,
+    );
+    expect(
+      after.items.find((item) => item.id === `BACKUP_FAILED:${backupFailure}`)
+        ?.readAt,
+    ).toBeTruthy();
+
+    // Later success resolves the report and backup alerts; the dismissed sync
+    // failure still counts because that draft never synchronized.
+    await database.admin.query(
+      `INSERT INTO audit_log(user_id,affected_record_type,action,module,status,details)
+      VALUES ($1,'report','GENERATE_REPORT','reports','SUCCESS','{"reportType":"INVENTORY"}')`,
+      [curator],
+    );
+    await database.admin.query(
+      `INSERT INTO backup_history(created_by,backup_type,status,started_at,completed_at)
+      VALUES ($1,'SCHEDULED_FULL','COMPLETED',NOW(),NOW())`,
+      [curator],
+    );
+    const resolved = (await feed().expect(200)).body as Feed & {
+      operationalAlerts: number;
+    };
+    expect(resolved.operationalAlerts).toBe(1);
+    expect(
+      resolved.items.filter((item) => /^(BACKUP|REPORT)_FAILED:/.test(item.id)),
+    ).toEqual([]);
+  });
+  it('resolves backup failures by completion time across overlapping runs', async () => {
+    const curator = '11111111-1111-4111-8111-111111111111';
+    const fullFailure = '99999999-9999-4999-8999-999999999994';
+    const incrementalFailure = '99999999-9999-4999-8999-999999999995';
+    // FULL: a success started before the failure but completed after it ended,
+    // so it recovers the failure. INCREMENTAL: a success started after the
+    // failure began but completed before the failure ended, so it does not.
+    await database.admin.query(
+      `INSERT INTO backup_history(id,created_by,backup_type,status,started_at,completed_at) VALUES
+      (gen_random_uuid(),$1,'SCHEDULED_FULL','COMPLETED',NOW() - INTERVAL '4 hours',NOW() - INTERVAL '1 hour'),
+      ($2,$1,'SCHEDULED_FULL','FAILED',NOW() - INTERVAL '3 hours',NOW() - INTERVAL '2 hours'),
+      ($3,$1,'INCREMENTAL','FAILED',NOW() - INTERVAL '4 hours',NOW() - INTERVAL '1 hour'),
+      (gen_random_uuid(),$1,'INCREMENTAL','COMPLETED',NOW() - INTERVAL '3 hours',NOW() - INTERVAL '2 hours')`,
+      [curator, fullFailure, incrementalFailure],
+    );
+
+    const body = (await feed().expect(200)).body as Feed & {
+      operationalAlerts: number;
+    };
+    const backupIds = body.items
+      .map((item) => item.id)
+      .filter((id) => id.startsWith('BACKUP_FAILED:'));
+    expect(backupIds).toEqual([`BACKUP_FAILED:${incrementalFailure}`]);
+    expect(body.operationalAlerts).toBe(1);
+  });
+  it('excludes a sync conflict for a draft whose content already synchronized', async () => {
+    const curator = '11111111-1111-4111-8111-111111111111';
+    const synced = '88888888-8888-4888-8888-888888888881';
+    const neverSynced = '88888888-8888-4888-8888-888888888882';
+    await database.admin.query(
+      `INSERT INTO offline_draft_sync(created_by,client_draft_id,specimen_id,payload_fingerprint,synchronized_at)
+      VALUES ($1,$2,gen_random_uuid(),repeat('a',64),NOW() - INTERVAL '1 day')`,
+      [curator, synced],
+    );
+    // Both rejected after that receipt; only the never-synced draft is unresolved.
+    await database.admin.query(
+      `INSERT INTO audit_log(user_id,affected_record_id,affected_record_type,action,module,status,details) VALUES
+      ($1,$2,'offline_draft','SYNC_SPECIMEN_DRAFT','offline-sync','FAILED','{"statusCode":409}'),
+      ($1,$3,'offline_draft','SYNC_SPECIMEN_DRAFT','offline-sync','FAILED','{"statusCode":409}')`,
+      [curator, synced, neverSynced],
+    );
+
+    const body = (await feed().expect(200)).body as {
+      items: Array<{ type: string; recordId: string }>;
+    };
+    expect(
+      body.items
+        .filter((item) => item.type === 'SYNC_FAILED')
+        .map((item) => item.recordId),
+    ).toEqual([neverSynced]);
+  });
+  it('counts every unresolved failure exactly beyond 100 events and lists the newest first', async () => {
+    const curator = '11111111-1111-4111-8111-111111111111';
+    // 150 drafts rejected (one second apart, newest last), plus 5 rejected
+    // drafts that already have receipts and so are not unresolved.
+    await database.admin.query(
+      `INSERT INTO audit_log(user_id,affected_record_id,affected_record_type,action,module,status,details,created_at)
+      SELECT $1, md5('draft-' || n)::uuid, 'offline_draft', 'SYNC_SPECIMEN_DRAFT',
+        'offline-sync', 'FAILED', '{"statusCode":409}',
+        NOW() - INTERVAL '1 hour' + n * INTERVAL '1 second'
+      FROM generate_series(1, 155) AS n`,
+      [curator],
+    );
+    await database.admin.query(
+      `INSERT INTO offline_draft_sync(created_by,client_draft_id,specimen_id,payload_fingerprint)
+      SELECT $1, md5('draft-' || n)::uuid, gen_random_uuid(), repeat('a',64)
+      FROM generate_series(151, 155) AS n`,
+      [curator],
+    );
+    // 120 failures of one report type collapse to its latest, unresolved one.
+    await database.admin.query(
+      `INSERT INTO audit_log(user_id,affected_record_type,action,module,status,details,created_at)
+      SELECT $1, 'report', 'GENERATE_REPORT', 'reports', 'FAILED',
+        '{"reportType":"INVENTORY"}', NOW() - INTERVAL '2 hours' + n * INTERVAL '1 second'
+      FROM generate_series(1, 120) AS n`,
+      [curator],
+    );
+
+    const body = (await feed('curator-fixture', 5).expect(200)).body as {
+      operationalAlerts: number;
+      items: Array<{ type: string; recordId: string }>;
+    };
+    expect(body.operationalAlerts).toBe(151);
+    expect(body.items).toHaveLength(5);
+    // The newest unresolved rejection is draft 150 (151-155 have receipts).
+    // The seeded submission alerts are newer still, so check the first sync item.
+    const newest = await database.admin.query(
+      "SELECT md5('draft-150')::uuid::text AS id",
+    );
+    expect(
+      body.items.find((item) => item.type === 'SYNC_FAILED')?.recordId,
+    ).toBe(newest.rows[0].id);
+
+    // One later success resolves all 120 failures of that report type.
+    await database.admin.query(
+      `INSERT INTO audit_log(user_id,affected_record_type,action,module,status,details)
+      VALUES ($1,'report','GENERATE_REPORT','reports','SUCCESS','{"reportType":"INVENTORY"}')`,
+      [curator],
+    );
+    expect(
+      ((await feed().expect(200)).body as { operationalAlerts: number })
+        .operationalAlerts,
+    ).toBe(150);
   });
   it('enforces recipient uniqueness, key constraints and fail-closed client RLS in PostgreSQL', async () => {
     await change('NEW_INQUIRY:' + INQUIRY_ID, 'READ').expect(200);
