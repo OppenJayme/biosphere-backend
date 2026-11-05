@@ -1,0 +1,4140 @@
+{
+  "side": "backend",
+  "generatedAt": "2026-11-04T16:31:01.210Z",
+  "commit": "06545c0 (develop)",
+  "lastReport": {
+    "path": "https://claude.ai/artifact/TfwD2P9CgCRiqe7vNtbbkj (BioSphere Backend Progress)",
+    "date": "2026-11-03",
+    "claimedPercent": 93
+  },
+  "formula": "Module % = 100 x sum(w_i x [status_i = Done]) / sum(w_i) over backend-applicable requirements; w = 2 for High, 1 for Medium SRS priority. Partial and Not Started earn 0. Overall uses the same formula over all backend-applicable requirements.",
+  "overallPercent": 89.6,
+  "overallPercentLastReportMethod": 92.7,
+  "alignmentCounts": {
+    "Aligned": 168,
+    "Understated": 1,
+    "Not in report": 23
+  },
+  "moduleAlignmentCounts": {
+    "Aligned": 14,
+    "Overstated": 1
+  },
+  "apiTests": {
+    "cases": 789,
+    "passed": 782,
+    "failed": 7
+  },
+  "owners": [
+    {
+      "name": "Charles Boquecosa",
+      "sections": [
+        "§4.3",
+        "§4.8",
+        "§4.9",
+        "§4.10"
+      ],
+      "requirements": 36,
+      "percent": 94.3,
+      "percentLastReportMethod": 97.1
+    },
+    {
+      "name": "John Gerozaga",
+      "sections": [
+        "§4.3",
+        "§4.4",
+        "§4.5",
+        "§4.7",
+        "§4.8",
+        "§4.10"
+      ],
+      "requirements": 70,
+      "percent": 97.1,
+      "percentLastReportMethod": 98.6
+    },
+    {
+      "name": "Kyer Jayme",
+      "sections": [
+        "§4.4",
+        "§4.6",
+        "§4.7",
+        "§4.11",
+        "§4.14",
+        "§4.15"
+      ],
+      "requirements": 78,
+      "percent": 89.6,
+      "percentLastReportMethod": 90.9
+    },
+    {
+      "name": "Voltaire Ratilla",
+      "sections": [
+        "§4.1",
+        "§4.2",
+        "§4.10",
+        "§4.12",
+        "§4.13"
+      ],
+      "requirements": 43,
+      "percent": 83.3,
+      "percentLastReportMethod": 90.5
+    }
+  ],
+  "ownershipNote": "Owners from docs/ACCEPTANCE_TEST_PLAN.md §3 (assignment list). Git history corroborates Kyer (OppenJayme/Kyer Ivan), Charles (Charles Benedict/WhiteBeard) and John (John Mark); the handle raidiniom is not mapped to a named member anywhere in the repo, so it is not used to assign ownership.",
+  "modules": [
+    {
+      "name": "§4.1 Authentication and Curator Account Management",
+      "section": "4.1",
+      "owner": "Voltaire Ratilla",
+      "ownerBasis": "Acceptance plan §3: Authentication and Access Control",
+      "percent": 73.3,
+      "percentLastReportMethod": 83.3,
+      "lastReportPercent": 85,
+      "status": "Partial",
+      "lastReportStatus": "Partial",
+      "alignment": "Aligned",
+      "applicable": 15,
+      "done": 11,
+      "partial": 3,
+      "notStarted": 1,
+      "testsPassed": 552,
+      "testsFailed": 4,
+      "requirements": [
+        {
+          "srsId": "REQ-4.1-01",
+          "section": "4.1",
+          "title": "Authenticate registered, active curators before curator functions",
+          "side": "B",
+          "endpoints": [
+            "POST /auth/login",
+            "global SupabaseAuthGuard"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 3,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.1-02",
+          "section": "4.1",
+          "title": "Separate credentials per curator; no credential sharing",
+          "side": "B",
+          "endpoints": [
+            "POST /user-accounts/invitations",
+            "POST /developer/curators/onboard"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 1,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.1-03",
+          "section": "4.1",
+          "title": "No public self-registration for curator accounts",
+          "side": "B",
+          "endpoints": [
+            "(absence of any public sign-up route)"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 0,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": "Route inventory: the only public auth routes are /auth/login and /auth/onboarding/complete; no sign-up route exists.",
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.1-04",
+          "section": "4.1",
+          "title": "Protected authenticated session after login",
+          "side": "B",
+          "endpoints": [
+            "POST /auth/login",
+            "GET /auth/me"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 2,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.1-05",
+          "section": "4.1",
+          "title": "Secure logout and session end after logout or approved inactivity timeout",
+          "side": "B",
+          "endpoints": [
+            "SupabaseAuthGuard validates every request with Supabase auth.getUser (a signed-out session is rejected)"
+          ],
+          "weight": 2,
+          "status": "Partial",
+          "lastReportStatus": "Partial",
+          "alignment": "Aligned",
+          "testsPassed": 0,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": "Logout is the frontend Supabase signOut; the backend rejects revoked sessions because it validates each token with Supabase, but there is no inactivity timeout.",
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.1-06",
+          "section": "4.1",
+          "title": "Block unauthenticated access to protected routes, data and API operations",
+          "side": "B",
+          "endpoints": [
+            "global SupabaseAuthGuard on all 130 protected routes"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 260,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.1-07",
+          "section": "4.1",
+          "title": "Curator invites a separate curator account with a secure password-setup email",
+          "side": "B",
+          "endpoints": [
+            "POST /user-accounts/invitations",
+            "POST /auth/onboarding/complete"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 14,
+          "testsFailed": 0,
+          "automatedEvidence": [
+            "9 passed, 0 failed, 0 skipped across 1 suite(s)"
+          ],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.1-08",
+          "section": "4.1",
+          "title": "Curator activates/deactivates another curator per the approved procedure",
+          "side": "B",
+          "endpoints": [
+            "(none for curators; Developer-only PATCH /developer/curators/:id/status)"
+          ],
+          "weight": 2,
+          "status": "Not Started",
+          "lastReportStatus": "Not Started",
+          "alignment": "Aligned",
+          "testsPassed": 1,
+          "testsFailed": 1,
+          "automatedEvidence": [],
+          "gap": "No curator-side activation/deactivation route; only the Developer route exists.",
+          "staticEvidence": null,
+          "failures": [
+            "ACCT-CURATOR-ACTIVATE: expected 200 + checks, got None (No curator-side route to activate/deactivate or hand over an account exists (only /developer/curators/:id/status).)"
+          ]
+        },
+        {
+          "srsId": "REQ-4.1-09",
+          "section": "4.1",
+          "title": "Curator succession/handover with a separate successor account",
+          "side": "B",
+          "endpoints": [
+            "POST /user-accounts/invitations (successor account only)"
+          ],
+          "weight": 2,
+          "status": "Partial",
+          "lastReportStatus": "Not Started",
+          "alignment": "Understated",
+          "testsPassed": 0,
+          "testsFailed": 1,
+          "automatedEvidence": [],
+          "gap": "A successor can be invited as a separate account, but there is no handover step linking/retaining/deactivating the outgoing account.",
+          "staticEvidence": null,
+          "failures": [
+            "ACCT-CURATOR-ACTIVATE: expected 200 + checks, got None (No curator-side route to activate/deactivate or hand over an account exists (only /developer/curators/:id/status).)"
+          ]
+        },
+        {
+          "srsId": "REQ-4.1-10",
+          "section": "4.1",
+          "title": "Email-based recovery/reset with a secure time-limited link, no disclosure",
+          "side": "P",
+          "endpoints": [
+            "(Supabase Auth resetPasswordForEmail, called by the frontend)"
+          ],
+          "weight": 2,
+          "status": "N/A",
+          "lastReportStatus": "Not itemized",
+          "alignment": "Not in report",
+          "testsPassed": 0,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.1-11",
+          "section": "4.1",
+          "title": "Audit account creation, invitation, password setup/change/reset, (de)activation, handover",
+          "side": "B",
+          "endpoints": [
+            "SecurityAuditService"
+          ],
+          "weight": 2,
+          "status": "Partial",
+          "lastReportStatus": "Partial",
+          "alignment": "Aligned",
+          "testsPassed": 3,
+          "testsFailed": 0,
+          "automatedEvidence": [
+            "9 passed, 0 failed, 0 skipped across 1 suite(s)"
+          ],
+          "gap": "Password setup/change/reset happen in Supabase and leave no BioSphere audit entry; handover does not exist.",
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.1-12",
+          "section": "4.1",
+          "title": "Inactive curator accounts cannot authenticate or gain permissions",
+          "side": "B",
+          "endpoints": [
+            "AuthService.resolveActiveAccount",
+            "POST /auth/login"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 132,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.1-13",
+          "section": "4.1",
+          "title": "Authenticate active Developer accounts before Developer functions",
+          "side": "B",
+          "endpoints": [
+            "POST /auth/login",
+            "RolesGuard (DEVELOPER)"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 1,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.1-14",
+          "section": "4.1",
+          "title": "Role separation: curators kept out of Developer functions and vice versa",
+          "side": "B",
+          "endpoints": [
+            "RolesGuard on 129 role-restricted routes"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 129,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.1-15",
+          "section": "4.1",
+          "title": "Log successful/unsuccessful authentication and restricted account actions without secrets",
+          "side": "B",
+          "endpoints": [
+            "POST /auth/login",
+            "SecurityAuditService"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 4,
+          "testsFailed": 0,
+          "automatedEvidence": [
+            "6 passed, 0 failed, 0 skipped across 1 suite(s)"
+          ],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.1-16",
+          "section": "4.1",
+          "title": "Authenticated curator/Developer can change own password",
+          "side": "P",
+          "endpoints": [
+            "(none)"
+          ],
+          "weight": 2,
+          "status": "N/A",
+          "lastReportStatus": "N/A",
+          "alignment": "Aligned",
+          "testsPassed": 0,
+          "testsFailed": 1,
+          "automatedEvidence": [],
+          "gap": "No change-password route or flow in the backend (the last report classed it as provider-handled).",
+          "staticEvidence": null,
+          "failures": [
+            "ACCT-CHANGE-PASSWORD: expected 200 + checks, got None (No backend change-password or confirmation-email route; password changes would happen directly in Supabase with no BioSphere audit (REQ-4.1-11).)"
+          ]
+        },
+        {
+          "srsId": "REQ-4.1-17",
+          "section": "4.1",
+          "title": "Never email a current or temporary password",
+          "side": "B",
+          "endpoints": [
+            "POST /user-accounts/invitations",
+            "POST /developer/curators/onboard"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 1,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.1-18",
+          "section": "4.1",
+          "title": "Confirmation email after password change",
+          "side": "P",
+          "endpoints": [
+            "(none)"
+          ],
+          "weight": 1,
+          "status": "N/A",
+          "lastReportStatus": "N/A",
+          "alignment": "Aligned",
+          "testsPassed": 0,
+          "testsFailed": 1,
+          "automatedEvidence": [],
+          "gap": "No password-change flow, so no confirmation email.",
+          "staticEvidence": null,
+          "failures": [
+            "ACCT-CHANGE-PASSWORD: expected 200 + checks, got None (No backend change-password or confirmation-email route; password changes would happen directly in Supabase with no BioSphere audit (REQ-4.1-11).)"
+          ]
+        },
+        {
+          "srsId": "REQ-4.1-19",
+          "section": "4.1",
+          "title": "Invitation and reset links expire and cannot be reused",
+          "side": "P",
+          "endpoints": [
+            "(Supabase Auth link expiry; POST /auth/onboarding/complete is idempotent)"
+          ],
+          "weight": 2,
+          "status": "N/A",
+          "lastReportStatus": "Not itemized",
+          "alignment": "Not in report",
+          "testsPassed": 1,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        }
+      ]
+    },
+    {
+      "name": "§4.2 Restricted Developer Functions",
+      "section": "4.2",
+      "owner": "Voltaire Ratilla",
+      "ownerBasis": "Acceptance plan §3 / CLAUDE.md: authentication/access control and WebAR (Developer functions are account control + AR deployment)",
+      "percent": 66.7,
+      "percentLastReportMethod": 83.3,
+      "lastReportPercent": 97,
+      "status": "Partial",
+      "lastReportStatus": "Partial",
+      "alignment": "Overstated",
+      "applicable": 9,
+      "done": 6,
+      "partial": 3,
+      "notStarted": 0,
+      "testsPassed": 267,
+      "testsFailed": 4,
+      "requirements": [
+        {
+          "srsId": "REQ-4.2-01",
+          "section": "4.2",
+          "title": "Authenticate the Developer before restricted technical functions",
+          "side": "B",
+          "endpoints": [
+            "RolesGuard (DEVELOPER) on /developer/*"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 0,
+          "testsFailed": 0,
+          "automatedEvidence": [
+            "0 passed, 0 failed, 3 skipped across 1 suite(s)"
+          ],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.2-02",
+          "section": "4.2",
+          "title": "Developer provisions the initial curator with a password-setup invitation",
+          "side": "B",
+          "endpoints": [
+            "POST /developer/curators/onboard",
+            "GET /developer/curators"
+          ],
+          "weight": 2,
+          "status": "Partial",
+          "lastReportStatus": "Partial",
+          "alignment": "Aligned",
+          "testsPassed": 2,
+          "testsFailed": 3,
+          "automatedEvidence": [
+            "0 passed, 0 failed, 6 skipped across 1 suite(s)"
+          ],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": [
+            "DEV-ONBOARD-PENDING-FLAG: expected 200 + checks, got 200 (Developer-onboarded curator app_metadata={\"role\":\"CURATOR\"}; curator invitations set onboarding_pending=true, Developer onboarding does not)",
+            "DEV-ONBOARD-SESSION-GATED: expected 403, got 200 (invite-link session before password setup got 200)",
+            "DEV-CURATORS-LIST: expected 200 + checks, got 200 (invitee as Developer sees it: {\"id\":\"768ce4b7-1562-4e22-8b81-f7813f71426d\",\"authUserId\":\"bd716030-12ad-4764-bf5e-2b5a210cb5dd\",\"role\":\"CURATOR\",\"status\":\"ACTIVE\",\"avatarPath\":null,\"createdAt\":\"2026-11-04T16:29:56.416Z\",\"updatedAt\":\"2026-11-04T16:29:5)"
+          ]
+        },
+        {
+          "srsId": "REQ-4.2-03",
+          "section": "4.2",
+          "title": "Developer (de)activates a curator only with recorded formal authorization",
+          "side": "B",
+          "endpoints": [
+            "PATCH /developer/curators/:id/status"
+          ],
+          "weight": 2,
+          "status": "Partial",
+          "lastReportStatus": "Partial",
+          "alignment": "Aligned",
+          "testsPassed": 3,
+          "testsFailed": 1,
+          "automatedEvidence": [
+            "0 passed, 0 failed, 6 skipped across 1 suite(s)"
+          ],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": [
+            "DEV-CURATORS-LIST: expected 200 + checks, got 200 (invitee as Developer sees it: {\"id\":\"768ce4b7-1562-4e22-8b81-f7813f71426d\",\"authUserId\":\"bd716030-12ad-4764-bf5e-2b5a210cb5dd\",\"role\":\"CURATOR\",\"status\":\"ACTIVE\",\"avatarPath\":null,\"createdAt\":\"2026-11-04T16:29:56.416Z\",\"updatedAt\":\"2026-11-04T16:29:5)"
+          ]
+        },
+        {
+          "srsId": "REQ-4.2-04",
+          "section": "4.2",
+          "title": "Developer uploads/replaces/activates/deactivates/removes approved AR assets",
+          "side": "B",
+          "endpoints": [
+            "POST /developer/ar-assets",
+            "PATCH /developer/ar-assets/:id",
+            "PATCH .../activate",
+            "PATCH .../deactivate",
+            "DELETE /developer/ar-assets/:id",
+            "GET /developer/ar-exhibits"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 6,
+          "testsFailed": 0,
+          "automatedEvidence": [
+            "0 passed, 0 failed, 8 skipped across 1 suite(s)"
+          ],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.2-05",
+          "section": "4.2",
+          "title": "Validate AR asset type, size, required metadata, technical compatibility and authorization before activation",
+          "side": "B",
+          "endpoints": [
+            "POST /developer/ar-assets"
+          ],
+          "weight": 2,
+          "status": "Partial",
+          "lastReportStatus": "Partial",
+          "alignment": "Aligned",
+          "testsPassed": 2,
+          "testsFailed": 0,
+          "automatedEvidence": [
+            "2 passed, 0 failed, 8 skipped across 2 suite(s)"
+          ],
+          "gap": "Type, size, file signature and authorization reference are enforced; required metadata and technical compatibility are not checked on the server.",
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.2-06",
+          "section": "4.2",
+          "title": "Developer cannot create/edit/archive/move/publish specimen records",
+          "side": "B",
+          "endpoints": [
+            "RolesGuard (CURATOR) on specimen routes"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 120,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.2-07",
+          "section": "4.2",
+          "title": "Developer cannot manage locations, inquiries, visits, reports, FAQ or public content",
+          "side": "B",
+          "endpoints": [
+            "RolesGuard (CURATOR)"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 120,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.2-08",
+          "section": "4.2",
+          "title": "Developer interface exposes only account controls and AR deployment",
+          "side": "B",
+          "endpoints": [
+            "/developer/* (9 routes)"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 10,
+          "testsFailed": 0,
+          "automatedEvidence": [
+            "0 passed, 0 failed, 3 skipped across 1 suite(s)"
+          ],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.2-09",
+          "section": "4.2",
+          "title": "Audit all Developer account and AR deployment actions",
+          "side": "B",
+          "endpoints": [
+            "DeveloperService.recordAudit"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 4,
+          "testsFailed": 0,
+          "automatedEvidence": [
+            "18 passed, 0 failed, 0 skipped across 2 suite(s)"
+          ],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        }
+      ]
+    },
+    {
+      "name": "§4.3 Curator Dashboard and Notifications",
+      "section": "4.3",
+      "owner": "Charles Boquecosa, John Gerozaga",
+      "ownerBasis": "Acceptance plan §3: Curator Dashboard (shared)",
+      "percent": 73.3,
+      "percentLastReportMethod": 86.7,
+      "lastReportPercent": 88,
+      "status": "Partial",
+      "lastReportStatus": "Partial",
+      "alignment": "Aligned",
+      "applicable": 8,
+      "done": 6,
+      "partial": 2,
+      "notStarted": 0,
+      "testsPassed": 14,
+      "testsFailed": 2,
+      "requirements": [
+        {
+          "srsId": "REQ-4.3-01",
+          "section": "4.3",
+          "title": "Dashboard counts for Uncataloged/Cataloged/Archived and collection categories",
+          "side": "B",
+          "endpoints": [
+            "GET /dashboard/summary"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 2,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.3-02",
+          "section": "4.3",
+          "title": "Dashboard shows pending inquiries and visit requests",
+          "side": "B",
+          "endpoints": [
+            "GET /dashboard/summary"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 1,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.3-03",
+          "section": "4.3",
+          "title": "Display Online/Offline/Pending Sync/Synchronizing/Synchronized/Sync Failed draft states",
+          "side": "F",
+          "endpoints": [
+            "(browser draft store; server only accepts drafts)"
+          ],
+          "weight": 2,
+          "status": "N/A",
+          "lastReportStatus": "Not itemized",
+          "alignment": "Not in report",
+          "testsPassed": 1,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.3-04",
+          "section": "4.3",
+          "title": "Quick actions: add specimen, review requests, reports, offline drafts",
+          "side": "F",
+          "endpoints": [
+            "(frontend dashboard)"
+          ],
+          "weight": 2,
+          "status": "N/A",
+          "lastReportStatus": "Not itemized",
+          "alignment": "Not in report",
+          "testsPassed": 1,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.3-05",
+          "section": "4.3",
+          "title": "In-system notifications for new inquiries, new visits, sync failures and approved alerts",
+          "side": "B",
+          "endpoints": [
+            "GET /notifications"
+          ],
+          "weight": 2,
+          "status": "Partial",
+          "lastReportStatus": "Partial",
+          "alignment": "Aligned",
+          "testsPassed": 2,
+          "testsFailed": 1,
+          "automatedEvidence": [],
+          "gap": "Feed types are NEW_INQUIRY, NEW_VISIT_REQUEST and SUBMISSION_EMAIL_FAILED only; no sync-failure or other operational alerts.",
+          "staticEvidence": null,
+          "failures": [
+            "NOTIF-SYNC-FAILED: expected 200 + checks, got None (CuratorNotificationType has only NEW_INQUIRY, NEW_VISIT_REQUEST, SUBMISSION_EMAIL_FAILED; no sync-failure, backup, report, QR/AR or other operational notification exists.)"
+          ]
+        },
+        {
+          "srsId": "REQ-4.3-06",
+          "section": "4.3",
+          "title": "Open the related record from a notification",
+          "side": "B",
+          "endpoints": [
+            "GET /notifications (record type + id)"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 2,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.3-07",
+          "section": "4.3",
+          "title": "Mark notifications read/dismissed without altering audit/operational records",
+          "side": "B",
+          "endpoints": [
+            "PATCH /notifications/state (behind NOTIFICATION_STATE_ENABLED)"
+          ],
+          "weight": 1,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 2,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.3-08",
+          "section": "4.3",
+          "title": "No private details in notifications to unauthorized users",
+          "side": "B",
+          "endpoints": [
+            "GET /notifications (CURATOR only)"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 1,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.3-09",
+          "section": "4.3",
+          "title": "Email alerts to the curator for new inquiries and visit requests",
+          "side": "B",
+          "endpoints": [
+            "POST /inquiries",
+            "POST /visit-requests",
+            "SubmissionNotificationsService"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 2,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.3-10",
+          "section": "4.3",
+          "title": "Use in-system notifications (not email) for sync failures, backups, reports, QR/AR and other internal alerts",
+          "side": "B",
+          "endpoints": [
+            "GET /notifications"
+          ],
+          "weight": 2,
+          "status": "Partial",
+          "lastReportStatus": "Partial",
+          "alignment": "Aligned",
+          "testsPassed": 0,
+          "testsFailed": 1,
+          "automatedEvidence": [],
+          "gap": "None of these internal events produce an in-system notification.",
+          "staticEvidence": null,
+          "failures": [
+            "NOTIF-SYNC-FAILED: expected 200 + checks, got None (CuratorNotificationType has only NEW_INQUIRY, NEW_VISIT_REQUEST, SUBMISSION_EMAIL_FAILED; no sync-failure, backup, report, QR/AR or other operational notification exists.)"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "§4.4 Specimen Inventory and Cataloging",
+      "section": "4.4",
+      "owner": "Kyer Jayme, John Gerozaga",
+      "ownerBasis": "Acceptance plan §3: Cataloging Management (Kyer); Specimen Inventory boundary (John)",
+      "percent": 100.0,
+      "percentLastReportMethod": 100.0,
+      "lastReportPercent": 100,
+      "status": "Done",
+      "lastReportStatus": "Done",
+      "alignment": "Aligned",
+      "applicable": 23,
+      "done": 23,
+      "partial": 0,
+      "notStarted": 0,
+      "testsPassed": 73,
+      "testsFailed": 0,
+      "requirements": [
+        {
+          "srsId": "REQ-4.4-01",
+          "section": "4.4",
+          "title": "Create and save a specimen record",
+          "side": "B",
+          "endpoints": [
+            "POST /specimens",
+            "POST/PATCH taxonomy, provenance",
+            "POST /collections"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 10,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.4-02",
+          "section": "4.4",
+          "title": "Unique system-generated specimen ID",
+          "side": "B",
+          "endpoints": [
+            "POST /specimens"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 1,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.4-03",
+          "section": "4.4",
+          "title": "Accession number may stay null until assigned",
+          "side": "B",
+          "endpoints": [
+            "POST /specimens"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 1,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.4-04",
+          "section": "4.4",
+          "title": "Enforce accession-number uniqueness",
+          "side": "B",
+          "endpoints": [
+            "POST /specimens",
+            "GET /specimens/accession-number-availability"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 4,
+          "testsFailed": 0,
+          "automatedEvidence": [
+            "15 passed, 0 failed, 0 skipped across 2 suite(s)"
+          ],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.4-05",
+          "section": "4.4",
+          "title": "Each record has status Uncataloged, Cataloged or Archived",
+          "side": "B",
+          "endpoints": [
+            "specimen.status enum"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 1,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.4-06",
+          "section": "4.4",
+          "title": "New incomplete records are Uncataloged",
+          "side": "B",
+          "endpoints": [
+            "POST /specimens"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 2,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.4-07",
+          "section": "4.4",
+          "title": "Cataloged only when all required non-image fields are valid",
+          "side": "B",
+          "endpoints": [
+            "PATCH /specimens/:id/complete-cataloging",
+            "PATCH /specimens/:id"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 3,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.4-08",
+          "section": "4.4",
+          "title": "Identify and display missing/invalid required fields",
+          "side": "B",
+          "endpoints": [
+            "GET /specimens/:id/catalog-readiness"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 4,
+          "testsFailed": 0,
+          "automatedEvidence": [
+            "3 passed, 0 failed, 0 skipped across 1 suite(s)"
+          ],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.4-09",
+          "section": "4.4",
+          "title": "View and edit Uncataloged and Cataloged records",
+          "side": "B",
+          "endpoints": [
+            "GET/PATCH /specimens/:id",
+            "GET /specimens/:id/details",
+            "PATCH .../reopen-cataloging"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 11,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.4-10",
+          "section": "4.4",
+          "title": "Archive instead of permanently deleting",
+          "side": "B",
+          "endpoints": [
+            "PATCH /specimens/:id/archive",
+            "PATCH /specimens/:id/restore"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 4,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.4-11",
+          "section": "4.4",
+          "title": "Uncataloged and Archived records cannot be published",
+          "side": "B",
+          "endpoints": [
+            "PATCH /specimens/:id/public-display",
+            "POST /exhibits"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 2,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.4-12",
+          "section": "4.4",
+          "title": "Attach, view, replace and remove specimen images",
+          "side": "B",
+          "endpoints": [
+            "POST/GET/PUT/PATCH/DELETE /specimens/:specimenId/media"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 8,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.4-13",
+          "section": "4.4",
+          "title": "Images optional for cataloging",
+          "side": "B",
+          "endpoints": [
+            "PATCH /specimens/:id/complete-cataloging"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 1,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.4-14",
+          "section": "4.4",
+          "title": "Classification status and condition stored only as entered by a curator",
+          "side": "B",
+          "endpoints": [
+            "POST /specimens",
+            "lots condition"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 2,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.4-15",
+          "section": "4.4",
+          "title": "Mark/unmark a Cataloged record for public display",
+          "side": "B",
+          "endpoints": [
+            "PATCH /specimens/:id/public-display"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 2,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.4-16",
+          "section": "4.4",
+          "title": "Public-display flag does not publish the full internal record",
+          "side": "B",
+          "endpoints": [
+            "PATCH /specimens/:id/public-display",
+            "GET /exhibits/public/:slug"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 2,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.4-17",
+          "section": "4.4",
+          "title": "Preserve creator, editor, timestamps and archive actor/time",
+          "side": "B",
+          "endpoints": [
+            "specimen columns",
+            "GET /specimens/:id/revisions"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 4,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.4-18",
+          "section": "4.4",
+          "title": "Manual specimen record encoding",
+          "side": "B",
+          "endpoints": [
+            "POST /specimens"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 1,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.4-19",
+          "section": "4.4",
+          "title": "Import through an approved spreadsheet/CSV template",
+          "side": "B",
+          "endpoints": [
+            "POST /specimens/import/preview",
+            "POST /specimens/import/commit"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 2,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.4-20",
+          "section": "4.4",
+          "title": "Validate imported rows before saving",
+          "side": "B",
+          "endpoints": [
+            "POST /specimens/import/preview"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 3,
+          "testsFailed": 0,
+          "automatedEvidence": [
+            "3 passed, 0 failed, 0 skipped across 1 suite(s)"
+          ],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.4-21",
+          "section": "4.4",
+          "title": "Warn on possible duplicates",
+          "side": "B",
+          "endpoints": [
+            "POST /specimens/duplicate-check",
+            "GET /specimens/:id/possible-duplicates"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 2,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.4-22",
+          "section": "4.4",
+          "title": "Never auto-merge/delete duplicates",
+          "side": "B",
+          "endpoints": [
+            "POST /specimens/duplicate-check"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 2,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.4-23",
+          "section": "4.4",
+          "title": "Allow separate records for the same species",
+          "side": "B",
+          "endpoints": [
+            "POST /specimens"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 1,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        }
+      ]
+    },
+    {
+      "name": "§4.5 Specimen Lot Grouping and Quantity Management",
+      "section": "4.5",
+      "owner": "John Gerozaga",
+      "ownerBasis": "Acceptance plan §3: Specimen Inventory Management",
+      "percent": 100.0,
+      "percentLastReportMethod": 100.0,
+      "lastReportPercent": 100,
+      "status": "Done",
+      "lastReportStatus": "Done",
+      "alignment": "Aligned",
+      "applicable": 11,
+      "done": 11,
+      "partial": 0,
+      "notStarted": 0,
+      "testsPassed": 21,
+      "testsFailed": 0,
+      "requirements": [
+        {
+          "srsId": "REQ-4.5-01",
+          "section": "4.5",
+          "title": "A specimen record holds one or more active lots",
+          "side": "B",
+          "endpoints": [
+            "POST/GET /specimens/:specimenId/lots"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 2,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.5-02",
+          "section": "4.5",
+          "title": "Each lot has one location, one condition and a positive quantity",
+          "side": "B",
+          "endpoints": [
+            "POST /specimens/:specimenId/lots"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 4,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.5-03",
+          "section": "4.5",
+          "title": "Record total = sum of active lot quantities",
+          "side": "B",
+          "endpoints": [
+            "GET /specimens/:specimenId/lots/summary"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 1,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.5-04",
+          "section": "4.5",
+          "title": "Partial move splits the source lot into a target lot",
+          "side": "B",
+          "endpoints": [
+            "POST .../lots/:lotId/movements"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 1,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.5-05",
+          "section": "4.5",
+          "title": "Partial condition change splits into a target lot",
+          "side": "B",
+          "endpoints": [
+            "POST .../lots/:lotId/condition-changes"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 1,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.5-06",
+          "section": "4.5",
+          "title": "Partial move/condition change keeps the record total",
+          "side": "B",
+          "endpoints": [
+            "movements",
+            "condition-changes"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 2,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.5-07",
+          "section": "4.5",
+          "title": "Merge into an existing matching target lot",
+          "side": "B",
+          "endpoints": [
+            "POST .../lots/:lotId/movements"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 1,
+          "testsFailed": 0,
+          "automatedEvidence": [
+            "6 passed, 0 failed, 0 skipped across 1 suite(s)"
+          ],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.5-08",
+          "section": "4.5",
+          "title": "Block moves/changes larger than the source lot",
+          "side": "B",
+          "endpoints": [
+            "POST .../lots/:lotId/movements"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 1,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.5-09",
+          "section": "4.5",
+          "title": "Quantity changes only through authorized adjustment types",
+          "side": "B",
+          "endpoints": [
+            "POST .../lots/:lotId/quantity-adjustments"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 3,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.5-10",
+          "section": "4.5",
+          "title": "Require/record reasons for removals, condition and location changes",
+          "side": "B",
+          "endpoints": [
+            "quantity-adjustments",
+            "condition-changes",
+            "movements"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 2,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.5-11",
+          "section": "4.5",
+          "title": "Record actor, time, source/target lot and quantity for splits/merges",
+          "side": "B",
+          "endpoints": [
+            "GET .../lots/:lotId/transactions",
+            "GET .../lots/history"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 3,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        }
+      ]
+    },
+    {
+      "name": "§4.6 Hierarchical Storage-Location Management",
+      "section": "4.6",
+      "owner": "Kyer Jayme",
+      "ownerBasis": "Acceptance plan §3: Storage Location Management",
+      "percent": 100.0,
+      "percentLastReportMethod": 100.0,
+      "lastReportPercent": 100,
+      "status": "Done",
+      "lastReportStatus": "Done",
+      "alignment": "Aligned",
+      "applicable": 12,
+      "done": 12,
+      "partial": 0,
+      "notStarted": 0,
+      "testsPassed": 29,
+      "testsFailed": 0,
+      "requirements": [
+        {
+          "srsId": "REQ-4.6-01",
+          "section": "4.6",
+          "title": "Support rooms, cabinets, drawers, boxes, vials and approved unit types",
+          "side": "B",
+          "endpoints": [
+            "POST /storage-locations"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 1,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.6-02",
+          "section": "4.6",
+          "title": "Create, view, update, archive and organize storage units",
+          "side": "B",
+          "endpoints": [
+            "POST/GET/PATCH /storage-locations",
+            "search",
+            "archive",
+            "inventory"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 7,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.6-03",
+          "section": "4.6",
+          "title": "Parent-child storage relationships",
+          "side": "B",
+          "endpoints": [
+            "POST /storage-locations",
+            "GET /storage-locations/:id/children"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 2,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.6-04",
+          "section": "4.6",
+          "title": "Store label, type, parent, holds-specimens and optional capacity",
+          "side": "B",
+          "endpoints": [
+            "POST /storage-locations",
+            "GET /storage-locations/:id"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 6,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.6-05",
+          "section": "4.6",
+          "title": "Lots only in units configured to hold specimens",
+          "side": "B",
+          "endpoints": [
+            "POST /specimens/:specimenId/lots"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 1,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.6-06",
+          "section": "4.6",
+          "title": "Move all or part of a lot to another valid unit",
+          "side": "B",
+          "endpoints": [
+            "POST .../lots/:lotId/movements"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 1,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.6-07",
+          "section": "4.6",
+          "title": "Move a container by changing its parent, keeping its children",
+          "side": "B",
+          "endpoints": [
+            "PATCH /storage-locations/:id/move"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 1,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.6-08",
+          "section": "4.6",
+          "title": "Derive the room/gallery from the hierarchy",
+          "side": "B",
+          "endpoints": [
+            "GET /storage-locations/:id/path"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 1,
+          "testsFailed": 0,
+          "automatedEvidence": [
+            "1 passed, 0 failed, 0 skipped across 1 suite(s)"
+          ],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.6-09",
+          "section": "4.6",
+          "title": "Record each lot movement with quantity, from/to, actor, time and reason",
+          "side": "B",
+          "endpoints": [
+            "GET /storage-locations/:id/lot-movements",
+            "GET /storage-locations/:id/movements"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 3,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.6-10",
+          "section": "4.6",
+          "title": "No internal storage locations on public site, QR, FAQ or AR",
+          "side": "B",
+          "endpoints": [
+            "GET /exhibits/public/:slug",
+            "POST /faq/assistant/ask"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 1,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.6-11",
+          "section": "4.6",
+          "title": "Warn when assignment would exceed optional capacity",
+          "side": "B",
+          "endpoints": [
+            "GET /storage-locations/:id/capacity-check",
+            "GET /storage-locations/occupancy-summary"
+          ],
+          "weight": 1,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 3,
+          "testsFailed": 0,
+          "automatedEvidence": [
+            "5 passed, 0 failed, 0 skipped across 1 suite(s)"
+          ],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.6-12",
+          "section": "4.6",
+          "title": "Reject self/descendant parents and invalid combinations",
+          "side": "B",
+          "endpoints": [
+            "PATCH /storage-locations/:id/move"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 2,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        }
+      ]
+    },
+    {
+      "name": "§4.7 Search, Filtering, Reports, and Export",
+      "section": "4.7",
+      "owner": "John Gerozaga, Kyer Jayme",
+      "ownerBasis": "Acceptance plan §3/§9: Reports and Data Export (John); catalog search CAT-012 (Kyer)",
+      "percent": 100.0,
+      "percentLastReportMethod": 100.0,
+      "lastReportPercent": 100,
+      "status": "Done",
+      "lastReportStatus": "Done",
+      "alignment": "Aligned",
+      "applicable": 16,
+      "done": 16,
+      "partial": 0,
+      "notStarted": 0,
+      "testsPassed": 29,
+      "testsFailed": 0,
+      "requirements": [
+        {
+          "srsId": "REQ-4.7-01",
+          "section": "4.7",
+          "title": "Search by accession number, system ID, names, category and identifiers",
+          "side": "B",
+          "endpoints": [
+            "GET /specimens/search"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 1,
+          "testsFailed": 0,
+          "automatedEvidence": [
+            "10 passed, 0 failed, 0 skipped across 1 suite(s)"
+          ],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.7-02",
+          "section": "4.7",
+          "title": "Filter by taxonomy, category, status, classification, condition, public display, location",
+          "side": "B",
+          "endpoints": [
+            "GET /specimens/search",
+            "tags"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 7,
+          "testsFailed": 0,
+          "automatedEvidence": [
+            "10 passed, 0 failed, 0 skipped across 1 suite(s)"
+          ],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.7-03",
+          "section": "4.7",
+          "title": "Sort inventory tables by relevant columns",
+          "side": "B",
+          "endpoints": [
+            "GET /specimens/search"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 2,
+          "testsFailed": 0,
+          "automatedEvidence": [
+            "10 passed, 0 failed, 0 skipped across 1 suite(s)"
+          ],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.7-04",
+          "section": "4.7",
+          "title": "Select report type, period, filters and output format",
+          "side": "B",
+          "endpoints": [
+            "GET /reports",
+            "POST /reports",
+            "GET /reports/summary"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 2,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.7-05",
+          "section": "4.7",
+          "title": "Consolidated Museum Operations Report for monthly/yearly/custom periods",
+          "side": "B",
+          "endpoints": [
+            "POST /reports"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 1,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.7-06",
+          "section": "4.7",
+          "title": "Consolidated report content (inventory, changes, inquiries, visits, QR/AR, remarks)",
+          "side": "B",
+          "endpoints": [
+            "POST /reports"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 1,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.7-07",
+          "section": "4.7",
+          "title": "Complete or filtered Inventory Report",
+          "side": "B",
+          "endpoints": [
+            "POST /reports"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 2,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.7-08",
+          "section": "4.7",
+          "title": "General Inquiry Summary by date range and status",
+          "side": "B",
+          "endpoints": [
+            "POST /reports"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 1,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.7-09",
+          "section": "4.7",
+          "title": "Visit-Request Summary by date range and status",
+          "side": "B",
+          "endpoints": [
+            "POST /reports"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 1,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.7-10",
+          "section": "4.7",
+          "title": "QR and AR Exhibit Report",
+          "side": "B",
+          "endpoints": [
+            "POST /reports",
+            "GET /exhibits"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 2,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.7-11",
+          "section": "4.7",
+          "title": "Export the Consolidated report as DOCX",
+          "side": "B",
+          "endpoints": [
+            "POST /reports (format DOCX)"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 1,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.7-12",
+          "section": "4.7",
+          "title": "PDF/printable output and CSV for tabular exports",
+          "side": "B",
+          "endpoints": [
+            "POST /reports (PDF, CSV)"
+          ],
+          "weight": 1,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 2,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.7-13",
+          "section": "4.7",
+          "title": "Private visitor and storage data only in authorized internal outputs",
+          "side": "B",
+          "endpoints": [
+            "POST /reports (CURATOR only)"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 1,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.7-14",
+          "section": "4.7",
+          "title": "Audit report generation, filters, output, actor and time",
+          "side": "B",
+          "endpoints": [
+            "POST /reports",
+            "GET /reports/history"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 2,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.7-15",
+          "section": "4.7",
+          "title": "Validate parameters and give understandable failure messages",
+          "side": "B",
+          "endpoints": [
+            "POST /reports"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 2,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.7-16",
+          "section": "4.7",
+          "title": "DOCX exports are separate files that do not modify source records",
+          "side": "B",
+          "endpoints": [
+            "POST /reports (DOCX)"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 1,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        }
+      ]
+    },
+    {
+      "name": "§4.8 General Inquiry Management",
+      "section": "4.8",
+      "owner": "Charles Boquecosa, John Gerozaga",
+      "ownerBasis": "Acceptance plan §3: General Inquiry Management (shared)",
+      "percent": 100.0,
+      "percentLastReportMethod": 100.0,
+      "lastReportPercent": 100,
+      "status": "Done",
+      "lastReportStatus": "Done",
+      "alignment": "Aligned",
+      "applicable": 11,
+      "done": 11,
+      "partial": 0,
+      "notStarted": 0,
+      "testsPassed": 38,
+      "testsFailed": 0,
+      "requirements": [
+        {
+          "srsId": "REQ-4.8-01",
+          "section": "4.8",
+          "title": "Visitors submit a general inquiry without an account",
+          "side": "B",
+          "endpoints": [
+            "POST /inquiries (public)"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 2,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.8-02",
+          "section": "4.8",
+          "title": "Collect only the approved minimum fields",
+          "side": "B",
+          "endpoints": [
+            "POST /inquiries"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 2,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.8-03",
+          "section": "4.8",
+          "title": "Validate required fields, lengths and email format",
+          "side": "B",
+          "endpoints": [
+            "POST /inquiries"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 2,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.8-04",
+          "section": "4.8",
+          "title": "Store ID, timestamp, status and consent record",
+          "side": "B",
+          "endpoints": [
+            "POST /inquiries"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 1,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.8-05",
+          "section": "4.8",
+          "title": "Curators view, search, filter and compose replies",
+          "side": "B",
+          "endpoints": [
+            "GET /inquiries",
+            "GET /inquiries/:id",
+            "POST /inquiries/:id/replies"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 4,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.8-06",
+          "section": "4.8",
+          "title": "Statuses Pending, Reviewed, Turned to Visit Request, Closed",
+          "side": "B",
+          "endpoints": [
+            "PATCH /inquiries/:id"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 3,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.8-07",
+          "section": "4.8",
+          "title": "Manually refer an inquiry to the visit-request workflow",
+          "side": "B",
+          "endpoints": [
+            "POST /inquiries/:id/referral"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 2,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.8-08",
+          "section": "4.8",
+          "title": "In-system alert and email to the curator for a new inquiry",
+          "side": "B",
+          "endpoints": [
+            "POST /inquiries",
+            "GET /notifications"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 2,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.8-09",
+          "section": "4.8",
+          "title": "Send curator replies by email and record message, time, actor and delivery result",
+          "side": "B",
+          "endpoints": [
+            "POST /inquiries/:id/replies"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 2,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.8-10",
+          "section": "4.8",
+          "title": "No inquiry data to public or unauthorized actors",
+          "side": "B",
+          "endpoints": [
+            "GET /inquiries* (CURATOR only)"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 14,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.8-11",
+          "section": "4.8",
+          "title": "Record replies, status changes, referrals and notes; no auto-import of external mail",
+          "side": "B",
+          "endpoints": [
+            "POST /inquiries/:id/notes",
+            "GET /inquiries/:id/history"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 4,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        }
+      ]
+    },
+    {
+      "name": "§4.9 Visit-Request Management",
+      "section": "4.9",
+      "owner": "Charles Boquecosa",
+      "ownerBasis": "Acceptance plan §3: Visit Request Management",
+      "percent": 100.0,
+      "percentLastReportMethod": 100.0,
+      "lastReportPercent": 100,
+      "status": "Done",
+      "lastReportStatus": "Done",
+      "alignment": "Aligned",
+      "applicable": 16,
+      "done": 16,
+      "partial": 0,
+      "notStarted": 0,
+      "testsPassed": 47,
+      "testsFailed": 0,
+      "requirements": [
+        {
+          "srsId": "REQ-4.9-01",
+          "section": "4.9",
+          "title": "Visitors submit a visit request without an account",
+          "side": "B",
+          "endpoints": [
+            "POST /visit-requests (public)"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 2,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.9-02",
+          "section": "4.9",
+          "title": "At least one preferred schedule, multiple allowed",
+          "side": "B",
+          "endpoints": [
+            "POST /visit-requests"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 2,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.9-03",
+          "section": "4.9",
+          "title": "Each preferred schedule stored as a child record",
+          "side": "B",
+          "endpoints": [
+            "POST /visit-requests"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 1,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.9-04",
+          "section": "4.9",
+          "title": "Collect contact, organization, visitor count, purpose",
+          "side": "B",
+          "endpoints": [
+            "POST /visit-requests"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 1,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.9-05",
+          "section": "4.9",
+          "title": "Optional vehicle information stored separately",
+          "side": "B",
+          "endpoints": [
+            "POST /visit-requests"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 2,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.9-06",
+          "section": "4.9",
+          "title": "Validate fields, schedules, counts, contact, consent and limits",
+          "side": "B",
+          "endpoints": [
+            "POST /visit-requests"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 4,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.9-07",
+          "section": "4.9",
+          "title": "In-system alert and email to the curator for a new visit request",
+          "side": "B",
+          "endpoints": [
+            "POST /visit-requests",
+            "GET /notifications"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 2,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.9-08",
+          "section": "4.9",
+          "title": "Curators view, search, filter, review and message visit requests",
+          "side": "B",
+          "endpoints": [
+            "GET /visit-requests",
+            "GET /visit-requests/:id"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 2,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.9-09",
+          "section": "4.9",
+          "title": "Statuses Pending, Approved, Submitted for Campus Entry, Declined, Cancelled, Completed",
+          "side": "B",
+          "endpoints": [
+            "PATCH /visit-requests/:id",
+            "PATCH .../approve-schedule"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 4,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.9-10",
+          "section": "4.9",
+          "title": "Request more information while keeping the status; record the message",
+          "side": "B",
+          "endpoints": [
+            "POST /visit-requests/:id/messages"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 1,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.9-11",
+          "section": "4.9",
+          "title": "Send messages/status updates by email and record delivery result",
+          "side": "B",
+          "endpoints": [
+            "POST /visit-requests/:id/messages",
+            "PATCH /visit-requests/:id"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 2,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.9-12",
+          "section": "4.9",
+          "title": "Consolidated visitor/schedule summary for the manual USC process",
+          "side": "B",
+          "endpoints": [
+            "GET /visit-requests/:id/campus-entry-summary"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 1,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.9-13",
+          "section": "4.9",
+          "title": "No direct submission to USC ISMIS",
+          "side": "B",
+          "endpoints": [
+            "(absence of any ISMIS integration)"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 1,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": "No outbound integration other than Brevo email exists in source.",
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.9-14",
+          "section": "4.9",
+          "title": "Record status history, actor, time, messages and notes",
+          "side": "B",
+          "endpoints": [
+            "POST /visit-requests/:id/notes",
+            "GET /visit-requests/:id/history"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 4,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.9-15",
+          "section": "4.9",
+          "title": "Restrict visit-request personal data to authorized access",
+          "side": "B",
+          "endpoints": [
+            "GET /visit-requests* (CURATOR only)"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 16,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.9.16",
+          "section": "4.9",
+          "title": "Select the approved schedule and keep the other options (SRS writes this ID with a dot)",
+          "side": "B",
+          "endpoints": [
+            "PATCH /visit-requests/:id/approve-schedule"
+          ],
+          "weight": 1,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 2,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        }
+      ]
+    },
+    {
+      "name": "§4.10 Static Public Museum Website",
+      "section": "4.10",
+      "owner": "Charles Boquecosa, John Gerozaga, Voltaire Ratilla",
+      "ownerBasis": "Acceptance plan §3: Public Museum Website (shared)",
+      "percent": 100.0,
+      "percentLastReportMethod": 100.0,
+      "lastReportPercent": 100,
+      "status": "Done",
+      "lastReportStatus": "Done",
+      "alignment": "Aligned",
+      "applicable": 1,
+      "done": 1,
+      "partial": 0,
+      "notStarted": 0,
+      "testsPassed": 2,
+      "testsFailed": 0,
+      "requirements": [
+        {
+          "srsId": "REQ-4.10-01",
+          "section": "4.10",
+          "title": "Home, Gallery, Visit and About areas",
+          "side": "F",
+          "endpoints": [],
+          "weight": 2,
+          "status": "N/A",
+          "lastReportStatus": "Not itemized",
+          "alignment": "Not in report",
+          "testsPassed": 0,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.10-02",
+          "section": "4.10",
+          "title": "Plan Your Visit action opens the Visit area",
+          "side": "F",
+          "endpoints": [],
+          "weight": 2,
+          "status": "N/A",
+          "lastReportStatus": "Not itemized",
+          "alignment": "Not in report",
+          "testsPassed": 0,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.10-03",
+          "section": "4.10",
+          "title": "No Events page in the MVP",
+          "side": "F",
+          "endpoints": [],
+          "weight": 2,
+          "status": "N/A",
+          "lastReportStatus": "Not itemized",
+          "alignment": "Not in report",
+          "testsPassed": 0,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.10-04",
+          "section": "4.10",
+          "title": "Gallery shows curator-approved content without the internal inventory",
+          "side": "F",
+          "endpoints": [],
+          "weight": 2,
+          "status": "N/A",
+          "lastReportStatus": "Not itemized",
+          "alignment": "Not in report",
+          "testsPassed": 0,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.10-05",
+          "section": "4.10",
+          "title": "Visit area gives guidance, inquiry and visit-request access",
+          "side": "F",
+          "endpoints": [],
+          "weight": 2,
+          "status": "N/A",
+          "lastReportStatus": "Not itemized",
+          "alignment": "Not in report",
+          "testsPassed": 0,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.10-06",
+          "section": "4.10",
+          "title": "About area with approved background, personnel, contact and location",
+          "side": "F",
+          "endpoints": [],
+          "weight": 2,
+          "status": "N/A",
+          "lastReportStatus": "Not itemized",
+          "alignment": "Not in report",
+          "testsPassed": 0,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.10-07",
+          "section": "4.10",
+          "title": "Page content is static and not editable through curator/Developer interfaces",
+          "side": "F",
+          "endpoints": [],
+          "weight": 2,
+          "status": "N/A",
+          "lastReportStatus": "Not itemized",
+          "alignment": "Not in report",
+          "testsPassed": 0,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": "No backend route manages Home/Gallery/Visit/About content.",
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.10-08",
+          "section": "4.10",
+          "title": "Public website exposes no storage, remarks, audit, account or visitor data",
+          "side": "B",
+          "endpoints": [
+            "10 public routes"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 2,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.10-09",
+          "section": "4.10",
+          "title": "Responsive layouts",
+          "side": "F",
+          "endpoints": [],
+          "weight": 2,
+          "status": "N/A",
+          "lastReportStatus": "Not itemized",
+          "alignment": "Not in report",
+          "testsPassed": 0,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.10-10",
+          "section": "4.10",
+          "title": "Content changes require a frontend source update and redeployment",
+          "side": "F",
+          "endpoints": [],
+          "weight": 2,
+          "status": "N/A",
+          "lastReportStatus": "Not itemized",
+          "alignment": "Not in report",
+          "testsPassed": 0,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        }
+      ]
+    },
+    {
+      "name": "§4.11 Controlled Knowledge-Based FAQ Assistant",
+      "section": "4.11",
+      "owner": "Kyer Jayme",
+      "ownerBasis": "Acceptance plan §3: Controlled Knowledge-Based FAQ Assistant",
+      "percent": 100.0,
+      "percentLastReportMethod": 100.0,
+      "lastReportPercent": 100,
+      "status": "Done",
+      "lastReportStatus": "Done",
+      "alignment": "Aligned",
+      "applicable": 9,
+      "done": 9,
+      "partial": 0,
+      "notStarted": 0,
+      "testsPassed": 29,
+      "testsFailed": 0,
+      "requirements": [
+        {
+          "srsId": "REQ-4.11-01",
+          "section": "4.11",
+          "title": "Public controlled FAQ assistant",
+          "side": "B",
+          "endpoints": [
+            "POST /faq/assistant/ask",
+            "GET /faq/assistant/suggestions"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 6,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.11-02",
+          "section": "4.11",
+          "title": "Create, edit, activate, deactivate and archive FAQ entries",
+          "side": "B",
+          "endpoints": [
+            "POST/GET/PATCH /faq/entries",
+            "activate",
+            "deactivate",
+            "archive"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 9,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.11-03",
+          "section": "4.11",
+          "title": "Alternative wording, keywords and categories for matching",
+          "side": "B",
+          "endpoints": [
+            "POST /faq/entries",
+            "POST /faq/assistant/ask"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 2,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.11-04",
+          "section": "4.11",
+          "title": "Answer only from active approved entries",
+          "side": "B",
+          "endpoints": [
+            "POST /faq/assistant/ask"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 3,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.11-05",
+          "section": "4.11",
+          "title": "No general knowledge, species identification, invented facts or visit processing",
+          "side": "B",
+          "endpoints": [
+            "POST /faq/assistant/ask"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 1,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.11-06",
+          "section": "4.11",
+          "title": "No match: say no approved answer and point to the inquiry form",
+          "side": "B",
+          "endpoints": [
+            "POST /faq/assistant/ask"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 1,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.11-07",
+          "section": "4.11",
+          "title": "No personal data requested/stored; no private data shown",
+          "side": "B",
+          "endpoints": [
+            "POST /faq/assistant/ask",
+            "review-submissions (opt-in, off)"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 4,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.11-08",
+          "section": "4.11",
+          "title": "Assistant requires an internet connection",
+          "side": "F",
+          "endpoints": [],
+          "weight": 2,
+          "status": "N/A",
+          "lastReportStatus": "Not itemized",
+          "alignment": "Not in report",
+          "testsPassed": 0,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.11-09",
+          "section": "4.11",
+          "title": "Audit FAQ knowledge changes",
+          "side": "B",
+          "endpoints": [
+            "/faq/entries mutations"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 2,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.11-10",
+          "section": "4.11",
+          "title": "Indicate answers are limited to curator-approved information",
+          "side": "B",
+          "endpoints": [
+            "POST /faq/assistant/ask (response notice)"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 1,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        }
+      ]
+    },
+    {
+      "name": "§4.12 QR Exhibit Management and Public QR Pages",
+      "section": "4.12",
+      "owner": "Voltaire Ratilla",
+      "ownerBasis": "Acceptance plan §3: Exhibit and QR Content Management",
+      "percent": 100.0,
+      "percentLastReportMethod": 100.0,
+      "lastReportPercent": 100,
+      "status": "Done",
+      "lastReportStatus": "Done",
+      "alignment": "Aligned",
+      "applicable": 11,
+      "done": 11,
+      "partial": 0,
+      "notStarted": 0,
+      "testsPassed": 34,
+      "testsFailed": 0,
+      "requirements": [
+        {
+          "srsId": "REQ-4.12-01",
+          "section": "4.12",
+          "title": "Create, edit, publish, unpublish, disable, archive QR exhibit pages for approved records",
+          "side": "B",
+          "endpoints": [
+            "POST/PATCH /exhibits",
+            "publish",
+            "unpublish",
+            "disable",
+            "archive"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 7,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.12-02",
+          "section": "4.12",
+          "title": "Require public-display approval before use as a QR source",
+          "side": "B",
+          "endpoints": [
+            "POST /exhibits"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 2,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.12-03",
+          "section": "4.12",
+          "title": "Curator controls which approved fields, text and images appear",
+          "side": "B",
+          "endpoints": [
+            "PATCH /exhibits/:id",
+            "exhibit media routes"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 7,
+          "testsFailed": 0,
+          "automatedEvidence": [
+            "27 passed, 0 failed, 0 skipped across 2 suite(s)"
+          ],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.12-04",
+          "section": "4.12",
+          "title": "Unique public URL per published page",
+          "side": "B",
+          "endpoints": [
+            "POST /exhibits",
+            "GET /exhibits/public/:slug"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 2,
+          "testsFailed": 0,
+          "automatedEvidence": [
+            "2 passed, 2 failed, 0 skipped across 1 suite(s)"
+          ],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.12-05",
+          "section": "4.12",
+          "title": "Printable QR code opening the published page",
+          "side": "B",
+          "endpoints": [
+            "GET /exhibits/:id/qr"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 3,
+          "testsFailed": 0,
+          "automatedEvidence": [
+            "3 passed, 1 failed, 0 skipped across 1 suite(s)"
+          ],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.12-06",
+          "section": "4.12",
+          "title": "Downloadable/printable label with QR and readable URL",
+          "side": "B",
+          "endpoints": [
+            "GET /exhibits/:id/label"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 1,
+          "testsFailed": 0,
+          "automatedEvidence": [
+            "3 passed, 1 failed, 0 skipped across 1 suite(s)"
+          ],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.12-07",
+          "section": "4.12",
+          "title": "QR pages outside normal navigation, reached by direct link/QR",
+          "side": "F",
+          "endpoints": [],
+          "weight": 2,
+          "status": "N/A",
+          "lastReportStatus": "Not itemized",
+          "alignment": "Not in report",
+          "testsPassed": 0,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": "Backend serves pages only by slug; navigation is a frontend concern.",
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.12-08",
+          "section": "4.12",
+          "title": "No storage, condition, remarks, audit or restricted fields on QR pages",
+          "side": "B",
+          "endpoints": [
+            "GET /exhibits/public/:slug"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 2,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.12-09",
+          "section": "4.12",
+          "title": "Disabled/unpublished URL shows a safe unavailable message",
+          "side": "B",
+          "endpoints": [
+            "GET /exhibits/public/:slug"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 4,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.12-10",
+          "section": "4.12",
+          "title": "Keep the URL when content changes unless intentionally replaced",
+          "side": "B",
+          "endpoints": [
+            "PATCH /exhibits/:id",
+            "PATCH /exhibits/:id/replace-url"
+          ],
+          "weight": 1,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 2,
+          "testsFailed": 0,
+          "automatedEvidence": [
+            "2 passed, 2 failed, 0 skipped across 1 suite(s)"
+          ],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.12-11",
+          "section": "4.12",
+          "title": "Audit QR publication changes",
+          "side": "B",
+          "endpoints": [
+            "publish/unpublish/disable/archive"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 3,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.12-12",
+          "section": "4.12",
+          "title": "Direct URL works without QR scanning",
+          "side": "B",
+          "endpoints": [
+            "GET /exhibits/public/:slug"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 1,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        }
+      ]
+    },
+    {
+      "name": "§4.13 Selected WebAR Experiences",
+      "section": "4.13",
+      "owner": "Voltaire Ratilla",
+      "ownerBasis": "Acceptance plan §3: QR Exhibit and WebAR",
+      "percent": 100.0,
+      "percentLastReportMethod": 100.0,
+      "lastReportPercent": 100,
+      "status": "Done",
+      "lastReportStatus": "Done",
+      "alignment": "Aligned",
+      "applicable": 7,
+      "done": 7,
+      "partial": 0,
+      "notStarted": 0,
+      "testsPassed": 13,
+      "testsFailed": 0,
+      "requirements": [
+        {
+          "srsId": "REQ-4.13-01",
+          "section": "4.13",
+          "title": "WebAR/3D only for selected approved exhibits with assets; curator marks AR selection",
+          "side": "B",
+          "endpoints": [
+            "PATCH /exhibits/:id/ar-selection"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 1,
+          "testsFailed": 0,
+          "automatedEvidence": [
+            "1 passed, 0 failed, 0 skipped across 1 suite(s)"
+          ],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.13-02",
+          "section": "4.13",
+          "title": "AR selection is curator discretion (relevance, conservation, rarity...)",
+          "side": "B",
+          "endpoints": [
+            "PATCH /exhibits/:id/ar-selection (note)"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 1,
+          "testsFailed": 0,
+          "automatedEvidence": [
+            "8 passed, 0 failed, 0 skipped across 2 suite(s)"
+          ],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.13-03",
+          "section": "4.13",
+          "title": "Developer manages AR assets; View in AR only with an active usable asset",
+          "side": "B",
+          "endpoints": [
+            "/developer/ar-assets*",
+            "PATCH /exhibits/:id/ar"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 6,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.13-04",
+          "section": "4.13",
+          "title": "Without AR capability, regular content stays available",
+          "side": "B",
+          "endpoints": [
+            "GET /exhibits/public/:slug"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 2,
+          "testsFailed": 0,
+          "automatedEvidence": [
+            "4 passed, 0 failed, 0 skipped across 1 suite(s)"
+          ],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.13-05",
+          "section": "4.13",
+          "title": "Camera permission only after the visitor starts AR",
+          "side": "F",
+          "endpoints": [],
+          "weight": 2,
+          "status": "N/A",
+          "lastReportStatus": "Not itemized",
+          "alignment": "Not in report",
+          "testsPassed": 0,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.13-06",
+          "section": "4.13",
+          "title": "QR page remains available when AR is unavailable or fails",
+          "side": "B",
+          "endpoints": [
+            "GET /exhibits/public/:slug"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 1,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.13-07",
+          "section": "4.13",
+          "title": "AR uses only public exhibit information; no internal data",
+          "side": "B",
+          "endpoints": [
+            "GET /exhibits/public/:slug"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 1,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.13-08",
+          "section": "4.13",
+          "title": "No automatic AR eligibility scoring; curator approves",
+          "side": "B",
+          "endpoints": [
+            "PATCH /exhibits/:id/ar-selection"
+          ],
+          "weight": 1,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 1,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": "No scoring/ranking logic exists; selection is a curator flag.",
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.13-09",
+          "section": "4.13",
+          "title": "Understandable message when AR is unsupported or fails",
+          "side": "F",
+          "endpoints": [],
+          "weight": 1,
+          "status": "N/A",
+          "lastReportStatus": "Not itemized",
+          "alignment": "Not in report",
+          "testsPassed": 0,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        }
+      ]
+    },
+    {
+      "name": "§4.14 Selected Offline Inventory Operations and Synchronization",
+      "section": "4.14",
+      "owner": "Kyer Jayme",
+      "ownerBasis": "Acceptance plan §3: Limited Offline Record Caching, Draft Synchronization",
+      "percent": 100.0,
+      "percentLastReportMethod": 100.0,
+      "lastReportPercent": 100,
+      "status": "Done",
+      "lastReportStatus": "Done",
+      "alignment": "Aligned",
+      "applicable": 6,
+      "done": 6,
+      "partial": 0,
+      "notStarted": 0,
+      "testsPassed": 9,
+      "testsFailed": 0,
+      "requirements": [
+        {
+          "srsId": "REQ-4.14-01",
+          "section": "4.14",
+          "title": "View previously synchronized records while offline",
+          "side": "F",
+          "endpoints": [],
+          "weight": 2,
+          "status": "N/A",
+          "lastReportStatus": "Not itemized",
+          "alignment": "Not in report",
+          "testsPassed": 0,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.14-02",
+          "section": "4.14",
+          "title": "Search/filter cached records offline",
+          "side": "F",
+          "endpoints": [],
+          "weight": 2,
+          "status": "N/A",
+          "lastReportStatus": "Not itemized",
+          "alignment": "Not in report",
+          "testsPassed": 0,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.14-03",
+          "section": "4.14",
+          "title": "Create Uncataloged text-only drafts offline",
+          "side": "B",
+          "endpoints": [
+            "POST /offline-sync/specimen-drafts"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 2,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.14-04",
+          "section": "4.14",
+          "title": "Mark offline drafts Pending Sync until accepted by the server",
+          "side": "B",
+          "endpoints": [
+            "POST /offline-sync/specimen-drafts (acceptance response)"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 1,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.14-05",
+          "section": "4.14",
+          "title": "Keep a draft until synced or discarded",
+          "side": "F",
+          "endpoints": [],
+          "weight": 2,
+          "status": "N/A",
+          "lastReportStatus": "Not itemized",
+          "alignment": "Not in report",
+          "testsPassed": 0,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.14-06",
+          "section": "4.14",
+          "title": "Submit pending drafts when connectivity returns and the curator is authenticated",
+          "side": "B",
+          "endpoints": [
+            "POST /offline-sync/specimen-drafts (CURATOR only)"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 1,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.14-07",
+          "section": "4.14",
+          "title": "Keep the draft and show a failure state when sync fails or is rejected",
+          "side": "B",
+          "endpoints": [
+            "POST /offline-sync/specimen-drafts (4xx rejection)"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 2,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.14-08",
+          "section": "4.14",
+          "title": "Retries never create duplicate server records",
+          "side": "B",
+          "endpoints": [
+            "POST /offline-sync/specimen-drafts"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 2,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.14-09",
+          "section": "4.14",
+          "title": "Display Online/Offline/Pending/Synchronizing/Synchronized/Failed",
+          "side": "F",
+          "endpoints": [],
+          "weight": 2,
+          "status": "N/A",
+          "lastReportStatus": "Not itemized",
+          "alignment": "Not in report",
+          "testsPassed": 0,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.14-10",
+          "section": "4.14",
+          "title": "Existing records read-only while offline",
+          "side": "F",
+          "endpoints": [],
+          "weight": 2,
+          "status": "N/A",
+          "lastReportStatus": "Not itemized",
+          "alignment": "Not in report",
+          "testsPassed": 0,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.14-11",
+          "section": "4.14",
+          "title": "Connectivity required for edits, cataloging, locations, images, imports, etc.",
+          "side": "B",
+          "endpoints": [
+            "offline route accepts only text-core drafts"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 1,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.14-12",
+          "section": "4.14",
+          "title": "Browser data is not a backup or confirmed record until synced",
+          "side": "F",
+          "endpoints": [],
+          "weight": 2,
+          "status": "N/A",
+          "lastReportStatus": "Not itemized",
+          "alignment": "Not in report",
+          "testsPassed": 0,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        }
+      ]
+    },
+    {
+      "name": "§4.15 Audit Logging, Backup, and Recovery",
+      "section": "4.15",
+      "owner": "Kyer Jayme",
+      "ownerBasis": "Acceptance plan §3: Audit Log and Backup/Restore Management",
+      "percent": 33.3,
+      "percentLastReportMethod": 41.7,
+      "lastReportPercent": 44,
+      "status": "Partial",
+      "lastReportStatus": "Partial",
+      "alignment": "Aligned",
+      "applicable": 12,
+      "done": 4,
+      "partial": 2,
+      "notStarted": 6,
+      "testsPassed": 14,
+      "testsFailed": 6,
+      "requirements": [
+        {
+          "srsId": "REQ-4.15-01",
+          "section": "4.15",
+          "title": "Audit major actions incl. auth, specimens, lots, inquiries, visits, FAQ, QR, AR, reports, backups, restores",
+          "side": "B",
+          "endpoints": [
+            "audit_log writers across modules"
+          ],
+          "weight": 2,
+          "status": "Partial",
+          "lastReportStatus": "Partial",
+          "alignment": "Aligned",
+          "testsPassed": 5,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": "Backup results and restoration activities are never audited because neither exists.",
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.15-02",
+          "section": "4.15",
+          "title": "Audit entry has actor, action, record/module, time and result",
+          "side": "B",
+          "endpoints": [
+            "GET /audit-logs",
+            "GET /audit-logs/:id"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 2,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.15-03",
+          "section": "4.15",
+          "title": "No editing/deleting audit entries through the application",
+          "side": "B",
+          "endpoints": [
+            "(no mutating /audit-logs route)"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 1,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.15-04",
+          "section": "4.15",
+          "title": "Authorized search/filter of audit data, never public",
+          "side": "B",
+          "endpoints": [
+            "GET /audit-logs (CURATOR only)"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 2,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.15-05",
+          "section": "4.15",
+          "title": "Scheduled backup of DB, audit data, objects, AR assets and configuration",
+          "side": "O",
+          "endpoints": [],
+          "weight": 2,
+          "status": "Not Started",
+          "lastReportStatus": "Not Started",
+          "alignment": "Aligned",
+          "testsPassed": 0,
+          "testsFailed": 1,
+          "automatedEvidence": [],
+          "gap": "No backup job exists in the backend or repository deployment configuration.",
+          "staticEvidence": null,
+          "failures": [
+            "BAK-RUN-RESTORE: expected 200 + checks, got None (No backup, restore, failure-alert or verification mechanism exists in the backend; backup_history is read-only.)"
+          ]
+        },
+        {
+          "srsId": "REQ-4.15-06",
+          "section": "4.15",
+          "title": "Record every backup result and alert the operator on failure",
+          "side": "B",
+          "endpoints": [
+            "GET /backups/history",
+            "GET /backups/history/:id"
+          ],
+          "weight": 2,
+          "status": "Partial",
+          "lastReportStatus": "Partial",
+          "alignment": "Aligned",
+          "testsPassed": 3,
+          "testsFailed": 1,
+          "automatedEvidence": [],
+          "gap": "History is read-only; nothing records new backups or alerts on failure.",
+          "staticEvidence": null,
+          "failures": [
+            "BAK-RUN-RESTORE: expected 200 + checks, got None (No backup, restore, failure-alert or verification mechanism exists in the backend; backup_history is read-only.)"
+          ]
+        },
+        {
+          "srsId": "REQ-4.15-07",
+          "section": "4.15",
+          "title": "Protect backups with access controls and encryption",
+          "side": "O",
+          "endpoints": [],
+          "weight": 2,
+          "status": "Not Started",
+          "lastReportStatus": "Not Started",
+          "alignment": "Aligned",
+          "testsPassed": 0,
+          "testsFailed": 1,
+          "automatedEvidence": [],
+          "gap": "No backup copies are produced by the system.",
+          "staticEvidence": null,
+          "failures": [
+            "BAK-RUN-RESTORE: expected 200 + checks, got None (No backup, restore, failure-alert or verification mechanism exists in the backend; backup_history is read-only.)"
+          ]
+        },
+        {
+          "srsId": "REQ-4.15-08",
+          "section": "4.15",
+          "title": "Restore from a verified backup by the approved procedure",
+          "side": "O",
+          "endpoints": [],
+          "weight": 2,
+          "status": "Not Started",
+          "lastReportStatus": "Not Started",
+          "alignment": "Aligned",
+          "testsPassed": 0,
+          "testsFailed": 1,
+          "automatedEvidence": [],
+          "gap": "No restore mechanism or procedure in the repository.",
+          "staticEvidence": null,
+          "failures": [
+            "BAK-RUN-RESTORE: expected 200 + checks, got None (No backup, restore, failure-alert or verification mechanism exists in the backend; backup_history is read-only.)"
+          ]
+        },
+        {
+          "srsId": "REQ-4.15-09",
+          "section": "4.15",
+          "title": "Log restoration; never report success when verification fails",
+          "side": "B",
+          "endpoints": [
+            "(none)"
+          ],
+          "weight": 2,
+          "status": "Not Started",
+          "lastReportStatus": "Not Started",
+          "alignment": "Aligned",
+          "testsPassed": 0,
+          "testsFailed": 1,
+          "automatedEvidence": [],
+          "gap": "No restore operation to log.",
+          "staticEvidence": null,
+          "failures": [
+            "BAK-RUN-RESTORE: expected 200 + checks, got None (No backup, restore, failure-alert or verification mechanism exists in the backend; backup_history is read-only.)"
+          ]
+        },
+        {
+          "srsId": "REQ-4.15-10",
+          "section": "4.15",
+          "title": "No general-purpose admin dashboard needed for backup/recovery",
+          "side": "B",
+          "endpoints": [
+            "GET /backups/history (read-only)"
+          ],
+          "weight": 2,
+          "status": "Done",
+          "lastReportStatus": "Done",
+          "alignment": "Aligned",
+          "testsPassed": 1,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": null,
+          "staticEvidence": null,
+          "failures": []
+        },
+        {
+          "srsId": "REQ-4.15-11",
+          "section": "4.15",
+          "title": "One documented successful full backup-and-restore test before turnover",
+          "side": "O",
+          "endpoints": [],
+          "weight": 2,
+          "status": "Not Started",
+          "lastReportStatus": "Not Started",
+          "alignment": "Aligned",
+          "testsPassed": 0,
+          "testsFailed": 1,
+          "automatedEvidence": [],
+          "gap": "No backup-and-restore test has been run or documented (BAK-002 deferred).",
+          "staticEvidence": null,
+          "failures": [
+            "BAK-RUN-RESTORE: expected 200 + checks, got None (No backup, restore, failure-alert or verification mechanism exists in the backend; backup_history is read-only.)"
+          ]
+        },
+        {
+          "srsId": "REQ-4.15-12",
+          "section": "4.15",
+          "title": "Backup schedule, retention, RPO, off-site target and operator approved and documented",
+          "side": "O",
+          "endpoints": [],
+          "weight": 2,
+          "status": "Not Started",
+          "lastReportStatus": "Not Started",
+          "alignment": "Aligned",
+          "testsPassed": 0,
+          "testsFailed": 0,
+          "automatedEvidence": [],
+          "gap": "No approved backup policy document in the repository.",
+          "staticEvidence": null,
+          "failures": []
+        }
+      ]
+    }
+  ]
+}
