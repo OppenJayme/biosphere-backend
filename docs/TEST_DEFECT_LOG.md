@@ -164,11 +164,13 @@ repair, search/list returned a third record instead of two; Dashboard included
 an archived category/queue row; report active lots were 3 and quantity 106
 instead of 2 and 7. The historical all-record total correctly remained 5.
 
-The scoped predicates now require null `archived_at` for active reads. Explicit
-ARCHIVED searches retain stored-status filtering; direct legacy details remain
-readable. Historical all-record totals, status distributions, trends, recent
-history and Inventory report behavior are unchanged; no record is rewritten.
-Five SQL/service checks pass, including these preservation controls. Run
+The scoped predicates require null `archived_at` for active reads. Following
+the November 5 review repair below, explicit ARCHIVED searches match either
+archive indicator, and Dashboard cards use that same partition. Direct legacy
+details preserve stored status/timestamp values. All-record totals, trends,
+recent history, consolidated report historical status distributions and Inventory
+report behavior are unchanged; no record is rewritten. Six SQL/service checks
+now pass, including archive discovery/filter/pagination and live-exhibit controls. Run
 `npm run test:archive-reads:db` with the existing pinned local Docker image.
 
 The helper accepts no supplied database URL and creates/removes only its owned
@@ -187,6 +189,31 @@ denial-audit persistence result, and no logger was suppressed. Changed-TypeScrip
 lint, the backend build, document-link checks and whitespace checks passed.
 The initial SQL fixture lacked the baseline's external `auth.users` reference;
 adding a synthetic table corrected setup before the behavioral failures above.
+
+**Independent review repair - 2026-11-05:** MarQtie's [#231 review](https://github.com/OppenJayme/biosphere-backend/pull/231#pullrequestreview-5778830696)
+found that the original patch hid timestamp-only archives from every list,
+retained mismatching Dashboard status cards, and admitted timestamp-only archives
+to the live-exhibit count. The original preservation claim for stored-status-only
+archive search was incorrect; its SQL expectation has been corrected rather than
+treated as accepted behavior. Each finding was reproduced red at the public
+service/real PostgreSQL boundary before repair:
+
+- Archive search returned only IDs ending 0003/0005, missing 0004. It now returns
+  all three; a nonmatching text query returns none, and two-page results retain
+  all three once with total 3. Text OR is composed with archive OR through AND.
+- The five-record Dashboard partition was 2 Uncataloged / 1 Cataloged / 2 Archived;
+  it is now 1 / 1 / 3 and matches all three Cataloging status-filter totals.
+- A separate four-published-exhibit case counted two live instead of one. With
+  the archive timestamp enforced it yields one live / three unavailable. Its
+  two additional specimen controls are removed in finally in the owned fixture.
+
+`specimen-archive.policy.ts` centralizes active and archived SQL predicates for
+the touched Cataloging, duplicate, Dashboard and consolidated active-report reads.
+No shared constraint migration or historical-row repair is introduced. These
+separate read queries do not establish a single concurrent database snapshot.
+The updated suite passed 6/6 SQL cases, 88 existing unit cases and 84 existing
+HTTP cases; the HTTP run still exposes the documented OBS-003 adapter warning.
+Independent review of the new head and deployed acceptance remain pending.
 
 ### DEF-031 - Timestamp-only archived records appear as duplicate candidates
 

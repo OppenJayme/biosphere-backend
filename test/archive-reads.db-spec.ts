@@ -102,13 +102,30 @@ describe('Archive read consistency on owned PostgreSQL', () => {
       total: result.specimens.total,
       recent: result.recentSpecimens.length,
       duplicates: result.specimens.possibleDuplicates,
+      statuses: result.specimens.byStatus,
     }).toEqual({
       categories: [{ category: 'Active', count: 2 }],
       queue: [draft],
       total: 5,
       recent: 5,
       duplicates: 2,
+      statuses: { UNCATALOGED: 1, CATALOGED: 1, ARCHIVED: 3 },
     });
+    const statusTotals = await Promise.all(
+      [
+        SpecimenStatus.UNCATALOGED,
+        SpecimenStatus.CATALOGED,
+        SpecimenStatus.ARCHIVED,
+      ].map(
+        async (status) =>
+          (
+            await catalog.search(
+              Object.assign(new SearchSpecimensQueryDto(), { status }),
+            )
+          ).total,
+      ),
+    );
+    expect(statusTotals).toEqual([1, 1, 3]);
   });
 
   it('consolidated active breakdowns exclude archived quantities but keep all-record history totals', async () => {
@@ -144,7 +161,7 @@ describe('Archive read consistency on owned PostgreSQL', () => {
     ).toMatchObject({ table: { rows: [['Active', 2]] } });
   });
 
-  it('keeps explicit stored-status archive searches and direct legacy details readable', async () => {
+  it('finds either archive indicator while preserving text filters, pagination and stored details', async () => {
     const archived = await catalog.search(
       Object.assign(new SearchSpecimensQueryDto(), {
         status: SpecimenStatus.ARCHIVED,
@@ -153,8 +170,43 @@ describe('Archive read consistency on owned PostgreSQL', () => {
     );
     expect(archived.items.map((item) => item.id).sort()).toEqual([
       '50000000-0000-4000-8000-000000000003',
+      '50000000-0000-4000-8000-000000000004',
       '50000000-0000-4000-8000-000000000005',
     ]);
+    expect(archived.total).toBe(3);
+    const nonmatching = await catalog.search(
+      Object.assign(new SearchSpecimensQueryDto(), {
+        status: SpecimenStatus.ARCHIVED,
+        search: 'Synthetic active species',
+      }),
+    );
+    expect({
+      ids: nonmatching.items.map((item) => item.id),
+      total: nonmatching.total,
+    }).toEqual({ ids: [], total: 0 });
+    const first = await catalog.search(
+      Object.assign(new SearchSpecimensQueryDto(), {
+        status: SpecimenStatus.ARCHIVED,
+        limit: 2,
+        page: 1,
+      }),
+    );
+    const second = await catalog.search(
+      Object.assign(new SearchSpecimensQueryDto(), {
+        status: SpecimenStatus.ARCHIVED,
+        limit: 2,
+        page: 2,
+      }),
+    );
+    expect([
+      first.total,
+      second.total,
+      first.items.length,
+      second.items.length,
+    ]).toEqual([3, 3, 2, 1]);
+    expect(
+      [...first.items, ...second.items].map((item) => item.id).sort(),
+    ).toEqual(archived.items.map((item) => item.id).sort());
     const legacy = await catalog.findOne(
       '50000000-0000-4000-8000-000000000004',
     );
@@ -171,5 +223,31 @@ describe('Archive read consistency on owned PostgreSQL', () => {
       ids: active.items.map((item) => item.id),
       total: active.total,
     }).toEqual({ ids: [draft], total: 1 });
+  });
+  it('counts only genuinely available published exhibits', async () => {
+    // Case-local fixture additions are removed even when the assertion fails.
+    await database.admin.query(`
+      INSERT INTO specimen (id,created_by,common_name,status,public_display_allowed,archived_at) VALUES
+        ('50000000-0000-4000-8000-000000000006','11111111-1111-4111-8111-111111111111','Eligible exhibit','CATALOGED',true,NULL),
+        ('50000000-0000-4000-8000-000000000007','11111111-1111-4111-8111-111111111111','Legacy archived exhibit','CATALOGED',true,'2026-01-01T00:00:00Z');
+      INSERT INTO exhibit (specimen_id,created_by,public_slug,status) VALUES
+        ('50000000-0000-4000-8000-000000000006','11111111-1111-4111-8111-111111111111','eligible-fixture','PUBLISHED'),
+        ('50000000-0000-4000-8000-000000000007','11111111-1111-4111-8111-111111111111','timestamp-archive-fixture','PUBLISHED'),
+        ('50000000-0000-4000-8000-000000000003','11111111-1111-4111-8111-111111111111','status-archive-fixture','PUBLISHED'),
+        ('${cataloged}','11111111-1111-4111-8111-111111111111','private-fixture','PUBLISHED');
+    `);
+    try {
+      const result = await new DashboardService(prisma).getSummary();
+      expect(result.exhibits).toMatchObject({
+        total: 4,
+        live: 1,
+        publishedUnavailable: 3,
+      });
+    } finally {
+      await database.admin.query(`
+        DELETE FROM exhibit WHERE public_slug IN ('eligible-fixture','timestamp-archive-fixture','status-archive-fixture','private-fixture');
+        DELETE FROM specimen WHERE id IN ('50000000-0000-4000-8000-000000000006','50000000-0000-4000-8000-000000000007');
+      `);
+    }
   });
 });

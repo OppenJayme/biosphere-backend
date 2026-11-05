@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { ACTIVE_SPECIMEN_WHERE } from '../specimens/specimen-archive.policy';
 import { resolveStorageLocations } from '../storage-locations/storage-location-paths';
 import { findStorageSubtreeIds } from '../storage-locations/storage-subtree';
 import type { GenerateReportDto } from './dto/generate-report.dto';
@@ -71,10 +72,7 @@ export class ReportBuilderService {
     context: ReportContext,
   ): Promise<ReportDocument> {
     const range = periodFilter(context.period);
-    const notArchived = {
-      status: { not: 'ARCHIVED' as const },
-      archived_at: null,
-    };
+    const notArchived = ACTIVE_SPECIMEN_WHERE;
     const [
       specimensByStatus,
       specimensByCategory,
