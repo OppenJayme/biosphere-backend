@@ -28,6 +28,14 @@ identifiers. `from` and `to` are inclusive `startedAt` bounds and must contain
 
 ## Deliberately deferred operations
 
+The [proposed backup/recovery procedure](./BACKUP_RECOVERY_PROCEDURE.md),
+[approval record](./BACKUP_RECOVERY_APPROVAL.md) and
+[rehearsal template](./BACKUP_RECOVERY_REHEARSAL_TEMPLATE.md) now make the
+deployment work concrete. Prepared November 5 against SRS 4.15 and confirmed
+Supabase Free usage, they do not implement a runner or authorize shared exports,
+restores, scheduling or retention deletion. BAK-002 remains Deferred until its
+execution gates are satisfied; backup-history metadata is not restore evidence.
+
 Backup scheduling, retention, encryption, storage destination, failure alerts,
 restore execution, and restore verification remain deployment-level decisions.
 They must not be added as ordinary application CRUD or inferred from this read
