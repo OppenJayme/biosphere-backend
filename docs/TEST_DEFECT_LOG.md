@@ -216,7 +216,8 @@ inconsistent data and concurrency are not covered. The pre-existing pg
 concurrent-query deprecation warning is visible; it was not suppressed or fixed
 as part of this scope. Existing HTTP/regression and build results belong in
 the PR validation. This opt-in SQL suite is outside ordinary CI discovery.
-REQ-4.4-21's Curator/SRS archive-scope disposition remains a separate blocker.
+REQ-4.4-21's archive scope was a separate decision; the active-only scope was
+later approved by Sir Fidel (reported by John on 2026-11-05).
 
 Supporting validation: 65 existing unit tests and 84 existing protected HTTP
 tests passed across the affected services/controllers. The HTTP run emitted
