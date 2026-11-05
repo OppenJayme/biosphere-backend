@@ -216,7 +216,8 @@ inconsistent data and concurrency are not covered. The pre-existing pg
 concurrent-query deprecation warning is visible; it was not suppressed or fixed
 as part of this scope. Existing HTTP/regression and build results belong in
 the PR validation. This opt-in SQL suite is outside ordinary CI discovery.
-REQ-4.4-21's Curator/SRS archive-scope disposition remains a separate blocker.
+REQ-4.4-21's archive scope was a separate decision; the active-only scope was
+later approved by Sir Fidel (reported by John on 2026-11-05).
 
 Supporting validation: 65 existing unit tests and 84 existing protected HTTP
 tests passed across the affected services/controllers. The HTTP run emitted
@@ -284,8 +285,8 @@ remain present. Existing 23 duplicate units pass. The repair changes no record,
 matching score, merge/delete behavior or Inventory operation.
 
 Repeat and scope: [archive consistency regression](./SPECIMEN_DUPLICATES_GUIDE.md#archive-indicator-consistency-repair---2026-11-04).
-Curator/SRS disposition of REQ-4.4-21's archive exclusion remains blocking
-CAT-014 acceptance; fixing query consistency does not settle that policy.
+Fixing query consistency did not settle the REQ-4.4-21 archive-exclusion policy;
+that active-only scope was separately approved by Sir Fidel (reported by John on 2026-11-05).
 The separate Cataloging search, Dashboard active breakdown and consolidated
 report follow-ups are tracked in DEF-032; DEF-031 does not claim that every
 codebase consumer shares one archive interpretation.
