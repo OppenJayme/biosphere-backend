@@ -189,3 +189,53 @@ table, column or RLS policy and must go through the normal approved migration
 workflow before `NOTIFICATION_STATE_ENABLED` deployments can mark these alerts.
 The frontend feed schema is a strict enum and must add the new `type` and
 `recordType` values before this reaches a shared deployment.
+
+## Change-event and incomplete-record alerts - 2026-11-06
+
+Implemented on `feat/activity-notifications-20261106` from the team decision of
+2026-11-06 (Sir Fidel deferred to the team's judgement). It completes the
+remaining REQ-4.3-10 categories within the existing derived-feed architecture.
+
+| Type | Source | Visible to | Leaves the feed |
+| --- | --- | --- | --- |
+| `SPECIMEN_ARCHIVED` / `SPECIMEN_RESTORED` | `ARCHIVE_SPECIMEN` / `RESTORE_SPECIMEN` audit rows | Every curator except the actor | After 7 calendar days (Asia/Manila) |
+| `LOT_MOVED` | `MOVE_SPECIMEN_LOT` audit rows | Every curator except the actor | After 7 calendar days |
+| `LOT_DEACCESSIONED` / `LOT_MISSING_LOSS` | `ADJUST_SPECIMEN_LOT_QUANTITY` rows with `adjustmentType` `DEACCESSION` / `MISSING_LOSS` | Every curator except the actor | After 7 calendar days |
+| `RECORD_INCOMPLETE` | Active `UNCATALOGED` specimens, counted from creation or the latest `REOPEN_SPECIMEN_CATALOGING` / `RESTORE_SPECIMEN` | Every curator | Once cataloged or archived |
+
+Decisions applied:
+
+- **Significant operations only.** Routine edits, additions, condition changes
+  and other removal types (`DESTRUCTION`, `TRANSFER_OUT`, `REMOVAL`) stay in
+  the audit log without an alert.
+- **No self-notifications for successful actions.** The actor already gets a
+  confirmation. Action-required failures (`SYNC_FAILED`, `REPORT_FAILED`) still
+  go to the responsible curator.
+- **Incomplete records.** More than 7 calendar days Uncataloged, archived
+  records excluded. A reopen or restore starts a new period with a new key,
+  `RECORD_INCOMPLETE:<period event id>` (the specimen ID for the first period),
+  so an earlier dismissal cannot hide a new period. Offline drafts get local
+  device reminders, not server alerts.
+- **No duplicates.** Each operation writes exactly one audit row, and each
+  alert is keyed by that row. `recordType` is `specimen` and `recordId` is the
+  specimen ID; lot events open the specimen's lots.
+
+The feed adds two counts: `changeEvents` (this curator's visible change events
+within the window) and `incompleteRecords`. Like the other work counts, they do
+not drop when an item is dismissed. A shared database with an existing backlog
+of old Uncataloged records will show one `RECORD_INCOMPLETE` per record on
+first deployment; `items` still honours the display `limit`.
+
+Migration `20261106000000_extend_notification_state_activity_types` widens
+`notification_state_key` again for the six new prefixes; same rules as before.
+The frontend must accept the new `type` values and the `specimen` `recordType`
+before this reaches a shared deployment.
+
+Acceptance tests (`test/notification-activity.live-spec.ts`, opt-in, Node 22 +
+local Docker) drive the real endpoints with two curators on a disposable
+database. They cover:
+- one alert per significant event for the other curator, and none for the actor
+- routine operations staying audit-only, and the 7-day window
+- read/dismiss on a new key
+- overdue detection that skips recent and archived records
+- resolution on cataloging, and a fresh key after a reopen
