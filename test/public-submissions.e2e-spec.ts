@@ -246,18 +246,19 @@ describe('Inquiries and visit requests (e2e)', () => {
               status: string;
               affected_record_id: { in: string[] };
             };
-          }) =>
+          }) => {
             // Operational-alert lookups filter one action; none are seeded.
-            typeof where.action === 'string'
-              ? []
-              : audits.filter(
-                  (entry) =>
-                    where.action.in.includes(entry.action as string) &&
-                    entry.status === where.status &&
-                    where.affected_record_id.in.includes(
-                      entry.affected_record_id as string,
-                    ),
+            const action = where.action;
+            if (typeof action === 'string') return [];
+            return audits.filter(
+              (entry) =>
+                action.in.includes(entry.action as string) &&
+                entry.status === where.status &&
+                where.affected_record_id.in.includes(
+                  entry.affected_record_id as string,
                 ),
+            );
+          },
         ),
       },
       $transaction: jest.fn((callback: (client: unknown) => unknown) =>
