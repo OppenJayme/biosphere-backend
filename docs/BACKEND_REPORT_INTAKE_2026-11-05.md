@@ -21,8 +21,9 @@ deployment, account policy changes, feature activation or shared database writes
 
 ## Evidence qualifications
 
-- The 93% and module percentages are the report's implementation estimates,
-  using its done/partial/missing scoring. They are not acceptance percentages.
+- Kyer confirmed on November 5 that the progress report is based on the SRS.
+  Its 93% and module percentages assess backend implementation against those
+  requirements using its done/partial/missing scoring. They are not acceptance percentages.
   A requirement-by-requirement calculation was not independently reconstructed.
 - The report lists 703 unit passes, 440 initial HTTP passes and three initial
   HTTP failures, then a passing 77-case exhibit rerun. Retain this sequence;
