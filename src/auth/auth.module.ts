@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { MailModule } from '../mail/mail.module';
 import { PrismaModule } from '../prisma/prisma.module';
 import { SupabaseModule } from '../supabase/supabase.module';
 import { AuthController } from './auth.controller';
@@ -8,7 +9,7 @@ import { SupabaseAuthGuard } from './guards/supabase-auth.guard';
 import { RolesGuard } from './guards/roles.guard';
 
 @Module({
-  imports: [PrismaModule, SupabaseModule],
+  imports: [PrismaModule, SupabaseModule, MailModule],
   controllers: [AuthController],
   providers: [AuthService, SecurityAuditService, SupabaseAuthGuard, RolesGuard],
   exports: [AuthService, SecurityAuditService],

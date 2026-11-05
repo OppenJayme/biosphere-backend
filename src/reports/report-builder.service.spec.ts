@@ -77,6 +77,15 @@ function tableRows(document: ReportDocument, title: string) {
   return block?.table.rows;
 }
 
+/** The untitled detail table printed in PDF/DOCX (CSV uses csvTable). */
+function printedDetail(document: ReportDocument) {
+  const block = document.blocks.find(
+    (item): item is Extract<ReportBlock, { kind: 'table' }> =>
+      item.kind === 'table' && item.table.title === undefined,
+  );
+  return block?.table;
+}
+
 function keyValue(document: ReportDocument, label: string) {
   for (const block of document.blocks) {
     if (block.kind !== 'keyValues') continue;
@@ -216,6 +225,37 @@ describe('ReportBuilderService', () => {
       expect(keyValue(document, 'Total specimens in active lots')).toBe(5);
     });
 
+    it('prints a portrait-width table and keeps every column in the CSV', async () => {
+      const document = await service.build(
+        context({ type: ReportType.INVENTORY }),
+      );
+
+      expect(document.csvTable?.columns).toHaveLength(13);
+      expect(printedDetail(document)).toEqual({
+        columns: [
+          'Accession No.',
+          'Specimen',
+          'Status',
+          'Qty',
+          'Condition',
+          'Storage Location',
+        ],
+        rows: [
+          [
+            'ENT-1',
+            'Papilio polytes\nCommon Mormon',
+            'Cataloged',
+            5,
+            'Good',
+            'Room 101 › Cabinet A › Drawer 3\nRoom 101 › Cabinet A',
+          ],
+        ],
+      });
+      // The period is in the report header, so the scope box doesn't repeat it.
+      expect(keyValue(document, 'Period')).toBeUndefined();
+      expect(keyValue(document, 'Period applies to')).toBeDefined();
+    });
+
     it('refuses to build a report past the row limit instead of truncating it', async () => {
       prismaMock.specimen.count.mockResolvedValue(MAX_REPORT_DETAIL_ROWS + 1);
 
@@ -267,6 +307,81 @@ describe('ReportBuilderService', () => {
     expect(keyValue(document, 'Visitors requested')).toBe(42);
     expect(keyValue(document, 'Visitors in completed visits')).toBe(30);
     expect(tableRows(document, 'By status')).toContainEqual(['Pending', 1, 12]);
+    expect(printedDetail(document)?.rows).toEqual([
+      [
+        'Sep 5, 2026',
+        'Maria\nUSC',
+        'maria@example.com\n0918',
+        30,
+        'Completed\nSep 20, 2026 09:00-11:30',
+      ],
+      ['Sep 6, 2026', 'Jose\nDepEd', 'jose@example.com\n0917', 12, 'Pending'],
+    ]);
+  });
+
+  it('stacks inquiry contact details into a five-column printed table', async () => {
+    prismaMock.inquiry.count.mockResolvedValue(1);
+    prismaMock.inquiry.findMany.mockResolvedValue([
+      {
+        created_at: new Date('2026-09-05T00:00:00.000Z'),
+        full_name: 'Ana Cruz',
+        organization_name: null,
+        email_address: 'ana@example.com',
+        contact_number: '0917',
+        inquiry_type: 'Research',
+        status: 'PENDING',
+        user_account: { full_name: 'Test Curator' },
+      },
+    ]);
+
+    const document = await service.build(
+      context({ type: ReportType.INQUIRY_SUMMARY }),
+    );
+
+    expect(document.csvTable?.columns).toHaveLength(8);
+    expect(printedDetail(document)?.rows).toEqual([
+      [
+        'Sep 5, 2026',
+        'Ana Cruz',
+        'ana@example.com\n0917',
+        'Research',
+        'Pending',
+      ],
+    ]);
+  });
+
+  it('prints exhibits with AR status and asset count in one column', async () => {
+    prismaMock.exhibit.count.mockResolvedValue(1);
+    prismaMock.exhibit.findMany.mockResolvedValue([
+      {
+        public_slug: 'common-mormon',
+        status: 'PUBLISHED',
+        published_at: new Date('2026-09-10T00:00:00.000Z'),
+        created_at: new Date('2026-09-01T00:00:00.000Z'),
+        specimen: {
+          accession_number: 'ENT-1',
+          scientific_name: 'Papilio polytes',
+          common_name: 'Common Mormon',
+        },
+        ar_asset: [{ is_enabled: true }, { is_enabled: false }],
+        _count: { exhibit_media: 4 },
+      },
+    ]);
+
+    const document = await service.build(
+      context({ type: ReportType.QR_AR_EXHIBITS }),
+    );
+
+    expect(document.csvTable?.columns).toHaveLength(9);
+    expect(printedDetail(document)?.rows).toEqual([
+      [
+        'Papilio polytes (Common Mormon)\nENT-1',
+        'Published',
+        'Sep 10, 2026',
+        'Yes (2 assets)',
+        4,
+      ],
+    ]);
   });
 
   it('filters exhibits by AR availability and excludes archived exhibits', async () => {
@@ -374,6 +489,22 @@ describe('ReportBuilderService', () => {
       const longDetail = document.csvTable?.rows[2][8] as string;
       expect(longDetail).toHaveLength(300);
       expect(longDetail.endsWith('…')).toBe(true);
+      expect(printedDetail(document)?.rows.slice(0, 2)).toEqual([
+        [
+          'Sep 30, 2026, 4:05:12 PM',
+          'Test Curator\nCurator',
+          'auth\nLOGIN',
+          'Denied',
+          'reason: inactive account',
+        ],
+        [
+          'Sep 30, 2026, 5:00:00 PM',
+          'No account',
+          'reports\nGENERATE_REPORT',
+          'Success',
+          'Record: report\nreportType: INVENTORY; filters: {"family":"x"}',
+        ],
+      ]);
       expect(tableRows(document, 'By result')).toEqual([
         ['Success', 1],
         ['Failed', 1],
@@ -402,10 +533,7 @@ describe('ReportBuilderService', () => {
       prismaMock.specimen.groupBy.mockImplementation(({ by }) =>
         Promise.resolve(
           by[0] === 'status'
-            ? [
-                { status: 'CATALOGED', _count: { _all: 8 } },
-                { status: 'ARCHIVED', _count: { _all: 1 } },
-              ]
+            ? [{ status: 'CATALOGED', _count: { _all: 8 } }]
             : [
                 { specimen_category: 'entomology', _count: { _all: 2 } },
                 { specimen_category: 'Entomology', _count: { _all: 2 } },
@@ -418,7 +546,10 @@ describe('ReportBuilderService', () => {
         _count: { _all: 0 },
         _sum: { quantity: null },
       });
-      prismaMock.specimen.count.mockResolvedValue(3);
+      prismaMock.specimen.count.mockImplementation(
+        ({ where }: { where: { OR?: unknown } }) =>
+          Promise.resolve(where.OR ? 1 : 3),
+      );
       prismaMock.specimen_revision_history.count.mockResolvedValue(2);
       prismaMock.specimen_lot_transaction.groupBy.mockResolvedValue([]);
       prismaMock.inquiry.groupBy.mockResolvedValue([]);

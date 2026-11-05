@@ -1,5 +1,6 @@
 import {
   FAQ_MATCHING_RULES,
+  isVisitRequestChange,
   isVisitRequestTransaction,
   matchFaqEntries,
   normalizeFaqText,
@@ -122,5 +123,13 @@ describe('faq-matcher', () => {
     expect(isVisitRequestTransaction('How do I register for a tour?')).toBe(
       false,
     );
+  });
+
+  it('separates changes to a sent request from new requests', () => {
+    expect(isVisitRequestChange('Please cancel my visit request')).toBe(true);
+    expect(isVisitRequestChange('Reschedule my museum visit')).toBe(true);
+    expect(isVisitRequestChange('Book a visit for Friday')).toBe(false);
+    expect(isVisitRequestChange('Approve my visit request')).toBe(false);
+    expect(isVisitRequestChange('Cancel the newsletter')).toBe(false);
   });
 });

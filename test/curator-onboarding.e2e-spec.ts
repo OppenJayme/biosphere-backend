@@ -15,12 +15,10 @@ describe('Curator onboarding (e2e)', () => {
 
   let app: INestApplication<App>;
   let onboardingPending: boolean;
-  let passwordSet: boolean;
   let auditCreate: jest.Mock;
 
   beforeEach(async () => {
     onboardingPending = true;
-    passwordSet = false;
     auditCreate = jest.fn(() => ({}));
 
     const prismaMock = {
@@ -32,10 +30,7 @@ describe('Curator onboarding (e2e)', () => {
         })),
         findMany: jest.fn(() => []),
       },
-      users: {
-        count: jest.fn(() => (passwordSet ? 1 : 0)),
-        findMany: jest.fn(() => []),
-      },
+      users: { findMany: jest.fn(() => []) },
       audit_log: { create: auditCreate },
     };
     const getUser = jest.fn((token: string) =>
@@ -110,11 +105,11 @@ describe('Curator onboarding (e2e)', () => {
     );
   });
 
-  it('will not complete onboarding before a password exists', async () => {
+  it('will not complete onboarding without a password', async () => {
     await request(app.getHttpServer())
       .post('/auth/onboarding/complete')
       .set('Authorization', `Bearer ${inviteToken}`)
-      .expect(409);
+      .expect(400);
 
     expect(onboardingPending).toBe(true);
     await request(app.getHttpServer())
@@ -124,11 +119,10 @@ describe('Curator onboarding (e2e)', () => {
   });
 
   it('grants protected access once the password is set and onboarding completed', async () => {
-    passwordSet = true;
-
     await request(app.getHttpServer())
       .post('/auth/onboarding/complete')
       .set('Authorization', `Bearer ${inviteToken}`)
+      .send({ password: 'chosen-password' })
       .expect(200, { onboardingComplete: true });
 
     await request(app.getHttpServer())
@@ -147,16 +141,19 @@ describe('Curator onboarding (e2e)', () => {
     });
     const audited = JSON.stringify(auditEntries());
     expect(audited).not.toContain(inviteToken);
-    expect(audited).not.toMatch(/password"|token"|secret/i);
+    expect(audited).not.toContain('chosen-password');
+    expect(audited).not.toMatch(/token"|secret/i);
   });
 
   it('rejects completion without a valid session', async () => {
     await request(app.getHttpServer())
       .post('/auth/onboarding/complete')
+      .send({ password: 'chosen-password' })
       .expect(401);
     await request(app.getHttpServer())
       .post('/auth/onboarding/complete')
       .set('Authorization', 'Bearer not-a-session')
+      .send({ password: 'chosen-password' })
       .expect(401);
     expect(onboardingPending).toBe(true);
   });

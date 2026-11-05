@@ -7,16 +7,30 @@ import {
   type ReportDocument,
   type ReportTable,
 } from '../report-document';
-import { formatGeneratedAt, usesLandscape } from './render-helpers';
+import {
+  formatGeneratedAt,
+  MIN_REPORT_FONT_SIZE,
+  pngAspectRatio,
+  REPORT_INSTITUTION,
+  REPORT_MUSEUM,
+  reportLogos,
+} from './render-helpers';
 
 type Pdf = PDFKit.PDFDocument;
 
-const MARGIN = 40;
-const FOOTER_HEIGHT = 24;
-const CELL_PADDING = 3;
-const TABLE_FONT_SIZE = 7.5;
-const MAX_NATURAL_COLUMN_WIDTH = 180;
-const MAX_WORD_WIDTH = 90;
+const MARGIN = 36;
+const FOOTER_HEIGHT = 28;
+const CELL_PADDING = 4;
+const LOGO_HEIGHT = 60;
+// Every size is at least MIN_REPORT_FONT_SIZE (12 pt).
+const BODY_FONT_SIZE = MIN_REPORT_FONT_SIZE;
+const TABLE_FONT_SIZE = MIN_REPORT_FONT_SIZE;
+const FOOTER_FONT_SIZE = MIN_REPORT_FONT_SIZE;
+const TABLE_TITLE_FONT_SIZE = 13;
+const HEADING_FONT_SIZE = 15;
+const TITLE_FONT_SIZE = 20;
+const MAX_NATURAL_COLUMN_WIDTH = 220;
+const MAX_WORD_WIDTH = 150;
 const BRAND = '#1F5130';
 const HEADER_FILL = '#E3EEE6';
 const RULE = '#C9D3CC';
@@ -25,7 +39,7 @@ const RULE = '#C9D3CC';
 export function renderPdf(report: ReportDocument): Promise<Buffer> {
   const doc = new PDFDocument({
     size: 'A4',
-    layout: usesLandscape(report) ? 'landscape' : 'portrait',
+    layout: 'portrait',
     margins: {
       top: MARGIN,
       bottom: MARGIN + FOOTER_HEIGHT,
@@ -43,13 +57,14 @@ export function renderPdf(report: ReportDocument): Promise<Buffer> {
     doc.on('error', reject);
   });
 
+  drawLetterhead(doc);
   doc
     .font('Helvetica-Bold')
-    .fontSize(18)
+    .fontSize(TITLE_FONT_SIZE)
     .fillColor(BRAND)
-    .text(pdfText(report.title));
+    .text(pdfText(report.title), MARGIN);
   doc.moveDown(0.3);
-  doc.font('Helvetica').fontSize(10).fillColor('#333333');
+  doc.font('Helvetica').fontSize(BODY_FONT_SIZE).fillColor('#333333');
   doc.text(pdfText(`Reporting period: ${report.periodLabel}`));
   doc.text(
     pdfText(
@@ -60,7 +75,7 @@ export function renderPdf(report: ReportDocument): Promise<Buffer> {
     doc.moveDown(0.5);
     doc
       .font('Helvetica-Bold')
-      .fontSize(9)
+      .fontSize(BODY_FONT_SIZE)
       .fillColor('#9B1C1C')
       .text(pdfText(CONFIDENTIAL_NOTICE));
   }
@@ -72,17 +87,63 @@ export function renderPdf(report: ReportDocument): Promise<Buffer> {
   return done;
 }
 
+/**
+ * First-page letterhead: the University of San Carlos seal on the left, the
+ * BioSphere logo on the right, and the institution between them.
+ */
+function drawLetterhead(doc: Pdf): void {
+  const { university, biosphere } = reportLogos();
+  const top = doc.page.margins.top;
+  const right = doc.page.width - MARGIN;
+  const universityWidth = LOGO_HEIGHT * pngAspectRatio(university);
+  const biosphereWidth = LOGO_HEIGHT * pngAspectRatio(biosphere);
+  doc.image(university, MARGIN, top, { height: LOGO_HEIGHT });
+  doc.image(biosphere, right - biosphereWidth, top, { height: LOGO_HEIGHT });
+
+  const textLeft = MARGIN + universityWidth + 12;
+  const textWidth = right - biosphereWidth - 12 - textLeft;
+  doc
+    .font('Helvetica-Bold')
+    .fontSize(16)
+    .fillColor(BRAND)
+    .text(pdfText(REPORT_INSTITUTION), textLeft, top + 10, {
+      width: textWidth,
+      align: 'center',
+    });
+  doc
+    .font('Helvetica')
+    .fontSize(14)
+    .fillColor('#333333')
+    .text(pdfText(REPORT_MUSEUM), textLeft, doc.y + 2, {
+      width: textWidth,
+      align: 'center',
+    });
+
+  const ruleY = top + LOGO_HEIGHT + 8;
+  doc
+    .moveTo(MARGIN, ruleY)
+    .lineTo(right, ruleY)
+    .lineWidth(1)
+    .strokeColor(BRAND)
+    .stroke();
+  doc.x = MARGIN;
+  doc.y = ruleY + 12;
+}
+
 function renderBlock(doc: Pdf, block: ReportBlock): void {
   switch (block.kind) {
     case 'heading':
       ensureSpace(doc, 60);
       doc.moveDown(1);
-      doc.font('Helvetica-Bold').fontSize(13).fillColor(BRAND);
+      doc.font('Helvetica-Bold').fontSize(HEADING_FONT_SIZE).fillColor(BRAND);
       doc.text(pdfText(block.text), MARGIN);
       doc.fillColor('#000000').moveDown(0.3);
       return;
     case 'paragraph':
-      doc.font('Helvetica').fontSize(10).text(pdfText(block.text), MARGIN);
+      doc
+        .font('Helvetica')
+        .fontSize(BODY_FONT_SIZE)
+        .text(pdfText(block.text), MARGIN);
       doc.moveDown(0.5);
       return;
     case 'keyValues':
@@ -92,7 +153,7 @@ function renderBlock(doc: Pdf, block: ReportBlock): void {
           columns: [],
           rows: block.items.map((item) => [item.label, item.value]),
         },
-        { boldFirstColumn: true, maxWidth: 340 },
+        { boldFirstColumn: true, maxWidth: 400 },
       );
       return;
     case 'table':
@@ -106,29 +167,51 @@ function renderTable(
   table: ReportTable,
   options: { boldFirstColumn?: boolean; maxWidth?: number } = {},
 ): void {
+  const available = Math.min(
+    doc.page.width - MARGIN * 2,
+    options.maxWidth ?? Number.POSITIVE_INFINITY,
+  );
+  const widths =
+    table.rows.length > 0
+      ? columnWidths(doc, table, available, options.boldFirstColumn)
+      : [];
+
+  // A table that fits on one page starts on a new page rather than splitting.
+  const titleHeight = table.title ? 40 : 0;
+  const tableHeight =
+    titleHeight +
+    (table.columns.length > 0 && widths.length > 0
+      ? rowHeight(doc, table.columns, widths, { header: true })
+      : 0) +
+    sum(
+      table.rows.map((row) =>
+        rowHeight(doc, row, widths, {
+          boldFirstColumn: options.boldFirstColumn,
+        }),
+      ),
+    );
+  if (tableHeight <= pageBottom(doc) - doc.page.margins.top) {
+    ensureSpace(doc, tableHeight);
+  }
+
   if (table.title) {
     ensureSpace(doc, 50);
     doc.moveDown(0.5);
     doc
       .font('Helvetica-Bold')
-      .fontSize(10.5)
+      .fontSize(TABLE_TITLE_FONT_SIZE)
       .text(pdfText(table.title), MARGIN);
     doc.moveDown(0.2);
   }
   if (table.rows.length === 0) {
     doc
       .font('Helvetica-Oblique')
-      .fontSize(9)
+      .fontSize(BODY_FONT_SIZE)
       .text('No records for this selection.', MARGIN);
     doc.moveDown(0.5);
     return;
   }
 
-  const available = Math.min(
-    doc.page.width - MARGIN * 2,
-    options.maxWidth ?? Number.POSITIVE_INFINITY,
-  );
-  const widths = columnWidths(doc, table, available, options.boldFirstColumn);
   const drawHeader = () => {
     if (table.columns.length > 0)
       drawRow(doc, table.columns, widths, {
@@ -246,7 +329,10 @@ function columnWidths(
     let longestWord = 0;
     const measure = (text: string, bold: boolean) => {
       doc.font(bold ? 'Helvetica-Bold' : 'Helvetica').fontSize(TABLE_FONT_SIZE);
-      longestLine = Math.max(longestLine, doc.widthOfString(text));
+      // Stacked cells hold one field per line.
+      for (const line of text.split('\n')) {
+        longestLine = Math.max(longestLine, doc.widthOfString(line));
+      }
       for (const word of text.split(/\s+/)) {
         longestWord = Math.max(longestWord, doc.widthOfString(word));
       }
@@ -303,9 +389,9 @@ function addPageFooters(doc: Pdf, report: ReportDocument): void {
       ` · Page ${index + 1} of ${range.count}`;
     doc
       .font('Helvetica')
-      .fontSize(7.5)
-      .fillColor('#666666')
-      .text(pdfText(label), MARGIN, doc.page.height - MARGIN - 4, {
+      .fontSize(FOOTER_FONT_SIZE)
+      .fillColor('#555555')
+      .text(pdfText(label), MARGIN, doc.page.height - MARGIN - 8, {
         width: doc.page.width - MARGIN * 2,
         align: 'center',
         lineBreak: false,

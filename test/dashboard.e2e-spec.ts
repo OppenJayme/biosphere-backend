@@ -44,7 +44,9 @@ describe('Dashboard (e2e)', () => {
             ? [{ status: 'CATALOGED', _count: { _all: 2 } }]
             : [],
         ),
-        count: jest.fn(() => 1),
+        count: jest.fn((args: { where: { OR?: unknown } }) =>
+          args.where.OR ? 0 : 1,
+        ),
         findMany: jest.fn(() => []),
       },
       inquiry: { count: jest.fn(() => 3) },

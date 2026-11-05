@@ -7,6 +7,7 @@ import { PrismaService } from '../src/prisma/prisma.service';
 import { SUPABASE_CLIENT } from '../src/supabase/supabase.constants';
 
 describe('Exhibits (e2e)', () => {
+  const originalPublicSiteUrl = process.env.PUBLIC_SITE_URL;
   const curatorToken = 'curator-exhibit-token';
   const developerToken = 'developer-exhibit-token';
   const curatorAuthId = '11111111-1111-4111-8111-111111111111';
@@ -65,6 +66,8 @@ describe('Exhibits (e2e)', () => {
   };
 
   beforeEach(async () => {
+    // URL/label expectations belong to this fixture, not a developer's .env.
+    process.env.PUBLIC_SITE_URL = 'http://localhost:3000';
     specimenRecord = {
       id: specimenId,
       status: 'CATALOGED',
@@ -290,7 +293,15 @@ describe('Exhibits (e2e)', () => {
   });
 
   afterEach(async () => {
-    await app.close();
+    try {
+      await app?.close();
+    } finally {
+      if (originalPublicSiteUrl === undefined) {
+        delete process.env.PUBLIC_SITE_URL;
+      } else {
+        process.env.PUBLIC_SITE_URL = originalPublicSiteUrl;
+      }
+    }
   });
 
   describe('access control', () => {

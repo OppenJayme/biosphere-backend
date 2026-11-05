@@ -19,6 +19,14 @@ export function referenceIdRange(code: string): { gte: string; lte: string } {
   };
 }
 
+// How long a curator usually takes to review a visit request (set by the team 2026-11-03).
+export const VISIT_REVIEW_TIME = '3 to 5 office weekdays';
+
+// Visitors have no self-service change or cancel; both go to a curator
+// through a General Inquiry that quotes the reference number.
+export const VISIT_CHANGE_GUIDANCE =
+  'To change or cancel your visit request, send a General Inquiry on the museum website or contact the museum, and include your reference number. Please do not send a new visit request.';
+
 export interface VisitorEmailContent {
   to: string;
   visitorName: string;

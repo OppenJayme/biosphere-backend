@@ -237,6 +237,7 @@ describe('SpecimenDuplicatesService', () => {
       expect.objectContaining({
         where: {
           status: { not: 'ARCHIVED' },
+          archived_at: null,
           id: { notIn: [SPECIMEN_ID] },
           OR: [
             {

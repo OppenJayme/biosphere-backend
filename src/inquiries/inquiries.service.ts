@@ -76,6 +76,7 @@ export class InquiriesService {
           organization_name: dto.organization ?? null,
           inquiry_type: dto.inquiryType ?? DEFAULT_INQUIRY_TYPE,
           message: dto.message,
+          visit_reference_code: dto.visitReferenceCode ?? null,
           status: 'PENDING',
           consent_accepted_at: submittedAt,
           created_at: submittedAt,
@@ -123,6 +124,7 @@ export class InquiriesService {
             { organization_name: search },
             { inquiry_type: search },
             { message: search },
+            { visit_reference_code: search },
             ...(REFERENCE_CODE_PATTERN.test(query.search ?? '')
               ? [{ id: referenceIdRange(query.search!) }]
               : []),
@@ -394,6 +396,7 @@ export class InquiriesService {
       organization: item.organization_name,
       inquiryType: item.inquiry_type,
       message: item.message,
+      visitReferenceCode: item.visit_reference_code,
       status: item.status as InquiryStatus,
       consentAcceptedAt: item.consent_accepted_at,
       reviewedBy: item.reviewed_by,

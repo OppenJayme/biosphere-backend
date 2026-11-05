@@ -9,6 +9,7 @@ import { AuthService } from '../../src/auth/auth.service';
 import { SupabaseAuthGuard } from '../../src/auth/guards/supabase-auth.guard';
 import { RolesGuard } from '../../src/auth/guards/roles.guard';
 import { SecurityAuditService } from '../../src/auth/security-audit.service';
+import { MailService } from '../../src/mail/mail.service';
 import { GLOBAL_RATE_LIMIT } from '../../src/config/rate-limit.config';
 import { FaqAssistantController } from '../../src/faq/faq-assistant.controller';
 import { FaqAssistantService } from '../../src/faq/faq-assistant.service';
@@ -24,6 +25,7 @@ export async function createFaqQualityApp(entries: SyntheticFaq[]) {
       FaqAssistantService,
       AuthService,
       SecurityAuditService,
+      MailService,
       { provide: ConfigService, useValue: new ConfigService({}) },
       {
         provide: PrismaService,

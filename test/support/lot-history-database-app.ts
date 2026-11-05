@@ -14,6 +14,7 @@ import { AuthService } from '../../src/auth/auth.service';
 import { RolesGuard } from '../../src/auth/guards/roles.guard';
 import { SupabaseAuthGuard } from '../../src/auth/guards/supabase-auth.guard';
 import { SecurityAuditService } from '../../src/auth/security-audit.service';
+import { MailService } from '../../src/mail/mail.service';
 import { GLOBAL_RATE_LIMIT } from '../../src/config/rate-limit.config';
 import { PrismaService } from '../../src/prisma/prisma.service';
 import { SpecimenLotsController } from '../../src/specimen-lots/specimen-lots.controller';
@@ -71,6 +72,7 @@ export async function createLotHistoryDatabaseApp(connectionString: string) {
       SpecimenLotsService,
       AuthService,
       SecurityAuditService,
+      MailService,
       AuditService,
       {
         provide: SUPABASE_CLIENT,

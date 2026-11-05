@@ -1,5 +1,38 @@
 # BioSphere Reports Guide
 
+## Archive-read consistency - 2026-11-04
+
+Consolidated active category, condition and lot quantity breakdowns now exclude
+either archive indicator. The all-record total, period activity and the Inventory
+report's existing status-filter behavior are preserved. After the November 5
+follow-up below, current status counts also use effective archive membership
+rather than raw stored status. The user authorized this John/Charles-owned follow-up;
+[DEF-032](./TEST_DEFECT_LOG.md#def-032---timestamp-only-archives-leak-into-active-catalog-and-breakdowns)
+records real SQL/public-builder evidence. No emitted file, shared report record,
+upload, quantity or schema change was tested or performed by this fixture.
+
+### Consolidated status consistency follow-up - 2026-11-05
+
+John/MarQtie's [nonblocking #231 review follow-up](https://github.com/OppenJayme/biosphere-backend/pull/231#discussion_r4475936341)
+identified one remaining difference: a timestamp-only archive still counted as
+Uncataloged in the consolidated report while Dashboard/Cataloging treated it
+as Archived. The public report-builder/owned PostgreSQL test reproduced 2
+Uncataloged / 1 Cataloged / 2 Archived instead of 1 / 1 / 3. The overall total
+was and remains 5; active lots/quantity remain 2/7.
+
+Consolidated current-status counts now group active records by status and count
+either archive indicator as Archived, using the shared predicates. The Inventory
+Summary paragraph explains this interpretation. No record status or timestamp
+is rewritten. Period activity counts are not reinterpreted as current-state
+counts, and Inventory detail filtering is outside this narrow repair.
+
+The existing six-case public-service/SQL suite passes with the strengthened
+report expectation. It remains opt-in (`npm run test:archive-reads:db`), accepts
+no external DB URL, and uses owned temporary PostgreSQL with synthetic data and
+read-only application grants. This is builder-result verification, not a new
+live browser/report-upload test, migration replay or concurrent-snapshot proof.
+No module/defect acceptance is promoted by this owner check.
+
 This module implements the reports and export portion of SRS Section 4.7
 (REQ-4.7-04 to REQ-4.7-16) for the five approved core report types in §4.7.4,
 plus the audit-log export the SRS Audit Logs page describes (Figure 20,
@@ -103,7 +136,30 @@ start, end), `filters`, `rowCount`, and `fileName`, or `error` on failure
 
 - Confidential reports (Inventory, Inquiry, Visit-Request, and Audit Log) carry a
   confidentiality notice on the first page and in every page footer or header.
-- Tables with more than six columns use landscape A4 pages.
+- PDF and DOCX reports are A4 portrait. The first page has a letterhead with
+  the University of San Carlos seal on the left, the BioSphere logo on the
+  right, and "University of San Carlos / USC Biological Museum" between them.
+  The logos are `assets/reports/usc-logo.png` and
+  `assets/reports/biosphere-logo.png`, read from the repository root, so a
+  deployment must include `assets/` next to `dist/`.
+- No printed text is smaller than 12 pt, including table cells, headers,
+  footers, and page numbers (`MIN_REPORT_FONT_SIZE`). The renderer tests check
+  every font size in the generated PDF and DOCX.
+- To fit portrait pages at 12 pt, the printed detail tables have five or six
+  columns. Some related fields share one cell on two lines, and a few fields
+  appear only in the CSV export:
+
+  | Report | Printed columns | CSV only |
+  | --- | --- | --- |
+  | Inventory | Accession No., Specimen (scientific / common name), Status, Qty, Condition, Storage Location | Category, Collection, Family, Classification, Public Display, Date Added |
+  | Inquiry | Received, Name / Organization, Email / Contact No., Type, Status | Reviewed By |
+  | Visit Request | Submitted, Contact Person / Organization, Email / Contact No., Visitors, Status / Schedule | Reviewed By |
+  | QR and AR Exhibits | Specimen / Accession No., Status, Published, AR Enabled (with asset count), Media | Public Slug, Created |
+  | Audit Log | Recorded, Account / Role, Module / Action, Result, Details (with record type) | Record ID |
+
+  The CSV export keeps every column, one field per column. The Report Scope
+  box no longer repeats the reporting period, which is in the report header.
+- A table short enough to fit on one page is not split across pages.
 - CSV files are UTF-8 with a byte-order mark and CRLF line endings. Cells that
   start with `=`, `+`, `-`, `@`, a tab, or a carriage return get a leading `'`,
   so spreadsheet apps don't run them as formulas.

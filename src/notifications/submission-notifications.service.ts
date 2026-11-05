@@ -2,7 +2,12 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Prisma } from '../generated/prisma/client';
 import { MailService } from '../mail/mail.service';
-import { buildVisitorEmail, referenceCode } from '../mail/visitor-email';
+import {
+  VISIT_CHANGE_GUIDANCE,
+  VISIT_REVIEW_TIME,
+  buildVisitorEmail,
+  referenceCode,
+} from '../mail/visitor-email';
 import { PrismaService } from '../prisma/prisma.service';
 import { buildCuratorAlertEmail } from './curator-alert-email';
 import { NotificationRecordType } from './entities/curator-notification.entity';
@@ -89,7 +94,9 @@ export class SubmissionNotificationsService {
           ]
         : [
             'Thank you for your interest in visiting the museum. We have received your visit request, and a curator will review your preferred schedules.',
-            'This is not yet an approval. The museum will email you once a curator has reviewed your request.',
+            `This is not yet an approval. A curator usually reviews requests within ${VISIT_REVIEW_TIME} and will email you once your request has been reviewed.`,
+            'If you have not heard from us by then, please check your spam or junk folder first, then send a General Inquiry on the museum website or contact the museum, and include your reference number.',
+            VISIT_CHANGE_GUIDANCE,
           ],
       details: submission.receiptDetails,
       reference,

@@ -7,6 +7,13 @@
 
 ## Start here
 
+2026-11-05 Cataloging/Storage closeout: the [five-decision checklist](./CATALOGING_STORAGE_SIGNOFF_2026-11-04.md#five-acceptance-decisions---reconciled-2026-11-05)
+reconciles merged #231/#232/#233/#234 and John's #236 restriction evidence.
+It distinguishes existing passes from release identification, policy integration,
+defect disposition and named acceptance. #237's relayed Curator decision and
+#238's Reports follow-up are open at that snapshot. No tests were rerun or case,
+defect or owner-signature statuses promoted by this documentation update.
+
 2026-10-28 integration/reviewer follow-up: backend #205 and frontend #90 are
 merged into develop with passing integration PR CI. The [current handoff](./COMPLETION_HANDOFF.md#current-independent-review-checkpoint---2026-10-28)
 records the verified revisions and Voltaire's completed independent report:
@@ -56,8 +63,9 @@ field. Immediate input invalidation now passes six isolated mounted-component
 scenarios; existing frontend tests pass 399/399. Subsequent merged production
 build/retest on `b65c9dd`, build `-7vcfapNQNgHNQsAN6WHj`, passed the no-save
 failure/invalidation/retry/clear flow with all three synthetic POSTs aborted
-locally. Only the frontend was refreshed; no live specimen writes. Archived
-policy, successful live-result limits and independent CAT-014 acceptance remain.
+locally. Only the frontend was refreshed; no live specimen writes. Later user
+direction chose active-only matching; the REQ-4.4-21 active-only scope was
+approved by Sir Fidel (reported by John on 2026-11-05). Successful live-result limits and independent acceptance remain.
 
 2026-10-27 phone follow-up: the user reports all six physical-phone LAN steps
 passed (selection, X, another record, matching details, Back and refresh).
@@ -175,6 +183,7 @@ module without agreement.
 | Charles Boquecosa | Curator Dashboard; Visit Request Management; General Inquiry Management; Public Museum Website; shared Backend Management                                                                                            |
 | John Gerozaga     | Curator Dashboard; Specimen Inventory Management; Reports and Data Export; General Inquiry Management; Public Museum Website; project coordination                                                                   |
 | Kyer Jayme        | Cataloging Management; Storage Location Management; Controlled Knowledge-Based FAQ Assistant; Audit Log and Backup/Restore Management; Limited Offline Record Caching, Draft Synchronization, and System Integration |
+| Ivan              | Shared Cataloging Management and Storage Location Management ownership per `CLAUDE.md`; acceptance is recorded separately from Kyer's |
 | Voltaire Ratilla  | Authentication and Access Control; Exhibit and QR Content Management; Public Museum Website; QR Exhibit and WebAR; shared Backend Management                                                                         |
 
 ### Cataloging and Inventory boundary
@@ -405,12 +414,12 @@ John/Voltaire test-fixture handoff, not permission to absorb Inventory work.
 | CAT-008 | Remove required data while Cataloged, then reopen with a reason                | Removal is blocked until reopening; reopening returns to `UNCATALOGED` and disables public display         | **Pass**                                                              |
 | CAT-009 | Enable and disable public eligibility                                          | Only Cataloged specimens qualify; no exhibit is published automatically                                    | **Pass**                                                              |
 | CAT-010 | Attach, change, repeat, and detach tags                                        | Relationships remain unique and retry-safe                                                                 | **Pass**; usability issue DEF-005                                     |
-| CAT-011 | Upload, edit, cover, replace, and remove supported media; reject invalid media | Private signed access, database/storage consistency, and usable interaction states are preserved           | In progress; [DEF-022 merged production recovery/retry passed; independent acceptance pending](./SPECIMEN_MEDIA_GUIDE.md#merged-metadata-repair-verification---2026-10-24). Prior [media/privacy batch](./SPECIMEN_MEDIA_GUIDE.md#cat-011-consolidated-media-batch---2026-10-22) and [wrong-pair HTTP regressions](./SPECIMEN_MEDIA_GUIDE.md#cat-011-wrong-pair-http-checkpoint---2026-10-23) pass; live role/wrong-pair access, failure/concurrency and full accessibility/sign-off gaps remain (original Fail - DEF-004/006/007) |
-| CAT-012 | Search, combine filters, sort, and paginate                                    | Results are bounded, stable, case-insensitive where approved, and archived records are excluded by default | **Pass** for prior search mechanics; [nonblank basic-filter reset/history/reapply owner check](./TEST_DEFECT_LOG.md#nonblank-collection-and-eligibility-follow-up---2026-10-27) passes; DEF-008 independent acceptance and DEF-011 performance disposition remain separate |
+| CAT-011 | Upload, edit, cover, replace, and remove supported media; reject invalid media | Private signed access, database/storage consistency, and usable interaction states are preserved | In progress; [DEF-022 recovery/retry](./SPECIMEN_MEDIA_GUIDE.md#merged-metadata-repair-verification---2026-10-24), [consolidated media batch](./SPECIMEN_MEDIA_GUIDE.md#cat-011-consolidated-media-batch---2026-10-22) and [isolated wrong-pair checks](./SPECIMEN_MEDIA_GUIDE.md#cat-011-wrong-pair-http-checkpoint---2026-10-23) are retained. **Unpinned local runs:** [Curator GETs](./SPECIMEN_MEDIA_GUIDE.md#curator-wrong-specimen-read-checkpoint---2026-11-04) returned 200/404; [Developer GETs](./SPECIMEN_MEDIA_GUIDE.md#developer-direct-endpoint-checkpoint---2026-11-04) returned 403. [Recovered launch provenance](./SPECIMEN_MEDIA_GUIDE.md#backend-provenance-recovery---2026-11-04) does not pin the compiled build at execution. Release-specific acceptance, error-body privacy, audit correlation, real URL expiry, failure/concurrency, accessibility and independent sign-off remain separate. DEF-004/006/007 dispositions unchanged. |
+| CAT-012 | Search, combine filters, sort, and paginate | Results are bounded, stable, case-insensitive where approved, and archived records are excluded by default | In progress for [DEF-032 legacy archive consistency](./TEST_DEFECT_LOG.md#def-032---timestamp-only-archives-leak-into-active-catalog-and-breakdowns), repaired with owner SQL evidence and awaiting independent retest. Prior search mechanics and [filter reset/history/reapply](./TEST_DEFECT_LOG.md#nonblank-collection-and-eligibility-follow-up---2026-10-27) passed and remain retained; DEF-008 acceptance and DEF-011 performance disposition are separate. |
 | CAT-013 | Preview and commit mixed-validity CSV/XLSX rows; retry commit | Preview is non-mutating; only reviewed valid rows import as `UNCATALOGED`; retries do not duplicate rows | **In progress**; prior CSV/DEF-009/DEF-021 and independent DEF-029 evidence retained. [Live XLSX selected-row commit/retry](./SPECIMEN_IMPORT_GUIDE.md#live-xlsx-selected-row-commit-and-retry---2026-10-30) passes: one valid specimen, invalid row excluded, same specimen ID and one successful import audit after same-preview retry. Museum-template suitability, concurrency and whole-module sign-off remain separate; do not requeue the completed live subcase. |
-| CAT-014 | Review possible duplicate warnings, including archived matches                 | Warnings show evidence and never auto-merge records                                                        | In progress; prior [merged browser retest](./SPECIMEN_DUPLICATES_GUIDE.md#merged-browser-retest-checkpoint---2026-10-24), six independently reported passing DEF-026 component scenarios and [merged production failure/retry checkpoint](./TEST_DEFECT_LOG.md#merged-production-ui-checkpoint---2026-10-27) pass; successful live-result limits, full stale-response coverage, archived policy and independent acceptance remain |
+| CAT-014 | Review duplicate warnings for active specimens against REQ-4.4-21/22/23; archived records are excluded | Warnings show evidence and never auto-merge records | In progress; the [active-only scope](./SPECIMEN_DUPLICATES_GUIDE.md#archived-match-decision---2026-11-04) was approved by Sir Fidel (reported by John on 2026-11-05), so the scope blocker is cleared. [DEF-031 archive consistency repair](./SPECIMEN_DUPLICATES_GUIDE.md#archive-indicator-consistency-repair---2026-11-04) passed owner service/SQL regression and awaits independent retest. [Merged browser retest](./SPECIMEN_DUPLICATES_GUIDE.md#merged-browser-retest-checkpoint---2026-10-24), six independent component scenarios and [production failure/retry](./TEST_DEFECT_LOG.md#merged-production-ui-checkpoint---2026-10-27) are retained; live-result limits, full stale-response coverage and independent acceptance remain. |
 | CAT-015 | Select multiple specimens from the protected catalog on local and LAN clients  | Every row is keyboard/touch accessible and opens the matching preview/detail route                         | In progress; prior local keyboard/detail checks plus [six user-reported physical-phone LAN/touch checks in Google Chrome](./TEST_DEFECT_LOG.md#user-reported-physical-phone-lan-check---2026-10-27) pass; phone OS/model/version unspecified; console/full accessibility and independent release acceptance pending |
-| CAT-016 | Restore an archived specimen after current-requirement revalidation | Same record returns as Cataloged only when complete, otherwise Uncataloged; public display off; history preserved; inventory unchanged | **Partial pass** — live incomplete restore, cancel/error/reload and audit passed; complete branch covered by isolated HTTP tests; live concurrency unverified |
+| CAT-016 | Restore an archived specimen after current-requirement revalidation | Same record returns as Cataloged only when complete, otherwise Uncataloged; public display off; history preserved; inventory unchanged | **Partial pass** — live incomplete restore, cancel/error/reload and audit passed; complete legacy branch now passes [owned PostgreSQL/public-service restoration and retry](./CATALOG_RESTORATION_VERIFICATION.md#owned-postgresql-legacy-restoration---2026-11-05), alongside 16 existing protected HTTP regressions. Independent disposition and live concurrency remain unverified; no Inventory reactivation or shared writes. |
 
 CAT-016 evidence and limits are recorded in
 [Cataloging restoration verification](./CATALOG_RESTORATION_VERIFICATION.md).
@@ -668,7 +677,7 @@ were not rerun for prose changes.
 | STO-001 | Create a root and nested storage hierarchy            | The hierarchy reloads with correct parent-child relationships | **Pass**                                             |
 | STO-002 | Attempt self-parenting and descendant cycles          | Both operations are rejected without changing the hierarchy   | **Pass**; UI manual + automated backend verification |
 | STO-003 | Edit storage metadata and specimen-holding capability | Valid changes persist and invalid values are rejected clearly | **Pass**                                             |
-| STO-004 | Exercise approved archive restrictions                | Referenced/unsafe locations cannot be archived incorrectly    | **Pass** for original restrictions; DEF-010 post-merge display and isolated HTTP checks passed; combined Inventory criterion/sign-off pending |
+| STO-004 | Exercise approved archive restrictions                | Referenced/unsafe locations cannot be archived incorrectly    | **Pass** for original restrictions; DEF-010 post-merge display and isolated HTTP checks passed; [John's Inventory restriction result](./CATALOGING_STORAGE_SIGNOFF_2026-11-04.md#inventory-restriction-result-for-sto-004---2026-11-05) passed on owned PostgreSQL 2026-11-05 (archived units reject lot create/move/condition change/increase; inventory unchanged). Independent review and DEF-010 disposition pending |
 
 STO-001 evidence recorded on 2026-10-04: a disposable top-level room and its
 nested storage locations were created with the intended parent-child
@@ -1032,7 +1041,7 @@ approval is inferred. Earlier dated evidence remains historical.
 | AUD-001 | Filter audit logs by actor, module, action, result, record, and date | Results are protected, stable, bounded, and accurate | In progress; prior role/denial evidence retained. [Live existing-event filters](./AUDIT_LOG_GUIDE.md#live-existing-event-filter-checkpoint---2026-10-30) pass 11 assertions; [toolbar/actor-name/pagination follow-up](./AUDIT_LOG_GUIDE.md#live-toolbar-actor-search-and-pagination-follow-up---2026-10-30) passes 9 more using existing logs. Exact actor-ID/timestamp boundaries, concurrent-pagination/request-ID/access/failure limits and sign-off remain separate. |
 | AUD-002 | Trace Cataloging actions to revision and audit entries               | Actor, affected record, action, outcome, and timestamp match                                                           | In progress; prior evidence plus [five live lifecycle transitions and matching history/audits](./AUDIT_LOG_GUIDE.md#aud-002-approved-lifecycle-traceability-batch---2026-10-23) pass; OBS-001 disposition and independent sign-off pending |
 | BAK-001 | Search and filter backup-history records                             | History loads with correct status/type/creator/date filters                                                            | In progress; empty-history UI plus [16 populated disposable PostgreSQL/HTTP checks including the DEF-025 extension](./BACKUP_HISTORY_GUIDE.md#populated-disposable-postgresql-checkpoint---2026-10-27) pass owner-side and independently reported 16/16; earlier existing HTTP 13/13 also reported; populated browser/provider and full acceptance pending |
-| BAK-002 | Execute and restore a real backup                                    | Deferred until deployment ownership, storage, retention, verification, and disposable restore environment are approved | Deferred |
+| BAK-002 | Execute and restore a real backup                                    | Approved deployment procedure restores database, required Auth/assets/config and verifies before reporting success | Deferred; [November 5 $0 automation/on-demand-support proposal](./BACKUP_RECOVERY_PROCEDURE.md), [approval gates](./BACKUP_RECOVERY_APPROVAL.md), [Curator checklist](./BACKUP_RECOVERY_CURATOR_CHECKLIST.md) and [blank rehearsal record](./BACKUP_RECOVERY_REHEARSAL_TEMPLATE.md) prepared. No runner/scheduler enabled or backup/restore executed; free-capacity/account/destination feasibility, implementation, institutional approval before deployment and reviewed full recovery before turnover remain. No guaranteed RPO/RTO or permanently staffed support claimed. |
 
 The [2026-10-23 lifecycle batch](./AUDIT_LOG_GUIDE.md#aud-002-approved-lifecycle-traceability-batch---2026-10-23)
 supersedes the older pending-completion/reopening/public-eligibility statements
@@ -1954,6 +1963,11 @@ A module is accepted when:
 
 ## 13. Sign-off
 
+For Cataloging and Storage, use the finite
+[November 4 sign-off review](./CATALOGING_STORAGE_SIGNOFF_2026-11-04.md).
+It maps the existing evidence and outstanding dispositions; it records no new
+module acceptance and does not require repeating all historical tests.
+
 ### Defect repair retest checkpoint — 2026-10-05
 
 Historical checkpoint only. Use the 2026-10-22 reconciliation and current rows
@@ -1997,8 +2011,8 @@ Local automated evidence for this repair:
 
 | Module                      | Owner      | Independent reviewer | Date | Result  |
 | --------------------------- | ---------- | -------------------- | ---- | ------- |
-| Cataloging Management       | Kyer Jayme |                      |      | Pending |
-| Storage Location Management | Kyer Jayme |                      |      | Pending |
+| Cataloging Management       | Kyer Jayme / Ivan |                |      | Pending; each owner's decision in the November 4 review |
+| Storage Location Management | Kyer Jayme / Ivan |                |      | Pending; each owner's decision in the November 4 review |
 | Offline Drafts and Sync     | Kyer Jayme |                      |      | Pending |
 | FAQ Knowledge Management    | Kyer Jayme |                      |      | Pending |
 | Audit and Backup History    | Kyer Jayme |                      |      | Pending |

@@ -14,6 +14,7 @@ import { AuthService } from '../../src/auth/auth.service';
 import { RolesGuard } from '../../src/auth/guards/roles.guard';
 import { SupabaseAuthGuard } from '../../src/auth/guards/supabase-auth.guard';
 import { SecurityAuditService } from '../../src/auth/security-audit.service';
+import { MailService } from '../../src/mail/mail.service';
 import { BackupController } from '../../src/backup/backup.controller';
 import { BackupService } from '../../src/backup/backup.service';
 import { GLOBAL_RATE_LIMIT } from '../../src/config/rate-limit.config';
@@ -55,6 +56,7 @@ export async function createBackupHistoryDatabaseApp(connectionString: string) {
       AuditService,
       AuthService,
       SecurityAuditService,
+      MailService,
       {
         provide: SUPABASE_CLIENT,
         useValue: {
