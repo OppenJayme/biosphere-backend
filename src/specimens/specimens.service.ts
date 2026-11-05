@@ -11,6 +11,10 @@ import {
   type user_role,
 } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import {
+  ACTIVE_SPECIMEN_WHERE,
+  ARCHIVED_SPECIMEN_WHERE,
+} from './specimen-archive.policy';
 import { runSerializableTransaction } from '../prisma/serializable-transaction';
 import type { StorageLocationSummary } from '../storage-locations/entities/storage-location-path.entity';
 import { resolveStorageLocations } from '../storage-locations/storage-location-paths';
@@ -157,7 +161,7 @@ export class SpecimensService {
 
   async findAll(): Promise<Specimen[]> {
     const specimens = await this.prisma.specimen.findMany({
-      where: { status: { not: 'ARCHIVED' } },
+      where: ACTIVE_SPECIMEN_WHERE,
       orderBy: { created_at: 'desc' },
     });
 
@@ -808,8 +812,16 @@ export class SpecimensService {
         ? undefined
         : { equals: value, mode: Prisma.QueryMode.insensitive };
     const createdAt = this.buildCreatedAtFilter(query);
+    // Keep archive OR separate from free-text OR so both scopes must match.
+    const archiveScope: Prisma.specimenWhereInput =
+      query.status === SpecimenStatus.ARCHIVED
+        ? { AND: [ARCHIVED_SPECIMEN_WHERE] }
+        : {
+            ...ACTIVE_SPECIMEN_WHERE,
+            status: query.status ?? ACTIVE_SPECIMEN_WHERE.status,
+          };
     const where: Prisma.specimenWhereInput = {
-      status: query.status ?? { not: 'ARCHIVED' },
+      ...archiveScope,
       collection_id: query.collectionId,
       specimen_category: query.specimenCategory
         ? {

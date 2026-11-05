@@ -1025,7 +1025,7 @@ describe('Specimens (e2e)', () => {
       }),
     ]);
     expect(specimenDelegate.findMany).toHaveBeenCalledWith({
-      where: { status: { not: 'ARCHIVED' } },
+      where: { status: { not: 'ARCHIVED' }, archived_at: null },
       orderBy: { created_at: 'desc' },
     });
   });
