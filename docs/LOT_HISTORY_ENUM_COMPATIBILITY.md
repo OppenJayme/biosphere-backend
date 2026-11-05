@@ -107,7 +107,8 @@ and institutional decisions recorded independently in DEF-030.
 
 ### Integration sequence after disposition
 
-The supplied `BioSphere Backend Progress_11_5_2026.pdf` (pages 4-5) reports a
+The supplied [BioSphere Backend Progress_11_5_2026.pdf](./evidence/backend-progress-2026-11-05.pdf)
+(pages 4-5; [copy provenance](./evidence/README.md)) reports a
 November 3-4 Curator retest at local backend `06545c0`: the affected history
 endpoint returned 200 with both retained entries and the Lots page displayed
 Temporary absence. This is a reported local pass, not an agent-executed rerun

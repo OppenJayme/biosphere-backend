@@ -200,7 +200,8 @@ The later reported local API/page retest is recorded below; it does not verify
 every deployment or related consumer.
 
 **Supplied report retest - received 2026-11-05:**
-`BioSphere Backend Progress_11_5_2026.pdf`, pages 4-5, reports testing on
+[BioSphere Backend Progress_11_5_2026.pdf](./evidence/backend-progress-2026-11-05.pdf),
+pages 4-5, reports testing on
 November 3-4 against a local backend build of develop `06545c0`, connected to
 hosted Supabase. As Curator, `GET /specimens/:id/lots/history` for
 `USC-BM-2026-0001` returned 200 with both entries, including the retained
@@ -217,7 +218,8 @@ report grouping or storage-inventory-history retests. Keep the aggregate status
 Ready for retest until the remaining scope is accepted or explicitly disposed
 of by the owner/reviewer; do not rerun the successful local subcase merely
 because the overall status is unchanged. Deployment verification remains separate.
-See [report intake and next actions](./BACKEND_REPORT_INTAKE_2026-11-05.md).
+See [report intake and next actions](./BACKEND_REPORT_INTAKE_2026-11-05.md)
+and the [source hashes/copy provenance](./evidence/README.md).
 
 **User direction - 2026-10-31:** Kyer explicitly wants to retain the value and
 have a future borrowing option for current or successor curators. Record this
