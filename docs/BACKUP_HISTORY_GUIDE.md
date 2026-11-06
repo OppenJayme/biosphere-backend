@@ -92,7 +92,8 @@ scheduling, custody approval and hosted activation remain pending. Recording
 must not alter a restored target before its inventory verification. No schema
 migration or shared database change is part of this slice. BAK-002 stays Deferred.
 
-Run the approved, isolated recording/read boundary checks on Windows Docker:
+Run the approved, isolated recording/read boundary checks on Windows Docker
+Desktop or the Linux CI runner's fixed local Docker socket:
 
 ```powershell
 npm run test:recovery-history:db

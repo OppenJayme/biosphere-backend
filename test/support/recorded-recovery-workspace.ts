@@ -20,7 +20,13 @@ export class RecordedRecoveryWorkspace {
   docker(args: string[], input?: string): string {
     return execFileSync(
       'docker',
-      ['--host', 'npipe:////./pipe/dockerDesktopLinuxEngine', ...args],
+      [
+        '--host',
+        process.platform === 'win32'
+          ? 'npipe:////./pipe/dockerDesktopLinuxEngine'
+          : 'unix:///var/run/docker.sock',
+        ...args,
+      ],
       {
         env: isolatedProcessEnvironment(),
         input,
@@ -53,10 +59,10 @@ export class RecordedRecoveryWorkspace {
   async start() {
     if (
       process.env.RUN_RECOVERY_RECORDING_DISPOSABLE_DB !== 'true' ||
-      process.platform !== 'win32'
+      !['win32', 'linux'].includes(process.platform)
     ) {
       throw new Error(
-        'Explicit owned Windows Docker fixture opt-in is required.',
+        'Explicit owned Windows/Linux Docker fixture opt-in is required.',
       );
     }
     try {

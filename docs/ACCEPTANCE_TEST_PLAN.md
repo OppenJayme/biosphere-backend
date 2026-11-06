@@ -2071,11 +2071,9 @@ Covered: capture/verified restore; withheld execution on start-audit failure;
 pending finish on terminal-audit failure; repeated same-ID reconciliation with
 unchanged checkpoint bytes/count and two audit entries; populated-target refusal;
 unknown/stale receipts; workspace locking; hosted-option rejection; and
-configuration drift during asynchronous start recording. The parent recorder's
-21 cases also pass. The unchanged standalone CLI contract separately passes
-15/15 real Docker/CLI cases on this parent-based branch. Already-merged #248's
-additional nested retry case is outside this checkout's parent commit; rerun
-the combined regressions after updating to merged parent/develop. Run
+configuration drift during asynchronous start recording. Initial pre-merge
+validation included the parent recorder's 21 cases and 15 standalone CLI cases;
+the combined parent/develop follow-up is recorded below. Run
 `npm run test:recovery-recording:db` only against its
 explicitly owned local Docker fixture. No shared URL is accepted by the fixture.
 
@@ -2111,3 +2109,24 @@ focused checks. Scoped lint, TypeScript checking, Nest build, formatting and dif
 checks pass. The notification suite deliberately revokes an owned test role's
 INSERT privilege and expects a 500; that diagnostic log is its negative control,
 not a shared permission failure. Remote CI/re-review remain separate.
+
+### November 6 - #250 combined branch and CI follow-up
+
+Merged develop (including #248/#249) into the adapter branch, preserved both
+sets of checkpoint documentation, and retargeted #250 to develop. The adapter's
+9 owned cases and the expanded recorder's 25 owned cases pass locally together;
+type checking, scoped TypeScript/JavaScript lint, Nest build and CI YAML parsing
+also pass. The standalone CLI regression also passes 16/16 on the combined branch.
+
+The existing Linux synthetic-recovery CI job now installs the locked test
+dependencies and runs both `test:recovery-history:db` and
+`test:recovery-recording:db` after the full CLI suite. This directly covers the
+Prisma/PostgreSQL prefix-escaping behavior and recorder/engine integration that
+were absent from CI in #249. Only those two opt-in profiles gain Linux support;
+all Docker destinations remain fixed local sockets, with fresh exact-owner
+containers, loopback-only history connections and no supplied database URL.
+No provider secrets, persistent mounts or artifact uploads are added. The fixed
+DIRECT_URL in the install step is a synthetic loopback placeholder for code
+generation, not a connection used by either test fixture. Remote Linux results
+must be checked on the final pushed commit; local Windows results alone do not
+prove them. BAK-002 and deployment/independent acceptance gates remain open.

@@ -185,7 +185,8 @@ directory/power-loss durability, Windows ACL restriction, process-crash recovery
 or missed-run alerting. No receipt, key or restored bytes are uploaded by this
 slice. Keep receipts private and do not accept externally supplied receipts.
 
-The approved integration boundary runs explicitly on Windows/local Docker:
+The approved integration boundary runs explicitly on Windows Docker Desktop or
+the Linux CI runner's fixed local Docker socket:
 
 ```powershell
 npm run test:recovery-recording:db
@@ -198,6 +199,12 @@ start/finish SQL audit failures, same-ID reconciliation, populated-target refusa
 incomplete/stale receipts, workspace locking and option/configuration guards.
 It is not the full public-migration rehearsal from `test:recovery:cli`, nor a
 Supabase platform recovery or deployed operator workflow.
+
+The synthetic-recovery CI job now runs the full CLI suite plus both owned
+recorder/adapter database suites against the pinned image. Only the two recovery
+profiles gain Linux support in the shared fixture helper; other profiles keep
+their existing platform restrictions. No environment-provided Docker host or
+database destination is accepted.
 
 The separate `test:recovery:cli` fixture includes the actual public schema/migrations plus representative
 Auth-to-account mappings, retained audit rows, lot quantity and offline receipt
