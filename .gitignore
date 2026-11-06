@@ -38,3 +38,8 @@ Thumbs.db
 # NestJS / TypeScript
 *.tsbuildinfo
 /src/generated/prisma
+
+# Local recovery rehearsal material; never commit keys, snapshots or restore files.
+.recovery-rehearsals/
+**/recovery.key
+*.bsp
