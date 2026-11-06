@@ -2037,3 +2037,21 @@ Local automated evidence for this repair:
 | Reports and Data Export     | John Gerozaga |                    |      | Pending |
 | General Inquiry Management  | John Gerozaga, Charles Boquecosa |   |      | Pending |
 | Public Museum Website       | John Gerozaga, Charles Boquecosa, Voltaire Ratilla | |   | Pending |
+
+### November 6 - internal synthetic recovery recording checkpoint
+
+The approved boundaries are the internal recovery-recording service and existing
+protected Backup History/Audit HTTP reads against a fresh owned PostgreSQL
+fixture. `npm run test:recovery-history:db` passes 21 cases, including overlapping
+same-ID starts/finishes, conflicting outcomes, audit-write rollback with explicit
+retry, default-off/runtime validation and 401/403 read protection. The existing
+`test:backup-history:db` regression separately passes 16 cases.
+
+All identities and records are synthetic. Only the external identity-provider
+response is synthetic; Nest guards/controllers/services and Prisma/PostgreSQL
+execute. The fixture applies the real history SQL with minimal account/audit
+dependencies, not the full platform migration chain. No public write endpoint,
+shared database mutation, hosted export, runner connection or scheduler was
+added. Review the [recording contract](./BACKUP_HISTORY_GUIDE.md#internal-synthetic-recorder---november-6-2026)
+before a trusted runner is connected. This is implementation evidence, not
+independent acceptance; BAK-002 and the deployment gates remain open.

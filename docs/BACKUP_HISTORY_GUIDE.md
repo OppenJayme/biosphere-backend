@@ -26,6 +26,72 @@ The list endpoint supports `search`, `status`, `backupType`, `creatorId`, `from`
 identifiers. `from` and `to` are inclusive `startedAt` bounds and must contain
 `Z` or an explicit UTC offset. Page size is capped at 100.
 
+## Internal synthetic recorder - November 6, 2026
+
+`RecoveryHistoryService` is an internal provider exported by `BackupModule`.
+It adds no HTTP mutation route and is disabled unless
+`RECOVERY_HISTORY_RECORDING_ENABLED=true` and a non-personal technical operator
+slug is configured in `RECOVERY_HISTORY_OPERATOR_ID`. Leave both settings at
+their template defaults outside the explicitly owned rehearsal environment.
+No existing runner calls it yet; this is the recording contract for the next
+adapter, not automatic persistence of the CLI's local ledger.
+
+The trusted caller supplies exactly five fields to `start` and repeats the same
+command for `finish`: lowercase UUIDv4 `attemptId` and `snapshotId`, `operation`
+(`capture`, `restore`, `verify`), and lowercase SHA-256 hex
+`configurationFingerprint` and `workspaceFingerprint`. The caller must generate
+and retain these before execution. They identify the selected non-secret
+configuration and owned source/target workspace; they are not hashes of
+credentials and do not independently prove source ownership or snapshot integrity.
+A configuration fingerprint is available before capture; a captured manifest
+does not have to exist before the start can be recorded.
+
+Each transition atomically writes history and an audit entry, using a
+transaction-scoped PostgreSQL advisory lock per attempt and READ COMMITTED
+isolation. Identical overlapping retries reuse the existing row/result with no
+extra success audit. A changed command, configured operator or terminal result
+returns a conflict. A finish without a matching start is rejected. If the audit
+write fails, the history insertion/update rolls back and an explicit same-ID
+retry remains possible. A confirmed start may remain IN_PROGRESS after a crash;
+this service does not implement a watchdog or infer success from missing events.
+
+| Operation | Accepted successful outcome | History type |
+| --- | --- | --- |
+| capture | CAPTURED | SYNTHETIC_CAPTURE |
+| restore | RESTORED_VERIFIED | SYNTHETIC_RESTORE |
+| verify | VERIFIED | SYNTHETIC_VERIFY |
+
+Successful terminal outcomes map to COMPLETED; FAILED plus a bounded uppercase
+machine code maps to FAILED. The audit retains the precise outcome and synthetic
+scope. CAPTURED does not mean a restore was verified. Start-audit SUCCESS means
+the start was recorded, not that recovery succeeded. Actors/creators are null;
+audit details identify the configured service operator rather than impersonating
+a Curator. No path, URL, key, raw error or backup bytes are accepted. Artifact
+availability remains false because no downloadable artifact is registered.
+
+The service trusts internal runner outcomes; it is not a recovery executor or an
+independent proof verifier. The CLI adapter, separate control-plane connection,
+independent result ledger reconciliation, full Supabase/Auth rehearsal, alerts,
+scheduling, custody approval and hosted activation remain pending. Recording
+must not alter a restored target before its inventory verification. No schema
+migration or shared database change is part of this slice. BAK-002 stays Deferred.
+
+Run the approved, isolated recording/read boundary checks on Windows Docker:
+
+```powershell
+npm run test:recovery-history:db
+```
+
+The `recovery-history` profile accepts no supplied database URL and owns a fresh
+loopback PostgreSQL fixture. It uses the real history SQL plus minimal synthetic
+account/audit tables, grants its synthetic service role INSERT/UPDATE on history,
+and verifies through the internal service and protected Curator HTTP reads.
+The 21 cases cover start/finish, replay/conflict, simultaneous requests, runtime
+validation, default-off configuration, caller-object changes while pending,
+audit-failure rollback, unrelated-history protection and 401/403 read denial.
+Existing populated-history reads separately pass 16 cases. These checks do not
+establish hosted RLS, deployed authentication or production recovery readiness.
+
 ## Deliberately deferred operations
 
 The [proposed backup/recovery procedure](./BACKUP_RECOVERY_PROCEDURE.md),
