@@ -2130,3 +2130,28 @@ DIRECT_URL in the install step is a synthetic loopback placeholder for code
 generation, not a connection used by either test fixture. Remote Linux results
 must be checked on the final pushed commit; local Windows results alone do not
 prove them. BAK-002 and deployment/independent acceptance gates remain open.
+
+### November 6 - #250 review follow-up
+
+The adapter suite adds two real ownership-change cases, covering an already
+verified result and a real TARGET_NOT_EMPTY failure. Both originally lost their
+status/code during cleanup. The repair retains status/history/code and adds only
+`lock: RELEASE_FAILED`, leaves the changed marker untouched, and permits only
+same-ID bookkeeping after explicit test-owner clearance. The default CLI and
+adapter now share lock acquire/release checks; workspace fingerprint construction
+is shared without changing its version/bytes.
+
+Start-rejection receipts now use EXECUTION_WITHHELD, verified through real audit
+readback with no checkpoint creation. Older receipt codes are not rewritten.
+The guide specifies that execution belongs in a separate worker process,
+describes manual stale-lock clearance after proven quiescence, and requires
+retained original configuration bytes for pending reconciliation. It adds no
+force-complete, automatic lock takeover or live API/worker activation.
+Directory fsync/power-loss durability remains an explicit non-blocking prototype
+limitation; this follow-up does not claim to resolve it or close BAK-002.
+
+Local results after these repairs: adapter 11/11; standalone real Docker/CLI
+16/16; scoped TypeScript/JavaScript lint, full type checking, Node syntax,
+formatting and diff checks passed. The parent recorder's 25 cases remain in
+the remote recovery job. Recheck both CI jobs and the 11-case step on the new
+head before merging; the previous 9-case green run does not validate this patch.

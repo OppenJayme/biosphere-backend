@@ -1,6 +1,12 @@
 /** Real CLI engine + real recorder; three owned databases and synthetic data only. */
 import type { INestApplication } from '@nestjs/common';
-import { readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import {
+  readFileSync,
+  readdirSync,
+  writeFileSync,
+  unlinkSync,
+  existsSync,
+} from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { createRequire } from 'node:module';
 import { join } from 'node:path';
@@ -20,6 +26,7 @@ interface RunResult {
   snapshotId: string;
   history: string;
   code?: string;
+  lock?: string;
 }
 // The production CLI remains dependency-free; only this owned fixture supplies a recorder.
 const { runRecorded, reconcileRecorded } = createRequire(__filename)(
@@ -179,7 +186,11 @@ describe('Synthetic CLI and separate recovery recording database', () => {
     expect(response.body.total).toBe(2);
   });
   it('does not execute when start recording fails, and reconciles that failure without a capture', async () => {
-    const before = readdirSync(join(workspace.root, 'checkpoints')).sort();
+    const checkpointNames = () =>
+      existsSync(join(workspace.root, 'checkpoints'))
+        ? readdirSync(join(workspace.root, 'checkpoints')).sort()
+        : [];
+    const before = checkpointNames();
     await database.admin
       .query(`CREATE FUNCTION reject_started_audit() RETURNS trigger LANGUAGE plpgsql AS $$
       BEGIN IF NEW.action='recovery_started' THEN RAISE EXCEPTION 'Synthetic start audit failure'; END IF; RETURN NEW; END $$;
@@ -212,14 +223,26 @@ describe('Synthetic CLI and separate recovery recording database', () => {
     ).toMatchObject({
       status: 'FAILED',
       history: 'RECORDED',
-      code: 'HISTORY_START_FAILED',
+      code: 'EXECUTION_WITHHELD',
+      execution: 'WITHHELD',
     });
     expect(await history(failed!.attemptId)).toMatchObject({
       status: 'FAILED',
     });
-    expect(readdirSync(join(workspace.root, 'checkpoints')).sort()).toEqual(
-      before,
+    const evidence = await request(app.getHttpServer())
+      .get('/audit-logs')
+      .query({ affectedRecordId: failed!.attemptId })
+      .auth('curator-fixture', { type: 'bearer' })
+      .expect(200);
+    expect(evidence.body.items).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          action: 'recovery_finished',
+          details: expect.objectContaining({ code: 'EXECUTION_WITHHELD' }),
+        }),
+      ]),
     );
+    expect(checkpointNames()).toEqual(before);
   });
   it('records a real engine failure without changing the populated restore target', async () => {
     const result = await runRecorded(
@@ -339,4 +362,54 @@ describe('Synthetic CLI and separate recovery recording database', () => {
       before,
     );
   });
+  it.each([
+    { operation: 'verify', status: 'VERIFIED', code: undefined },
+    { operation: 'restore', status: 'FAILED', code: 'TARGET_NOT_EMPTY' },
+  ])(
+    'preserves the $status outcome when lock ownership changes before cleanup',
+    async ({ operation, status, code }) => {
+      const lock = join(workspace.root, '.recovery-lock');
+      const foreignAttempt = randomUUID();
+      const pending = runRecorded(
+        {
+          operation,
+          profileFile: workspace.profileFile,
+          snapshotId: capturedRun.snapshotId,
+        },
+        recorder,
+      );
+      // The real recorder is awaiting SQL; replace only this test-owned marker.
+      writeFileSync(lock, foreignAttempt);
+      let result: RunResult;
+      try {
+        result = await pending;
+        expect(result).toMatchObject({
+          status,
+          history: 'RECORDED',
+          lock: 'RELEASE_FAILED',
+        });
+        expect(result.code).toBe(code);
+        expect(readFileSync(lock, 'utf8')).toBe(foreignAttempt);
+        expect(
+          await reconcileRecorded(
+            { profileFile: workspace.profileFile, attemptId: result.attemptId },
+            recorder,
+          ),
+        ).toMatchObject({ status: 'FAILED', code: 'RUN_LOCKED' });
+      } finally {
+        // Model explicit operator clearance after quiescence; never delete another marker.
+        if (readFileSync(lock, 'utf8') === foreignAttempt) unlinkSync(lock);
+      }
+      const recovered = await reconcileRecorded(
+        { profileFile: workspace.profileFile, attemptId: result!.attemptId },
+        recorder,
+      );
+      expect(recovered).toMatchObject({
+        status,
+        history: 'RECORDED',
+        attemptId: result!.attemptId,
+      });
+      expect(recovered.code).toBe(code);
+    },
+  );
 });

@@ -597,13 +597,24 @@ function execute(operation, p, snapshot, key) {
     coverage: 'synthetic-only',
   };
 }
-async function withRecordingLock(p, attempt, operation) {
+function acquireRecoveryLock(p, attempt) {
   const lock = safePath(p.root, '.recovery-lock', true);
   try {
     fs.writeFileSync(lock, attempt, { flag: 'wx', mode: 0o600 });
   } catch {
     fail('RUN_LOCKED');
   }
+}
+function releaseRecoveryLock(p, attempt) {
+  const lock = safePath(p.root, '.recovery-lock');
+  check(
+    readBounded(lock).toString('utf8') === attempt,
+    'LOCK_OWNERSHIP_CHANGED',
+  );
+  fs.unlinkSync(lock);
+}
+async function withRecordingLock(p, attempt, operation) {
+  acquireRecoveryLock(p, attempt);
   let result;
   try {
     result = await operation();
@@ -615,24 +626,31 @@ async function withRecordingLock(p, attempt, operation) {
     };
   }
   try {
-    check(
-      readBounded(safePath(p.root, '.recovery-lock')).toString('utf8') ===
-        attempt,
-      'LOCK_OWNERSHIP_CHANGED',
-    );
-    fs.unlinkSync(lock);
+    releaseRecoveryLock(p, attempt);
   } catch {
-    return {
-      ...result,
-      operationOutcome: result.operationOutcome || result.status,
-      status: 'RECORDING_PENDING',
-      code: 'LOCK_RELEASE_FAILED',
-    };
+    return { ...result, lock: 'RELEASE_FAILED' };
   }
   return result;
 }
 
-/** Programmatic-only adapter: caller supplies the trusted, default-off internal recorder. */
+function workspaceFingerprint(p) {
+  return hash(
+    JSON.stringify([
+      'recorded-runner-v1',
+      p.owner,
+      p.sourceContainer,
+      p.targetContainer,
+      p.image,
+      p.operator,
+    ]),
+  );
+}
+
+/**
+ * Worker-process-only adapter: execute() uses blocking Docker subprocesses.
+ * Never call this inside the request-serving Nest/API process. Supply the
+ * default-off recorder from a standalone application context in that worker.
+ */
 async function runRecorded(input, recorder) {
   let p, command, key;
   try {
@@ -656,16 +674,7 @@ async function runRecorded(input, recorder) {
       snapshotId: input.snapshotId || randomUUID(),
       operation: input.operation,
       configurationFingerprint: hash(configuration),
-      workspaceFingerprint: hash(
-        JSON.stringify([
-          'recorded-runner-v1',
-          p.owner,
-          p.sourceContainer,
-          p.targetContainer,
-          p.image,
-          p.operator,
-        ]),
-      ),
+      workspaceFingerprint: workspaceFingerprint(p),
     };
     return await withRecordingLock(p, command.attemptId, async () => {
       const directory = safePath(p.root, 'recording', true);
@@ -694,7 +703,7 @@ async function runRecorded(input, recorder) {
         append(
           {
             phase: 'finished',
-            result: { outcome: 'FAILED', code: 'HISTORY_START_FAILED' },
+            result: { outcome: 'FAILED', code: 'EXECUTION_WITHHELD' },
           },
           'a',
         );
@@ -702,6 +711,7 @@ async function runRecorded(input, recorder) {
           status: 'FAILED',
           history: 'PENDING',
           code: 'HISTORY_START_FAILED',
+          execution: 'WITHHELD',
           attemptId: command.attemptId,
           snapshotId: command.snapshotId,
         };
@@ -762,6 +772,9 @@ async function runRecorded(input, recorder) {
         status: result.outcome,
         history: 'RECORDED',
         ...(result.code ? { code: result.code } : {}),
+        ...(['EXECUTION_WITHHELD', 'HISTORY_START_FAILED'].includes(result.code)
+          ? { execution: 'WITHHELD' }
+          : {}),
       };
     });
   } catch (error) {
@@ -819,16 +832,7 @@ async function reconcileRecorded(input, recorder) {
         configurationFingerprint: hash(
           readBounded(safePath(p.root, 'configuration.json')),
         ),
-        workspaceFingerprint: hash(
-          JSON.stringify([
-            'recorded-runner-v1',
-            p.owner,
-            p.sourceContainer,
-            p.targetContainer,
-            p.image,
-            p.operator,
-          ]),
-        ),
+        workspaceFingerprint: workspaceFingerprint(p),
       };
       check(
         Object.keys(command).length === 5 &&
@@ -874,6 +878,9 @@ async function reconcileRecorded(input, recorder) {
         status: result.outcome,
         history: 'RECORDED',
         ...(result.code ? { code: result.code } : {}),
+        ...(['EXECUTION_WITHHELD', 'HISTORY_START_FAILED'].includes(result.code)
+          ? { execution: 'WITHHELD' }
+          : {}),
       };
     });
   } catch (error) {
@@ -922,10 +929,10 @@ function main() {
   const p = loadProfile(flags['--profile']),
     snapshot = operation === 'capture' ? randomUUID() : flags['--snapshot'],
     attempt = randomUUID();
-  const lock = safePath(p.root, '.recovery-lock', true),
-    ledger = safePath(p.root, 'recovery-events.jsonl', true);
+  const ledger = safePath(p.root, 'recovery-events.jsonl', true);
   let locked = false,
-    key;
+    key,
+    result;
   function record(status, code) {
     fs.appendFileSync(
       ledger,
@@ -942,26 +949,29 @@ function main() {
     );
   }
   try {
-    try {
-      fs.writeFileSync(lock, attempt, { flag: 'wx', mode: 0o600 });
-      locked = true;
-    } catch {
-      fail('RUN_LOCKED');
-    }
+    acquireRecoveryLock(p, attempt);
+    locked = true;
     record('IN_PROGRESS');
     key = readBounded(safePath(p.root, 'recovery.key'));
     check(key.length === 32, 'INVALID_KEY');
-    const result = execute(operation, p, snapshot, key);
+    result = execute(operation, p, snapshot, key);
     record(result.status);
-    console.log(JSON.stringify(result));
   } catch (e) {
     record('FAILED', e.safeCode || 'OPERATION_FAILED');
-    throw e;
+    result = { status: 'FAILED', code: e.safeCode || 'OPERATION_FAILED' };
   } finally {
     key?.fill(0);
-    if (locked && fs.readFileSync(lock, 'utf8') === attempt)
-      fs.unlinkSync(lock);
+    if (locked) {
+      try {
+        releaseRecoveryLock(p, attempt);
+      } catch {
+        if (result) result = { ...result, lock: 'RELEASE_FAILED' };
+      }
+    }
   }
+  console.log(JSON.stringify(result));
+  if (result.status === 'FAILED' || result.lock === 'RELEASE_FAILED')
+    process.exitCode = 1;
 }
 module.exports = { runRecorded, reconcileRecorded };
 if (require.main === module) {
