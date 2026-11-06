@@ -17,6 +17,7 @@ import { SecurityAuditService } from '../../src/auth/security-audit.service';
 import { MailService } from '../../src/mail/mail.service';
 import { BackupController } from '../../src/backup/backup.controller';
 import { BackupService } from '../../src/backup/backup.service';
+import { RecoveryHistoryService } from '../../src/backup/recovery-history.service';
 import { GLOBAL_RATE_LIMIT } from '../../src/config/rate-limit.config';
 import { PrismaService } from '../../src/prisma/prisma.service';
 import { SUPABASE_CLIENT } from '../../src/supabase/supabase.constants';
@@ -42,17 +43,24 @@ export async function seedBackupHistoryDatabase(admin: Client) {
   `);
 }
 
-export async function createBackupHistoryDatabaseApp(connectionString: string) {
+export async function createBackupHistoryDatabaseApp(
+  connectionString: string,
+  recoveryConfig: Record<string, string> = {},
+) {
   const fixture = await Test.createTestingModule({
     imports: [ThrottlerModule.forRoot([GLOBAL_RATE_LIMIT])],
     controllers: [BackupController, AuditController],
     providers: [
       {
         provide: ConfigService,
-        useValue: new ConfigService({ DATABASE_URL: connectionString }),
+        useValue: new ConfigService({
+          ...recoveryConfig,
+          DATABASE_URL: connectionString,
+        }),
       },
       PrismaService,
       BackupService,
+      RecoveryHistoryService,
       AuditService,
       AuthService,
       SecurityAuditService,

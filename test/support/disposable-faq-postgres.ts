@@ -36,6 +36,10 @@ const DATABASE_PROFILES = {
     database: 'biosphere_backup_history_disposable',
     optIn: 'RUN_BACKUP_HISTORY_DISPOSABLE_DB',
   },
+  'recovery-history': {
+    database: 'biosphere_recovery_history_disposable',
+    optIn: 'RUN_RECOVERY_HISTORY_DISPOSABLE_DB',
+  },
   'offline-sync': {
     database: 'biosphere_offline_sync_disposable',
     optIn: 'RUN_OFFLINE_SYNC_DISPOSABLE_DB',

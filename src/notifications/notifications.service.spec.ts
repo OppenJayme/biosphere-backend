@@ -262,7 +262,13 @@ describe('NotificationsService', () => {
       expect(prisma.backup_history.findMany).toHaveBeenNthCalledWith(
         1,
         expect.objectContaining({
-          where: { status: 'COMPLETED', completed_at: { not: null } },
+          where: {
+            status: 'COMPLETED',
+            completed_at: { not: null },
+            NOT: {
+              backup_type: { startsWith: 'SYNTHETIC\\_', mode: 'insensitive' },
+            },
+          },
           distinct: ['backup_type'],
           orderBy: [{ backup_type: 'asc' }, { completed_at: 'desc' }],
         }),
@@ -274,6 +280,9 @@ describe('NotificationsService', () => {
         expect.objectContaining({
           where: {
             status: 'FAILED',
+            NOT: {
+              backup_type: { startsWith: 'SYNTHETIC\\_', mode: 'insensitive' },
+            },
             OR: [
               { backup_type: { notIn: ['INCREMENTAL'] } },
               {

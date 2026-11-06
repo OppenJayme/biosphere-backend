@@ -179,6 +179,13 @@ The feed adds `operationalAlerts`, a count of unresolved failures that, like
 `TYPE:<source event UUID>`, so read/dismiss works through the existing
 `PATCH /notifications/state`.
 
+The reserved case-insensitive `SYNTHETIC_` backup-type namespace is excluded from
+both failure and completed-recovery lookups. Rehearsal capture/restore/verify
+attempts therefore neither raise real backup-failure alerts nor participate in
+clearing them. The underscore is escaped in the SQL LIKE predicate so unrelated
+types such as `SYNTHETICX_FULL` retain normal operational behavior. This changes
+no read/dismiss state, notification identity or real backup recovery rule.
+
 Rejected-draft audit rows store only `reason` and `statusCode`, never the draft
 content. The audit write happens after the sync transaction rolls back, and an
 audit failure is logged without replacing the client's original error.

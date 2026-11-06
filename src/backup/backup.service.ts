@@ -13,6 +13,7 @@ import {
 } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { ListBackupHistoryQueryDto } from './dto/list-backup-history-query.dto';
+import { SYNTHETIC_BACKUP_TYPE_FILTER } from './backup-history-scope';
 import {
   BackupCreatorRole,
   BackupHistoryEntry,
@@ -88,6 +89,10 @@ export class BackupService {
 
     const where: Prisma.backup_historyWhereInput = {
       status: query.status,
+      // Rehearsals require an explicit type filter; operational lists/counts stay distinct.
+      NOT: query.backupType
+        ? undefined
+        : { backup_type: SYNTHETIC_BACKUP_TYPE_FILTER },
       backup_type: query.backupType
         ? {
             equals: query.backupType,

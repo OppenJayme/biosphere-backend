@@ -2039,3 +2039,46 @@ Local automated evidence for this repair:
 | Reports and Data Export     | John Gerozaga |                    |      | Pending |
 | General Inquiry Management  | John Gerozaga, Charles Boquecosa |   |      | Pending |
 | Public Museum Website       | John Gerozaga, Charles Boquecosa, Voltaire Ratilla | |   | Pending |
+
+### November 6 - internal synthetic recovery recording checkpoint
+
+The approved boundaries are the internal recovery-recording service and existing
+protected Backup History/Audit HTTP reads against a fresh owned PostgreSQL
+fixture. `npm run test:recovery-history:db` passes 21 cases, including overlapping
+same-ID starts/finishes, conflicting outcomes, audit-write rollback with explicit
+retry, default-off/runtime validation and 401/403 read protection. The existing
+`test:backup-history:db` regression separately passes 16 cases.
+
+All identities and records are synthetic. Only the external identity-provider
+response is synthetic; Nest guards/controllers/services and Prisma/PostgreSQL
+execute. The fixture applies the real history SQL with minimal account/audit
+dependencies, not the full platform migration chain. No public write endpoint,
+shared database mutation, hosted export, runner connection or scheduler was
+added. Review the [recording contract](./BACKUP_HISTORY_GUIDE.md#internal-synthetic-recorder---november-6-2026)
+before a trusted runner is connected. This is implementation evidence, not
+independent acceptance; BAK-002 and the deployment gates remain open.
+
+### November 6 - #249 review follow-up
+
+The recorder/owned PostgreSQL suite now passes **25/25** cases. New checks
+reproduce and repair rehearsal rows appearing in operational backup lists and
+the real notification feed, plus start/finish retries expiring under the old
+five-second transaction default. Six-second audit-trigger holders now complete
+with one transition/audit per phase. Real backup alerts remain unresolved across
+all three rehearsal failure/success types; a non-reserved literal-prefix control
+still raises and clears normally. Default history counts exclude rehearsals,
+while explicit type filters and protected detail/audit reads retain diagnostics.
+
+DEF-036/037 record the findings and remain Ready for retest pending independent
+review. Query-only changes require no schema migration, shared records or server
+restart. Transaction limits are finite (10-second pool acquisition / 30-second
+transaction); this is not proof of deployed outages or unlimited contention.
+
+Final local follow-up validation: existing populated Backup History SQL/HTTP
+16/16; notification SQL/HTTP/state 12/12; focused unit 5 suites / 34 tests;
+Backup/Audit isolated HTTP 2 suites / 12 tests; combined full CLI 16/16 after
+incorporating merged #248. Together with the 25 recorder cases, these are 115
+focused checks. Scoped lint, TypeScript checking, Nest build, formatting and diff
+checks pass. The notification suite deliberately revokes an owned test role's
+INSERT privilege and expects a 500; that diagnostic log is its negative control,
+not a shared permission failure. Remote CI/re-review remain separate.
