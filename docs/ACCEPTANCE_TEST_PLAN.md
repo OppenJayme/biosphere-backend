@@ -7,6 +7,15 @@
 
 ## Start here
 
+2026-11-06 identified-release checkpoint: both prepared builds passed and the
+user-authorized missing inquiry-reference migration was applied and verified.
+The bounded Curator [Cataloging/Storage checkpoint](./CATALOGING_STORAGE_SIGNOFF_2026-11-04.md#identified-release-checkpoint---2026-11-06)
+passed against backend `0a864d4`, frontend `30d6cc7` and the configured target.
+It does not cover later develop `9ec3fc7`, #240/#241 or migration
+`20261105000000_extend_notification_state_types`. Existing
+servers were preserved. This adds release-specific read evidence; it does not
+promote case/defect statuses or replace owner and independent acceptance.
+
 2026-11-05 Cataloging/Storage closeout: the [five-decision checklist](./CATALOGING_STORAGE_SIGNOFF_2026-11-04.md#five-acceptance-decisions---reconciled-2026-11-05)
 reconciles merged #231/#232/#233/#234 and John's #236 restriction evidence.
 It distinguishes existing passes from release identification, policy integration,
