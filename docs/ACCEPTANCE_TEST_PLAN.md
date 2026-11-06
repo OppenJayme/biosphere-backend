@@ -2058,6 +2058,33 @@ added. Review the [recording contract](./BACKUP_HISTORY_GUIDE.md#internal-synthe
 before a trusted runner is connected. This is implementation evidence, not
 independent acceptance; BAK-002 and the deployment gates remain open.
 
+### November 6 - owned recovery engine/recording integration
+
+The approved programmatic runner/recorder boundary passes **9/9** cases through
+the real synthetic recovery engine and internal recording service. A fresh
+three-container fixture separates the real history/audit database from
+network-disabled source and restore targets. Its source uses minimal synthetic
+Auth/audit/schema stand-ins, not a full migration/platform replay. Verification
+reads include the protected Curator history/audit API and actual target data.
+
+Covered: capture/verified restore; withheld execution on start-audit failure;
+pending finish on terminal-audit failure; repeated same-ID reconciliation with
+unchanged checkpoint bytes/count and two audit entries; populated-target refusal;
+unknown/stale receipts; workspace locking; hosted-option rejection; and
+configuration drift during asynchronous start recording. Initial pre-merge
+validation included the parent recorder's 21 cases and 15 standalone CLI cases;
+the combined parent/develop follow-up is recorded below. Run
+`npm run test:recovery-recording:db` only against its
+explicitly owned local Docker fixture. No shared URL is accepted by the fixture.
+
+The ordinary CLI remains local-ledger-only. The adapter needs an explicitly
+assembled trusted recorder; it adds no public write endpoint, deployed bootstrap,
+hosted export or scheduler. Receipts are private local diagnostic records, not
+tamper-evident or disaster-independent evidence. Real process/power-loss recovery,
+hosted authentication, Supabase service restoration, independent acceptance and
+BAK-002's deployment gates remain open. See the
+[adapter contract and failure handling](../scripts/recovery/README.md#owned-recording-adapter).
+
 ### November 6 - #249 review follow-up
 
 The recorder/owned PostgreSQL suite now passes **25/25** cases. New checks
@@ -2082,3 +2109,49 @@ focused checks. Scoped lint, TypeScript checking, Nest build, formatting and dif
 checks pass. The notification suite deliberately revokes an owned test role's
 INSERT privilege and expects a 500; that diagnostic log is its negative control,
 not a shared permission failure. Remote CI/re-review remain separate.
+
+### November 6 - #250 combined branch and CI follow-up
+
+Merged develop (including #248/#249) into the adapter branch, preserved both
+sets of checkpoint documentation, and retargeted #250 to develop. The adapter's
+9 owned cases and the expanded recorder's 25 owned cases pass locally together;
+type checking, scoped TypeScript/JavaScript lint, Nest build and CI YAML parsing
+also pass. The standalone CLI regression also passes 16/16 on the combined branch.
+
+The existing Linux synthetic-recovery CI job now installs the locked test
+dependencies and runs both `test:recovery-history:db` and
+`test:recovery-recording:db` after the full CLI suite. This directly covers the
+Prisma/PostgreSQL prefix-escaping behavior and recorder/engine integration that
+were absent from CI in #249. Only those two opt-in profiles gain Linux support;
+all Docker destinations remain fixed local sockets, with fresh exact-owner
+containers, loopback-only history connections and no supplied database URL.
+No provider secrets, persistent mounts or artifact uploads are added. The fixed
+DIRECT_URL in the install step is a synthetic loopback placeholder for code
+generation, not a connection used by either test fixture. Remote Linux results
+must be checked on the final pushed commit; local Windows results alone do not
+prove them. BAK-002 and deployment/independent acceptance gates remain open.
+
+### November 6 - #250 review follow-up
+
+The adapter suite adds two real ownership-change cases, covering an already
+verified result and a real TARGET_NOT_EMPTY failure. Both originally lost their
+status/code during cleanup. The repair retains status/history/code and adds only
+`lock: RELEASE_FAILED`, leaves the changed marker untouched, and permits only
+same-ID bookkeeping after explicit test-owner clearance. The default CLI and
+adapter now share lock acquire/release checks; workspace fingerprint construction
+is shared without changing its version/bytes.
+
+Start-rejection receipts now use EXECUTION_WITHHELD, verified through real audit
+readback with no checkpoint creation. Older receipt codes are not rewritten.
+The guide specifies that execution belongs in a separate worker process,
+describes manual stale-lock clearance after proven quiescence, and requires
+retained original configuration bytes for pending reconciliation. It adds no
+force-complete, automatic lock takeover or live API/worker activation.
+Directory fsync/power-loss durability remains an explicit non-blocking prototype
+limitation; this follow-up does not claim to resolve it or close BAK-002.
+
+Local results after these repairs: adapter 11/11; standalone real Docker/CLI
+16/16; scoped TypeScript/JavaScript lint, full type checking, Node syntax,
+formatting and diff checks passed. The parent recorder's 25 cases remain in
+the remote recovery job. Recheck both CI jobs and the 11-case step on the new
+head before merging; the previous 9-case green run does not validate this patch.

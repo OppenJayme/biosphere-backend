@@ -5,7 +5,10 @@ import { Client } from 'pg';
 
 export const FAQ_DB_IMAGE =
   'postgres@sha256:eee6c6e1b0894fa4fe0075eb054af9fd1cf39a35321c2d4110626cfe506411fb';
-const LOCAL_DOCKER = 'npipe:////./pipe/dockerDesktopLinuxEngine';
+const LOCAL_DOCKER =
+  process.platform === 'win32'
+    ? 'npipe:////./pipe/dockerDesktopLinuxEngine'
+    : 'unix:///var/run/docker.sock';
 // Historical class/file name retained for the existing FAQ suite.
 const DATABASE_PROFILES = {
   restoration: {
@@ -39,6 +42,10 @@ const DATABASE_PROFILES = {
   'recovery-history': {
     database: 'biosphere_recovery_history_disposable',
     optIn: 'RUN_RECOVERY_HISTORY_DISPOSABLE_DB',
+  },
+  'recovery-recording': {
+    database: 'biosphere_recovery_recording_disposable',
+    optIn: 'RUN_RECOVERY_RECORDING_DISPOSABLE_DB',
   },
   'offline-sync': {
     database: 'biosphere_offline_sync_disposable',
@@ -101,13 +108,14 @@ export class DisposableFaqPostgres {
 
   static async start(scope: DatabaseScope = 'faq-review') {
     const profile = DATABASE_PROFILES[scope];
-    if (
-      process.platform !== 'win32' ||
-      !profile ||
-      process.env[profile.optIn] !== 'true'
-    )
+    // Linux CI is enabled only for the two explicitly owned recovery profiles.
+    const supported =
+      process.platform === 'win32' ||
+      (process.platform === 'linux' &&
+        ['recovery-history', 'recovery-recording'].includes(scope));
+    if (!supported || !profile || process.env[profile.optIn] !== 'true')
       throw new Error(
-        'Use the explicit Windows local-Docker database test command. No external connection is accepted.',
+        'Use an explicitly supported local-Docker database test command. No external connection is accepted.',
       );
     const database = new DisposableFaqPostgres(scope);
     try {

@@ -43,8 +43,11 @@ It adds no HTTP mutation route and is disabled unless
 `RECOVERY_HISTORY_RECORDING_ENABLED=true` and a non-personal technical operator
 slug is configured in `RECOVERY_HISTORY_OPERATOR_ID`. Leave both settings at
 their template defaults outside the explicitly owned rehearsal environment.
-No existing runner calls it yet; this is the recording contract for the next
-adapter, not automatic persistence of the CLI's local ledger.
+The synthetic engine now has a programmatic
+[recording/reconciliation adapter](../scripts/recovery/README.md#owned-recording-adapter)
+checked with an explicitly supplied real service and owned control-plane
+database. The ordinary CLI still writes only its local ledger; no deployed
+runner/bootstrap or automatic shared-history connection is configured.
 
 The trusted caller supplies exactly five fields to `start` and repeats the same
 command for `finish`: lowercase UUIDv4 `attemptId` and `snapshotId`, `operation`
@@ -83,13 +86,14 @@ a Curator. No path, URL, key, raw error or backup bytes are accepted. Artifact
 availability remains false because no downloadable artifact is registered.
 
 The service trusts internal runner outcomes; it is not a recovery executor or an
-independent proof verifier. The CLI adapter, separate control-plane connection,
-independent result ledger reconciliation, full Supabase/Auth rehearsal, alerts,
+independent proof verifier. The tested adapter is synthetic-only. Operator assembly,
+an approved control-plane destination, independent durable delivery, full Supabase/Auth rehearsal, alerts,
 scheduling, custody approval and hosted activation remain pending. Recording
 must not alter a restored target before its inventory verification. No schema
 migration or shared database change is part of this slice. BAK-002 stays Deferred.
 
-Run the approved, isolated recording/read boundary checks on Windows Docker:
+Run the approved, isolated recording/read boundary checks on Windows Docker
+Desktop or the Linux CI runner's fixed local Docker socket:
 
 ```powershell
 npm run test:recovery-history:db

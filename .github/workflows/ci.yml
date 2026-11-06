@@ -57,7 +57,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Set up Node.js for the dependency-free CLI
+      - name: Set up Node.js for owned recovery checks
         uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -69,3 +69,15 @@ jobs:
         env:
           RUN_RECOVERY_REHEARSAL: 'true'
         run: node --test test/recovery-cli.test.cjs
+
+      - name: Install dependencies for isolated recorder checks
+        env:
+          # Code generation only; fixture commands create their own databases.
+          DIRECT_URL: postgresql://synthetic:synthetic@127.0.0.1:1/synthetic
+        run: npm ci
+
+      - name: Real recorder, notification isolation and slow retry checks
+        run: npm run test:recovery-history:db
+
+      - name: Real engine, recorder and same-ID reconciliation checks
+        run: npm run test:recovery-recording:db

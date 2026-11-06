@@ -107,6 +107,7 @@ system is not a reason to postpone all fixes until the end.
 
 | ID      | Date       | Module                     | Summary                                                                 | Severity    | Priority | Status | Owner                   |
 | ------- | ---------- | -------------------------- | ----------------------------------------------------------------------- | ----------- | -------- | ------ | ----------------------- |
+| [DEF-038](#def-038---lock-cleanup-masks-the-recovery-outcome) | 2026-11-06 | Recovery / Synthetic adapter | Cleanup replaces an already recorded outcome/code and leaves reconciliation blocked by its marker | S3 Moderate | P2 | Ready for retest | Kyer / Ivan; MarQtie finding |
 | [DEF-037](#def-037---recovery-retries-expire-under-a-slow-lock-holder) | 2026-11-06 | Recovery / Internal recorder | Six-second start/finish audit holders exceed the implicit five-second transaction limit | S3 Moderate | P2 | Ready for retest | Kyer / Ivan; MarQtie finding |
 | [DEF-036](#def-036---synthetic-recovery-results-leak-into-operational-backup-views) | 2026-11-06 | Recovery / Backup History / Notifications | Rehearsal failures raise real backup alerts and completed non-captures mix into default lists | S3 Moderate | P1 | Ready for retest | Kyer / Ivan; MarQtie finding |
 | [DEF-035](#def-035---retained-restore-workspace-produces-a-generic-retry-error) | 2026-11-06 | Recovery / Synthetic CLI | A retained partial restore directory produces a generic retry error | S4 Minor | P2 | Ready for retest | Kyer / Ivan |
@@ -146,6 +147,28 @@ system is not a reason to postpone all fixes until the end.
 | [DEF-015](#def-015---audit-http-fixture-omits-the-security-audit-create-method) | 2026-10-19 | Audit / HTTP test fixture | Missing security-audit create mock logs an error despite green denial test | S3 Moderate | P2 | Ready for retest | Audit tests / coordinate with Auth |
 
 ## 3. Defect details
+
+### DEF-038 - Lock cleanup masks the recovery outcome
+
+**Observed:** November 6, 2026, #250 review and owned filesystem/SQL reproduction.
+**Disposition:** Ready for retest; synthetic/default-off scope only.
+**Owner:** Kyer / Ivan; MarQtie review finding.
+
+Changing the owned fixture's lock marker while a real recorder SQL start was
+pending caused cleanup to replace both an already VERIFIED result and a real
+TARGET_NOT_EMPTY failure with RECORDING_PENDING/LOCK_RELEASE_FAILED. The
+original failure code was lost even though history was already recorded; the
+remaining marker then rejected reconciliation as RUN_LOCKED.
+
+The repair adds a separate `lock: RELEASE_FAILED` warning while preserving
+status/history/code and never deleting a changed marker. Tests verify the
+marker remains, reconciliation stays blocked until explicit test-owner
+clearance after completion, and same-ID replay then preserves the original
+result. Real unlink-permission failures and production process interruption
+were not induced; the owned tests exercise ownership-change cleanup refusal.
+The README documents quiescence/ownership checks and literal-file-only manual
+clearance; no automatic stale-lock takeover, recursive cleanup or engine rerun
+was added. Independent review/CI on the new head remains necessary.
 
 ### DEF-037 - Recovery retries expire under a slow lock holder
 
