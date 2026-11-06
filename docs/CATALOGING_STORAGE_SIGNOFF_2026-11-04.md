@@ -152,9 +152,9 @@ review, mocked responses and proposed tests. Link reproducible defects to
 existing IDs; retain conflicting evidence for investigation.
 A generated report does not itself establish independent human sign-off.
 
-## Decision record
+<a id="identified-release-read-only-checkpoint---2026-11-06"></a>
 
-### Identified-release read-only checkpoint - 2026-11-06
+## Identified-release checkpoint - 2026-11-06
 
 Executed by Codex through Playwright/Edge after the user manually signed in as
 Curator. This is engineering execution evidence, not an independent teammate's
@@ -180,6 +180,9 @@ its format constraint validated. `TEMPORARY_ABSENCE` remains present. No busines
 records were edited by this deployment/check; the migration changes schema and
 Prisma migration metadata. This does not establish institutional production
 approval or an operational backup/recovery capability.
+No verified backup or restore point was confirmed before this migration; none
+is claimed retrospectively. The user authorized the additive schema change,
+but that authorization does not demonstrate recoverability.
 
 | Read-only check | Observed result |
 | --- | --- |
@@ -192,7 +195,13 @@ approval or an operational backup/recovery capability.
 | Reload and historical direct link | Selected archived cabinet and read-only state survived reload; a direct link containing only its selected ID automatically revealed history and remained read-only |
 
 The final 13-entry browser result recorded zero local HTTP responses at or above
-400 and zero blocked mutation requests. Browser local non-GET requests were
+400 and zero blocked mutation requests. Those entries are: four specimen list
+views (All active, Uncataloged, Cataloged, Archived); four existing specimen pages
+(details, revision history, lots, media); the import workspace; default Storage;
+archived Storage selection; archived selection after reload; and a historical
+archived direct link. The seven-row table groups those checks and also notes the
+queue/cover observations; it is not a separate thirteen-test suite or assertion
+count. Browser local non-GET requests were
 blocked except the reviewed build-specific `getSpecimenCoverPreview` read action.
 No catalog, lot, storage or media mutation controls were submitted. Normal login
 side effects and device-local read-cache activity are outside that statement.
@@ -203,6 +212,12 @@ the initial broad POST guard also blocking the read-only cover action, accessibl
 button whitespace, and waiting for the actual selected-ID navigation before
 reload. Those initial harness failures are not reported as application defects.
 The corrected Storage reload/direct-link checks passed.
+Evidence custodian/contact: PR author **@OppenJayme**, on the local development
+workstation. The private `acceptance-release-20261106` evidence folder contains
+`build-manifest.json`, `database-preflight.json`, `migration-deployment.json`,
+`browser-smoke-result.json`, and the associated harness scripts/logs. Request a
+redacted copy from that custodian; the ignored local folder is not a durable
+team backup and no credentials should be shared with reviewers.
 
 Limits: this is a bounded read smoke, not new proof of write transactions,
 authorization across roles, all legacy archive rows, image bytes, imports,
@@ -219,6 +234,15 @@ Those later changes include operational notification/offline-sync changes and
 checkpoint: the 10-migration result describes backend `0a864d4`, not that newer
 release. The later migration was not applied, and newer code was not served by
 these verification servers. This record must not be treated as its acceptance.
+Follow-up coordinator: **@OppenJayme**, under Kyer/Ivan system-integration
+ownership, to coordinate the notification migration with its module owner and
+apply/verify it against the confirmed target **before starting/deploying the
+#241 notification release**. No calendar date or completed deployment is
+claimed; this review-fix PR does not apply that later migration. The next release
+preflight must compare against its own source migration set, not reuse this
+historical ten-migration result.
+
+## Decision record
 
 | Module | Kyer acceptance/date | Ivan acceptance/date | Independent reviewer/date | Result | Accepted limitations and evidence |
 | --- | --- | --- | --- | --- | --- |
