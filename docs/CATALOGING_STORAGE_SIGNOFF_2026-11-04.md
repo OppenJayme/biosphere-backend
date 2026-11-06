@@ -152,6 +152,96 @@ review, mocked responses and proposed tests. Link reproducible defects to
 existing IDs; retain conflicting evidence for investigation.
 A generated report does not itself establish independent human sign-off.
 
+<a id="identified-release-read-only-checkpoint---2026-11-06"></a>
+
+## Identified-release checkpoint - 2026-11-06
+
+Executed by Codex through Playwright/Edge after the user manually signed in as
+Curator. This is engineering execution evidence, not an independent teammate's
+acceptance or an authorization to close all outstanding defects.
+
+| Release item | Verified value |
+| --- | --- |
+| Backend source | `0a864d4bf6ab9c655c6ee0fbe2c0021f0d400b9a` |
+| Frontend source | `30d6cc78137ebd37c22896e67d4f44b2e2d25f7d` |
+| Frontend production build ID | `fg3bSJZZZz_Oe-dE_DpRs` |
+| Execution target | User-confirmed configured hosted Supabase project; project identifier and connection configuration retained privately |
+| Verification servers | Backend `127.0.0.1:43180`, frontend `127.0.0.1:43181`; existing ports 3000/3001 and browser contexts preserved |
+| Build preparation | Both builds passed; reused existing dependencies, not a clean-install check. Frontend built with webpack. Private artifact inventories/hash manifest retained locally |
+
+The first read-only preflight found 9 of 10 repository migrations applied and
+the optional inquiry visit-reference column absent. After the user explicitly
+confirmed the configured project as the update target, a guarded deployment
+verified the pinned source, exact migration SQL, matching direct connection and
+exactly one pending migration before running Prisma migrate deploy.
+`20261103000000_add_inquiry_visit_reference` succeeded. The subsequent read-only
+check found all 10 applied, none missing/unfinished, the new column present and
+its format constraint validated. `TEMPORARY_ABSENCE` remains present. No business
+records were edited by this deployment/check; the migration changes schema and
+Prisma migration metadata. This does not establish institutional production
+approval or an operational backup/recovery capability.
+No verified backup or restore point was confirmed before this migration; none
+is claimed retrospectively. The user authorized the additive schema change,
+but that authorization does not demonstrate recoverability.
+
+| Read-only check | Observed result |
+| --- | --- |
+| Cataloging queue and import workspace | Both loaded; import page shows upload/validation controls. No file submitted or import committed |
+| Specimen status views | All active: 102, Uncataloged: 36, Cataloged: 66, Archived: 9. Sampled displayed row statuses matched their selected tabs; archived rows were separate from All active |
+| Existing `TEST - INV Acceptance Beetle` | Details, revision history, Lots and inventory history, and media pages returned HTTP 200 without the page load-error messages checked |
+| Selected-cover lookup | No retry/error control after the verified read-only cover action was allowed; this does not prove image lifecycle mutations or every stored image |
+| Default Storage view | Archived toggle off; archived `TEST CABINET A` absent from navigation |
+| Archived Storage selection | Toggle revealed archived history; selected test cabinet showed the read-only message and no Save changes/Move location/Archive location buttons |
+| Reload and historical direct link | Selected archived cabinet and read-only state survived reload; a direct link containing only its selected ID automatically revealed history and remained read-only |
+
+The final 13-entry browser result recorded zero local HTTP responses at or above
+400 and zero blocked mutation requests. Those entries are: four specimen list
+views (All active, Uncataloged, Cataloged, Archived); four existing specimen pages
+(details, revision history, lots, media); the import workspace; default Storage;
+archived Storage selection; archived selection after reload; and a historical
+archived direct link. The seven-row table groups those checks and also notes the
+queue/cover observations; it is not a separate thirteen-test suite or assertion
+count. Browser local non-GET requests were
+blocked except the reviewed build-specific `getSpecimenCoverPreview` read action.
+No catalog, lot, storage or media mutation controls were submitted. Normal login
+side effects and device-local read-cache activity are outside that statement.
+Execution completed at 01:39 on November 6, Asia/Singapore (17:39 UTC November 5).
+
+Harness corrections are retained with the local evidence: a nested-main locator,
+the initial broad POST guard also blocking the read-only cover action, accessible
+button whitespace, and waiting for the actual selected-ID navigation before
+reload. Those initial harness failures are not reported as application defects.
+The corrected Storage reload/direct-link checks passed.
+Evidence custodian/contact: PR author **@OppenJayme**, on the local development
+workstation. The private `acceptance-release-20261106` evidence folder contains
+`build-manifest.json`, `database-preflight.json`, `migration-deployment.json`,
+`browser-smoke-result.json`, and the associated harness scripts/logs. Request a
+redacted copy from that custodian; the ignored local folder is not a durable
+team backup and no credentials should be shared with reviewers.
+
+Limits: this is a bounded read smoke, not new proof of write transactions,
+authorization across roles, all legacy archive rows, image bytes, imports,
+concurrency, mobile behavior, PWA recovery or the previously affected lot-history
+specimen. Earlier scoped evidence remains applicable only within its documented
+limits. The local verification timeout uses 30 minutes where configuration lacks
+the new value; this is not Curator approval of a production idle-timeout policy.
+No new product defect was established by this checkpoint. Case/defect dispositions
+and both owners' plus an independent reviewer's acceptance below remain pending.
+
+Before opening this evidence PR, develop advanced to `9ec3fc7` with #240/#241.
+Those later changes include operational notification/offline-sync changes and
+`20261105000000_extend_notification_state_types`. They are outside this pinned
+checkpoint: the 10-migration result describes backend `0a864d4`, not that newer
+release. The later migration was not applied, and newer code was not served by
+these verification servers. This record must not be treated as its acceptance.
+Follow-up coordinator: **@OppenJayme**, under Kyer/Ivan system-integration
+ownership, to coordinate the notification migration with its module owner and
+apply/verify it against the confirmed target **before starting/deploying the
+#241 notification release**. No calendar date or completed deployment is
+claimed; this review-fix PR does not apply that later migration. The next release
+preflight must compare against its own source migration set, not reuse this
+historical ten-migration result.
+
 ## Decision record
 
 | Module | Kyer acceptance/date | Ivan acceptance/date | Independent reviewer/date | Result | Accepted limitations and evidence |

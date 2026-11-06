@@ -42,3 +42,6 @@ jobs:
 
       - name: E2E tests
         run: npm run test:e2e
+
+      - name: Isolated curator FAQ content evaluation
+        run: npm run evaluate:faq:curator

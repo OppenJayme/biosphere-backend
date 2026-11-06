@@ -1,6 +1,57 @@
 # Curator-content readiness evaluation - 2026-11-02
 
-## Result and purpose
+Later execution on November 6: the user authorized publishing these seventeen
+candidates, and the [local Curator/public-widget record against hosted data](./FAQ_KNOWLEDGE_GUIDE.md#approved-content-publication-and-public-widget-checkpoint---2026-11-06)
+records 17 active entries and 28 passing widget checks. This happened after the
+isolated evaluation below. The user then reported on November 6 that Sir Fidel
+approved the exact edited answers at `78f7b32`; see the intake for receipt versus
+unsupplied actual approval date. Publication alone was not evidence of that
+approval, and the later report does not cover newly proposed wording/aliases.
+
+## November 6 clarification reconciliation
+
+S06 follow-up: the user selected General Inquiry for groups over 50, with manual
+Curator coordination rather than automatic system splitting/booking. The
+existing batch-response HTTP case was strengthened, observed red against the
+prior candidate, then green after updating that candidate; the full set remains
+36/36 passing. The [subsequent one-answer live update and three signed-out widget checks](./FAQ_KNOWLEDGE_GUIDE.md#general-inquiry-batch-coordination-update---2026-11-06)
+are separately recorded. Neither S06 nor the fixture change adds a Visits
+booking feature or approves the still-unconfirmed off-campus affiliation scope.
+
+**36/36 isolated public HTTP checks pass** on backend base `9ec3fc7` using the
+same seventeen review-only candidates and the S05 clarification trail in the
+[intake sheet](./FAQ_CONTENT_INTAKE_2026-11-02.md#source-and-approval-record).
+The older 33-case checkpoint below remains historical evidence.
+
+Three additional checks independently require the relayed answer content through
+`POST /faq/assistant/ask`: eligible parties under five may walk in; alumni's free
+admission does not waive outsider appointment/campus-entry requirements; and
+the 50-person maximum applies to school and non-school batches, divided by the
+visiting group. Each failed against the older candidate wording before its
+corresponding candidate was corrected, then passed. The original 33 checks also
+pass with the reconciled candidates. The prior school-tour question is retained
+as an alias of the broader batch question.
+
+This isolated evaluation updated editorial fixtures and review documentation only.
+It did not change runtime matcher code, thresholds, database content, lifecycle
+status, visitor workflows or language capabilities. ACTIVE remains synthetic in the
+isolated adapter. Prisma Client was generated locally using a synthetic
+unreachable URL as setup; generation made no database connection. During this
+isolated evaluation, no shared server was restarted or FAQ entry activated.
+These known working cases are
+neither a held-out accuracy study nor approval of exact wording or aliases.
+
+At that evaluation stage, the next step was content-owner review and separately
+authorized publication. Publication subsequently occurred; it is not still
+pending. A later user report records Sir Fidel's approval of the exact edited
+answers. Further aliases/wording and unresolved off-campus affiliation/multi-batch
+handling have separate dispositions in the publication review follow-ups: the
+user selected General Inquiry/manual Curator coordination on November 6;
+off-campus affiliation and new aliases remain unconfirmed. Unanswered contact,
+document, change/cancellation and missing-email details remain deferred. Do not
+invent approval or a completed Visits workflow to close these items.
+
+## Original November 2 result and purpose
 
 **33/33 working quality cases pass** through the real public FAQ HTTP route,
 controller, validation, guards, service and matcher on backend base `4de07c6`.
@@ -16,13 +67,13 @@ made to obtain that result. This is a visible development evaluation, not an
 unseen benchmark, a visitor study, a scientific accuracy estimate or proof of
 general language/number understanding.
 
-## Reviewable content candidates
+## Original November 2 reviewable content candidates
 
-`test/fixtures/faq-curator-knowledge.ts` holds questions, exact stored-answer
+At that checkpoint, `test/fixtures/faq-curator-knowledge.ts` held questions, exact stored-answer
 wording, proposed aliases/keywords, category and source question numbers. The
 synthetic UUIDs identify isolated test entries; they are not shared FAQ IDs.
 
-These are synthetic editorial candidates, including user-relayed rules whose
+The November 2 candidates were synthetic editorial candidates, including user-relayed rules whose
 precise walk-in eligibility and non-school group limits remain unconfirmed.
 They need content-owner approval before any public activation. The visit form's
 current schedule, batch and notification behavior must also be reconciled with
@@ -50,7 +101,7 @@ restrictions, official phone/email, public self-service visit cancellation,
 specific campus-entry documents/directions and loan approval. No empty answer,
 `N/A`, sample fee or invented institutional detail is activated.
 
-## Coverage and limits
+## Original 33-case coverage and limits
 
 | Group | Cases | Expected behavior checked |
 | --- | --- | --- |
@@ -79,11 +130,13 @@ npm run evaluate:faq:curator
 The first run used the equivalent direct Jest command with
 `NODE_OPTIONS=--experimental-vm-modules` and the dedicated config; 33 cases
 passed, exit 0. The new command uses the existing cross-env dependency to set
-the same option. Node's VM warning, if emitted, is expected. This opt-in suite
+the same option. Node's VM warning, if emitted, is expected. This dedicated suite
 is separate from default unit/e2e discovery, as is the older fictional 25-case
-evaluation. Default CI success alone is not evidence this command was run.
+evaluation. The November 6 review repair adds an explicit
+`npm run evaluate:faq:curator` CI step. Its result must be checked separately,
+not inferred from a historical default-suite run.
 
-## Next activation step
+## Original activation plan - 2026-11-02 (publication subsequently executed)
 
 Review the seventeen exact answer/alias candidates against the clarified
 intake, check existing entries for collisions, and use the normal protected FAQ
