@@ -128,6 +128,66 @@ describe('Curator-supplied draft FAQ content through the public HTTP API', () =>
     await app?.close();
   });
 
+  it('explains the relayed small-party walk-in rule without granting campus entry', async () => {
+    const response = await request(app.getHttpServer())
+      .post('/faq/assistant/ask')
+      .send({ question: 'Can four USC students walk in?' })
+      .expect(200);
+    const body = response.body as FaqAssistantResponse;
+    expect(body.outcome).toBe(FaqAssistantOutcome.ANSWERED);
+    expect(body.answer?.id).toBe(ID.appointment);
+    expect(body.answer?.answer).toContain(
+      'Fewer than five visitors already inside USC or affiliated with USC may walk in informally.',
+    );
+    expect(body.answer?.answer).toContain(
+      'Parties of five or more and guided tours require an appointment.',
+    );
+    expect(body.answer?.answer).toContain(
+      'Outside visitors, including alumni, require an appointment and campus-entry clearance.',
+    );
+  });
+
+  it('keeps alumni fee exemption separate from outsider appointment and entry requirements', async () => {
+    const response = await request(app.getHttpServer())
+      .post('/faq/assistant/ask')
+      .send({ question: 'Do alumni need campus entry?' })
+      .expect(200);
+    const body = response.body as FaqAssistantResponse;
+    expect(body.outcome).toBe(FaqAssistantOutcome.ANSWERED);
+    expect(body.answer?.id).toBe(ID.campus);
+    expect(body.answer?.answer).toContain(
+      'Outside visitors, including alumni, require an appointment and campus-entry clearance.',
+    );
+    expect(body.answer?.answer).toContain(
+      'Alumni are admitted free but are considered outsiders for campus entry.',
+    );
+  });
+
+  it('states one batch maximum for school and non-school groups and leaves division to the group', async () => {
+    const response = await request(app.getHttpServer())
+      .post('/faq/assistant/ask')
+      .send({ question: 'How many visitors can join one tour batch?' })
+      .expect(200);
+    const body = response.body as FaqAssistantResponse;
+    expect(body.outcome).toBe(FaqAssistantOutcome.ANSWERED);
+    expect(body.answer?.id).toBe(ID.batch);
+    expect(body.answer?.answer).toContain(
+      'A maximum of 50 visitors can be accommodated per batch, for school and non-school groups.',
+    );
+    expect(body.answer?.answer).toContain(
+      'Larger groups arrange their own division into separate timed batches; the curator does not divide the group.',
+    );
+    expect(body.answer?.answer).toContain(
+      'A submitted request is not confirmation of a schedule.',
+    );
+    expect(body.answer?.answer).toContain(
+      'For groups larger than 50, send a General Inquiry through BioSphere to coordinate separate batches and proposed times with the Curator.',
+    );
+    expect(body.answer?.answer).toContain(
+      'The system does not automatically split groups or book multiple schedules.',
+    );
+  });
+
   it.each(cases)('$label', async (item) => {
     const response = await request(app.getHttpServer())
       .post('/faq/assistant/ask')

@@ -1,5 +1,171 @@
 # BioSphere FAQ Knowledge Management Guide
 
+<a id="approved-content-publication-and-public-widget-checkpoint---2026-11-06"></a>
+
+## User-authorized publication and local public-widget checkpoint - 2026-11-06
+
+The user explicitly requested adding the prepared entries through the
+Curator workflow, activating them and checking the public assistant. This records
+the user's authorization to publish. In a subsequent November 6 reply, the user
+explicitly reported that **Sir Fidel approved the exact edited answers** in the
+seventeen-entry published set (content revision `78f7b32`). This is user-relayed
+content-owner approval, not independent contact or a written approval artifact.
+The actual approval date was not supplied; November 6 is the receipt date, not
+a date to backfill into the October 30 interview. This confirmation does not
+approve future wording/aliases, the separately user-authorized batch-referral addition, or
+institutional deployment. ACTIVE alone remains no proof of approval. Facts retain the reported October 30
+Sir Fidel source and November 2/3 clarification provenance in the
+[intake sheet](./FAQ_CONTENT_INTAKE_2026-11-02.md).
+
+Executed by Codex/Playwright using the user's manually signed-in Curator session:
+backend `0a864d4`, frontend `30d6cc7`, production build
+`fg3bSJZZZz_Oe-dE_DpRs`, separate loopback ports 43180/43181, and the configured
+hosted database target confirmed by the user. Content came from the seventeen
+reconciled candidates at `78f7b32`. Runtime matcher code/thresholds and database
+schema were unchanged. The later notification release is outside this checkpoint.
+
+**Publication result: 17 user-authorized entries active.** Eleven were created inactive
+and explicitly activated. Six existing overlapping entries were edited in place:
+admission, appointment/guided tours, group batches, photography, handling and
+location. Four of those six were inactive and explicitly activated; the other
+two were already active and their published content was updated. Existing IDs
+and history were retained. No synthetic fixture UUIDs were inserted, direct SQL
+seed used, entry deleted/archived, or unrelated record changed.
+
+The preflight found an active school-group answer incorrectly giving weekday
+hours through 5 PM. Its overlapping entry now contains the user-authorized batch answer.
+Previously inactive admission/location/handling drafts were also replaced with
+the prepared content rather than activated unchanged. Prior values and operation
+receipts are retained privately by **@OppenJayme**, the PR author, in the local
+`faq-publication-20261106` evidence folder (`publication-state.json`,
+`publication-receipts.json`, `approved-content.json`, and browser results).
+Request a redacted copy from that custodian. These local copies are not a tested
+automatic rollback or a durable institutional backup. The normal protected audit
+trail remains; reverting content would use authorized Curator edits/deactivation,
+not erase audit history or blindly restore unrelated database rows.
+
+Each save was read back through the Curator form and compared across question,
+answer, category, alternative wording and keywords. Each published entry showed
+the active-state control. A final full-list reload found 30 total entries, exactly
+one active row for each of the seventeen published questions, and all thirteen
+unrelated pre-existing question/category/status/update-time rows unchanged.
+This is row-summary preservation, not a full database-diff claim. Representative
+weekday creation/activation, admission update/activation and already-active batch
+update were visible in the protected audit UI. All mutations used the ordinary
+authenticated Server Actions/API and confirmation dialogs; no credentials were
+copied or exported.
+
+**Local signed-out public widget against hosted data: 28/28 checks passed**,
+without mocked responses. The frontend was at `127.0.0.1:43181`, not a deployed
+public site; this does not demonstrate deployed-site/CORS/provider behavior.
+
+| Check group | Count | Observed result |
+| --- | --- | --- |
+| Canonical questions | 17 | Real public HTTP 200/ANSWERED responses matched persisted entry IDs and exact user-authorized text; each answer rendered in the widget |
+| Alternate/critical questions | 5 | Entrance fee, four USC students, exactly five visitors, alumni campus entry and non-school batch size returned the intended published answer |
+| Opening-hours ambiguity and selection | 2 | One clarification response offered exactly two choices without an answer; a second request selecting Saturday returned its published answer |
+| Bounded context | 2 | One weekday question/answer followed by a second request, `How about Saturday?`, returned the published Saturday answer |
+| Unsupported questions | 2 | Species identification and an unspecified curator phone number returned NO_MATCH with General Inquiry referral |
+| Total | 28 | 17 + 5 + 2 + 2 + 2 |
+
+The public browser was a separate fresh context with no auth-token cookies;
+canonical ask requests carried no Authorization header. No inquiries, visit
+requests or consented unanswered-question submissions were made. The public
+request guard recorded zero blocked requests; the existing rate limits were not
+disabled. Publication completed around 02:12 and final persistence/audit checks
+at 02:15 on November 6, Asia/Singapore.
+
+This supplies live create/edit/activation and bounded public-answer evidence.
+It does not prove deactivation exclusion, all inactive/archived exclusions on
+this release, concurrency, every possible paraphrase/language, duplicate-policy
+enforcement, official deployed hosting, every unrelated legacy answer's accuracy,
+or independent module acceptance. No remaining unknown contact, cancellation,
+document or Sunday facts were invented or activated. Optional question collection
+and paid AI services were not enabled. Publication is complete; remaining case
+dispositions and review should use this evidence rather than repeat the batch.
+
+### Review follow-ups and unresolved content decisions - 2026-11-06
+
+- **Content-owner decision:** the user subsequently confirmed on November 6 that
+  Sir Fidel approved the exact edited answers at `78f7b32`. The intake records
+  that report separately from publishing authorization and interview provenance.
+  Actual approval date and a separate written artifact were not supplied.
+  @OppenJayme retains this clarification; it must not be expanded to approval of
+  additional aliases, the separately authorized batch-referral addition or institutional deployment.
+- **Multi-batch Visits handling:** Charles retains Visits/public-flow ownership;
+  its form permits `MAX_VISITOR_COUNT = 200` and one confirmed schedule per
+  request. A party of 120 cannot express three
+  independently confirmed batches in one request. The user resolved the interim
+  handling on November 6: **General Inquiry, then manual Curator coordination**
+  of batches/proposed times. This is a user-accepted operational route, not a
+  claim that the form now represents multiple schedules. The 200-person input
+  ceiling does not change the maximum of 50 per actual batch. Groups still
+  arrange their own division, and schedules require confirmation. @OppenJayme
+  records the FAQ decision; Charles retains ownership of any later Visits/public
+  implementation changes. Do not promise automatic splitting, several reserved
+  schedules, or invent a separate-request booking policy. The FAQ addition is
+  separately authorized by the user, not backdated into Sir Fidel's earlier
+  reported exact-answer approval. No Visits code changes are needed for this
+  chosen manual referral workflow.
+- **Off-campus affiliation:** who qualifies as an affiliate and what an
+  off-campus affiliate must do remain unconfirmed. Alumni are explicitly treated
+  as outsiders for appointment/entry. The current affiliation sentence does not
+  establish campus-entry authorization; do not infer staff or alumni exemptions.
+- **Reviewer-reproduced phrasing gaps:** with only the seventeen candidates,
+  `Can alumni walk in?`, `Can outsiders walk in?`, `Can USC staff walk in?`,
+  `Can a group of 4 walk in?`, and `Can 60 students visit at once?` returned safe
+  NO_MATCH. The reviewer reported appointment/five-person/maximum-group variants
+  did answer. The 28 passing inputs above do not cover these five misses.
+  Proposed aliases and off-campus scope need content-owner review and focused
+  HTTP checks before a further authorized live update; no broader semantic
+  accuracy is claimed and no unreviewed live alias was added by this doc repair.
+- **Other active legacy content:** preflight read all six original active
+  entries. Two overlapping entries were corrected in the publication. The four
+  preserved active answers concern Sir Fidel, biology topics, specimen search
+  and reporting an exhibit problem. The interview supports the Curator identity,
+  but exact identity wording, broad collection-topic scope, actual public search
+  availability and the claimed contact-page reporting route lack separate
+  content-owner/functional confirmation here. Assign their editorial review to
+  @OppenJayme with Sir Fidel; coordinate public-route facts with Charles. The
+  other nine preserved rows were inactive/archived. Preserved is not factually
+  verified; this follow-up does not activate, edit or retire those records.
+
+The dedicated `evaluate:faq:curator` suite is now a named step in backend CI,
+rather than relying on default Jest discovery. Its isolated adapter never uses
+the hosted database. A local passing evaluation is not itself a completed
+GitHub Actions run or content-owner approval.
+
+### General Inquiry batch-coordination update - 2026-11-06
+
+After the user explicitly selected General Inquiry/manual Curator coordination
+(S06), the existing group-size answer was updated through the signed-in Curator
+form. It now directs parties larger than 50 to send a General Inquiry through
+BioSphere to coordinate batches and proposed times with the Curator, and states
+that the system does not automatically split groups or book multiple schedules.
+The maximum of 50 per batch, group responsibility for division, appointment
+threshold and schedule-confirmation requirement remain unchanged. This is a
+separate user-authorized addition, not an extension of the earlier reported
+Sir Fidel approval to wording he was not separately reported to have reviewed.
+
+The save changed only that answer: question, category, keywords, alternative
+wording, existing ID and ACTIVE status were preserved. Reload readback passed;
+the protected audit list for the record gained exactly one event. No other FAQ,
+Visits code, visitor request, batch reservation or schema was changed.
+
+The existing isolated public-HTTP batch test was strengthened to require the
+General Inquiry referral and explicit absence of automatic booking. It failed
+against the previous candidate, then passed after the content update. The full
+evaluation remains **36/36 passing** and changed-file ESLint passes.
+
+The signed-out local public widget against the same hosted target passed
+**3/3 additional checks**: the canonical batch question, its existing batch-size
+alias and the non-school batch-size phrasing each returned the same existing
+FAQ ID and exact updated answer, and rendered it. The visible General Inquiry
+link resolves to `/inquiry`; no inquiry was submitted. These checks supplement
+the earlier dated 28-check result rather than pretend that all 28 inputs were
+rerun after the answer edit. Private payload, prior value and receipts are held
+by @OppenJayme in the same evidence folder under `batch-routing-*` files.
+
 Current answer-quality checkpoint: [content review and 25-case synthetic HTTP
 evaluation](./FAQ_CONTENT_REVIEW.md), now 25/25 passing after bounded scope
 checks; the original 23/25 diagnostic is retained. DEF-024 is Ready for retest,
@@ -219,11 +385,14 @@ returning to its buttons. The corrected check distinguishes those browser-level
 focus departures from background-page focus. No application defect was
 reproduced; this observation is not full keyboard/screen-reader sign-off.
 
-FAQ-002 remains In progress: actual activation/deactivation, submitted error and
-pending states, persisted lifecycle audits and active-to-archived behavior need
-separate checks. Public activation still requires a confirmed isolated setup.
-These results concern the existing served build, not deployment of newer local
-source. No application code changed; only `git diff --check` was run for this
+At this October 23 checkpoint, FAQ-002 remained In progress: actual
+activation/deactivation, submitted error/pending states, persisted lifecycle
+audits and active-to-archived behavior were still separate. Later November 6
+user-authorized activation/persistence and representative audit checks are
+recorded above; deactivation/exclusion and independent acceptance remain open.
+The earlier isolated-setup condition was not a claim that the later publication
+was unexecuted. These October results concern the then-served build, not
+deployment of newer local source. No application code changed; only `git diff --check` was run for this
 documentation update, not another full test/build run.
 
 ## Equal-score clarification implementation checkpoint - 2026-10-25

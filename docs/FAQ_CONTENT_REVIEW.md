@@ -2,6 +2,22 @@
 
 ## Operating decision
 
+2026-11-06 subsequent publication: the user explicitly authorized the prepared
+set. [Seventeen real entries are now active and 28 public-widget checks passed](./FAQ_KNOWLEDGE_GUIDE.md#approved-content-publication-and-public-widget-checkpoint---2026-11-06).
+The user subsequently reported on November 6 that Sir Fidel approved the exact
+edited answers at `78f7b32`. The intake records that relayed approval without
+inventing its actual date or a written artifact. New wording/aliases and the
+operational follow-ups remain separate.
+The isolated evaluations below remain separate historical/development evidence;
+they must not substitute for, or obscure, the recorded real execution.
+
+2026-11-06 content reconciliation: the user's November 3 visitor/group
+clarifications are integrated into the intake and synthetic candidates.
+[Thirty-six isolated public HTTP cases pass](./FAQ_CURATOR_CONTENT_EVALUATION_2026-11-02.md#november-6-clarification-reconciliation),
+including three independently specified content checks observed red before
+correcting the drafts. This is still review-only content, not activation or
+approval of exact wording. The November 2 result below retains its dated scope.
+
 2026-11-02 content follow-up: [intake #224](https://github.com/OppenJayme/biosphere-backend/pull/224)
 records the user's responses to thirty questions and later clarifications,
 including incomplete and unanswered items. An isolated
