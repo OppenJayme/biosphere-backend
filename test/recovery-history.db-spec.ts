@@ -2,6 +2,8 @@
 import type { INestApplication } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'node:crypto';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import request from 'supertest';
 import type { App } from 'supertest/types';
 import {
@@ -10,6 +12,8 @@ import {
   type RecoveryOutcome,
 } from '../src/backup/recovery-history.service';
 import { PrismaService } from '../src/prisma/prisma.service';
+import { NotificationsService } from '../src/notifications/notifications.service';
+import { CuratorNotificationType } from '../src/notifications/entities/curator-notification.entity';
 import { DisposableFaqPostgres } from './support/disposable-faq-postgres';
 import {
   createBackupHistoryDatabaseApp,
@@ -31,6 +35,14 @@ describe('Internal synthetic recovery recording on owned PostgreSQL', () => {
     database = await DisposableFaqPostgres.start('recovery-history');
     await database.createRole('service_role');
     await seedBackupHistoryDatabase(database.admin);
+    for (const file of ['016_inquiry.sql', '017_visit_request.sql']) {
+      await database.admin.query(
+        readFileSync(resolve(__dirname, '../database/sql', file), 'utf8'),
+      );
+    }
+    await database.admin.query(
+      'GRANT SELECT ON inquiry, visit_request TO service_role',
+    );
     await database.admin.query(
       'GRANT INSERT, UPDATE ON backup_history TO service_role',
     );
@@ -342,4 +354,112 @@ describe('Internal synthetic recovery recording on owned PostgreSQL', () => {
       ]),
     });
   });
+  it('separates completed rehearsals from default backup lists while retaining explicit diagnostic access', async () => {
+    const input = { ...command(), operation: 'restore' as const };
+    await recorder.start(input);
+    await recorder.finish(input, { outcome: 'RESTORED_VERIFIED' });
+    const defaults = await request(app.getHttpServer())
+      .get('/backups/history')
+      .query({ status: 'COMPLETED' })
+      .auth('curator-fixture', { type: 'bearer' })
+      .expect(200);
+    const items = defaults.body.items as Array<{
+      id: string;
+      backupType: string;
+    }>;
+    expect(items.some((item) => item.backupType.startsWith('SYNTHETIC_'))).toBe(
+      false,
+    );
+    expect(defaults.body.total).toBe(2);
+    const diagnostics = await request(app.getHttpServer())
+      .get('/backups/history')
+      .query({ status: 'COMPLETED', backupType: 'synthetic_restore' })
+      .auth('curator-fixture', { type: 'bearer' })
+      .expect(200);
+    expect(diagnostics.body.items).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: input.attemptId,
+          backupType: 'SYNTHETIC_RESTORE',
+        }),
+      ]),
+    );
+    expect(await history(input.attemptId)).toMatchObject({
+      backupType: 'SYNTHETIC_RESTORE',
+    });
+  });
+  it('keeps rehearsals out of real backup notifications without hiding or resolving operational failures', async () => {
+    const notifications = new NotificationsService(app.get(PrismaService));
+    const ids = async () =>
+      (await notifications.getFeed()).items
+        .filter((item) => item.type === CuratorNotificationType.BACKUP_FAILED)
+        .map((item) => item.recordId)
+        .sort();
+    const realFailure = '44444444-4444-4444-8444-444444444442';
+    expect(await ids()).toEqual([realFailure]);
+    const operations = ['capture', 'restore', 'verify'] as const;
+    const outcomes = ['CAPTURED', 'RESTORED_VERIFIED', 'VERIFIED'] as const;
+    for (let index = 0; index < operations.length; index++) {
+      const failed = { ...command(), operation: operations[index] };
+      await recorder.start(failed);
+      await recorder.finish(failed, {
+        outcome: 'FAILED',
+        code: 'SYNTHETIC_FAILURE',
+      });
+      expect(await ids()).toEqual([realFailure]);
+      const completed = { ...command(), operation: operations[index] };
+      await recorder.start(completed);
+      await recorder.finish(completed, { outcome: outcomes[index] });
+      expect(await ids()).toEqual([realFailure]);
+    }
+    const literalPrefixControl = randomUUID();
+    await database.admin.query(
+      `INSERT INTO backup_history(id,backup_type,status,completed_at) VALUES
+      ($1,'SYNTHETICX_FULL','FAILED',NOW()), (gen_random_uuid(),'synthetic_verify','FAILED',NOW())`,
+      [literalPrefixControl],
+    );
+    expect(await ids()).toEqual([realFailure, literalPrefixControl].sort());
+    await database.admin.query(
+      "INSERT INTO backup_history(backup_type,status,completed_at) VALUES ('SYNTHETICX_FULL','COMPLETED',NOW())",
+    );
+    expect(await ids()).toEqual([realFailure]);
+  });
+  it.each(['start', 'finish'] as const)(
+    'waits beyond the old five-second transaction limit for a same-ID %s retry',
+    async (phase) => {
+      const input = command();
+      if (phase === 'finish') await recorder.start(input);
+      await database.admin
+        .query(`CREATE FUNCTION delay_recovery_audit() RETURNS trigger LANGUAGE plpgsql AS $$
+      BEGIN IF NEW.action='recovery_${phase === 'start' ? 'started' : 'finished'}' THEN PERFORM pg_sleep(6); END IF; RETURN NEW; END $$;
+      CREATE TRIGGER delay_recovery_audit BEFORE INSERT ON audit_log FOR EACH ROW EXECUTE FUNCTION delay_recovery_audit();`);
+      try {
+        const results =
+          phase === 'start'
+            ? await Promise.allSettled([
+                recorder.start(input),
+                recorder.start(input),
+              ])
+            : await Promise.allSettled([
+                recorder.finish(input, { outcome: 'CAPTURED' }),
+                recorder.finish(input, { outcome: 'CAPTURED' }),
+              ]);
+        expect(results).toEqual([
+          expect.objectContaining({ status: 'fulfilled' }),
+          expect.objectContaining({ status: 'fulfilled' }),
+        ]);
+        expect(results[0]).toEqual(results[1]);
+        expect((await audits(input.attemptId)).total).toBe(
+          phase === 'start' ? 1 : 2,
+        );
+        expect(await history(input.attemptId)).toMatchObject({
+          status: phase === 'start' ? 'IN_PROGRESS' : 'COMPLETED',
+        });
+      } finally {
+        await database.admin.query(
+          'DROP TRIGGER delay_recovery_audit ON audit_log; DROP FUNCTION delay_recovery_audit()',
+        );
+      }
+    },
+  );
 });

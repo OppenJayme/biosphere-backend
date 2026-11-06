@@ -8,9 +8,11 @@
 ## Start here
 
 2026-11-06 first recovery implementation: the [synthetic-only manual CLI](./BACKUP_RECOVERY_PROCEDURE.md#implementation-checkpoint---2026-11-06)
-passes 15/15 owned PostgreSQL/CLI checks, with encrypted capture, unavailable-source
-restore and independent SQL/file/config verification. CI runs only its three
-Docker-free guards; all twelve Docker checks are opt-in and were run locally.
+initially passed 15/15 owned PostgreSQL/CLI checks, with encrypted capture,
+unavailable-source restore and independent SQL/file/config verification. The
+[post-#247 hardening batch](./BACKUP_RECOVERY_PROCEDURE.md#recovery-cli-review-follow-up---2026-11-06)
+passes 16/16 locally and adds a separate full Docker CI job alongside the three
+Docker-free guards; CI completion must be checked on that revision.
 Real Supabase Auth/Storage, hosted exports, deployment policy and the full-service
 recovery gates remain open. BAK-002 stays Deferred; no shared data/server changed.
 
@@ -2084,3 +2086,28 @@ tamper-evident or disaster-independent evidence. Real process/power-loss recover
 hosted authentication, Supabase service restoration, independent acceptance and
 BAK-002's deployment gates remain open. See the
 [adapter contract and failure handling](../scripts/recovery/README.md#owned-recording-adapter).
+
+### November 6 - #249 review follow-up
+
+The recorder/owned PostgreSQL suite now passes **25/25** cases. New checks
+reproduce and repair rehearsal rows appearing in operational backup lists and
+the real notification feed, plus start/finish retries expiring under the old
+five-second transaction default. Six-second audit-trigger holders now complete
+with one transition/audit per phase. Real backup alerts remain unresolved across
+all three rehearsal failure/success types; a non-reserved literal-prefix control
+still raises and clears normally. Default history counts exclude rehearsals,
+while explicit type filters and protected detail/audit reads retain diagnostics.
+
+DEF-036/037 record the findings and remain Ready for retest pending independent
+review. Query-only changes require no schema migration, shared records or server
+restart. Transaction limits are finite (10-second pool acquisition / 30-second
+transaction); this is not proof of deployed outages or unlimited contention.
+
+Final local follow-up validation: existing populated Backup History SQL/HTTP
+16/16; notification SQL/HTTP/state 12/12; focused unit 5 suites / 34 tests;
+Backup/Audit isolated HTTP 2 suites / 12 tests; combined full CLI 16/16 after
+incorporating merged #248. Together with the 25 recorder cases, these are 115
+focused checks. Scoped lint, TypeScript checking, Nest build, formatting and diff
+checks pass. The notification suite deliberately revokes an owned test role's
+INSERT privilege and expects a 500; that diagnostic log is its negative control,
+not a shared permission failure. Remote CI/re-review remain separate.

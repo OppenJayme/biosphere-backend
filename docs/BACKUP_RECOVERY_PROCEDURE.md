@@ -35,8 +35,9 @@ red before repair; the original CLI and unavailable-source path also have
 recorded red/green checkpoints. Seed corrections and the tmpfs restart issue
 were fixture setup issues, not accepted application behavior.
 
-Docker-free CI runs **3 guard checks**, with the 12 real-Docker checks explicitly
-skipped there; the full opt-in command ran locally. Node syntax, recommended
+At this initial checkpoint CI ran **3 guard checks**, with the 12 real-Docker
+checks explicitly skipped there; the full opt-in command ran locally. The later
+review follow-up below adds the full Docker CI job. Node syntax, recommended
 JavaScript lint, formatting and diff checks pass. No broad Nest/Next build/test
 campaign was repeated: no application routes, schema, dependencies or generated
 client contract changed. No shared server, database or browser was interrupted.
@@ -59,6 +60,37 @@ RESTORED_VERIFIED states do not write a misleading application COMPLETED event.
 The existing Backup History API remains read-only. BAK-002 stays Deferred and
 the full-service Gate B remains open; this prototype is its first engineering
 input, not a reviewed complete recovery rehearsal or deployment approval.
+
+### Recovery CLI review follow-up - 2026-11-06
+
+After #247 merged at base `4eaff1d`, all four non-blocking review points were
+handled together. [DEF-034](./TEST_DEFECT_LOG.md#def-034---recovery-object-inventory-disagrees-with-locale-ordering)
+is now reproduced with `Z.bin` and `a.bin` in one bucket under an explicit English
+ICU collation. Capture failed with OBJECT_REFERENCE_MISMATCH before repair;
+explicit `COLLATE "C"` now aligns SQL bucket/key inventory with the allowed ASCII
+filesystem sort. Restore and verification also pass with those four total files
+across the same five bucket directories (three empty).
+
+[DEF-035](./TEST_DEFECT_LOG.md#def-035---retained-restore-workspace-produces-a-generic-retry-error)
+is reproduced with a retained partial restore directory and an empty owned
+database. The old retry returned OPERATION_FAILED; it now returns the specific
+RESTORE_WORKSPACE_EXISTS, preserving the partial file and leaving the DB empty.
+No automatic cleanup/overwrite is introduced. The inaccurate test-retention
+comment now explicitly includes the synthetic key, inputs and restored files.
+
+Full local rehearsal: **16/16 passing**, including the nested retry case and the
+previous capture/restore/failure guards. The standalone guard command still has
+3 passing checks and 12 skipped top-level Docker cases. A separate dependency-
+free Linux CI job now explicitly pulls the same pinned PostgreSQL digest and
+runs the entire suite on Node 22, with read-only contents permission, ten-minute
+timeout, no provider secrets and no key/artifact upload. Its remote result must
+be checked rather than inferred from the local run. The original fifteen-case
+snapshot above retains its historical scope and artifact counts.
+
+Both findings are fixed owner-side and Ready for retest, not independently
+Verified. BAK-002/full-service Gate B remain unchanged; no hosted data, scheduler,
+deployed recovery adapter, application history write or production readiness is
+introduced by this hardening batch.
 
 ## 1. Decision and present capability
 

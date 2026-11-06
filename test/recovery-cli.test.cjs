@@ -119,6 +119,15 @@ before(async () => {
     path.join(root, 'objects', 'ar-assets', 'synthetic-model.glb'),
     'SYNTHETIC MODEL ONLY',
   );
+  // ASCII filesystem ordering deliberately differs from English SQL collation.
+  fs.writeFileSync(
+    path.join(root, 'objects', 'specimen-media', 'Z.bin'),
+    'UPPERCASE FIXTURE',
+  );
+  fs.writeFileSync(
+    path.join(root, 'objects', 'specimen-media', 'a.bin'),
+    'lowercase fixture',
+  );
   for (let i = 0; i < 2; i++) {
     const id = docker([
       'create',
@@ -165,7 +174,7 @@ before(async () => {
     `CREATE SCHEMA auth; CREATE TABLE auth.users(id uuid PRIMARY KEY, email text, encrypted_password text);
     CREATE TABLE auth.identities(id uuid PRIMARY KEY,user_id uuid REFERENCES auth.users(id),provider text);
     CREATE SCHEMA storage; CREATE TABLE storage.buckets(id text PRIMARY KEY,public boolean NOT NULL);
-    CREATE TABLE storage.objects(bucket_id text REFERENCES storage.buckets(id),name text,PRIMARY KEY(bucket_id,name));
+    CREATE TABLE storage.objects(bucket_id text REFERENCES storage.buckets(id),name text COLLATE "en-US-x-icu",PRIMARY KEY(bucket_id,name));
     CREATE TABLE public._prisma_migrations(id varchar(36) PRIMARY KEY,checksum varchar(64) NOT NULL,finished_at timestamptz,migration_name varchar(255) NOT NULL,logs text,rolled_back_at timestamptz,started_at timestamptz NOT NULL DEFAULT now(),applied_steps_count integer NOT NULL DEFAULT 0);`,
   );
   const { createHash } = require('node:crypto');
@@ -193,7 +202,14 @@ before(async () => {
     INSERT INTO offline_draft_sync(id,created_by,client_draft_id,specimen_id,payload_fingerprint) VALUES ('88888888-8888-4888-8888-888888888888','33333333-3333-4333-8333-333333333333','99999999-9999-4999-8999-999999999999','55555555-5555-4555-8555-555555555555','aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa');
     INSERT INTO audit_log(user_id,affected_record_id,affected_record_type,action,module,status) VALUES ('33333333-3333-4333-8333-333333333333','55555555-5555-4555-8555-555555555555','specimen','SYNTHETIC_CREATE','cataloging','SUCCESS');
     INSERT INTO storage.buckets VALUES ('specimen-media',false),('exhibit-media',false),('ar-assets',false),('user-avatars',false),('inquiry-attachments',false);
-    INSERT INTO storage.objects VALUES ('specimen-media','synthetic-image.bin'),('ar-assets','synthetic-model.glb');`,
+    INSERT INTO storage.objects VALUES ('specimen-media','synthetic-image.bin'),('ar-assets','synthetic-model.glb'),('specimen-media','Z.bin'),('specimen-media','a.bin');`,
+  );
+  assert.equal(
+    sql(
+      source,
+      "SELECT string_agg(name,',' ORDER BY name) FROM storage.objects WHERE name IN ('Z.bin','a.bin')",
+    ),
+    'a.bin,Z.bin',
   );
   profile = {
     format: 'biosphere-synthetic-recovery-v1',
@@ -217,7 +233,8 @@ after(() => {
     if (info.State.Paused) docker(['unpause', id]);
     docker(['rm', '-f', '-v', id]);
   }
-  // Preserve only encrypted artifacts/sanitized ledger for inspection; key and fake files are synthetic.
+  // Retain synthetic inputs, test key, encrypted checkpoint, restored files and
+  // ledger for local inspection; none of this private workspace is uploaded.
   if (root)
     console.log(
       JSON.stringify({
@@ -230,11 +247,39 @@ after(() => {
 test(
   'capture and restore a complete synthetic checkpoint through the manual CLI',
   { skip: !enabled },
-  () => {
+  async (t) => {
     const captured = run('capture');
     assert.equal(captured.code, 0, captured.output + captured.stderr);
     assert.equal(captured.result.status, 'CAPTURED');
     checkpoint = captured.result.snapshotId;
+    await t.test(
+      'a retained restore workspace gets an explicit retry refusal',
+      () => {
+        const dir = path.join(root, 'restores', checkpoint);
+        fs.mkdirSync(dir, { recursive: true });
+        const marker = path.join(dir, 'partial.txt');
+        fs.writeFileSync(marker, 'KEEP PARTIAL EVIDENCE');
+        try {
+          const r = run('restore', checkpoint);
+          assert.equal(r.code, 1);
+          assert.equal(r.result.code, 'RESTORE_WORKSPACE_EXISTS');
+          assert.equal(
+            fs.readFileSync(marker, 'utf8'),
+            'KEEP PARTIAL EVIDENCE',
+          );
+          assert.equal(
+            sql(
+              target,
+              "SELECT count(*) FROM information_schema.tables WHERE table_schema='public'",
+            ),
+            '0',
+          );
+        } finally {
+          fs.unlinkSync(marker);
+          fs.rmdirSync(dir);
+        }
+      },
+    );
     assert.equal(
       fs
         .readFileSync(path.join(root, 'checkpoints', checkpoint + '.bsp'))

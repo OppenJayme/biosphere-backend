@@ -107,6 +107,10 @@ system is not a reason to postpone all fixes until the end.
 
 | ID      | Date       | Module                     | Summary                                                                 | Severity    | Priority | Status | Owner                   |
 | ------- | ---------- | -------------------------- | ----------------------------------------------------------------------- | ----------- | -------- | ------ | ----------------------- |
+| [DEF-037](#def-037---recovery-retries-expire-under-a-slow-lock-holder) | 2026-11-06 | Recovery / Internal recorder | Six-second start/finish audit holders exceed the implicit five-second transaction limit | S3 Moderate | P2 | Ready for retest | Kyer / Ivan; MarQtie finding |
+| [DEF-036](#def-036---synthetic-recovery-results-leak-into-operational-backup-views) | 2026-11-06 | Recovery / Backup History / Notifications | Rehearsal failures raise real backup alerts and completed non-captures mix into default lists | S3 Moderate | P1 | Ready for retest | Kyer / Ivan; MarQtie finding |
+| [DEF-035](#def-035---retained-restore-workspace-produces-a-generic-retry-error) | 2026-11-06 | Recovery / Synthetic CLI | A retained partial restore directory produces a generic retry error | S4 Minor | P2 | Ready for retest | Kyer / Ivan |
+| [DEF-034](#def-034---recovery-object-inventory-disagrees-with-locale-ordering) | 2026-11-06 | Recovery / Synthetic CLI | SQL locale order differs from filesystem order for mixed-case object keys | S3 Moderate | P2 | Ready for retest | Kyer / Ivan |
 | [DEF-033](#def-033---exhibit-http-tests-inherit-the-local-public-site-url) | 2026-11-05 | Exhibits / HTTP test fixture | Local public URL changes three fixture URL/label expectations | S4 Minor | P2 | Ready for retest | Voltaire / Exhibits; Kyer assisting |
 | [DEF-032](#def-032---timestamp-only-archives-leak-into-active-catalog-and-breakdowns) | 2026-11-04 | Cataloging / Dashboard / Reports | Timestamp-only archived records appear in active reads and consolidated active quantities | S3 Moderate | P2 | Ready for retest | Kyer / Ivan; John / Charles downstream review |
 | [DEF-031](#def-031---timestamp-only-archived-records-appear-as-duplicate-candidates) | 2026-11-04 | Cataloging / Duplicates | Timestamp-only archived records pass the status-only candidate filter | S3 Moderate | P2 | Ready for retest | Kyer / Ivan; MarQtie finding |
@@ -142,6 +146,72 @@ system is not a reason to postpone all fixes until the end.
 | [DEF-015](#def-015---audit-http-fixture-omits-the-security-audit-create-method) | 2026-10-19 | Audit / HTTP test fixture | Missing security-audit create mock logs an error despite green denial test | S3 Moderate | P2 | Ready for retest | Audit tests / coordinate with Auth |
 
 ## 3. Defect details
+
+### DEF-037 - Recovery retries expire under a slow lock holder
+
+**Observed:** November 6, 2026, #249 review and owned PostgreSQL reproduction.
+**Disposition:** Ready for retest; no shared/live impact established.
+**Owner:** Kyer / Ivan; MarQtie review finding.
+
+A six-second audit trigger caused both start and finish same-ID retry scenarios
+to fail with P2028 under Prisma's implicit five-second interactive-transaction
+timeout. The repaired service explicitly budgets 10 seconds for pool acquisition
+and 30 seconds per transaction, including advisory-lock waits. Both scenarios
+now complete with identical returned rows and exactly one audit for each phase.
+All 25 owned recorder/history/feed cases pass. Longer contention remains bounded
+and can fail; no unlimited retry, live-outage or independent-verification claim.
+
+### DEF-036 - Synthetic recovery results leak into operational backup views
+
+**Observed:** November 6, 2026, #249 review and owned PostgreSQL reproduction.
+**Disposition:** Ready for retest; the feature remains default-off.
+**Owner:** Kyer / Ivan; MarQtie review finding.
+
+Finishing a synthetic attempt as FAILED produced a real BACKUP_FAILED feed item;
+the new service's 21 original cases had omitted this existing consumer. Completed
+restore/verify rehearsals also appeared beside real captures in default history.
+The repair excludes the case-insensitive literal `SYNTHETIC_` namespace from both
+notification lookups and default history lists/counts. Explicit type-filtered
+and detail/audit diagnostic access remains available with unchanged type names.
+
+The 25-case owned suite verifies failure/success for capture, restore and verify
+never raises or clears a real backup alert. An unrelated `SYNTHETICX_FULL` type
+still raises its own alert and resolves after its own success, proving the SQL
+underscore is literal. Default COMPLETED lists contain only operational rows;
+explicit synthetic queries/detail still work. No notification state, shared
+database or running server was changed. Independent retest remains pending.
+
+### DEF-035 - Retained restore workspace produces a generic retry error
+
+**Source:** Raidiniom's non-blocking #247 review; independently reproduced on
+merged base `4eaff1d`. **Severity/priority:** S4 Minor/P2.
+**Status:** Ready for retest; owner red/green CLI evidence, independent retest pending.
+
+With a valid synthetic checkpoint and an empty owned target, retain
+`restores/<snapshot>/partial.txt` and retry restore. Expected: specific refusal
+with no overwrite or DB changes. Actual: FAILED/OPERATION_FAILED from mkdir's
+EEXIST error. Restore was already safely refused; the defect was diagnostic.
+The CLI now returns RESTORE_WORKSPACE_EXISTS. A nested public-CLI regression
+checks the code, unchanged marker bytes and zero target tables before continuing
+the ordinary successful restore. No deletion/retry shortcut was added. The full
+local suite passes 16/16; hosted behavior/full recovery acceptance is not claimed.
+
+### DEF-034 - Recovery object inventory disagrees with locale ordering
+
+**Source:** Raidiniom's non-blocking #247 code-review concern; independently
+reproduced on merged base `4eaff1d`. **Severity/priority:** S3 Moderate/P2 within
+the synthetic prototype; no hosted-data corruption or live backup loss occurred.
+**Status:** Ready for retest; owner red/green SQL/CLI evidence, independent retest pending.
+
+Seed a bucket with both `Z.bin` and `a.bin`, matching real file bytes and metadata,
+with the name column using English ICU collation. SQL orders `a.bin,Z.bin`, while
+the permitted ASCII filesystem inventory orders `Z.bin,a.bin`. The old capture
+fails OBJECT_REFERENCE_MISMATCH despite complete inputs. Explicit COLLATE C in
+both bucket-ID and object-key SQL ordering fixes the mismatch. The fixture
+independently asserts the locale ordering, then exercises encrypted capture,
+source-unavailable restore and verification with all four byte objects. The
+full suite passes 16/16. No matcher, hosted project, real object bucket or
+application record changed; the scope remains owned synthetic Docker fixtures.
 
 ### DEF-033 - Exhibit HTTP tests inherit the local public site URL
 

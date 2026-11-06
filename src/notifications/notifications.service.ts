@@ -9,6 +9,7 @@ import { ConfigService } from '@nestjs/config';
 import { UpdateNotificationStateDto } from './dto/update-notification-state.dto';
 import { referenceCode } from '../mail/visitor-email';
 import { PrismaService } from '../prisma/prisma.service';
+import { SYNTHETIC_BACKUP_TYPE_FILTER } from '../backup/backup-history-scope';
 import { DEFAULT_NOTIFICATION_LIMIT } from './dto/list-notifications-query.dto';
 import {
   CuratorNotification,
@@ -261,7 +262,11 @@ export class NotificationsService {
   // failure ended, by completion time, so overlapping runs resolve correctly.
   private async unresolvedBackupFailures(): Promise<CuratorNotification[]> {
     const recovered = await this.prisma.backup_history.findMany({
-      where: { status: 'COMPLETED', completed_at: { not: null } },
+      where: {
+        status: 'COMPLETED',
+        completed_at: { not: null },
+        NOT: { backup_type: SYNTHETIC_BACKUP_TYPE_FILTER },
+      },
       distinct: ['backup_type'],
       select: { backup_type: true, completed_at: true },
       orderBy: [{ backup_type: 'asc' }, { completed_at: 'desc' }],
@@ -269,6 +274,7 @@ export class NotificationsService {
     const failures = await this.prisma.backup_history.findMany({
       where: {
         status: 'FAILED',
+        NOT: { backup_type: SYNTHETIC_BACKUP_TYPE_FILTER },
         OR: [
           { backup_type: { notIn: recovered.map((row) => row.backup_type) } },
           ...recovered.map((row) => ({
