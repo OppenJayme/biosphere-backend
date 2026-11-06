@@ -22,6 +22,13 @@ export type RecoveryOutcome =
   | { outcome: 'CAPTURED' | 'RESTORED_VERIFIED' | 'VERIFIED' }
   | { outcome: 'FAILED'; code: string };
 
+// Advisory-lock waits consume transaction time too; bound both pool and lock work.
+const RECORDING_TRANSACTION_OPTIONS = {
+  isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted,
+  maxWait: 10_000,
+  timeout: 30_000,
+};
+
 /** Trusted internal bookkeeping only; does not execute or independently verify recovery. */
 @Injectable()
 export class RecoveryHistoryService {
@@ -33,47 +40,44 @@ export class RecoveryHistoryService {
   async start(input: RecoveryAttempt) {
     input = { ...input };
     const { operator, fingerprint } = this.identity(input);
-    return this.prisma.$transaction(
-      async (tx) => {
-        // READ COMMITTED takes a fresh snapshot after this per-attempt lock is acquired.
-        // Hash collisions only serialize unrelated attempts; identities are still compared.
-        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${input.attemptId}::text, 0))`;
-        const existing = await tx.backup_history.findUnique({
-          where: { id: input.attemptId },
-        });
-        if (existing) {
-          await this.requireMatchingStart(tx, input.attemptId, fingerprint);
-          return existing;
-        }
-        const record = await tx.backup_history.create({
-          data: {
-            id: input.attemptId,
-            backup_type: `SYNTHETIC_${input.operation.toUpperCase()}`,
-            status: 'IN_PROGRESS',
-          },
-        });
-        await tx.audit_log.create({
-          data: {
-            affected_record_id: input.attemptId,
-            affected_record_type: 'backup_history',
-            module: 'backup',
-            action: 'recovery_started',
-            status: 'SUCCESS',
-            details: {
-              ...input,
-              commandFingerprint: fingerprint,
-              scope: 'synthetic',
-              operator: {
-                kind: 'service',
-                id: operator,
-              },
+    return this.prisma.$transaction(async (tx) => {
+      // READ COMMITTED takes a fresh snapshot after this per-attempt lock is acquired.
+      // Hash collisions only serialize unrelated attempts; identities are still compared.
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${input.attemptId}::text, 0))`;
+      const existing = await tx.backup_history.findUnique({
+        where: { id: input.attemptId },
+      });
+      if (existing) {
+        await this.requireMatchingStart(tx, input.attemptId, fingerprint);
+        return existing;
+      }
+      const record = await tx.backup_history.create({
+        data: {
+          id: input.attemptId,
+          backup_type: `SYNTHETIC_${input.operation.toUpperCase()}`,
+          status: 'IN_PROGRESS',
+        },
+      });
+      await tx.audit_log.create({
+        data: {
+          affected_record_id: input.attemptId,
+          affected_record_type: 'backup_history',
+          module: 'backup',
+          action: 'recovery_started',
+          status: 'SUCCESS',
+          details: {
+            ...input,
+            commandFingerprint: fingerprint,
+            scope: 'synthetic',
+            operator: {
+              kind: 'service',
+              id: operator,
             },
           },
-        });
-        return record;
-      },
-      { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted },
-    );
+        },
+      });
+      return record;
+    }, RECORDING_TRANSACTION_OPTIONS);
   }
 
   async finish(input: RecoveryAttempt, result: RecoveryOutcome) {
@@ -103,70 +107,60 @@ export class RecoveryHistoryService {
         'Recovery outcome does not match the operation.',
       );
     }
-    const resultFingerprint = createHash('sha256')
-      .update(
-        JSON.stringify([
-          result.outcome,
-          result.outcome === 'FAILED' ? result.code : null,
-        ]),
-      )
-      .digest('hex');
-    return this.prisma.$transaction(
-      async (tx) => {
-        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${input.attemptId}::text, 0))`;
-        const existing = await tx.backup_history.findUnique({
-          where: { id: input.attemptId },
-        });
-        if (!existing)
-          throw new NotFoundException('Recovery attempt was not started.');
-        await this.requireMatchingStart(tx, input.attemptId, fingerprint);
-        if (existing.status !== 'IN_PROGRESS') {
-          const audit = await tx.audit_log.findFirst({
-            where: {
-              affected_record_id: input.attemptId,
-              affected_record_type: 'backup_history',
-              module: 'backup',
-              action: 'recovery_finished',
-            },
-          });
-          if (
-            (audit?.details as Prisma.JsonObject | undefined)
-              ?.resultFingerprint !== resultFingerprint
-          ) {
-            throw new ConflictException(
-              'Recovery outcome is already recorded differently.',
-            );
-          }
-          return existing;
-        }
-        const record = await tx.backup_history.update({
-          where: { id: input.attemptId },
-          data: {
-            status: result.outcome === 'FAILED' ? 'FAILED' : 'COMPLETED',
-            completed_at: new Date(),
-          },
-        });
-        await tx.audit_log.create({
-          data: {
+    return this.prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${input.attemptId}::text, 0))`;
+      const existing = await tx.backup_history.findUnique({
+        where: { id: input.attemptId },
+      });
+      if (!existing)
+        throw new NotFoundException('Recovery attempt was not started.');
+      await this.requireMatchingStart(tx, input.attemptId, fingerprint);
+      if (existing.status !== 'IN_PROGRESS') {
+        const audit = await tx.audit_log.findFirst({
+          where: {
             affected_record_id: input.attemptId,
             affected_record_type: 'backup_history',
             module: 'backup',
             action: 'recovery_finished',
-            status: result.outcome === 'FAILED' ? 'FAILED' : 'SUCCESS',
-            details: {
-              ...input,
-              ...result,
-              scope: 'synthetic',
-              commandFingerprint: fingerprint,
-              resultFingerprint,
-              operator: { kind: 'service', id: operator },
-            },
           },
         });
-        return record;
-      },
-      { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted },
-    );
+        const details = audit?.details as Prisma.JsonObject | undefined;
+        if (
+          details?.outcome !== result.outcome ||
+          (details?.code ?? null) !==
+            (result.outcome === 'FAILED' ? result.code : null)
+        ) {
+          throw new ConflictException(
+            'Recovery outcome is already recorded differently.',
+          );
+        }
+        return existing;
+      }
+      const record = await tx.backup_history.update({
+        where: { id: input.attemptId },
+        data: {
+          status: result.outcome === 'FAILED' ? 'FAILED' : 'COMPLETED',
+          completed_at: new Date(),
+        },
+      });
+      await tx.audit_log.create({
+        data: {
+          affected_record_id: input.attemptId,
+          affected_record_type: 'backup_history',
+          module: 'backup',
+          action: 'recovery_finished',
+          status: result.outcome === 'FAILED' ? 'FAILED' : 'SUCCESS',
+          details: {
+            ...input,
+            ...result,
+            scope: 'synthetic',
+            commandFingerprint: fingerprint,
+            operator: { kind: 'service', id: operator },
+          },
+        },
+      });
+      return record;
+    }, RECORDING_TRANSACTION_OPTIONS);
   }
 
   private identity(input: RecoveryAttempt) {

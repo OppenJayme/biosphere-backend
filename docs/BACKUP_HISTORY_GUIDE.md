@@ -26,6 +26,16 @@ The list endpoint supports `search`, `status`, `backupType`, `creatorId`, `from`
 identifiers. `from` and `to` are inclusive `startedAt` bounds and must contain
 `Z` or an explicit UTC offset. Page size is capped at 100.
 
+The default list and its counts exclude the reserved, case-insensitive
+`SYNTHETIC_` namespace, including when a COMPLETED filter or text search is
+applied. Rehearsal captures/restores/verifications remain diagnostic records in
+the existing table: select their exact `backupType` (for example,
+`SYNTHETIC_RESTORE`) to list them explicitly, or follow a protected detail/audit
+link. Their type is retained unchanged rather than presented as an ordinary
+backup capture. No new frontend field or shared database migration is required.
+Synthetic failures and completions are also excluded from both real backup-alert
+queries, so rehearsals neither create nor clear the Curator's operational alerts.
+
 ## Internal synthetic recorder - November 6, 2026
 
 `RecoveryHistoryService` is an internal provider exported by `BackupModule`.
@@ -49,7 +59,10 @@ does not have to exist before the start can be recorded.
 Each transition atomically writes history and an audit entry, using a
 transaction-scoped PostgreSQL advisory lock per attempt and READ COMMITTED
 isolation. Identical overlapping retries reuse the existing row/result with no
-extra success audit. A changed command, configured operator or terminal result
+extra success audit. Pool acquisition has a 10-second budget and each interactive
+transaction has a 30-second budget, including advisory-lock waits. Six-second
+holders are covered for start and finish; longer contention can still fail and
+requires an explicit same-ID retry, not an unbounded wait. A changed command, configured operator or terminal result
 returns a conflict. A finish without a matching start is rejected. If the audit
 write fails, the history insertion/update rolls back and an explicit same-ID
 retry remains possible. A confirmed start may remain IN_PROGRESS after a crash;
@@ -86,9 +99,15 @@ The `recovery-history` profile accepts no supplied database URL and owns a fresh
 loopback PostgreSQL fixture. It uses the real history SQL plus minimal synthetic
 account/audit tables, grants its synthetic service role INSERT/UPDATE on history,
 and verifies through the internal service and protected Curator HTTP reads.
-The 21 cases cover start/finish, replay/conflict, simultaneous requests, runtime
+The original 21 cases cover start/finish, replay/conflict, simultaneous requests, runtime
 validation, default-off configuration, caller-object changes while pending,
 audit-failure rollback, unrelated-history protection and 401/403 read denial.
+The #249 review follow-up expands this to 25 cases with default-list separation,
+real notification-feed reads and six-second start/finish audit-trigger delays.
+It reproduced the old alert leak and five-second P2028 failures before repair.
+The feed case checks all three rehearsal operations, real-failure persistence,
+case-insensitive reserved types and a literal-prefix control (`SYNTHETICX_FULL`)
+whose operational failure remains visible and clears only after its own success.
 Existing populated-history reads separately pass 16 cases. These checks do not
 establish hosted RLS, deployed authentication or production recovery readiness.
 
