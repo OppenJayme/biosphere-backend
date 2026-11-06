@@ -9,8 +9,13 @@ status, matcher rule, alias, threshold or visitor-facing page was changed.
 Later execution: on November 6, the user explicitly authorized publication of
 the seventeen prepared entries. The [publication record](./FAQ_KNOWLEDGE_GUIDE.md#approved-content-publication-and-public-widget-checkpoint---2026-11-06)
 records the real Curator create/edit/activation workflow and 28 passing public
-widget checks on a local build against hosted data. Separate content-owner
-approval of the exact live wording remains unrecorded. This review sheet retains
+widget checks on a local build against hosted data. In a subsequent November 6
+reply, the user confirmed Sir Fidel approved the exact edited answers (the
+seventeen published candidates at `78f7b32`). This is a user-relayed approval
+record, not independent contact; actual approval date and written artifact were
+not supplied. November 6 records receipt, not a backdated interview/approval.
+New batch-referral wording and additional aliases are outside that confirmation.
+This review sheet retains
 the source/clarification trail; unknown
 rows were not activated, and the original review-only statements describe the
 intake stage rather than undoing that later specific authorization.

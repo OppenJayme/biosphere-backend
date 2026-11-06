@@ -4,8 +4,10 @@
 
 2026-11-06 subsequent publication: the user explicitly authorized the prepared
 set. [Seventeen real entries are now active and 28 public-widget checks passed](./FAQ_KNOWLEDGE_GUIDE.md#approved-content-publication-and-public-widget-checkpoint---2026-11-06).
-This records user authorization, not separate content-owner approval of the
-edited live wording; that approval and the operational follow-ups remain open.
+The user subsequently reported on November 6 that Sir Fidel approved the exact
+edited answers at `78f7b32`. The intake records that relayed approval without
+inventing its actual date or a written artifact. New wording/aliases and the
+operational follow-ups remain separate.
 The isolated evaluations below remain separate historical/development evidence;
 they must not substitute for, or obscure, the recorded real execution.
 

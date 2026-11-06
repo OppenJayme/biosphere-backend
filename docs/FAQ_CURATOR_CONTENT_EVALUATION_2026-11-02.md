@@ -3,8 +3,10 @@
 Later execution on November 6: the user authorized publishing these seventeen
 candidates, and the [local Curator/public-widget record against hosted data](./FAQ_KNOWLEDGE_GUIDE.md#approved-content-publication-and-public-widget-checkpoint---2026-11-06)
 records 17 active entries and 28 passing widget checks. This happened after the
-isolated evaluation below. Separate content-owner approval of the exact live
-wording remains unrecorded; publication is not evidence of that approval.
+isolated evaluation below. The user then reported on November 6 that Sir Fidel
+approved the exact edited answers at `78f7b32`; see the intake for receipt versus
+unsupplied actual approval date. Publication alone was not evidence of that
+approval, and the later report does not cover newly proposed wording/aliases.
 
 ## November 6 clarification reconciliation
 
@@ -33,9 +35,9 @@ neither a held-out accuracy study nor approval of exact wording or aliases.
 
 At that evaluation stage, the next step was content-owner review and separately
 authorized publication. Publication subsequently occurred; it is not still
-pending. The current open item is content-owner approval/correction of the exact
-live answers/aliases, plus the unresolved off-campus affiliation and multi-batch
-handling recorded in the publication review follow-ups. Unanswered contact,
+pending. A later user report records Sir Fidel's approval of the exact edited
+answers. Further aliases/wording and unresolved off-campus affiliation/multi-batch
+handling remain open as recorded in the publication review follow-ups. Unanswered contact,
 document, change/cancellation and missing-email details remain deferred. Do not
 invent approval or a completed Visits workflow to close these items.
 

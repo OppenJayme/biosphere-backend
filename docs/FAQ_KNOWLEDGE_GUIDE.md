@@ -6,10 +6,14 @@
 
 The user explicitly requested adding the prepared entries through the
 Curator workflow, activating them and checking the public assistant. This records
-the user's authorization to publish, not separate content-owner approval of the
-exact edited answers/aliases. **That approval remains unrecorded and open**, as
-does institutional sign-off. ACTIVE is the application's lifecycle state, not
-independent proof of either approval. Facts retain the reported October 30
+the user's authorization to publish. In a subsequent November 6 reply, the user
+explicitly reported that **Sir Fidel approved the exact edited answers** in the
+seventeen-entry published set (content revision `78f7b32`). This is user-relayed
+content-owner approval, not independent contact or a written approval artifact.
+The actual approval date was not supplied; November 6 is the receipt date, not
+a date to backfill into the October 30 interview. This confirmation does not
+approve future wording/aliases, the newly proposed batch-referral addition, or
+institutional deployment. ACTIVE alone remains no proof of approval. Facts retain the reported October 30
 Sir Fidel source and November 2/3 clarification provenance in the
 [intake sheet](./FAQ_CONTENT_INTAKE_2026-11-02.md).
 
@@ -82,11 +86,12 @@ dispositions and review should use this evidence rather than repeat the batch.
 
 ### Review follow-ups and unresolved content decisions - 2026-11-06
 
-- **Content-owner decision:** @OppenJayme coordinates confirmation of the exact
-  live answers/aliases with Sir Fidel. The interview facts and user publishing
-  authorization must not be presented as that missing wording approval. Obtain
-  the approving person's role/date and exact version, or required corrections;
-  no sign-off has been invented by this review fix.
+- **Content-owner decision:** the user subsequently confirmed on November 6 that
+  Sir Fidel approved the exact edited answers at `78f7b32`. The intake records
+  that report separately from publishing authorization and interview provenance.
+  Actual approval date and a separate written artifact were not supplied.
+  @OppenJayme retains this clarification; it must not be expanded to approval of
+  additional aliases, new batch-referral wording or institutional deployment.
 - **Multi-batch Visits limitation:** Charles, the documented Visits/public-flow
   owner, must reconcile the 50-per-batch rule with `MAX_VISITOR_COUNT = 200` and
   one confirmed schedule per request. A party of 120 cannot express three

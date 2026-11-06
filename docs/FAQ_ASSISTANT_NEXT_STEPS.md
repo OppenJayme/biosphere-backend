@@ -6,8 +6,11 @@ or active knowledge was changed and no public ask request was made here.
 
 ## Publication update - 2026-11-06
 
-The user subsequently explicitly authorized publication of the prepared set;
-separate content-owner approval of the exact live wording remains unrecorded.
+The user subsequently explicitly authorized publication of the prepared set,
+then reported on November 6 that Sir Fidel approved the exact edited answers
+(content revision `78f7b32`). The intake distinguishes this user-relayed approval
+from the original interview and future wording/alias proposals; actual approval
+date and a separate written artifact were not supplied.
 The [real Curator-workflow publication and signed-out public-widget check](./FAQ_KNOWLEDGE_GUIDE.md#approved-content-publication-and-public-widget-checkpoint---2026-11-06)
 completed: seventeen entries active (eleven created, six existing entries
 corrected), twenty-eight public checks passed, final reload/persistence and
