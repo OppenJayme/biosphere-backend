@@ -8,9 +8,11 @@
 ## Start here
 
 2026-11-06 first recovery implementation: the [synthetic-only manual CLI](./BACKUP_RECOVERY_PROCEDURE.md#implementation-checkpoint---2026-11-06)
-passes 15/15 owned PostgreSQL/CLI checks, with encrypted capture, unavailable-source
-restore and independent SQL/file/config verification. CI runs only its three
-Docker-free guards; all twelve Docker checks are opt-in and were run locally.
+initially passed 15/15 owned PostgreSQL/CLI checks, with encrypted capture,
+unavailable-source restore and independent SQL/file/config verification. The
+[post-#247 hardening batch](./BACKUP_RECOVERY_PROCEDURE.md#recovery-cli-review-follow-up---2026-11-06)
+passes 16/16 locally and adds a separate full Docker CI job alongside the three
+Docker-free guards; CI completion must be checked on that revision.
 Real Supabase Auth/Storage, hosted exports, deployment policy and the full-service
 recovery gates remain open. BAK-002 stays Deferred; no shared data/server changed.
 
