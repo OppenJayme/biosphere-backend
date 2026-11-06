@@ -29,7 +29,7 @@ describe('Per-curator notification state, owned PostgreSQL and real HTTP', () =>
   });
   beforeEach(async () => {
     await database.admin.query(
-      'TRUNCATE user_notification_state, audit_log, visit_request, inquiry, backup_history, offline_draft_sync CASCADE',
+      'TRUNCATE user_notification_state, audit_log, visit_request, inquiry, backup_history, offline_draft_sync, specimen CASCADE',
     );
     await database.admin.query("UPDATE user_account SET status = 'ACTIVE'");
     await database.admin.query(

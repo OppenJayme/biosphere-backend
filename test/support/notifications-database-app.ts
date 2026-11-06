@@ -42,6 +42,7 @@ export async function seedNotificationsDatabase(admin: Client) {
     'database/sql/017_visit_request.sql',
     'prisma/migrations/20261028000000_add_user_notification_state/migration.sql',
     'prisma/migrations/20261105000000_extend_notification_state_types/migration.sql',
+    'prisma/migrations/20261106000000_extend_notification_state_activity_types/migration.sql',
   ]) {
     await admin.query(readFileSync(resolve(__dirname, '../..', file), 'utf8'));
   }
@@ -54,8 +55,17 @@ export async function seedNotificationsDatabase(admin: Client) {
       synchronized_at TIMESTAMPTZ NOT NULL DEFAULT now(),
       UNIQUE (created_by, client_draft_id)
     )`);
+  // Only the specimen columns the incomplete-record alert reads.
+  await admin.query(`
+    CREATE TYPE specimen_status AS ENUM ('UNCATALOGED', 'CATALOGED', 'ARCHIVED');
+    CREATE TABLE specimen (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      status specimen_status NOT NULL DEFAULT 'UNCATALOGED',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      archived_at TIMESTAMPTZ
+    )`);
   await admin.query(
-    'GRANT SELECT ON inquiry, visit_request, backup_history, offline_draft_sync TO service_role',
+    'GRANT SELECT ON inquiry, visit_request, backup_history, offline_draft_sync, specimen TO service_role',
   );
 }
 

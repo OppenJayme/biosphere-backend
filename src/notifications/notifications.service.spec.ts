@@ -129,6 +129,8 @@ describe('NotificationsService', () => {
       pendingVisitRequests: 0,
       emailFailures: 0,
       operationalAlerts: 0,
+      changeEvents: 0,
+      incompleteRecords: 0,
       items: [],
     });
     expect(prisma.audit_log.findMany).not.toHaveBeenCalled();
@@ -153,15 +155,23 @@ describe('NotificationsService', () => {
       prisma.visit_request.findMany.mockResolvedValue([]);
     });
 
-    // The database returns only unresolved rows; route by the queried table.
-    function unresolvedRows(rows: { sync?: unknown[]; reports?: unknown[] }) {
-      prisma.$queryRaw.mockImplementation((strings: TemplateStringsArray) =>
-        Promise.resolve(
-          strings.join('?').includes('offline_draft_sync')
-            ? (rows.sync ?? [])
-            : (rows.reports ?? []),
-        ),
-      );
+    // The database returns only matching rows; route by the queried data.
+    function unresolvedRows(rows: {
+      sync?: unknown[];
+      reports?: unknown[];
+      changes?: unknown[];
+      incomplete?: unknown[];
+    }) {
+      prisma.$queryRaw.mockImplementation((strings: TemplateStringsArray) => {
+        const sql = strings.join('?');
+        if (sql.includes('offline_draft_sync'))
+          return Promise.resolve(rows.sync ?? []);
+        if (sql.includes('MOVE_SPECIMEN_LOT'))
+          return Promise.resolve(rows.changes ?? []);
+        if (sql.includes('FROM public.specimen s'))
+          return Promise.resolve(rows.incomplete ?? []);
+        return Promise.resolve(rows.reports ?? []);
+      });
     }
     function sqlOf(call: number) {
       return (prisma.$queryRaw.mock.calls[call][0] as string[]).join('?');
@@ -305,10 +315,115 @@ describe('NotificationsService', () => {
       });
     });
 
-    it('omits personal sync and report alerts without an account', async () => {
+    it('omits personal and change alerts without an account', async () => {
       await service.getFeed();
 
-      expect(prisma.$queryRaw).not.toHaveBeenCalled();
+      // Only the shared incomplete-record lookup runs.
+      expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
+      expect(sqlOf(0)).toContain('FROM public.specimen s');
+    });
+
+    it('maps significant changes by other curators to one alert per event', async () => {
+      const SPECIMEN = '88888888-8888-4888-8888-888888888888';
+      const at = (minute: number) => new Date(Date.UTC(2026, 10, 6, 1, minute));
+      const event = (n: number) =>
+        `99999999-9999-4999-8999-${String(n).padStart(12, '0')}`;
+      unresolvedRows({
+        changes: [
+          {
+            id: event(1),
+            action: 'ARCHIVE_SPECIMEN',
+            specimen_id: SPECIMEN,
+            adjustment_type: null,
+            created_at: at(5),
+          },
+          {
+            id: event(2),
+            action: 'RESTORE_SPECIMEN',
+            specimen_id: SPECIMEN,
+            adjustment_type: null,
+            created_at: at(4),
+          },
+          {
+            id: event(3),
+            action: 'MOVE_SPECIMEN_LOT',
+            specimen_id: SPECIMEN,
+            adjustment_type: null,
+            created_at: at(3),
+          },
+          {
+            id: event(4),
+            action: 'ADJUST_SPECIMEN_LOT_QUANTITY',
+            specimen_id: SPECIMEN,
+            adjustment_type: 'DEACCESSION',
+            created_at: at(2),
+          },
+          {
+            id: event(5),
+            action: 'ADJUST_SPECIMEN_LOT_QUANTITY',
+            specimen_id: SPECIMEN,
+            adjustment_type: 'MISSING_LOSS',
+            created_at: at(1),
+          },
+          // Defensive: a row the query should never return maps to nothing.
+          {
+            id: event(6),
+            action: 'ADJUST_SPECIMEN_LOT_QUANTITY',
+            specimen_id: SPECIMEN,
+            adjustment_type: 'ADDITION',
+            created_at: at(0),
+          },
+        ],
+      });
+
+      const feed = await service.getFeed(20, ACCOUNT);
+
+      expect(feed.changeEvents).toBe(5);
+      expect(feed.items.map((item) => [item.id, item.recordType])).toEqual([
+        [`SPECIMEN_ARCHIVED:${event(1)}`, 'specimen'],
+        [`SPECIMEN_RESTORED:${event(2)}`, 'specimen'],
+        [`LOT_MOVED:${event(3)}`, 'specimen'],
+        [`LOT_DEACCESSIONED:${event(4)}`, 'specimen'],
+        [`LOT_MISSING_LOSS:${event(5)}`, 'specimen'],
+      ]);
+      expect(feed.items.every((item) => item.recordId === SPECIMEN)).toBe(true);
+      const changes = sqlOf(2);
+      // The actor is excluded, only significant actions are read, 7-day window.
+      expect(changes).toContain('a.user_id IS DISTINCT FROM');
+      expect(prisma.$queryRaw.mock.calls[2]).toContain(ACCOUNT);
+      expect(changes).toContain("'DEACCESSION', 'MISSING_LOSS'");
+      expect(changes).not.toContain('UPDATE_SPECIMEN');
+      expect(prisma.$queryRaw.mock.calls[2]).toContain(7);
+    });
+
+    it('maps overdue Uncataloged records with a per-period key', async () => {
+      const SPECIMEN = '88888888-8888-4888-8888-888888888888';
+      const PERIOD = '77777777-7777-4777-8777-777777777771';
+      unresolvedRows({
+        incomplete: [
+          {
+            specimen_id: SPECIMEN,
+            period_id: PERIOD,
+            overdue_at: new Date('2026-11-05T16:00:00Z'),
+          },
+        ],
+      });
+
+      const feed = await service.getFeed(20, ACCOUNT);
+
+      expect(feed.incompleteRecords).toBe(1);
+      expect(feed.items[0]).toEqual({
+        id: `RECORD_INCOMPLETE:${PERIOD}`,
+        type: 'RECORD_INCOMPLETE',
+        title: 'A specimen has been Uncataloged for more than 7 days',
+        recordType: 'specimen',
+        recordId: SPECIMEN,
+        referenceCode: '88888888',
+        createdAt: new Date('2026-11-05T16:00:00Z'),
+      });
+      const incomplete = sqlOf(3);
+      expect(incomplete).toContain("s.status = 'UNCATALOGED'");
+      expect(incomplete).toContain('s.archived_at IS NULL');
     });
   });
 });
