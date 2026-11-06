@@ -43,6 +43,17 @@ describe('Internal synthetic recovery recording on owned PostgreSQL', () => {
     await database.admin.query(
       'GRANT SELECT ON inquiry, visit_request TO service_role',
     );
+    // The current real feed also queries incomplete records (#243). Keep this
+    // owned scope empty, but present, rather than mocking that collaborator.
+    await database.admin.query(`
+      CREATE TYPE specimen_status AS ENUM ('UNCATALOGED', 'CATALOGED', 'ARCHIVED');
+      CREATE TABLE specimen (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        status specimen_status NOT NULL DEFAULT 'UNCATALOGED',
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(), archived_at TIMESTAMPTZ
+      );
+      GRANT SELECT ON specimen TO service_role;
+    `);
     await database.admin.query(
       'GRANT INSERT, UPDATE ON backup_history TO service_role',
     );

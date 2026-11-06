@@ -2185,3 +2185,12 @@ source identity passed JavaScript regex coercion and reached a recorded failure.
 The worker now requires primitive string identities before database construction.
 This was an implementation-stage validation finding in the new isolated command,
 not a shared deployment defect or an existing defect closure.
+
+CI run 515 additionally exposed an older integration fixture gap (DEF-039):
+the new incomplete-record feed in merged #243 needs specimen/status data that
+the recovery-history fixture had not declared. The run passed the CLI 16/16,
+then 24/25 recorder checks; worker steps had not run. Adding the minimal empty
+specimen scope repaired the real query without skipping/mocking it; all 25
+recorder/feed checks passed locally afterward. No application rule, shared
+schema or museum record changed. Verify the replacement CI run on the repaired
+head before relying on the worker's Linux result.
