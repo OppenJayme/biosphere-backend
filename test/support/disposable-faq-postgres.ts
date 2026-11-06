@@ -1,6 +1,8 @@
 /** Owns a fresh container, not an environment-supplied connection or an existing database. */
 import { execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
+import { writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { Client } from 'pg';
 
 export const FAQ_DB_IMAGE =
@@ -227,6 +229,28 @@ export class DisposableFaqPostgres {
     }
     this.clients.push(client);
     return client;
+  }
+
+  /** Generated credentials for this owned rehearsal only; never accepts a supplied URL. */
+  writeRecoveryWorkerManifest(workspace: string) {
+    if (this.scope !== 'recovery-recording' || !this.id || this.port < 1) {
+      throw new Error(
+        'Worker manifests require an owned recovery-recording fixture.',
+      );
+    }
+    const file = join(workspace, 'recovery-history.private.json');
+    writeFileSync(
+      file,
+      JSON.stringify({
+        format: 'biosphere-synthetic-history-v1',
+        owner: this.owner,
+        containerId: this.id,
+        port: this.port,
+        password: this.password,
+      }),
+      { flag: 'wx', mode: 0o600 },
+    );
+    return file;
   }
 
   async createRole(name: 'service_role' | 'faq_cleanup') {

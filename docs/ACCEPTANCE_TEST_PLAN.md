@@ -2155,3 +2155,33 @@ Local results after these repairs: adapter 11/11; standalone real Docker/CLI
 formatting and diff checks passed. The parent recorder's 25 cases remain in
 the remote recovery job. Recheck both CI jobs and the 11-case step on the new
 head before merging; the previous 9-case green run does not validate this patch.
+
+### November 7 - standalone owned synthetic worker
+
+The user approved the actual child-process command against fresh owned Docker
+fixtures, with generated synthetic credentials and protected history readback.
+The first process capture/restore case was observed failing before implementation
+and then passing. The completed worker suite passes 9/9 locally: actual child
+identity, capture/restore, inherited application/Docker destination isolation,
+four malformed/mismatched history manifests, unknown connection arguments,
+nonzero engine failure, malformed source identity rejection and fresh-process reconciliation of a pending finish.
+The checkpoint set/bytes stay unchanged during reconciliation, and the attempt
+retains exactly one start/finish audit. Invalid manifests leave start counts
+unchanged. Preflight source inspection establishes that container/port/owner
+checks precede construction of the database client; the tests do not observe
+every possible network connection or prove a hostile-host isolation boundary.
+
+The worker reads no application .env, starts no HTTP listener, applies no
+migrations and creates/deletes no databases or containers. Test setup alone
+creates/removes its exact owned resources. The generated private manifest is
+Git-ignored and becomes unusable after fixture cleanup. No shared credentials,
+records, running services, real email, hosted export or scheduler was involved.
+See the [command/preconditions](../scripts/recovery/README.md#standalone-synthetic-worker).
+BAK-002, full Supabase-compatible recovery, real-data authorization, custody and
+independent/deployment acceptance gates remain open.
+
+Strict profile typing was observed red: a singleton array containing a valid
+source identity passed JavaScript regex coercion and reached a recorded failure.
+The worker now requires primitive string identities before database construction.
+This was an implementation-stage validation finding in the new isolated command,
+not a shared deployment defect or an existing defect closure.

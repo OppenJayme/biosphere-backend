@@ -6,6 +6,7 @@
   "license": "UNLICENSED",
   "scripts": {
     "recovery:synthetic": "node scripts/recovery/cli.cjs",
+    "recovery:synthetic:worker": "node scripts/recovery/worker.cjs",
     "test:recovery:cli": "cross-env RUN_RECOVERY_REHEARSAL=true node --test test/recovery-cli.test.cjs",
     "test:recovery:guards": "cross-env RUN_RECOVERY_REHEARSAL=false node --test test/recovery-cli.test.cjs",
     "test:restoration:db": "cross-env RUN_RESTORATION_DISPOSABLE_DB=true node --experimental-vm-modules node_modules/jest/bin/jest.js --config ./test/jest-restoration-db.json --runInBand",
@@ -35,6 +36,7 @@
     "test:backup-history:db": "cross-env RUN_BACKUP_HISTORY_DISPOSABLE_DB=true node --experimental-vm-modules node_modules/jest/bin/jest.js --config ./test/jest-backup-history-db.json --runInBand",
     "test:recovery-history:db": "cross-env RUN_RECOVERY_HISTORY_DISPOSABLE_DB=true node --experimental-vm-modules node_modules/jest/bin/jest.js --config ./test/jest-recovery-history-db.json --runInBand",
     "test:recovery-recording:db": "cross-env RUN_RECOVERY_RECORDING_DISPOSABLE_DB=true node --experimental-vm-modules node_modules/jest/bin/jest.js --config ./test/jest-recovery-recording-db.json --runInBand",
+    "test:recovery-worker:db": "cross-env RUN_RECOVERY_RECORDING_DISPOSABLE_DB=true node --experimental-vm-modules node_modules/jest/bin/jest.js --config ./test/jest-recovery-worker-db.json --runInBand",
     "test:offline-sync:db": "cross-env RUN_OFFLINE_SYNC_DISPOSABLE_DB=true node --experimental-vm-modules node_modules/jest/bin/jest.js --config ./test/jest-offline-sync-db.json --runInBand",
     "test:offline:containment": "cross-env RUN_OFFLINE_SYNC_DISPOSABLE_DB=true node --experimental-vm-modules node_modules/jest/bin/jest.js --config ./test/jest-offline-containment.json --runInBand",
     "test:offline:recovery": "cross-env RUN_OFFLINE_SYNC_DISPOSABLE_DB=true node --experimental-vm-modules node_modules/jest/bin/jest.js --config ./test/jest-offline-recovery.json --runInBand",
