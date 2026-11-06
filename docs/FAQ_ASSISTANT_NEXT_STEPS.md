@@ -6,6 +6,11 @@ or active knowledge was changed and no public ask request was made here.
 
 ## Publication update - 2026-11-06
 
+The subsequent [S06 batch-coordination answer update](./FAQ_KNOWLEDGE_GUIDE.md#general-inquiry-batch-coordination-update---2026-11-06)
+is now published: parties over 50 use General Inquiry for manual Curator
+coordination. There is no automatic multi-batch splitting or booking. The
+36-case isolated evaluation and three additional live local-widget checks pass.
+
 The user subsequently explicitly authorized publication of the prepared set,
 then reported on November 6 that Sir Fidel approved the exact edited answers
 (content revision `78f7b32`). The intake distinguishes this user-relayed approval

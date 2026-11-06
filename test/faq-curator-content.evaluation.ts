@@ -180,6 +180,12 @@ describe('Curator-supplied draft FAQ content through the public HTTP API', () =>
     expect(body.answer?.answer).toContain(
       'A submitted request is not confirmation of a schedule.',
     );
+    expect(body.answer?.answer).toContain(
+      'For groups larger than 50, send a General Inquiry through BioSphere to coordinate separate batches and proposed times with the Curator.',
+    );
+    expect(body.answer?.answer).toContain(
+      'The system does not automatically split groups or book multiple schedules.',
+    );
   });
 
   it.each(cases)('$label', async (item) => {

@@ -14,7 +14,9 @@ reply, the user confirmed Sir Fidel approved the exact edited answers (the
 seventeen published candidates at `78f7b32`). This is a user-relayed approval
 record, not independent contact; actual approval date and written artifact were
 not supplied. November 6 records receipt, not a backdated interview/approval.
-New batch-referral wording and additional aliases are outside that confirmation.
+The later batch-referral addition is a separate November 6 user decision (S06),
+not retroactive approval by Sir Fidel. Additional aliases remain outside that
+confirmation.
 This review sheet retains
 the source/clarification trail; unknown
 rows were not activated, and the original review-only statements describe the
@@ -63,6 +65,13 @@ Sunday answer or requesting the already supplied opening-days answer again.
 S05 is user-relayed clarification, not a separate direct Curator confirmation or
 approval of the edited wording. November 6 reconciliation changes only this
 review sheet and isolated evaluation candidates, not public knowledge.
+**S06** is the user's subsequent November 6 decision to use General Inquiry for
+groups larger than 50, with the Curator coordinating batches and proposed times.
+The system does not automatically split groups or book multiple schedules.
+The user accepted the proposed referral after asking for a recommendation; this
+records that operational direction, not a new direct Curator interview or an
+automated Visits feature. Existing group-division and schedule-confirmation
+requirements remain in force.
 Proposed prose below is edited from the received answers; the exceptions column
 preserves qualifications and identifies missing facts. It is not a verbatim
 transcript or a replacement for Curator review.
@@ -94,7 +103,7 @@ unconfirmed draft wording as if they were helpful approved answers.
 | 13 | How can a school or group request a visit? | Use the BioSphere website to submit a visit request or inquiry. | The received label is `Visitor Form/Inquiries`; confirm the intended entry point. The current public UI has distinct Request a Visit and Inquiry dialogs. Requests and inquiries do not themselves approve a visit or campus entry. | S01 / Sir Fidel (via user) | 2026-10-30 |
 | 14 | How early should a visit be requested? | Submit the request at least one week before the intended visit. | Confirm whether this means calendar days and whether exceptions are allowed. This is lead-time guidance, not a guaranteed approval deadline. | S01 / Sir Fidel (via user) | 2026-10-30 |
 | 15 | What information and documents are required for a group visit? | **No complete public answer yet.** The received answer refers to campus-entry details. | Obtain the exact group/document checklist and submission process. Public instructions may list required document types; submitted personal details remain private. | S01 / Sir Fidel (via user) | 2026-10-30 |
-| 16 | What group sizes can the museum accommodate? | Parties of five or more require an appointment. A maximum of 50 visitors can be accommodated per batch for school and non-school groups. Larger groups arrange their own division into separate timed batches; the curator does not divide the group. | S05 resolves non-school scope and who divides the group. The Visits owner still needs to reconcile recording and approving multiple schedules in the current workflow; a request is not a confirmed schedule. | S01 / Sir Fidel (via user); S02, S04-S05 / user clarifications | 2026-10-30 (S01); 2026-11-02/03 received (S02, S04-S05) |
+| 16 | What group sizes can the museum accommodate? | Parties of five or more require an appointment. A maximum of 50 visitors can be accommodated per batch for school and non-school groups. Larger groups arrange their own division; for more than 50, send a General Inquiry through BioSphere to coordinate batches and proposed times with the Curator. | S06 chooses manual Curator coordination, not automatic splitting or several confirmed schedules from one visit request. The current form ceiling of 200 is not a per-batch admission limit. A request is not a confirmed schedule. | S01 / Sir Fidel (via user); S02, S04-S05 / user clarifications; S06 / user workflow decision | 2026-10-30 (S01); 2026-11-02/03 clarifications; 2026-11-06 (S06) |
 | 17 | Are guided tours available, and do they cost extra? | Guided tours require an appointment through the BioSphere website. | Availability by appointment is supplied; a separate guided-tour fee or exemption is not. Do not say tours are free or included in admission. | S01 / Sir Fidel (via user) | 2026-10-30 |
 | 18 | How will I know whether my visit request is approved? | **Draft only:** the supplied answer says BioSphere/the curator notifies visitors by email. | Email is optional in the present approval flow and may fail after approval. Confirm a reliable notification and follow-up channel before publishing a guarantee; museum approval and campus entry are distinct. Sender and response time remain unknown. | S01 / Sir Fidel (via user) | 2026-10-30 |
 | 19 | How can I request a change or cancellation? | **Confirm the public request channel.** The received answer says through the BioSphere website. | Source inspection currently finds public visit submission and Curator-only update/cancel routes. Confirm whether visitors should use General Inquiry/contact the curator, supplying their reference. Do not promise a visitor self-service cancel/edit button. | S01 / Sir Fidel (via user) | 2026-10-30 |
@@ -119,10 +128,10 @@ Confirm the **scope, implementation and exact public wording** before activation
 1. Closure notices and whether staff-break details are public (01-03); identify
    the authoritative source for changes. Keep the supplied weekday/Saturday
    hours; no Sunday entry is being prepared.
-2. Approve the reconciled public wording for walk-ins, outsider appointments,
-   and the 50-person batch maximum for all groups. Those rules have already
-   been answered. Coordinate only the remaining multi-batch recording/approval
-   workflow with the Visits owner (04, 11, 16).
+2. Retain the user-reported approval of the reconciled answers and the separate
+   S06 General Inquiry/Curator batch-coordination decision. Those answered rules
+   do not authorize automatic multi-batch booking. Charles owns the Visits/public
+   workflow; coordinate later implementation changes with that owner (04, 11, 16).
 3. Define USC affiliation, qualifying proof, payment methods, USC Days dates,
    kindergarten eligibility and any separate tour fee (05, 08, 17).
 4. Supply campus-entry documents, approved entrance/directions and parking
@@ -190,8 +199,9 @@ no paid AI provider, matching change or new implementation is introduced.
 - Visit request DTO permits up to 200 visitors. The current schedule approval
   selects one preferred schedule and does not represent separate timed batches.
   S05 extends the user-relayed 50-per-batch limit to non-school groups; the
-  multi-batch operational handling still needs Visits-owner review. No Visits
-  implementation changes are included in this FAQ reconciliation.
+  selected S06 handling is manual Curator coordination through General Inquiry.
+  No automatic multi-batch implementation is claimed or included. Charles retains
+  ownership of any future Visits/public-flow changes.
 - Schedule validation checks real, non-past dates, duplicate preferences and ordering,
   but does not enforce museum opening hours, holidays or the one-week lead time.
   A submission receipt is not approval or proof the slot is available.

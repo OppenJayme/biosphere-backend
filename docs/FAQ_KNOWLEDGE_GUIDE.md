@@ -12,7 +12,7 @@ seventeen-entry published set (content revision `78f7b32`). This is user-relayed
 content-owner approval, not independent contact or a written approval artifact.
 The actual approval date was not supplied; November 6 is the receipt date, not
 a date to backfill into the October 30 interview. This confirmation does not
-approve future wording/aliases, the newly proposed batch-referral addition, or
+approve future wording/aliases, the separately user-authorized batch-referral addition, or
 institutional deployment. ACTIVE alone remains no proof of approval. Facts retain the reported October 30
 Sir Fidel source and November 2/3 clarification provenance in the
 [intake sheet](./FAQ_CONTENT_INTAKE_2026-11-02.md).
@@ -91,16 +91,22 @@ dispositions and review should use this evidence rather than repeat the batch.
   that report separately from publishing authorization and interview provenance.
   Actual approval date and a separate written artifact were not supplied.
   @OppenJayme retains this clarification; it must not be expanded to approval of
-  additional aliases, new batch-referral wording or institutional deployment.
-- **Multi-batch Visits limitation:** Charles, the documented Visits/public-flow
-  owner, must reconcile the 50-per-batch rule with `MAX_VISITOR_COUNT = 200` and
-  one confirmed schedule per request. A party of 120 cannot express three
-  independently confirmed batches in one request. This is an **unaccepted open
-  operational limitation**, not a waived requirement or an accepted booking
-  process. @OppenJayme coordinates an answer before FAQ/Visits acceptance.
-  General Inquiry coordination is a proposed interim route pending confirmation;
-  do not promise automatic splitting, several reserved schedules, or invent a
-  separate-request booking policy. No live wording/Visits change was made here.
+  additional aliases, the separately authorized batch-referral addition or institutional deployment.
+- **Multi-batch Visits handling:** Charles retains Visits/public-flow ownership;
+  its form permits `MAX_VISITOR_COUNT = 200` and one confirmed schedule per
+  request. A party of 120 cannot express three
+  independently confirmed batches in one request. The user resolved the interim
+  handling on November 6: **General Inquiry, then manual Curator coordination**
+  of batches/proposed times. This is a user-accepted operational route, not a
+  claim that the form now represents multiple schedules. The 200-person input
+  ceiling does not change the maximum of 50 per actual batch. Groups still
+  arrange their own division, and schedules require confirmation. @OppenJayme
+  records the FAQ decision; Charles retains ownership of any later Visits/public
+  implementation changes. Do not promise automatic splitting, several reserved
+  schedules, or invent a separate-request booking policy. The FAQ addition is
+  separately authorized by the user, not backdated into Sir Fidel's earlier
+  reported exact-answer approval. No Visits code changes are needed for this
+  chosen manual referral workflow.
 - **Off-campus affiliation:** who qualifies as an affiliate and what an
   off-campus affiliate must do remain unconfirmed. Alumni are explicitly treated
   as outsiders for appointment/entry. The current affiliation sentence does not
@@ -128,6 +134,37 @@ The dedicated `evaluate:faq:curator` suite is now a named step in backend CI,
 rather than relying on default Jest discovery. Its isolated adapter never uses
 the hosted database. A local passing evaluation is not itself a completed
 GitHub Actions run or content-owner approval.
+
+### General Inquiry batch-coordination update - 2026-11-06
+
+After the user explicitly selected General Inquiry/manual Curator coordination
+(S06), the existing group-size answer was updated through the signed-in Curator
+form. It now directs parties larger than 50 to send a General Inquiry through
+BioSphere to coordinate batches and proposed times with the Curator, and states
+that the system does not automatically split groups or book multiple schedules.
+The maximum of 50 per batch, group responsibility for division, appointment
+threshold and schedule-confirmation requirement remain unchanged. This is a
+separate user-authorized addition, not an extension of the earlier reported
+Sir Fidel approval to wording he was not separately reported to have reviewed.
+
+The save changed only that answer: question, category, keywords, alternative
+wording, existing ID and ACTIVE status were preserved. Reload readback passed;
+the protected audit list for the record gained exactly one event. No other FAQ,
+Visits code, visitor request, batch reservation or schema was changed.
+
+The existing isolated public-HTTP batch test was strengthened to require the
+General Inquiry referral and explicit absence of automatic booking. It failed
+against the previous candidate, then passed after the content update. The full
+evaluation remains **36/36 passing** and changed-file ESLint passes.
+
+The signed-out local public widget against the same hosted target passed
+**3/3 additional checks**: the canonical batch question, its existing batch-size
+alias and the non-school batch-size phrasing each returned the same existing
+FAQ ID and exact updated answer, and rendered it. The visible General Inquiry
+link resolves to `/inquiry`; no inquiry was submitted. These checks supplement
+the earlier dated 28-check result rather than pretend that all 28 inputs were
+rerun after the answer edit. Private payload, prior value and receipts are held
+by @OppenJayme in the same evidence folder under `batch-routing-*` files.
 
 Current answer-quality checkpoint: [content review and 25-case synthetic HTTP
 evaluation](./FAQ_CONTENT_REVIEW.md), now 25/25 passing after bounded scope

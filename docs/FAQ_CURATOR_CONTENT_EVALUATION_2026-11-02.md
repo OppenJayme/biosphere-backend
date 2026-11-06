@@ -10,6 +10,14 @@ approval, and the later report does not cover newly proposed wording/aliases.
 
 ## November 6 clarification reconciliation
 
+S06 follow-up: the user selected General Inquiry for groups over 50, with manual
+Curator coordination rather than automatic system splitting/booking. The
+existing batch-response HTTP case was strengthened, observed red against the
+prior candidate, then green after updating that candidate; the full set remains
+36/36 passing. The [subsequent one-answer live update and three signed-out widget checks](./FAQ_KNOWLEDGE_GUIDE.md#general-inquiry-batch-coordination-update---2026-11-06)
+are separately recorded. Neither S06 nor the fixture change adds a Visits
+booking feature or approves the still-unconfirmed off-campus affiliation scope.
+
 **36/36 isolated public HTTP checks pass** on backend base `9ec3fc7` using the
 same seventeen review-only candidates and the S05 clarification trail in the
 [intake sheet](./FAQ_CONTENT_INTAKE_2026-11-02.md#source-and-approval-record).
@@ -37,7 +45,9 @@ At that evaluation stage, the next step was content-owner review and separately
 authorized publication. Publication subsequently occurred; it is not still
 pending. A later user report records Sir Fidel's approval of the exact edited
 answers. Further aliases/wording and unresolved off-campus affiliation/multi-batch
-handling remain open as recorded in the publication review follow-ups. Unanswered contact,
+handling have separate dispositions in the publication review follow-ups: the
+user selected General Inquiry/manual Curator coordination on November 6;
+off-campus affiliation and new aliases remain unconfirmed. Unanswered contact,
 document, change/cancellation and missing-email details remain deferred. Do not
 invent approval or a completed Visits workflow to close these items.
 

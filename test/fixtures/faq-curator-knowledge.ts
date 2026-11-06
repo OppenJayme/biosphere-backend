@@ -1,7 +1,8 @@
 /**
- * Review-only content candidates from FAQ intake #224 (S01-S05).
+ * Isolated evaluation candidates from FAQ intake #224 (S01-S06).
  * Source: Sir Fidel via the user, conversation reported 2026-10-30; clarifications received
  * 2026-11-02 and 2026-11-03. IDs are synthetic; aliases/keywords are editorial proposals.
+ * S06 is the separate 2026-11-06 user decision for manual Curator batch coordination.
  * ACTIVE below exists only in the isolated HTTP adapter. Never seed/activate
  * this fixture in a shared database as an incidental evaluation step.
  */
@@ -111,7 +112,7 @@ export const curatorFaqDrafts: Draft[] = [
     id: CURATOR_FAQ_IDS.batch,
     question: 'What is the maximum tour batch size?',
     answer:
-      'A maximum of 50 visitors can be accommodated per batch, for school and non-school groups. Larger groups arrange their own division into separate timed batches; the curator does not divide the group. Parties of five or more require an appointment. A submitted request is not confirmation of a schedule.',
+      'A maximum of 50 visitors can be accommodated per batch, for school and non-school groups. Larger groups arrange their own division into separate timed batches; the curator does not divide the group. For groups larger than 50, send a General Inquiry through BioSphere to coordinate separate batches and proposed times with the Curator. The system does not automatically split groups or book multiple schedules. Parties of five or more require an appointment. A submitted request is not confirmation of a schedule.',
     alternative_wording: [
       'How many visitors can join one tour batch?',
       'What is the maximum school-tour batch size?',
