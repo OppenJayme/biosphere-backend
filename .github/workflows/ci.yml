@@ -37,5 +37,8 @@ jobs:
       - name: Verify CSV parser compatibility and prototype safety
         run: npm run verify:csv-parser
 
+      - name: Verify synthetic recovery CLI argument guards
+        run: npm run test:recovery:guards
+
       - name: E2E tests
         run: npm run test:e2e

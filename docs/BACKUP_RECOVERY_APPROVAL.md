@@ -53,13 +53,17 @@ Confirm the academic timing with the adviser; do not invent a university process
 | Gate | Required outcome | Result / evidence |
 | --- | --- | --- |
 | A: Procedure | Approver accepts policy and completed decision fields; authorized technical scope established | Pending |
-| B: Synthetic rehearsal | Implemented runner restores complete synthetic DB/Auth/files/config in isolation, with failure checks | Not run |
+| B: Synthetic rehearsal | Implemented runner restores complete synthetic DB/Auth/files/config in isolation, with failure checks | Partial engineering input: [November 6 synthetic CLI](./BACKUP_RECOVERY_PROCEDURE.md#implementation-checkpoint---2026-11-06) passes 15/15 with fake Auth/Storage and real PostgreSQL; full-service Auth/Storage/application rehearsal not run, gate remains open |
 | C: Intended-source rehearsal | Explicit access/target approval, verified export and full isolated restore, independent review | Not run |
 | D: Scheduled operation | Jobs, status/delivery limitations, least privilege, capacity, retention and recovery custody verified on selected approved free runner/destination | Not enabled |
 | E: Incident cutover | Specific incident/checkpoint/target and data-loss decision approved; write freeze and rollback/reconciliation plan ready | Not authorized |
 
 Do not mark BAK-002 Pass at A or after a database-only fixture. Record the actual
 coverage at each gate. A failed or incomplete verification leaves that gate open.
+
+The user authorized the November 6 isolated implementation/rehearsal only. No
+institutional policy approval, real-source access/export, destination selection,
+scheduled deployment or incident cutover follows from that authorization.
 
 ## Approval statement
 

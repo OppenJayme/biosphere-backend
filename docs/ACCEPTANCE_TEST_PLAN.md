@@ -7,6 +7,13 @@
 
 ## Start here
 
+2026-11-06 first recovery implementation: the [synthetic-only manual CLI](./BACKUP_RECOVERY_PROCEDURE.md#implementation-checkpoint---2026-11-06)
+passes 15/15 owned PostgreSQL/CLI checks, with encrypted capture, unavailable-source
+restore and independent SQL/file/config verification. CI runs only its three
+Docker-free guards; all twelve Docker checks are opt-in and were run locally.
+Real Supabase Auth/Storage, hosted exports, deployment policy and the full-service
+recovery gates remain open. BAK-002 stays Deferred; no shared data/server changed.
+
 2026-11-05 Cataloging/Storage closeout: the [five-decision checklist](./CATALOGING_STORAGE_SIGNOFF_2026-11-04.md#five-acceptance-decisions---reconciled-2026-11-05)
 reconciles merged #231/#232/#233/#234 and John's #236 restriction evidence.
 It distinguishes existing passes from release identification, policy integration,

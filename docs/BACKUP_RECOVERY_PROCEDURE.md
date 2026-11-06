@@ -6,6 +6,60 @@ backend `77a8b54`; Supabase Free and no recurring infrastructure budget confirme
 by Kyer. No hosted credentials, artifacts or project settings were
 inspected. No backup, restore, migration, scheduler or notification was executed.
 
+### Implementation checkpoint - 2026-11-06
+
+The user authorized the first isolated engineering slice after reviewing this
+proposal. A [manual synthetic-only CLI](../scripts/recovery/README.md) now captures
+an authenticated encrypted checkpoint, restores it into an empty owned target,
+and verifies schema/data/file/configuration inventory. It accepts only labeled
+local Docker fixtures with networking disabled; hosted URLs/credentials and
+application `.env` are not supported. The November 5 statement above describes
+the proposal stage, not absence of this later bounded implementation.
+
+Base source: `d68b851`. The final owned PostgreSQL 17 rehearsal passes **15/15**
+public-CLI checks. It uses all 11 repository application migrations, 34 non-system
+tables including simplified Auth/Storage stand-ins, five bucket directories,
+two synthetic byte objects and three explicit empty buckets. SQL readback
+confirms identity/account mapping, retained audit, quantity 7, offline receipt
+identity and `TEMPORARY_ABSENCE`; file/configuration checks pass. The source is
+paused/unavailable during restore/verify. A prior bounded run also passed with
+the source stopped; pause is used in the final fixture to retain its tmpfs seed
+for subsequent failure injections.
+
+Failure checks cover tampered ciphertext, wrong key, populated/non-table or
+colliding/unowned targets, an existing attempt lock, changed restored rows/files,
+a real pg_dump execution failure and missing source object bytes. Hosted URL
+flags and snapshot traversal are rejected. Failures produce no verified success
+and do not replace the prior checkpoint. The non-table target guard was observed
+red before repair; the original CLI and unavailable-source path also have
+recorded red/green checkpoints. Seed corrections and the tmpfs restart issue
+were fixture setup issues, not accepted application behavior.
+
+Docker-free CI runs **3 guard checks**, with the 12 real-Docker checks explicitly
+skipped there; the full opt-in command ran locally. Node syntax, recommended
+JavaScript lint, formatting and diff checks pass. No broad Nest/Next build/test
+campaign was repeated: no application routes, schema, dependencies or generated
+client contract changed. No shared server, database or browser was interrupted.
+
+Evidence custodian: **@OppenJayme**. The final synthetic fixture run is
+`fe02467f-eaa8-4d17-aebc-1363f91e4f8c`, snapshot
+`6c5fe5ab-45d6-4a7b-9354-4ba2bb4174cb` (133,151 encrypted bytes). The private OS
+temporary evidence folder basename is `biosphere-recovery-0qWqjU`; it contains
+the profile, fake inputs, random rehearsal key, encrypted snapshot, restored
+files and independent attempt ledger. Both exact owned containers were removed.
+These are entirely synthetic artifacts; private keys/dumps/restore files are not
+committed. Local storage is not a durable institutional backup or key escrow.
+
+**Readiness remains incomplete:** no hosted export/restore, real Supabase Auth
+sign-in, Storage API/RLS, global role/ownership recovery, media renderability,
+full application acceptance, independent destination/readback, proper key
+custody/Windows ACLs, live history integration, retention, scheduler, write-freeze
+or missed-run delivery was proved/enabled. The CLI's separate CAPTURED and
+RESTORED_VERIFIED states do not write a misleading application COMPLETED event.
+The existing Backup History API remains read-only. BAK-002 stays Deferred and
+the full-service Gate B remains open; this prototype is its first engineering
+input, not a reviewed complete recovery rehearsal or deployment approval.
+
 ## 1. Decision and present capability
 
 Use a replaceable free scheduled runner, an encrypted independent backup

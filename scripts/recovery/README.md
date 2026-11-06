@@ -1,0 +1,136 @@
+# Synthetic manual recovery CLI
+
+This first implementation is an engineering rehearsal tool. It accepts only
+owned local Docker PostgreSQL fixtures with networking disabled and no bound
+ports/host mounts. It cannot take a PostgreSQL URL, Supabase credentials or the
+application `.env`. It is not a production backup command or a deployment gate
+pass. The [deployment procedure](../../docs/BACKUP_RECOVERY_PROCEDURE.md) remains
+the operational contract.
+
+## Run the bounded rehearsal
+
+Prerequisites: Node 22+, local Docker engine on Windows or Linux, dependencies
+already installed, and this reviewed PostgreSQL image already available locally:
+
+```text
+postgres@sha256:eee6c6e1b0894fa4fe0075eb054af9fd1cf39a35321c2d4110626cfe506411fb
+```
+
+No image is downloaded automatically. No application servers or browser sessions
+are started/stopped by these commands.
+
+```powershell
+npm run recovery:synthetic -- help
+npm run test:recovery:guards
+npm run test:recovery:cli
+```
+
+The opt-in full test owns two temporary containers, applies the repository's
+actual application migrations, seeds synthetic records and fake Auth/Storage
+tables, creates encrypted checkpoints and restores into its empty target. It
+checks SQL results and file bytes independently through Docker/SQL/filesystem
+interfaces. Only the exact fixture containers with the matching ownership label
+are removed. The OS temporary folder named in the sanitized result retains the
+synthetic profile, random test key, checkpoint, restored files and attempt ledger.
+These files contain no hosted data or real credentials; keep all recovery material
+out of Git even during manual experiments. Normal guard checks need no Docker.
+
+## Manual interface and profile
+
+```text
+node scripts/recovery/cli.cjs capture --profile FILE
+node scripts/recovery/cli.cjs restore --profile FILE --snapshot UUID
+node scripts/recovery/cli.cjs verify --profile FILE --snapshot UUID
+```
+
+Use only the disposable fixture produced by the test or an equivalently owned
+synthetic setup. A profile's directory is its private workspace. Its JSON has
+exactly these fields:
+
+```json
+{
+  "format": "biosphere-synthetic-recovery-v1",
+  "owner": "a fixture-generated UUID v4",
+  "sourceContainer": "full 64-character owned container ID",
+  "targetContainer": "different full 64-character owned container ID",
+  "image": "postgres@sha256:eee6c6e1b0894fa4fe0075eb054af9fd1cf39a35321c2d4110626cfe506411fb",
+  "operator": "synthetic-rehearsal"
+}
+```
+
+The workspace needs `.recovery-owner` containing that exact owner UUID,
+`recovery.key` containing 32 random bytes, `configuration.json` with
+`"mode": "synthetic"`, and `objects/` with exactly the five declared buckets:
+`specimen-media`, `exhibit-media`, `ar-assets`, `user-avatars`,
+`inquiry-attachments`. Keys and object references must agree with the synthetic
+Storage metadata. Explicit empty buckets are retained. Containers must carry
+`biosphere.recovery.owner=<owner>`, use the pinned image, `--network none`, only
+tmpfs mounts, and database `biosphere_recovery_fixture` accessible as its
+synthetic `postgres` account. Necessary fixture roles must already exist on the
+target. Source and target must differ; populated targets are refused.
+
+The CLI never creates, resets, deletes or cuts over databases/containers itself.
+It never prunes a previous checkpoint or automatically removes stale locks.
+After a failed restore, retain/quarantine its owned target and partial restore
+directory for diagnosis; do not infer a clean retry target or use this tool to
+overwrite it. A new attempt requires a deliberately prepared fresh fixture.
+
+## Checkpoint and result semantics
+
+Capture uses real `pg_dump --format=custom --no-owner` and records a bounded
+inventory of non-system tables, row fingerprints, sequences and a schema
+fingerprint. Separate pre/post inventories detect observed source changes; this
+is not a production write-freeze or concurrency proof. PostgreSQL's randomized
+psql restrict guards are excluded from the schema fingerprint. The two exact
+equivalent PG17 serializations of the existing FAQ status CHECK are normalized;
+arbitrary expressions/casts are not stripped.
+
+The database archive, object bytes, empty bucket inventory, configuration and
+manifest are kept inside one AES-256-GCM authenticated encrypted envelope. The
+format is `BSPREC01` + 12-byte random nonce + 16-byte authentication tag +
+ciphertext, with `BSPREC01` also authenticated as AAD. This uses Node's built-in
+crypto; it is not a new cryptographic primitive or a reviewed production key
+custody design. The key is a separate file, never embedded in the snapshot.
+The prototype caps each bounded read/process buffer and the package at 64 MiB,
+with at most 1,000 object files; it is not a streaming large-dataset exporter.
+
+Restore authenticates and validates all file paths and digests before its DB
+write. It requires an empty owned target and uses real `pg_restore` with
+`--single-transaction --exit-on-error`. After restore, actual schema, table rows,
+sequence state, file lengths/digests, object references and configuration are
+compared with the authenticated inventory. Source availability is not required
+for restore/verify. PostgreSQL restore runs SQL from the authenticated package;
+never accept untrusted archives/keys even for this owned synthetic tool.
+
+The private `recovery-events.jsonl` ledger records attempt ID, snapshot ID,
+operator, operation, UTC time and sanitized state/error code. `CAPTURED` means a
+package was sealed and authenticated by readback, not a complete restore pass.
+`RESTORED_VERIFIED`/`VERIFIED` require the actual restore verification checks.
+Failure produces nonzero exit and `FAILED`; no raw SQL, connection strings,
+object contents, key material or provider error text is printed by the CLI.
+Ledger write failures cannot yield a successful result. This ledger is local,
+not an append-only institutional audit store or an application Backup History
+integration. Process interruption can leave IN_PROGRESS/stale lock/partial files;
+no watchdog, automatic cleanup or crash-durable independent delivery is claimed.
+
+## Coverage limits and next slice
+
+The fixture includes the actual public schema/migrations plus representative
+Auth-to-account mappings, retained audit rows, lot quantity and offline receipt
+identity. Auth tables are deliberately simplified stand-ins: this does not
+prove Supabase Auth sign-in/session/token/encryption compatibility. Object bytes
+and bucket metadata are synthetic local files, not a real Supabase Storage
+upload/access/RLS rehearsal; the fake image/model bytes are not renderability
+tests. PostgreSQL global roles/ownership, real secrets, SMTP, external providers
+and full application workflows are not recovered by this prototype.
+
+Next work is real provider inventory/backup/restore adapters and protected
+history/audit result integration, then a complete isolated Supabase-compatible
+rehearsal. Approved independent storage/key custody, restrictive Windows ACLs,
+streaming, source write-freeze/drain, retention, scheduler/missed-run delivery,
+operator approval and reviewed full-service recovery remain deployment gates.
+No paid service or hosted export is enabled here. BAK-002 remains Deferred.
+
+References: [PostgreSQL pg_dump](https://www.postgresql.org/docs/17/app-pgdump.html),
+[pg_restore](https://www.postgresql.org/docs/17/app-pgrestore.html),
+[Node authenticated encryption](https://nodejs.org/docs/latest-v22.x/api/crypto.html).
