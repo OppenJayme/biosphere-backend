@@ -1,5 +1,11 @@
 # Curator-content readiness evaluation - 2026-11-02
 
+Later execution on November 6: the user authorized publishing these seventeen
+candidates, and the [local Curator/public-widget record against hosted data](./FAQ_KNOWLEDGE_GUIDE.md#approved-content-publication-and-public-widget-checkpoint---2026-11-06)
+records 17 active entries and 28 passing widget checks. This happened after the
+isolated evaluation below. Separate content-owner approval of the exact live
+wording remains unrecorded; publication is not evidence of that approval.
+
 ## November 6 clarification reconciliation
 
 **36/36 isolated public HTTP checks pass** on backend base `9ec3fc7` using the
@@ -16,20 +22,22 @@ corresponding candidate was corrected, then passed. The original 33 checks also
 pass with the reconciled candidates. The prior school-tour question is retained
 as an alias of the broader batch question.
 
-This updates editorial fixtures and review documentation only. It does not
-change runtime matcher code, thresholds, database content, lifecycle status,
-visitor workflows or language capabilities. ACTIVE remains synthetic in the
+This isolated evaluation updated editorial fixtures and review documentation only.
+It did not change runtime matcher code, thresholds, database content, lifecycle
+status, visitor workflows or language capabilities. ACTIVE remains synthetic in the
 isolated adapter. Prisma Client was generated locally using a synthetic
-unreachable URL as setup; generation made no database connection. No shared
-server was restarted or FAQ entry activated. These known working cases are
+unreachable URL as setup; generation made no database connection. During this
+isolated evaluation, no shared server was restarted or FAQ entry activated.
+These known working cases are
 neither a held-out accuracy study nor approval of exact wording or aliases.
 
-Next: content owner approves the exact candidate answers/aliases to publish,
-or names the individual wording changes required. Unanswered contact, document,
-change/cancellation and missing-email follow-up details remain deferred; they
-need not block unrelated entries. Public activation and live lifecycle checks
-require a separate explicit publishing step. No new Curator interview is
-required for the already supplied walk-in/group answers.
+At that evaluation stage, the next step was content-owner review and separately
+authorized publication. Publication subsequently occurred; it is not still
+pending. The current open item is content-owner approval/correction of the exact
+live answers/aliases, plus the unresolved off-campus affiliation and multi-batch
+handling recorded in the publication review follow-ups. Unanswered contact,
+document, change/cancellation and missing-email details remain deferred. Do not
+invent approval or a completed Visits workflow to close these items.
 
 ## Original November 2 result and purpose
 
@@ -110,11 +118,13 @@ npm run evaluate:faq:curator
 The first run used the equivalent direct Jest command with
 `NODE_OPTIONS=--experimental-vm-modules` and the dedicated config; 33 cases
 passed, exit 0. The new command uses the existing cross-env dependency to set
-the same option. Node's VM warning, if emitted, is expected. This opt-in suite
+the same option. Node's VM warning, if emitted, is expected. This dedicated suite
 is separate from default unit/e2e discovery, as is the older fictional 25-case
-evaluation. Default CI success alone is not evidence this command was run.
+evaluation. The November 6 review repair adds an explicit
+`npm run evaluate:faq:curator` CI step. Its result must be checked separately,
+not inferred from a historical default-suite run.
 
-## Next activation step
+## Original activation plan - 2026-11-02 (publication subsequently executed)
 
 Review the seventeen exact answer/alias candidates against the clarified
 intake, check existing entries for collisions, and use the normal protected FAQ
