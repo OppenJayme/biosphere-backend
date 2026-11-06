@@ -4,8 +4,8 @@ Last updated 2026-11-05. This page separates what the SRS requires, what is conf
 the team recommends, and what still needs curator or client approval. A recommendation here is not
 an approved policy and must not be cited as an SRS requirement.
 
-REQ-4.1-08 stays incomplete until the museum approves the procedure and the feature is built and
-tested. The recommendations below do not change that.
+REQ-4.1-08 is built and tested, but stays incomplete until the museum approves the procedure. Its
+rules are the recommendations below, so an approved change may mean a code change.
 
 Full hosted Auth acceptance is not claimed. The public signup retest passed and the session settings
 have been read, but the approvals and checks under [Pending team action](#pending-team-action)
@@ -15,7 +15,7 @@ remain.
 
 | Item | Requirement | Status | Waiting on |
 | --- | --- | --- | --- |
-| Curator activate and deactivate | REQ-4.1-08 | Not built, not complete | Museum approval of the procedure |
+| Curator activate and deactivate | REQ-4.1-08 | Built to the recommended rules, backend and Users page; not complete | Museum approval of the procedure |
 | Curator handover | REQ-4.1-09, REQ-4.1-11 | Separate successor account available; no handover action or handover audit | Museum approval of the procedure |
 | Inactivity timeout | REQ-4.1-05 | Partial: built and enforced by the frontend, including an offline lock; 30 minutes is a team decision for the $0 baseline | Final requirement and client acceptance |
 | Public signup | REQ-4.1-03 | Turned off and retested on hosted; all four retest steps passed | Nothing |
@@ -47,7 +47,7 @@ Observed facts, not approved targets.
 
 | Area | Observed on 2026-11-05 | Source |
 | --- | --- | --- |
-| Curator status changes | Only the Developer route `PATCH` for curator status exists. Curators have no activate or deactivate route. | Backend code |
+| Curator status changes | `PATCH /user-accounts/:id/status` lets a curator activate or deactivate another curator. It requires a reason, refuses the curator's own account, hides Developer accounts and audits every attempt as `UPDATE_CURATOR_STATUS`. The Users page offers it for every curator except the signed-in one. | Backend code |
 | Developer status route | Requires `authorizationReason`, but has no self or last-active-curator rule, because a Developer is not a curator. It does not implement the recommended procedure below. | Backend code |
 | Inactivity timeout | `NEXT_PUBLIC_SESSION_IDLE_MINUTES` is required, and a frontend build stops without it. Activity resets the timer. Timeout and logout end the session and require a new sign-in. It is enforced by the frontend, so direct API calls with a valid token are not affected. | Frontend code and browser test |
 | Hosted Auth version | GoTrue v2.197.0 | Hosted health endpoint |

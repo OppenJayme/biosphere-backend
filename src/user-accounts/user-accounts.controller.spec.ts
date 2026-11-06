@@ -2,6 +2,7 @@ import { ArgumentMetadata, ValidationPipe } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { ROLES_KEY } from '../auth/decorators/roles.decorator';
 import { InviteCuratorDto } from './dto/invite-curator.dto';
+import { UpdateCuratorAccountStatusDto } from './dto/update-curator-account-status.dto';
 import { UserAccountsController } from './user-accounts.controller';
 
 const pipe = new ValidationPipe({
@@ -18,6 +19,33 @@ describe('UserAccountsController', () => {
       UserAccountsController,
     );
     expect(roles).toEqual(['CURATOR']);
+  });
+});
+
+describe('UpdateCuratorAccountStatusDto', () => {
+  const statusMetadata: ArgumentMetadata = {
+    type: 'body',
+    metatype: UpdateCuratorAccountStatusDto,
+  };
+
+  it('trims the reason', async () => {
+    await expect(
+      pipe.transform(
+        { status: 'INACTIVE', reason: '  Left  ' },
+        statusMetadata,
+      ),
+    ).resolves.toEqual({ status: 'INACTIVE', reason: 'Left' });
+  });
+
+  it.each([
+    { status: 'INACTIVE' },
+    { status: 'INACTIVE', reason: '   ' },
+    { status: 'INACTIVE', reason: 'x'.repeat(501) },
+    { status: 'SUSPENDED', reason: 'Left' },
+    { reason: 'Left' },
+    { status: 'INACTIVE', reason: 'Left', role: 'DEVELOPER' },
+  ])('rejects %j', async (body) => {
+    await expect(pipe.transform(body, statusMetadata)).rejects.toThrow();
   });
 });
 

@@ -37,6 +37,21 @@ describe('runSerializableTransaction', () => {
     expect(transactionMock).toHaveBeenCalledTimes(2);
   });
 
+  it('retries a write conflict raised at commit by the driver adapter', async () => {
+    const commitConflict = Object.assign(
+      new Error('TransactionWriteConflict'),
+      { cause: { kind: 'TransactionWriteConflict' } },
+    );
+    transactionMock
+      .mockRejectedValueOnce(commitConflict)
+      .mockResolvedValueOnce('done');
+
+    await expect(
+      runSerializableTransaction(prisma, operation, 'conflict'),
+    ).resolves.toBe('done');
+    expect(transactionMock).toHaveBeenCalledTimes(2);
+  });
+
   it('reports a 409 after repeated serialization failures', async () => {
     transactionMock.mockRejectedValue(serializationFailure());
 
