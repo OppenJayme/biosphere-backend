@@ -1,15 +1,19 @@
 import {
   ConflictException,
+  ForbiddenException,
+  HttpException,
   Inject,
   Injectable,
   InternalServerErrorException,
   Logger,
+  NotFoundException,
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { runSerializableTransaction } from '../prisma/serializable-transaction';
 import { SUPABASE_CLIENT } from '../supabase/supabase.constants';
 import {
   authUsersPastInvite,
@@ -17,6 +21,7 @@ import {
 } from '../auth/onboarding';
 import type { AuthenticatedUser } from '../auth/types/auth.types';
 import type { InviteCuratorDto } from './dto/invite-curator.dto';
+import type { UpdateCuratorAccountStatusDto } from './dto/update-curator-account-status.dto';
 import {
   UserAccountStatus,
   type UserAccountSummary,
@@ -37,9 +42,10 @@ type UserAccountRecord = Prisma.user_accountGetPayload<{
   select: typeof USER_ACCOUNT_SELECT;
 }>;
 
-type AuditResult = 'SUCCESS' | 'FAILED';
+type AuditResult = 'SUCCESS' | 'FAILED' | 'DENIED';
 
 export const INVITE_CURATOR_ACTION = 'INVITE_CURATOR';
+export const UPDATE_CURATOR_STATUS_ACTION = 'UPDATE_CURATOR_STATUS';
 
 const NOT_COMPLETED =
   'The invitation could not be completed and no account was created. Try again.';
@@ -167,6 +173,110 @@ export class UserAccountsService {
     return this.toSummary(row, false);
   }
 
+  /**
+   * A curator activates or deactivates another curator (REQ-4.1-08). These
+   * rules are the team's recommendation, pending museum approval: see
+   * docs/AUTH_ACCOUNT_DECISIONS_STATUS.md.
+   *
+   * Refusing self-changes also protects the last active curator, because the
+   * actor stays active. Re-reading the actor under SERIALIZABLE keeps that true
+   * when two curators deactivate each other at once: the retried transaction
+   * sees its actor is now inactive and is refused.
+   *
+   * Sessions need no separate ending: an inactive account is refused on every
+   * request (REQ-4.1-12). Every attempt is audited (REQ-4.1-11).
+   */
+  async updateCuratorStatus(
+    id: string,
+    dto: UpdateCuratorAccountStatusDto,
+    actor: AuthenticatedUser,
+  ): Promise<UserAccountSummary> {
+    let row: UserAccountRecord;
+    try {
+      if (id === actor.accountId) {
+        throw new ForbiddenException(
+          'You cannot change the status of your own account.',
+        );
+      }
+      row = await runSerializableTransaction(
+        this.prisma,
+        (transaction) => this.applyCuratorStatus(transaction, id, dto, actor),
+        'This account changed while saving. Reload and try again.',
+      );
+    } catch (error) {
+      const refused = error instanceof HttpException;
+      await this.recordAudit(
+        actor,
+        UPDATE_CURATOR_STATUS_ACTION,
+        error instanceof ForbiddenException ? 'DENIED' : 'FAILED',
+        {
+          requestedStatus: dto.status,
+          reason: dto.reason,
+          failure: this.errorMessage(error),
+        },
+        id,
+      );
+      if (refused) throw error;
+      throw new InternalServerErrorException(
+        'The account status could not be changed. Try again.',
+      );
+    }
+
+    const pastInvite = await authUsersPastInvite(this.prisma, [
+      row.auth_user_id,
+    ]);
+    return this.toSummary(row, pastInvite.has(row.auth_user_id));
+  }
+
+  private async applyCuratorStatus(
+    transaction: Prisma.TransactionClient,
+    id: string,
+    dto: UpdateCuratorAccountStatusDto,
+    actor: AuthenticatedUser,
+  ): Promise<UserAccountRecord> {
+    const acting = await transaction.user_account.findUnique({
+      where: { id: actor.accountId },
+      select: { status: true },
+    });
+    if (acting?.status !== 'ACTIVE') {
+      throw new ForbiddenException('Your account is no longer active.');
+    }
+
+    const target = await transaction.user_account.findUnique({
+      where: { id },
+      select: { ...USER_ACCOUNT_SELECT, role: true },
+    });
+    // Developer accounts stay out of curator views, so they read as missing.
+    if (target?.role !== 'CURATOR') {
+      throw new NotFoundException('Curator account not found.');
+    }
+    // A retried request changes nothing and adds no second audit entry.
+    if (UserAccountStatus[target.status] === dto.status) return target;
+
+    const updated = await transaction.user_account.update({
+      where: { id },
+      data: { status: dto.status },
+      select: USER_ACCOUNT_SELECT,
+    });
+    // Same transaction: a status change never lands without its audit entry.
+    await transaction.audit_log.create({
+      data: {
+        user_id: actor.accountId,
+        affected_record_id: id,
+        affected_record_type: 'user_account',
+        action: UPDATE_CURATOR_STATUS_ACTION,
+        module: 'user-accounts',
+        status: 'SUCCESS',
+        details: {
+          previousStatus: target.status,
+          newStatus: dto.status,
+          reason: dto.reason,
+        },
+      },
+    });
+    return updated;
+  }
+
   /** Removes a half-created invite so its link stops working and a retry can succeed. */
   private async rollBackInvite(authUserId: string, email: string) {
     const { error } = await this.supabase.auth.admin.deleteUser(authUserId);
@@ -179,8 +289,24 @@ export class UserAccountsService {
   }
 
   // A failed audit write is logged, never allowed to change the outcome.
-  private async recordInviteAudit(
+  private recordInviteAudit(
     actor: AuthenticatedUser,
+    status: AuditResult,
+    details: Prisma.InputJsonObject,
+    affectedRecordId?: string,
+  ) {
+    return this.recordAudit(
+      actor,
+      INVITE_CURATOR_ACTION,
+      status,
+      details,
+      affectedRecordId,
+    );
+  }
+
+  private async recordAudit(
+    actor: AuthenticatedUser,
+    action: string,
     status: AuditResult,
     details: Prisma.InputJsonObject,
     affectedRecordId?: string,
@@ -191,7 +317,7 @@ export class UserAccountsService {
           user_id: actor.accountId,
           affected_record_id: affectedRecordId,
           affected_record_type: 'user_account',
-          action: INVITE_CURATOR_ACTION,
+          action,
           module: 'user-accounts',
           status,
           details,
@@ -199,7 +325,7 @@ export class UserAccountsService {
       });
     } catch (error) {
       this.logger.error(
-        `Could not record ${INVITE_CURATOR_ACTION} (${status}) in the audit log.`,
+        `Could not record ${action} (${status}) in the audit log.`,
         error instanceof Error ? error.stack : String(error),
       );
     }

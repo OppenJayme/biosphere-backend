@@ -1,10 +1,13 @@
 import {
   ConflictException,
+  ForbiddenException,
   InternalServerErrorException,
+  NotFoundException,
   ServiceUnavailableException,
 } from '@nestjs/common';
 import type { ConfigService } from '@nestjs/config';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { UserAccountStatus } from './entities/user-account-summary.entity';
 import { UserAccountsService } from './user-accounts.service';
 import type { PrismaService } from '../prisma/prisma.service';
 import type { AuthenticatedUser } from '../auth/types/auth.types';
@@ -67,6 +70,169 @@ const actor: AuthenticatedUser = {
 };
 
 const dto = { email: 'new@usc.edu.ph', fullName: 'Juan dela Cruz' };
+
+describe('UserAccountsService.updateCuratorStatus', () => {
+  const targetId = 'acc-target';
+  const deactivate = {
+    status: UserAccountStatus.INACTIVE,
+    reason: 'Left the museum',
+  };
+
+  type FixtureRow = Record<string, unknown> | null;
+
+  function statusFixture({
+    acting = { status: 'ACTIVE' },
+    target = { ...accountRow({ id: targetId }), role: 'CURATOR' },
+    transactionError,
+  }: {
+    acting?: FixtureRow;
+    target?: FixtureRow;
+    transactionError?: Error;
+  } = {}) {
+    const auditCreate = jest.fn().mockResolvedValue({});
+    const txAuditCreate = jest.fn().mockResolvedValue({});
+    const update = jest
+      .fn()
+      .mockResolvedValue(accountRow({ id: targetId, status: 'INACTIVE' }));
+    const findUnique = jest
+      .fn()
+      .mockResolvedValueOnce(acting)
+      .mockResolvedValueOnce(target);
+    const transaction = {
+      user_account: { findUnique, update },
+      audit_log: { create: txAuditCreate },
+    };
+    const runTransaction = jest.fn((operation: (tx: unknown) => unknown) =>
+      transactionError
+        ? Promise.reject(transactionError)
+        : operation(transaction),
+    );
+    const prisma = {
+      $transaction: runTransaction,
+      users: { findMany: jest.fn().mockResolvedValue([]) },
+      audit_log: { create: auditCreate },
+    } as unknown as PrismaService;
+    return {
+      service: new UserAccountsService(
+        prisma,
+        {} as SupabaseClient,
+        {} as ConfigService,
+      ),
+      runTransaction,
+      auditCreate,
+      txAuditCreate,
+      update,
+    };
+  }
+
+  it('deactivates another curator and audits it in the same transaction', async () => {
+    const { service, update, txAuditCreate, auditCreate } = statusFixture();
+
+    const result = await service.updateCuratorStatus(
+      targetId,
+      deactivate,
+      actor,
+    );
+
+    expect(result.status).toBe('INACTIVE');
+    expect(update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: targetId },
+        data: { status: 'INACTIVE' },
+      }),
+    );
+    expect(txAuditCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        user_id: actor.accountId,
+        affected_record_id: targetId,
+        action: 'UPDATE_CURATOR_STATUS',
+        module: 'user-accounts',
+        status: 'SUCCESS',
+        details: {
+          previousStatus: 'ACTIVE',
+          newStatus: 'INACTIVE',
+          reason: 'Left the museum',
+        },
+      }) as unknown,
+    });
+    expect(auditCreate).not.toHaveBeenCalled();
+  });
+
+  it('refuses a change to your own account and audits the denial', async () => {
+    const { service, runTransaction, auditCreate } = statusFixture();
+
+    await expect(
+      service.updateCuratorStatus(actor.accountId, deactivate, actor),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+
+    expect(runTransaction).not.toHaveBeenCalled();
+    expect(auditCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        action: 'UPDATE_CURATOR_STATUS',
+        status: 'DENIED',
+      }) as unknown,
+    });
+  });
+
+  it('refuses an actor deactivated by a concurrent request', async () => {
+    const { service, update } = statusFixture({
+      acting: { status: 'INACTIVE' },
+    });
+
+    await expect(
+      service.updateCuratorStatus(targetId, deactivate, actor),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['an unknown id', null],
+    ['a developer account', { ...accountRow(), role: 'DEVELOPER' }],
+  ])('reports %s as not found', async (_label, target) => {
+    const { service, update, auditCreate } = statusFixture({ target });
+
+    await expect(
+      service.updateCuratorStatus(targetId, deactivate, actor),
+    ).rejects.toBeInstanceOf(NotFoundException);
+
+    expect(update).not.toHaveBeenCalled();
+    expect(auditCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({ status: 'FAILED' }) as unknown,
+    });
+  });
+
+  it('changes nothing when the account already has the status', async () => {
+    const { service, update, txAuditCreate } = statusFixture({
+      target: {
+        ...accountRow({ id: targetId, status: 'INACTIVE' }),
+        role: 'CURATOR',
+      },
+    });
+
+    const result = await service.updateCuratorStatus(
+      targetId,
+      deactivate,
+      actor,
+    );
+
+    expect(result.status).toBe('INACTIVE');
+    expect(update).not.toHaveBeenCalled();
+    expect(txAuditCreate).not.toHaveBeenCalled();
+  });
+
+  it('hides unexpected failures and audits them', async () => {
+    const { service, auditCreate } = statusFixture({
+      transactionError: new Error('database unavailable'),
+    });
+
+    await expect(
+      service.updateCuratorStatus(targetId, deactivate, actor),
+    ).rejects.toBeInstanceOf(InternalServerErrorException);
+    expect(auditCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({ status: 'FAILED' }) as unknown,
+    });
+  });
+});
 
 function invitedRow() {
   return accountRow({
