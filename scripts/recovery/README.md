@@ -115,7 +115,76 @@ no watchdog, automatic cleanup or crash-durable independent delivery is claimed.
 
 ## Coverage limits and next slice
 
-The fixture includes the actual public schema/migrations plus representative
+### Owned recording adapter
+
+The CommonJS module now exports `runRecorded(input, recorder)` and
+`reconcileRecorded(input, recorder)` for an explicitly assembled synthetic
+rehearsal. Importing the module does not execute the CLI. The ordinary
+`recovery:synthetic` command remains local-ledger-only; no database URL flag,
+application bootstrap, public write route or scheduler was added. A trusted
+internal caller supplies the real default-off `RecoveryHistoryService` instance;
+it must have an explicitly owned history destination, separate from the
+network-disabled source/restore containers. No application `.env` is loaded by
+the engine. Existing ownership/image/network/empty-target checks still execute.
+The future operator bootstrap must treat FAILED and RECORDING_PENDING as
+unsuccessful command exits; this library does not alter an embedding process's
+exit code or supply deployment credentials.
+
+`runRecorded` accepts only `operation`, `profileFile` and, for restore/verify,
+`snapshotId`. A capture gets a new snapshot UUID. Every execution gets a new
+attempt UUID; calling `runRecorded` again means a new operation, not a retry of
+an uncertain previous result. The adapter hashes the non-secret configuration
+bytes and fixed owner/container/image/operator identity before recording start.
+It refuses observed configuration changes before/after engine execution. This
+is not a source write-freeze or protection against all concurrent filesystem
+changes. Do not edit or reuse a workspace while an attempt is active.
+
+Under the workspace's exclusive lock, it fsyncs a private
+`recording/<attemptId>.jsonl` receipt containing the command and UTC time, then
+records start through the internal service before running the real engine.
+If start recording fails, the engine does not run. After execution, it appends
+and fsyncs the distinct terminal outcome before attempting the remote finish.
+The encryption-key buffer is cleared before the asynchronous finish write.
+History/artifact semantics remain those in the
+[recording contract](../../docs/BACKUP_HISTORY_GUIDE.md#internal-synthetic-recorder---november-6-2026).
+
+| Result | Meaning and next action |
+| --- | --- |
+| CAPTURED / RESTORED_VERIFIED / VERIFIED with `history: RECORDED` | The engine outcome and its history transition both completed. CAPTURED still does not establish a successful restore. |
+| FAILED / HISTORY_START_FAILED with `history: PENDING` | Execution was withheld. Retain the receipt and reconcile the failure after the history service recovers. |
+| RECORDING_PENDING / HISTORY_FINISH_FAILED | The engine outcome is retained locally, but its history finish was not confirmed. Reconcile the same attempt; do not rerun capture/restore as a history retry. |
+| RECORDING_PENDING / OUTCOME_UNKNOWN | Only the start receipt is available. Preserve the workspace, lock and target for diagnosis; never infer a terminal outcome or automatically rerun. |
+| LOCAL_RESULT_WRITE_FAILED / LOCK_RELEASE_FAILED | Local recording/cleanup needs technical diagnosis. A terminal result may be unavailable; no automatic deletion, lock takeover or recovery rerun occurs. |
+
+`reconcileRecorded({profileFile, attemptId}, recorder)` validates the owned local
+receipt (maximum 8 KiB/two events) and current configuration/workspace binding,
+then retries only the same start/finish bookkeeping. It never calls the engine,
+reads the encryption key or contacts the source/target containers. The service
+rejects any conflicting pre-existing command/outcome. Missing or malformed
+receipts, stale configuration, unsafe paths and an active workspace lock are
+rejected. An incomplete receipt remains unknown without new terminal evidence.
+
+Receipts are trusted local diagnostic records, not signed/tamper-evident proof
+or a disaster-independent institutional audit store. File fsync does not prove
+directory/power-loss durability, Windows ACL restriction, process-crash recovery
+or missed-run alerting. No receipt, key or restored bytes are uploaded by this
+slice. Keep receipts private and do not accept externally supplied receipts.
+
+The approved integration boundary runs explicitly on Windows/local Docker:
+
+```powershell
+npm run test:recovery-recording:db
+```
+
+It owns three separate PostgreSQL containers: a real recorder/history database
+with synthetic authentication, and network-disabled source/target fixtures with
+minimal stand-in Auth/audit/schema scope. It verifies actual capture/restore,
+start/finish SQL audit failures, same-ID reconciliation, populated-target refusal,
+incomplete/stale receipts, workspace locking and option/configuration guards.
+It is not the full public-migration rehearsal from `test:recovery:cli`, nor a
+Supabase platform recovery or deployed operator workflow.
+
+The separate `test:recovery:cli` fixture includes the actual public schema/migrations plus representative
 Auth-to-account mappings, retained audit rows, lot quantity and offline receipt
 identity. Auth tables are deliberately simplified stand-ins: this does not
 prove Supabase Auth sign-in/session/token/encryption compatibility. Object bytes
@@ -124,8 +193,8 @@ upload/access/RLS rehearsal; the fake image/model bytes are not renderability
 tests. PostgreSQL global roles/ownership, real secrets, SMTP, external providers
 and full application workflows are not recovered by this prototype.
 
-Next work is real provider inventory/backup/restore adapters and protected
-history/audit result integration, then a complete isolated Supabase-compatible
+Next work is a reviewed operator assembly/control-plane destination and result
+delivery/watchdog, then real provider adapters and a complete isolated Supabase-compatible
 rehearsal. Approved independent storage/key custody, restrictive Windows ACLs,
 streaming, source write-freeze/drain, retention, scheduler/missed-run delivery,
 operator approval and reviewed full-service recovery remain deployment gates.

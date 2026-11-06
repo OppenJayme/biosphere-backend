@@ -2055,3 +2055,32 @@ shared database mutation, hosted export, runner connection or scheduler was
 added. Review the [recording contract](./BACKUP_HISTORY_GUIDE.md#internal-synthetic-recorder---november-6-2026)
 before a trusted runner is connected. This is implementation evidence, not
 independent acceptance; BAK-002 and the deployment gates remain open.
+
+### November 6 - owned recovery engine/recording integration
+
+The approved programmatic runner/recorder boundary passes **9/9** cases through
+the real synthetic recovery engine and internal recording service. A fresh
+three-container fixture separates the real history/audit database from
+network-disabled source and restore targets. Its source uses minimal synthetic
+Auth/audit/schema stand-ins, not a full migration/platform replay. Verification
+reads include the protected Curator history/audit API and actual target data.
+
+Covered: capture/verified restore; withheld execution on start-audit failure;
+pending finish on terminal-audit failure; repeated same-ID reconciliation with
+unchanged checkpoint bytes/count and two audit entries; populated-target refusal;
+unknown/stale receipts; workspace locking; hosted-option rejection; and
+configuration drift during asynchronous start recording. The parent recorder's
+21 cases also pass. The unchanged standalone CLI contract separately passes
+15/15 real Docker/CLI cases on this parent-based branch. Already-merged #248's
+additional nested retry case is outside this checkout's parent commit; rerun
+the combined regressions after updating to merged parent/develop. Run
+`npm run test:recovery-recording:db` only against its
+explicitly owned local Docker fixture. No shared URL is accepted by the fixture.
+
+The ordinary CLI remains local-ledger-only. The adapter needs an explicitly
+assembled trusted recorder; it adds no public write endpoint, deployed bootstrap,
+hosted export or scheduler. Receipts are private local diagnostic records, not
+tamper-evident or disaster-independent evidence. Real process/power-loss recovery,
+hosted authentication, Supabase service restoration, independent acceptance and
+BAK-002's deployment gates remain open. See the
+[adapter contract and failure handling](../scripts/recovery/README.md#owned-recording-adapter).

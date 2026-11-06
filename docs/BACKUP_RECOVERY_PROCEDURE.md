@@ -492,7 +492,9 @@ November 6 implementation checkpoint: the synthetic CLI and its local result
 ledger exist. A separate default-off internal history/audit recording contract
 is implemented and checked against owned PostgreSQL; see the
 [recorder contract and limits](./BACKUP_HISTORY_GUIDE.md#internal-synthetic-recorder---november-6-2026).
-The CLI is not connected to that recorder yet. This partial implementation does
+The engine has an opt-in programmatic recording/reconciliation adapter tested
+with a separate owned history database; the ordinary CLI and deployed runtime
+remain unconnected. This partial implementation does
 not close the full-service rehearsal, hosted export, scheduling or approval gates
 below and does not change BAK-002's Deferred status.
 
