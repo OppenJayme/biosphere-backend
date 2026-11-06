@@ -149,7 +149,8 @@ exit code or supply deployment credentials.
 **Process boundary:** the engine uses synchronous Docker subprocesses (up to
 60 seconds per subprocess). An async function does not make that work
 non-blocking. Run this adapter only in a separate worker/standalone operator
-process, with its own Nest application context and approved history connection.
+process, with an explicitly configured recorder/provider assembly (or standalone
+Nest application context) and approved history connection.
 Do not invoke it from a controller, cron callback or background task hosted
 inside the request-serving Nest process: that would block Curator and public
 requests. A standalone application context must not start an HTTP listener.
