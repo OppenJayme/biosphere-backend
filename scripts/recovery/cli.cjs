@@ -324,7 +324,7 @@ function checkObjectReferences(id, files) {
     Buffer.from(
       sql(
         id,
-        "SELECT coalesce(json_agg(id ORDER BY id),'[]') FROM storage.buckets",
+        'SELECT coalesce(json_agg(id ORDER BY id COLLATE "C"),\'[]\') FROM storage.buckets',
       ),
     ),
   );
@@ -336,7 +336,7 @@ function checkObjectReferences(id, files) {
     Buffer.from(
       sql(
         id,
-        "SELECT coalesce(json_agg('objects/'||bucket_id||'/'||name ORDER BY bucket_id,name),'[]') FROM storage.objects",
+        "SELECT coalesce(json_agg('objects/'||bucket_id||'/'||name ORDER BY bucket_id COLLATE \"C\",name COLLATE \"C\"),'[]') FROM storage.objects",
       ),
     ),
   );
@@ -548,7 +548,12 @@ function execute(operation, p, snapshot, key) {
     const parent = safePath(p.root, 'restores', true);
     if (!fs.existsSync(parent)) fs.mkdirSync(parent, { mode: 0o700 });
     const restored = safePath(p.root, 'restores/' + snapshot, true);
-    fs.mkdirSync(restored, { mode: 0o700 });
+    try {
+      fs.mkdirSync(restored, { mode: 0o700 });
+    } catch (error) {
+      if (error.code === 'EEXIST') fail('RESTORE_WORKSPACE_EXISTS');
+      throw error;
+    }
     for (const bucket of BUCKETS)
       fs.mkdirSync(path.join(restored, 'objects', bucket), {
         recursive: true,

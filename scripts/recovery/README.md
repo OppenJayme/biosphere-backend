@@ -16,8 +16,11 @@ already installed, and this reviewed PostgreSQL image already available locally:
 postgres@sha256:eee6c6e1b0894fa4fe0075eb054af9fd1cf39a35321c2d4110626cfe506411fb
 ```
 
-No image is downloaded automatically. No application servers or browser sessions
-are started/stopped by these commands.
+The local commands never download an image automatically. The dedicated
+`synthetic-recovery` CI job explicitly pulls this exact reviewed digest before
+running the dependency-free full rehearsal on Node 22/Linux. It has read-only
+repository permissions, a ten-minute timeout and no application/provider
+secrets. No application servers or browser sessions are started/stopped.
 
 ```powershell
 npm run recovery:synthetic -- help
@@ -34,6 +37,14 @@ are removed. The OS temporary folder named in the sanitized result retains the
 synthetic profile, random test key, checkpoint, restored files and attempt ledger.
 These files contain no hosted data or real credentials; keep all recovery material
 out of Git even during manual experiments. Normal guard checks need no Docker.
+The full suite now contains 16 passing cases, including one nested retained-
+workspace check. Its mixed-case `Z.bin`/`a.bin` objects deliberately use an English
+SQL collation; reference inventories use `COLLATE "C"` so they agree with the
+CLI's permitted ASCII filesystem ordering. CI runs this full Docker suite as a
+separate job instead of relying only on the three argument guards. It consumes
+the repository's existing Actions allowance; no paid service is enabled or
+unlimited free execution promised. Keys/dumps/restore directories are never
+uploaded as CI artifacts.
 
 ## Manual interface and profile
 
@@ -74,6 +85,10 @@ It never prunes a previous checkpoint or automatically removes stale locks.
 After a failed restore, retain/quarantine its owned target and partial restore
 directory for diagnosis; do not infer a clean retry target or use this tool to
 overwrite it. A new attempt requires a deliberately prepared fresh fixture.
+If the owned database is still empty but `restores/<snapshot>` already exists,
+the CLI returns `RESTORE_WORKSPACE_EXISTS` and leaves its contents intact. A
+populated database still returns `TARGET_NOT_EMPTY`; neither condition triggers
+automatic deletion or overwriting.
 
 ## Checkpoint and result semantics
 
