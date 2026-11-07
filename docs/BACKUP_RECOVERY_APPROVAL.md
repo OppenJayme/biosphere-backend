@@ -101,17 +101,42 @@ backup destination.
 
 ### Storage and runner candidates - checked November 8, 2026
 
-Recommendation: first use an existing approved museum-controlled account if one
-is available and can meet the measurements. Otherwise, evaluate a dedicated
-Google Drive account with recovery/MFA custody retained by the museum. This is a
-candidate for a decision, not a selected destination or permission to create an
-account, connect credentials or upload museum data.
+Preferred candidate: **Backblaze B2**, subject to confirmed museum/project account
+custody, capacity and an authorized synthetic provider trial. Its Object Lock
+and separately scoped upload/delete capabilities provide a concrete way to
+evaluate protected retention. This is an engineering recommendation, not a
+selected/approved destination or permission to create an account, connect
+credentials or upload museum data. Google Drive and OneDrive remain documented
+alternatives rather than the preferred recommendation.
 
 | Candidate | Current published allowance / capability | Decision still needed |
 | --- | --- | --- |
+| Backblaze B2 | The first **10 GB** of storage are free; signup says **no credit card required**. Object Lock has no extra feature charge, but locked storage remains subject to normal storage charges. [Pricing](https://www.backblaze.com/cloud-storage/pricing), [signup](https://www.backblaze.com/sign-up/cloud-storage), [Object Lock](https://www.backblaze.com/docs/cloud-storage-object-lock). | Continuing account/MFA/key custody, measured retention budget, permitted data location, actual free-account capability and private-bucket/readback/denial tests. No paid activation is authorized. |
 | Google Drive | Google describes consumer storage as **up to 15 GB**, shared with Gmail/Photos; actual available space must be inspected. [Google storage](https://support.google.com/drive/answer/9312312?hl=en). | Continuing account/MFA custody, actual quota, authorized use for encrypted museum exports and an automation configuration that remains within approved cost limits. |
 | OneDrive | Microsoft's free account storage is **5 GB**, shared with other Microsoft storage uses. [Microsoft storage FAQ](https://support.microsoft.com/en-us/onedrive/microsoft-storage-faqs). | Same ownership/privacy/capacity checks; consider it if a suitable approved account already exists. No education/organization entitlement is assumed. |
 | GitHub-hosted runner | Private execution uses a plan-dependent included compute allowance; the current GitHub Free table lists 500 MB artifact storage. [GitHub Actions billing](https://docs.github.com/en/billing/concepts/product-billing/github-actions). | Check the repository owner's actual plan, remaining allowance, budgets and existing CI consumption. Evaluate as a runner; ordinary CI artifacts are not the proposed retained independent recovery copy. |
+
+For B2, propose a private, Object Lock-enabled bucket with an explicitly approved
+default retention duration/mode; enabling the feature alone does not apply a
+default retention policy. Keep bucket/retention administration and bypass
+capabilities out of the routine publisher identity. Use bucket-restricted
+application keys with only the necessary capabilities, never the master key.
+The [capability reference](https://www.backblaze.com/docs/cloud-storage-application-key-capabilities)
+separates `writeFiles`, `deleteFiles` and retention/bypass powers. However,
+`writeFiles` also permits hiding a file: use unique checkpoint object names,
+retain immutable version IDs in the authenticated manifest and verify version
+readback. A no-delete capability list alone is not an append-only proof.
+
+Before accepting B2, use synthetic objects to demonstrate private access,
+upload/readback hashes, protection of a locked version, denial of deletion and
+retention bypass by the routine identity, and expiry handling that preserves the
+last usable checkpoint. Do not apply an irreversible retention setting to real
+data as a test. Locked and prior object versions consume space; their complete
+retention/restore headroom must fit the measured budget. Assess storage, transfer
+and API use with the provider's [caps and alerts](https://www.backblaze.com/docs/cloud-storage-data-caps-and-alerts),
+including that not every transaction class supports a cap. Free signup is not
+proof of unlimited free operation or a guarantee that an alert prevents charges.
+No account, key, bucket, provider trial, payment method or upload has been created.
 
 Google's [Drive API limits](https://developers.google.com/workspace/drive/api/guides/limits)
 changed for newer projects in May 2026 and include a daily billing threshold;
