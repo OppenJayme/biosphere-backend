@@ -373,9 +373,13 @@ custody nor an approved deployed backup schedule. The Linux recovery CI job
 builds the worker and runs this suite after the existing 52 recovery checks.
 
 The next full-service slice has a [Supabase lab preflight and execution order](../../docs/SUPABASE_RECOVERY_LAB.md).
-Its November 7 launch was withheld for low host-memory headroom and unresolved
-platform-version selection. No real Auth/Storage smoke or recovery pass follows
-from the raw PostgreSQL worker results.
+After the initial November 7 capacity refusal, the separate opt-in command
+`npm run test:recovery:supabase` passed local containment and real synthetic
+Auth/Storage HTTP checks using a pinned reduced platform. It never loads app
+configuration, publishes Auth/Storage ports, exports hosted data or invokes the
+raw worker. See the linked resource budgets, image prerequisites and setup
+findings. This service smoke result does not establish complete recovery or a
+Linux/CI pass; the platform-specific restore adapter remains to be implemented.
 
 References: [PostgreSQL pg_dump](https://www.postgresql.org/docs/17/app-pgdump.html),
 [pg_restore](https://www.postgresql.org/docs/17/app-pgrestore.html),

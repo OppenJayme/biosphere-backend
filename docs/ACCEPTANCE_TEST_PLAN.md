@@ -2194,3 +2194,13 @@ specimen scope repaired the real query without skipping/mocking it; all 25
 recorder/feed checks passed locally afterward. No application rule, shared
 schema or museum record changed. Verify the replacement CI run on the repaired
 head before relying on the worker's Linux result.
+
+### November 7: isolated Supabase service prerequisite
+
+Local owned Docker checks verified blocked outbound HTTP/control counter,
+synthetic Auth password sign-in/identity and private Storage byte readback with
+anonymous denial. See [the lab record](SUPABASE_RECOVERY_LAB.md) for resource
+refusals, corrected setup findings, exact pins and reproducible commands.
+This is a reduced-service prerequisite; BAK-002/Gate B remains open until
+full isolated recovery succeeds. No hosted export, scheduler or shared record
+was involved. Independent verification and Linux execution are not claimed.

@@ -3,9 +3,10 @@
 Date: November 7, 2026. Scope: synthetic data only. Engineering base:
 `bf6ea48948c31fd5e81d9303234528842c4a74c6` (standalone worker, PR #251).
 
-**Status: launch withheld.** Read-only inventory is complete; containment,
-real Auth/Storage requests and full-service recovery have not been tested.
-This is a lab prerequisite record, not a BAK-002 pass or a deployment approval.
+**Status: local containment and reduced Auth/Storage smoke checks passed.**
+The initial launch was withheld until capacity and version checks were resolved;
+that history follows below. Full-service recovery has not been tested.
+This is a lab engineering record, not a BAK-002 pass or a deployment approval.
 
 ## Authorization and observed environment
 
@@ -49,6 +50,30 @@ before launching; earlier samples expire as other applications consume memory.
 
 Do not stop existing services to satisfy the threshold automatically. Free
 unneeded desktop resources or use a separately approved suitable machine.
+
+The standalone **containment-only** command has a separate reduced budget:
+two Node probe/counter containers, each capped at 128 MiB with memory-swap equal
+to memory, one CPU and 256 PIDs. No database/Auth/Storage server runs in this
+command. Require **3 GiB free host memory**: 256 MiB container allowance plus
+1 GiB host reserve and 1.75 GiB additional engine/cache headroom. This is a
+resource-bounded HTTP/network check, not a reduction of the 5 GiB full-service
+launch threshold. Memory is rechecked at execution; images must already be
+cached, and this command never pulls or builds images.
+
+The reduced **Auth/Storage smoke** command requires **4 GiB free host memory**.
+It adds only PostgreSQL (768 MiB), Auth (256 MiB), Storage (512 MiB) and REST
+(128 MiB) to the two 128 MiB probes: 1,920 MiB maximum combined container
+memory, with swap disabled beyond those caps. The remaining 2,176 MiB of the
+launch budget reserves 1 GiB for the host and 1,152 MiB for engine/cache
+overhead. Database data and object bytes use bounded tmpfs inside those caps.
+It omits Studio, gateway, Realtime, image transformation, functions, pooler and
+analytics. Services publish no ports; real HTTP requests run inside the owned
+network probe, with credentials passed on stdin and responses kept in process
+memory. Only the outside counter has a loopback host port. In-network service
+requests do not prove a complete platform,
+gateway integration or recovery. The full recovery rehearsal retains its
+5 GiB policy until separately budgeted. Neither command lowers thresholds
+automatically or accepts a bypass flag.
 
 ### Follow-up preflight on November 7
 
@@ -134,10 +159,104 @@ hosted platform or remove the managed-schema restore issue below.
 
 ## Remaining gates and handoff
 
-The next runnable slice is **containment plus real Auth/Storage smoke checks**,
-after capacity and a reviewed pinned release are available. No such service
-checks ran during this preflight. No new image, network, volume or container
-was created, and no service was stopped.
+### Completed local checks on November 7
+
+The four selected core images were pulled by their Linux/amd64 digests. The
+existing CLI and unrelated running stack were unchanged. Two public CLI cases
+exercise real Docker/network and service HTTP interfaces:
+
+- `containment`: a loopback-published outside counter accepts one control hit;
+  the private-network probe cannot reach it and adds zero hits. Inspect checks
+  establish internal network mode, single-network membership, immutable image
+  identity, exact memory/swap/CPU/PID caps, no privileged mode or bind/persistent
+  mounts, and loopback-only publication for the counter.
+- `smoke`: containment passes before PostgreSQL/Auth/REST/Storage start. A
+  generated user is created with confirmed email through the real Auth admin
+  API, signs in with its generated password, and reads back the same identity.
+  A private bucket accepts an authenticated upload under owner-scoped RLS;
+  authenticated download equals the known input bytes, and an anonymous JWT
+  is denied. Services have no published host ports. Email signup is disabled;
+  password login remains enabled, admin creation confirms email, and SMTP is
+  fixed to the Auth container's own loopback port 1. No real email is requested.
+
+Both commands inspect exact IDs and owner labels before removing only their
+own containers/networks, report cleanup status, and exit nonzero on failure or
+incomplete cleanup. Credentials/JWTs stay generated and in memory/container
+environment; API request secrets cross into the probe on stdin. No credentials
+or raw logs are written to checked-in evidence. Database data and object bytes
+are tmpfs; required public image configuration stays in the disposable
+container layer. Cleanup does not remove cached images.
+
+Final local combined run: **2/2 passed, zero skipped**, about 28 seconds,
+including deliberately invalid inherited database/provider/Docker/proxy
+destinations. Docker child processes receive only OS environment values and
+the fixed local socket. Proxy environment entries are explicitly cleared on
+container creation and checked afterward so Docker CLI proxy configuration
+cannot inject host proxy credentials into the lab. Focused CJS lint, syntax,
+local documentation links and `git diff --check` also passed. These are local
+results, not an independent reviewer or CI execution claim.
+
+The first containment case failed because the command did not yet exist, then
+passed after implementation. The smoke case first rejected its unimplemented
+command, then exposed these **new harness setup issues**, all corrected before
+the successful service check:
+
+1. Empty tmpfs over `/etc/postgresql-custom` hid required image configuration
+   includes, so PostgreSQL exited. Keep those image files; only data needs the
+   database tmpfs. The pinned image's public entrypoint, initialization SQL and
+   migration script were inspected via an exact owned stopped review container,
+   which was removed afterward.
+2. A socket `SELECT 1` observed the temporary initialization server. Readiness
+   now uses authenticated loopback TCP and the image's `supabase_admin` role,
+   waiting for the final server before configuring service roles.
+3. Published endpoints on the internal network did not provide the expected
+   host binding. Auth/Storage now publish no ports at all; real HTTP requests
+   execute from the owned internal probe. No second external network was added
+   to make them reachable.
+
+Memory refusals produced `INSUFFICIENT_HOST_MEMORY` before resource creation.
+Failed setup attempts reported complete owned cleanup. These observations are
+test-harness findings, not evidence of a BioSphere production defect or a
+change to shared database data.
+
+### Running and limits
+
+On a reviewed Windows Docker Desktop/Linux-engine or Linux x86_64 host, first
+pull each immutable `image` reference from the candidate JSON for `linux/amd64`.
+The command never pulls, builds or upgrades images automatically. With 4 GiB
+free host RAM and the cached images, run:
+
+```powershell
+npm run test:recovery:supabase
+```
+
+Or, without application dependencies:
+
+```powershell
+$env:RUN_SUPABASE_LAB = 'true'
+node --test test/supabase-lab.test.cjs
+```
+
+`node scripts/recovery/supabase-lab.cjs containment` needs 3 GiB; `smoke` needs
+4 GiB. There are no supplied URL, credential, Docker-host or threshold flags.
+The fixed local socket and an OS-only child environment ignore inherited
+application/provider destination settings. This protects a trusted disposable
+lab from accidental target selection, not from an adversarial Docker host or
+repository editor. Only Windows Docker Desktop execution was observed here;
+Linux execution remains for independent verification. The heavy suite is opt-in
+and has not been added to CI as a claimed Linux pass.
+
+Normal failure cleanup was observed; host/process crashes, forced termination,
+power-loss cleanup, SMTP-provider behavior, gateway/browser integration and
+all-protocol egress testing are not established. If a process is forcibly
+terminated, inspect remaining exact IDs/owner labels before manual cleanup;
+never use global prune or prefix deletion. A resource refusal is an unexecuted
+test, not a skipped acceptance pass.
+
+**Next:** implement the separate platform recovery adapter and verify restored
+Auth state and Storage bytes against a new target with its source unavailable
+(execution steps 5–6 above). Do not reuse or relax the raw worker's empty-target
+guard. Service smoke success alone does not close that restore gap.
 
 Gate B remains partial until complete isolated synthetic recovery succeeds.
 Intended-source access/export, institutional custody and operating decisions,
