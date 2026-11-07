@@ -178,6 +178,11 @@ function assertCaptureAvailable(checkpointDir, keyDir) {
   );
   return p;
 }
+const sourceCount = (payload) =>
+  payload?.format === 'biosphere-platform-fixture-v3' &&
+  payload.application?.profile === 'biosphere-full-v1'
+    ? 5
+    : 4;
 function saveCheckpoint(
   checkpointDir,
   keyDir,
@@ -195,8 +200,8 @@ function saveCheckpoint(
         typeof source.owner === 'string' &&
         UUID.test(source.owner) &&
         Array.isArray(source.ids) &&
-        source.ids.length === 4 &&
-        new Set(source.ids).size === 4 &&
+        source.ids.length === sourceCount(payload) &&
+        new Set(source.ids).size === sourceCount(payload) &&
         source.ids.every(
           (id) => typeof id === 'string' && /^[a-f0-9]{64}$/.test(id),
         ),
@@ -337,8 +342,8 @@ function loadCheckpoint(checkpointDir, keyDir) {
         typeof packet.source.owner === 'string' &&
         UUID.test(packet.source.owner) &&
         Array.isArray(packet.source.ids) &&
-        packet.source.ids.length === 4 &&
-        new Set(packet.source.ids).size === 4 &&
+        packet.source.ids.length === sourceCount(packet.payload) &&
+        new Set(packet.source.ids).size === sourceCount(packet.payload) &&
         packet.source.ids.every(
           (id) => typeof id === 'string' && /^[a-f0-9]{64}$/.test(id),
         ),

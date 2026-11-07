@@ -2,10 +2,13 @@
 // Executed only by the owned lab, with generated configuration on stdin.
 const fs = require('node:fs');
 const path = require('node:path');
-const os = require('node:os');
 const net = require('node:net');
 const assert = require('node:assert/strict');
 const { verifyBuild } = require('./worker-build.cjs');
+const {
+  createScratch,
+  finalizeApplicationResult,
+} = require('./supabase-application-result.cjs');
 const {
   IDS,
   objects,
@@ -22,6 +25,8 @@ let scratch;
 let stage = 'configuration';
 const permitted = new Set();
 async function main() {
+  let result = null,
+    code = null;
   try {
     verifyBuild();
     const input = fs.readFileSync(0);
@@ -79,8 +84,9 @@ async function main() {
     };
     // ConfigModule resolves its default env-file path from this empty owned cwd.
     // All configuration is pinned; the source checkout's .env is never loaded.
-    scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'biosphere-app-recovery-'));
-    process.chdir(scratch);
+    stage = 'scratch-create';
+    scratch = createScratch();
+    process.chdir(scratch.directory);
     Object.assign(process.env, APP_SETTINGS, {
       DATABASE_URL: config.databaseUrl,
       DIRECT_URL: config.databaseUrl,
@@ -186,24 +192,35 @@ async function main() {
     );
     await verifyConnectedIdentity(prisma, config.identity);
     verifyContainerIdentity(config.identity, db, api);
-    process.stdout.write(
-      JSON.stringify({
-        application: 'PROTECTED_HTTP_VERIFIED',
-        applicationUnauthorized: 'DENIED',
-        applicationMedia: 'SIGNED_BYTES_PRESERVED',
-      }) + '\n',
-    );
+    result = {
+      application: 'PROTECTED_HTTP_VERIFIED',
+      applicationUnauthorized: 'DENIED',
+      applicationMedia: 'SIGNED_BYTES_PRESERVED',
+    };
   } catch {
-    process.stderr.write(
-      `LAB_APPLICATION_${stage.toUpperCase().replaceAll('-', '_')}_FAILED\n`,
-    );
-    process.exitCode = 1;
+    code = `LAB_APPLICATION_${stage.toUpperCase().replaceAll('-', '_')}_FAILED`;
   } finally {
-    await app?.close();
-    if (scratch) {
-      process.chdir(root);
-      fs.rmdirSync(scratch);
-    }
+    const report = await finalizeApplicationResult({
+      result,
+      code,
+      app,
+      scratch,
+      cwd: root,
+    });
+    // Publish only after every cleanup attempt. Synchronous pipe output keeps
+    // the known verdict intact even when a failed close leaves live handles.
+    fs.writeSync(1, JSON.stringify(report) + '\n');
+    if (report.code) fs.writeSync(2, report.code + '\n');
+    process.exitCode =
+      report.verification === 'PASSED' && report.cleanup === 'COMPLETE' ? 0 : 1;
+    if (report.cleanup === 'FAILED') process.exit(1);
   }
 }
-void main();
+void main().catch(() => {
+  try {
+    fs.writeSync(2, 'LAB_APPLICATION_REPORT_FAILED\n');
+  } catch {
+    /* A closed diagnostic pipe cannot provide a reliable report. */
+  }
+  process.exit(1);
+});

@@ -27,4 +27,54 @@ function program(kind, prefix) {
     });server.on('connect',(q,s)=>s.destroy());server.on('upgrade',(q,s)=>s.destroy());
     server.listen(8080,'0.0.0.0');`;
 }
-module.exports = { program };
+async function waitForSqlGateway(
+  url,
+  password,
+  assertOwned,
+  { timeoutMs = 10000, intervalMs = 100, attemptMs = 1000 } = {},
+) {
+  const { Client } = require('pg');
+  const parsed = new URL(url);
+  if (
+    parsed.protocol !== 'http:' ||
+    parsed.hostname !== '127.0.0.1' ||
+    !parsed.port ||
+    parsed.username ||
+    parsed.password ||
+    parsed.pathname !== '/' ||
+    parsed.search ||
+    parsed.hash ||
+    typeof password !== 'string' ||
+    !/^[a-f0-9]{48}$/.test(password)
+  )
+    throw Error('Invalid owned SQL gateway');
+  const deadline = Date.now() + timeoutMs;
+  do {
+    assertOwned();
+    const client = new Client({
+      host: '127.0.0.1',
+      port: Number(parsed.port),
+      database: 'postgres',
+      user: 'supabase_admin',
+      password,
+      ssl: false,
+      connectionTimeoutMillis: attemptMs,
+      query_timeout: attemptMs,
+    });
+    try {
+      await client.connect();
+      const result = await client.query('SELECT 1 AS ready');
+      if (result.rows.length === 1 && result.rows[0].ready === 1) return;
+    } catch {
+      /* A TCP proxy accepting/resetting is not PostgreSQL readiness. */
+    } finally {
+      await client.end().catch(() => {});
+    }
+    if (Date.now() < deadline)
+      await new Promise((resolve) => setTimeout(resolve, intervalMs));
+  } while (Date.now() < deadline);
+  throw Object.assign(Error('LAB_SQL_GATEWAY_NOT_READY'), {
+    safeCode: 'LAB_SQL_GATEWAY_NOT_READY',
+  });
+}
+module.exports = { program, waitForSqlGateway };

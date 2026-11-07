@@ -7,6 +7,30 @@ const {
   saveCheckpoint,
 } = require('../scripts/recovery/supabase-checkpoint-store.cjs');
 const { images } = require('../scripts/recovery/supabase-lab-images.json');
+const { guardCheckout } = require('./support/supabase-guard-checkout.cjs');
+
+test('a real capture still refuses a checkout .env after the service-free checks', () => {
+  const w = createWorkspace();
+  const child = spawnSync(
+    process.execPath,
+    [
+      '--max-old-space-size=128',
+      '--max-semi-space-size=16',
+      path.join(guardCheckout(), 'scripts/recovery/supabase-lab.cjs'),
+      'biosphere-capture',
+      '--checkpoints',
+      w.checkpointDir,
+      '--keys',
+      w.keyDir,
+    ],
+    { encoding: 'utf8', windowsHide: true, timeout: 30000 },
+  );
+  assert.equal(child.status, 1);
+  const report = JSON.parse(child.stdout);
+  assert.equal(report.code, 'LAB_CHECKOUT_MUST_NOT_HAVE_ENV');
+  assert.equal(report.resourcesCreated, 0);
+  assert.equal(report.cleanup, 'COMPLETE');
+});
 
 test('full recovery requires the bounded parent runtime before creating services', () => {
   require('../scripts/recovery/worker-build.cjs').verifyBuild();
@@ -14,7 +38,7 @@ test('full recovery requires the bounded parent runtime before creating services
   const result = spawnSync(
     process.execPath,
     [
-      path.resolve(__dirname, '../scripts/recovery/supabase-lab.cjs'),
+      path.join(guardCheckout(), 'scripts/recovery/supabase-lab.cjs'),
       'biosphere-capture',
       '--checkpoints',
       w.checkpointDir,
@@ -76,13 +100,16 @@ test('full recovery refuses incompatible release metadata before Docker or targe
     },
     source: {
       owner: '00000000-0000-4000-8000-000000000001',
-      ids: ['a', 'b', 'c', 'd'].map((c) => c.repeat(64)),
+      ids: (payload.format === 'biosphere-platform-fixture-v3'
+        ? ['a', 'b', 'c', 'd', 'e']
+        : ['a', 'b', 'c', 'd']
+      ).map((c) => c.repeat(64)),
     },
   });
   const child = spawnSync(
     process.execPath,
     [
-      path.resolve(__dirname, '../scripts/recovery/supabase-lab.cjs'),
+      path.join(guardCheckout(), 'scripts/recovery/supabase-lab.cjs'),
       'biosphere-restore',
       '--checkpoints',
       w.checkpointDir,
@@ -131,13 +158,16 @@ for (const mode of ['checkpoint-restore', 'biosphere-restore']) {
       verification: { synthetic: true },
       source: {
         owner: '00000000-0000-4000-8000-000000000001',
-        ids: ['a', 'b', 'c', 'd'].map((c) => c.repeat(64)),
+        ids: (payload.format === 'biosphere-platform-fixture-v3'
+          ? ['a', 'b', 'c', 'd', 'e']
+          : ['a', 'b', 'c', 'd']
+        ).map((c) => c.repeat(64)),
       },
     });
     const result = spawnSync(
       process.execPath,
       [
-        path.resolve(__dirname, '../scripts/recovery/supabase-lab.cjs'),
+        path.join(guardCheckout(), 'scripts/recovery/supabase-lab.cjs'),
         mode,
         '--checkpoints',
         workspace.checkpointDir,

@@ -3,7 +3,8 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { createHash } = require('node:crypto');
-const { execFileSync } = require('node:child_process');
+const { execFileSync, spawnSync } = require('node:child_process');
+const { readApplicationResult } = require('./supabase-application-result.cjs');
 const { verifyBuild } = require('./worker-build.cjs');
 const {
   requireAnonymousObjectHidden,
@@ -89,10 +90,12 @@ function recipe() {
       JSON.stringify(APP_SETTINGS) +
         [
           'supabase-lab.cjs',
+          'supabase-lab-docker.cjs',
           'supabase-platform-recovery.cjs',
           'supabase-biosphere-profile.cjs',
           'supabase-lab-bridge.cjs',
           'supabase-application-check.cjs',
+          'supabase-application-result.cjs',
           'supabase-application-identity.cjs',
           'supabase-checkpoint-store.cjs',
           'supabase-storage-contract.cjs',
@@ -113,10 +116,6 @@ function recipe() {
 function preflight(check, captured) {
   verifyBuild();
   check(
-    !fs.existsSync(path.join(root, '.env')),
-    'LAB_CHECKOUT_MUST_NOT_HAVE_ENV',
-  );
-  check(
     Object.keys(rules()).length === 5 &&
       BUCKETS.every((b) => Object.hasOwn(rules(), b)),
     'LAB_BUCKET_CONFIG_CHANGED',
@@ -128,6 +127,12 @@ function preflight(check, captured) {
       'APPLICATION_RELEASE_MISMATCH',
     );
   }
+}
+function assertNoEnvironment(check) {
+  check(
+    !fs.existsSync(path.join(root, '.env')),
+    'LAB_CHECKOUT_MUST_NOT_HAVE_ENV',
+  );
 }
 function initialize(service, isolatedEnv, check) {
   const files = migrationFiles();
@@ -359,7 +364,7 @@ async function verifyBuckets(target, access, check) {
   }
   return BUCKETS;
 }
-function verifyApplication(target, gateway, fixture, env, check) {
+function verifyApplication(target, gateway, fixture, env) {
   const config = {
     databaseUrl: target.databaseUrl,
     supabaseUrl: gateway.url,
@@ -370,51 +375,49 @@ function verifyApplication(target, gateway, fixture, env, check) {
     identity: { ...target.identity, httpGatewayId: gateway.id },
   };
   const execute = (value) =>
-    execFileSync(
-      process.execPath,
-      [
-        '--max-old-space-size=256',
-        path.join(__dirname, 'supabase-application-check.cjs'),
-      ],
-      {
-        cwd: root,
-        env,
-        windowsHide: true,
-        timeout: 90000,
-        stdio: ['pipe', 'pipe', 'pipe'],
-        input: JSON.stringify(value),
-      },
-    ).toString();
-  let rejected = false;
-  try {
-    execute({
-      ...config,
-      identity: { ...config.identity, marker: '0'.repeat(64) },
-    });
-  } catch (error) {
-    rejected =
-      String(error.stderr ?? '').trim() ===
-      'LAB_APPLICATION_CONNECTED_IDENTITY_FAILED';
-  }
-  check(rejected, 'APPLICATION_WRONG_IDENTITY_NOT_REJECTED');
-  let response;
-  try {
-    response = execute(config);
-  } catch (error) {
-    const code = String(error.stderr ?? '').trim();
-    check(
-      false,
-      /^LAB_APPLICATION_[A-Z_]+_FAILED$/.test(code)
-        ? code
-        : 'RESTORED_APPLICATION_CHECK_FAILED',
+    readApplicationResult(
+      spawnSync(
+        process.execPath,
+        [
+          '--max-old-space-size=256',
+          '--max-semi-space-size=16',
+          path.join(__dirname, 'supabase-application-check.cjs'),
+        ],
+        {
+          cwd: root,
+          env: { ...env, NODE_NO_WARNINGS: '1' },
+          windowsHide: true,
+          timeout: 90000,
+          encoding: 'utf8',
+          maxBuffer: 1024 ** 2,
+          input: JSON.stringify(value),
+        },
+      ),
     );
-  }
-  const result = JSON.parse(response);
-  check(
-    result.application === 'PROTECTED_HTTP_VERIFIED',
-    'RESTORED_APPLICATION_CHECK_FAILED',
-  );
-  return { ...result, applicationWrongIdentity: 'REJECTED' };
+  const failReport = (code, report) => {
+    throw Object.assign(Error(code), {
+      safeCode: code,
+      applicationOutcome: report.verification,
+      applicationCode: report.code,
+      applicationCleanup: report.cleanup,
+    });
+  };
+  const negative = execute({
+    ...config,
+    identity: { ...config.identity, marker: '0'.repeat(64) },
+  });
+  if (negative.cleanup !== 'COMPLETE')
+    failReport('APPLICATION_WRONG_IDENTITY_CLEANUP_FAILED', negative);
+  if (
+    negative.verification !== 'FAILED' ||
+    negative.code !== 'LAB_APPLICATION_CONNECTED_IDENTITY_FAILED'
+  )
+    failReport('APPLICATION_WRONG_IDENTITY_NOT_REJECTED', negative);
+  const positive = execute(config);
+  if (positive.cleanup !== 'COMPLETE')
+    failReport('APPLICATION_CHECK_CLEANUP_FAILED', positive);
+  if (positive.verification !== 'PASSED') failReport(positive.code, positive);
+  return { ...positive.result, applicationWrongIdentity: 'REJECTED' };
 }
 
 module.exports = {
@@ -424,6 +427,7 @@ module.exports = {
   IDS,
   POLICY_SQL,
   preflight,
+  assertNoEnvironment,
   initialize,
   bucketConfig,
   objects,

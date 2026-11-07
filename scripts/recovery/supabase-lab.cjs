@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 'use strict';
 // Synthetic local lab only. Never loads dotenv, Supabase CLI state or app providers.
-const { execFileSync } = require('node:child_process');
+const { docker, isolatedEnvironment } = require('./supabase-lab-docker.cjs');
 const {
   randomUUID,
   randomBytes,
@@ -9,7 +9,10 @@ const {
   createHash,
 } = require('node:crypto');
 const os = require('node:os');
-const { program: bridgeProgram } = require('./supabase-lab-bridge.cjs');
+const {
+  program: bridgeProgram,
+  waitForSqlGateway,
+} = require('./supabase-lab-bridge.cjs');
 const biosphere = require('./supabase-biosphere-profile.cjs');
 const images = require('./supabase-lab-images.json').images;
 const {
@@ -29,28 +32,7 @@ const {
   saveCheckpoint,
   loadCheckpoint,
 } = require('./supabase-checkpoint-store.cjs');
-const socket =
-  process.platform === 'win32'
-    ? 'npipe:////./pipe/dockerDesktopLinuxEngine'
-    : 'unix:///var/run/docker.sock';
-const env = Object.fromEntries(
-  Object.entries(process.env).filter(([key]) =>
-    [
-      'path',
-      'systemroot',
-      'windir',
-      'comspec',
-      'pathext',
-      'temp',
-      'tmp',
-      'userprofile',
-      'localappdata',
-      'appdata',
-      'programfiles',
-      'programdata',
-    ].includes(key.toLowerCase()),
-  ),
-);
+const env = isolatedEnvironment();
 const owner = randomUUID();
 const label = 'biosphere.supabase-lab.owner';
 const containers = [];
@@ -62,24 +44,6 @@ let fullProfile = false;
 let outsideNetwork;
 function check(value, code) {
   if (!value) throw Object.assign(new Error(code), { safeCode: code });
-}
-function docker(args, input, binary = false) {
-  try {
-    const result = execFileSync('docker', ['--host', socket, ...args], {
-      env,
-      input,
-      encoding: binary ? undefined : 'utf8',
-      windowsHide: true,
-      timeout: 90000,
-      maxBuffer: binary ? 32 * 1024 * 1024 : 1024 * 1024,
-      stdio: ['pipe', 'pipe', 'pipe'],
-    });
-    return binary ? result : result.trim();
-  } catch {
-    throw Object.assign(new Error('DOCKER_COMMAND_FAILED'), {
-      safeCode: 'DOCKER_COMMAND_FAILED',
-    });
-  }
 }
 function inspect(id, kind = 'container') {
   return JSON.parse(docker([kind, 'inspect', id]))[0];
@@ -285,7 +249,7 @@ async function containment(inside, outside) {
   );
   return { containment: 'PASS', outsideControlHits: 1, blockedAttemptHits: 0 };
 }
-async function labBridge(inside, prefix, kind) {
+async function labBridge(inside, prefix, kind, password) {
   const id = create({
     name: prefix + kind + '-gateway',
     image: images.storage.image,
@@ -302,6 +266,8 @@ async function labBridge(inside, prefix, kind) {
   expected.get(id).extraNet = inside;
   validate(id, true);
   const url = endpoint(id, 8080);
+  if (kind === 'sql')
+    await waitForSqlGateway(url, password, () => validate(id, true));
   if (kind === 'http') {
     await wait(url + '/auth/v1/health');
     check(
@@ -519,7 +485,8 @@ async function platform(inside, prefix = '') {
   };
   if (fullProfile) {
     phase = 'biosphere-migrations';
-    serviceState.gateway = await labBridge(inside, prefix, 'sql');
+    serviceState.gateway = await labBridge(inside, prefix, 'sql', password);
+    serviceState.ids.push(serviceState.gateway.id);
     serviceState.application = biosphere.initialize(serviceState, env, check);
     serviceState.identity = {
       owner,
@@ -703,13 +670,7 @@ function labContext(inside, source, fixture) {
       ? async (target) => {
           phase = 'biosphere-application-verification';
           const gateway = await labBridge(inside, target.prefix, 'http');
-          return biosphere.verifyApplication(
-            target,
-            gateway,
-            fixture,
-            env,
-            check,
-          );
+          return biosphere.verifyApplication(target, gateway, fixture, env);
         }
       : undefined,
     verifyBuckets: fullProfile ? biosphere.verifyBuckets : undefined,
@@ -815,11 +776,6 @@ async function main() {
       else {
         loaded = loadCheckpoint(paths.checkpointDir, paths.keyDir);
         validateCapturedPacket(loaded.payload, images, check, fullProfile);
-        check(
-          (loaded.payload.format === 'biosphere-platform-fixture-v3') ===
-            fullProfile,
-          'CHECKPOINT_PROFILE_MISMATCH',
-        );
         fixture = verificationFixture(loaded.verification, fullProfile);
       }
     } else
@@ -836,6 +792,7 @@ async function main() {
           192 * 1024 ** 2,
         'LAB_NODE_BUDGET_REQUIRED',
       );
+    if (fullProfile) biosphere.assertNoEnvironment(check);
     check(
       ['win32', 'linux'].includes(process.platform),
       'UNSUPPORTED_PLATFORM',
@@ -906,6 +863,13 @@ async function main() {
       code: error.safeCode ?? 'LAB_CHECK_FAILED',
       resourcesCreated: containers.length,
       ...(error.cleanup ? { fileCleanup: error.cleanup } : {}),
+      ...(error.applicationOutcome
+        ? {
+            applicationOutcome: error.applicationOutcome,
+            applicationCode: error.applicationCode,
+            applicationCleanup: error.applicationCleanup,
+          }
+        : {}),
     };
     process.exitCode = 1;
   } finally {

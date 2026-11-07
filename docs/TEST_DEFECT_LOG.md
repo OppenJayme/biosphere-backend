@@ -6,6 +6,17 @@ defect entry.
 
 ## Start here
 
+2026-11-08 PR #265 review correction: the earlier zero-connection canary used
+malformed input and did not prove container-identity enforcement. The corrected
+valid-identity/distinct-port case now reaches target-identity rejection. The
+review also exposed `.env` diagnostic ordering, brittle stderr interpretation,
+cleanup outcome loss, missing SQL readiness and incomplete source-resource
+tracking. [The corrective evidence](SUPABASE_RECOVERY_LAB.md#november-8---pr-265-review-corrections)
+records 34 native checks and five owned workflows passing, including the live
+fifth-resource refusal before target creation. An optional mutation experiment
+timed out and is not passing evidence. These are lab/test-support findings;
+no existing product defect or module acceptance is silently closed.
+
 2026-11-08 recovery-lab implementation findings: the new isolated full-profile
 checker initially contacted its unowned loopback canary twice. It now requires
 owned Docker identities and a connected database nonce; the canary sees zero

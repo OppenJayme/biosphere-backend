@@ -557,6 +557,11 @@ budgets, not hard process-RSS guarantees or approval to stop other services.
 
 ### Full-profile evidence and limits
 
+The initial 26-check checkpoint below predates review of `24b1cc5`. Its
+zero-connection canary supplied malformed configuration, so it did not establish
+container-identity protection. Use the corrected review verification below for
+that claim. The original source manifest also omitted the SQL gateway.
+
 November 8 local result: **26 native checks and 1 complete owned workflow
 passed, zero skipped**. The workflow took approximately 126 seconds, including
 separate source/restore processes, full migration-history readback, public-row
@@ -599,3 +604,47 @@ institutional operating decisions, intended-source authorization, custody,
 independent copies, retention, scheduled operation and cutover remain governed
 by [the approval record](BACKUP_RECOVERY_APPROVAL.md). Do not mark the entire
 backup module or BAK-002 complete from this scoped synthetic result.
+
+### November 8 - PR 265 review corrections
+
+The corrected canary supplies a syntactically valid seven-field configuration,
+valid UUID/hex identity values and two distinct owned listener ports. It must
+fail at **target identity**, with zero connections, rather than at configuration
+parsing. The real full-profile workflow separately verifies rejection of a wrong
+connected-database nonce. A supplementary owned mutation experiment timed out;
+it is excluded from passing evidence and is not claimed as mutation coverage.
+
+Guard checks now run against an owned copy containing only a synthetic `.env`.
+Release and heap checks return their own diagnostics before the environment-file
+guard; actual service startup still refuses that file before Docker work. The
+user's workspace `.env` is neither copied nor edited.
+
+The application checker publishes a versioned JSON result only after all cleanup
+attempts. Verification, primary failure and cleanup disposition remain separate.
+Warning text is diagnostic only; the parent validates structured output and exit
+status. A verified run with failed cleanup remains a failed overall operation,
+with its known verification outcome preserved. App close has a deadline and
+cannot suppress scratch cleanup. Recursive removal requires an owned direct
+child of Temp, a non-linked root and a matching per-run ownership marker.
+
+SQL gateways must complete a real `SELECT 1` through the published gateway before
+Prisma starts. Resetting TCP listeners are not accepted as readiness. Full-profile
+encrypted manifests now require **five** unique source IDs, including the SQL
+gateway. An owned alive-fifth-resource control must reject restore before any
+target is created. Earlier unmerged four-ID full-profile artifacts are retained
+for diagnosis but rejected; make a fresh capture. Four-ID subset compatibility
+is unchanged. The redundant profile assertion was removed; the packet validator
+owns the canonical cross-profile rejection.
+
+Both the runner and checker now share one Docker adapter with a fresh minimal
+OS environment on every call, including inspections after application credentials
+are assigned. Database/provider credentials, proxy settings and Node options are
+not forwarded. The optional broader profile-descriptor refactor remains deferred.
+
+Final local review run: **34 native checks and 5 owned service workflows passed,
+zero skipped**. This includes the corrected `.env`/identity guards, cleanup and
+warning controls, strict five-ID codec, SQL reset/readiness control, full-profile
+recovery with alive-gateway rejection (about 115 seconds), all three original
+service cases (about 68 seconds combined) and subset durable recovery (about
+41 seconds). Static checks and new-head CI/reviewer confirmation are recorded
+separately. These results do not close the institutional or production gates.

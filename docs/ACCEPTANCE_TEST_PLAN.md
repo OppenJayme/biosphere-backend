@@ -2291,3 +2291,20 @@ independent acceptance. BAK-002, institutional decisions, intended-source
 recovery, custody, independent copies and deployed operation remain separate.
 Full service execution is locally Windows-verified; Linux CI covers the fast
 guards only. Earlier smaller service results are not relabelled final-head runs.
+
+### November 8 - PR 265 review retest
+
+The [review correction record](SUPABASE_RECOVERY_LAB.md#november-8---pr-265-review-corrections)
+supersedes the original canary claim: the old malformed configuration could not
+prove ownership enforcement. Corrected valid-input target-identity rejection,
+synthetic-.env ordering, structured outcome/cleanup handling, minimal Docker
+environment and SQL readiness are now covered. Authenticated full-profile
+manifests require the SQL gateway as a fifth resource; a deliberately alive
+fifth resource rejects restore before target creation.
+
+Local retest passed **34 native checks plus five owned service workflows**,
+zero skipped, including full-schema/five-bucket recovery and all original smaller
+workflows. The optional timed-out mutation probe is excluded. No hosted data,
+existing `.env`, application server or browser session changed. New-head CI and
+independent review remain separate; no module or institutional acceptance is
+inferred from these owner checks.

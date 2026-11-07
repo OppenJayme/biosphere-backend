@@ -1,6 +1,6 @@
 'use strict';
 const assert = require('node:assert/strict');
-const { execFileSync } = require('node:child_process');
+const { inspectMany: inspect } = require('./supabase-lab-docker.cjs');
 const { images } = require('./supabase-lab-images.json');
 const { program } = require('./supabase-lab-bridge.cjs');
 const UUID =
@@ -26,21 +26,6 @@ function validateIdentity(identity) {
     3,
   );
   assert.notEqual(identity.inside, identity.outside);
-}
-function inspect(kind, ids) {
-  const socket =
-    process.platform === 'win32'
-      ? 'npipe:////./pipe/dockerDesktopLinuxEngine'
-      : 'unix:///var/run/docker.sock';
-  return JSON.parse(
-    execFileSync('docker', ['--host', socket, kind, 'inspect', ...ids], {
-      windowsHide: true,
-      encoding: 'utf8',
-      timeout: 10000,
-      maxBuffer: 1024 * 1024,
-      stdio: ['ignore', 'pipe', 'pipe'],
-    }),
-  );
 }
 function verifyContainerIdentity(identity, db, api) {
   validateIdentity(identity);
