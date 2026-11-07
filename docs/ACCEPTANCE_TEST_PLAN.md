@@ -2212,3 +2212,21 @@ The observed empty tmpfs archive and repaired mount-aware capture are recorded
 in the [lab contract](SUPABASE_RECOVERY_LAB.md#subsequent-same-version-authstorage-restore).
 Its checkpoint is in-memory and its fixture excludes BioSphere public tables;
 this does not close complete-system or custody/deployment gates.
+
+### November 7 - #251 worker review safeguards
+
+The stale-artifact regression first demonstrated that modified compiled code
+was accepted; missing/mismatched DB markers likewise recorded a capture before
+the guard was implemented. The removed-container case first returned the wrong
+Docker-unavailable diagnostic. These cases now reject before unsafe recording.
+Build-time source/output hashes, v2 fixture markers, post-connect checks and
+checks on each transaction connection address the three review notes.
+Additional source/stamp and mid-transition drift/reconciliation checks cover
+pending outcomes without repeating capture. See the [worker contract](../scripts/recovery/README.md#standalone-synthetic-worker)
+and [DEF-040](TEST_DEFECT_LOG.md#def-040---worker-runtime-and-connected-history-identity-are-not-verified).
+No shared migration, hosted data, application-serving build or scheduler changed.
+New-head CI and independent review remain separate from local verification.
+Final local worker run: **16/16 passed, zero skipped**. A fresh wrapper-driven
+Nest build, TypeScript checking, scoped TS/recommended CJS lint, Node syntax,
+Prettier and local document/diff checks passed. The new Linux CI run must be
+verified on the pushed head; run 516 remains evidence for the old head only.

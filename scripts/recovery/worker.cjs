@@ -5,6 +5,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 const { runRecorded, reconcileRecorded } = require('./cli.cjs');
+const { verifyBuild } = require('./worker-build.cjs');
 const IMAGE =
   'postgres@sha256:eee6c6e1b0894fa4fe0075eb054af9fd1cf39a35321c2d4110626cfe506411fb';
 const UUID =
@@ -72,6 +73,33 @@ function docker(args) {
     check(false, 'WORKER_DOCKER_UNAVAILABLE');
   }
 }
+function historyExists(id) {
+  return (
+    docker([
+      'container',
+      'ls',
+      '--all',
+      '--no-trunc',
+      '--filter',
+      `id=${id}`,
+      '--format',
+      '{{.ID}}',
+    ]) === id
+  );
+}
+function historyDocker(id, args) {
+  try {
+    return docker(args);
+  } catch (error) {
+    // A successful empty listing distinguishes removal from an engine outage.
+    check(historyExists(id), 'WORKER_HISTORY_EXPIRED');
+    throw error;
+  }
+}
+function inspectHistory(id) {
+  check(historyExists(id), 'WORKER_HISTORY_EXPIRED');
+  return JSON.parse(historyDocker(id, ['inspect', id]))[0];
+}
 function preflight(profileFile, historyFile) {
   check(
     ['win32', 'linux'].includes(process.platform),
@@ -108,8 +136,15 @@ function preflight(profileFile, historyFile) {
   );
   const history = JSON.parse(readFile(historyFile, 4096));
   check(
-    exact(history, ['format', 'owner', 'containerId', 'port', 'password']) &&
-      history.format === 'biosphere-synthetic-history-v1' &&
+    exact(history, [
+      'format',
+      'owner',
+      'containerId',
+      'port',
+      'password',
+      'marker',
+    ]) &&
+      history.format === 'biosphere-synthetic-history-v2' &&
       typeof history.owner === 'string' &&
       UUID.test(history.owner) &&
       typeof history.containerId === 'string' &&
@@ -119,6 +154,8 @@ function preflight(profileFile, historyFile) {
       history.port <= 65535 &&
       typeof history.password === 'string' &&
       /^[a-f0-9]{32}$/.test(history.password) &&
+      typeof history.marker === 'string' &&
+      /^[a-f0-9]{64}$/.test(history.marker) &&
       ![profile.sourceContainer, profile.targetContainer].includes(
         history.containerId,
       ),
@@ -128,7 +165,7 @@ function preflight(profileFile, historyFile) {
     check((fs.statSync(historyFile).mode & 0o077) === 0, 'WORKER_UNSAFE_FILE');
   }
   // Inspect actual containment and mapping before constructing any database client.
-  const container = JSON.parse(docker(['inspect', history.containerId]))[0];
+  const container = inspectHistory(history.containerId);
   const image = JSON.parse(docker(['image', 'inspect', IMAGE]))[0];
   const bindings = container.NetworkSettings?.Ports?.['5432/tcp'];
   check(
@@ -151,7 +188,7 @@ function preflight(profileFile, historyFile) {
     'WORKER_HISTORY_REJECTED',
   );
   check(
-    docker([
+    historyDocker(history.containerId, [
       'exec',
       history.containerId,
       'stat',
@@ -201,6 +238,7 @@ async function main(args) {
     };
   }
   const { operation, flags } = argumentsFor(args);
+  verifyBuild();
   const history = preflight(flags['--profile'], flags['--history']);
   // Strip inherited application/provider settings in this dedicated process only.
   for (const key of Object.keys(process.env))
@@ -221,10 +259,40 @@ async function main(args) {
     RECOVERY_HISTORY_OPERATOR_ID: 'synthetic-rehearsal',
   });
   const prisma = new PrismaService(config);
+  async function requireDatabaseIdentity(client) {
+    let rows;
+    try {
+      rows = await client.$queryRaw`SELECT owner::text, container_id, marker,
+        current_database()::text AS db_name, current_user::text AS role_name
+        FROM public.recovery_worker_identity WHERE singleton = true`;
+    } catch {
+      check(false, 'WORKER_HISTORY_IDENTITY_UNVERIFIABLE');
+    }
+    check(
+      rows.length === 1 &&
+        rows[0].owner === history.owner &&
+        rows[0].container_id === history.containerId &&
+        rows[0].marker === history.marker &&
+        rows[0].db_name === 'biosphere_recovery_recording_disposable' &&
+        rows[0].role_name === 'service_role',
+      'WORKER_HISTORY_IDENTITY_MISMATCH',
+    );
+  }
   let result;
   try {
     await prisma.$connect();
-    const recorder = new RecoveryHistoryService(prisma, config);
+    await requireDatabaseIdentity(prisma);
+    // A pool-level check alone could verify a different connection from a write.
+    // This narrow facade verifies identity on the actual transaction connection
+    // before the unchanged recorder can read/write any history or audit row.
+    const guardedPrisma = {
+      $transaction: (work, options) =>
+        prisma.$transaction(async (tx) => {
+          await requireDatabaseIdentity(tx);
+          return work(tx);
+        }, options),
+    };
+    const recorder = new RecoveryHistoryService(guardedPrisma, config);
     result =
       operation === 'reconcile'
         ? await reconcileRecorded(
@@ -241,11 +309,11 @@ async function main(args) {
             },
             recorder,
           );
-  } catch {
+  } catch (error) {
     result = {
       status: 'FAILED',
       history: 'NOT_RECORDED',
-      code: 'WORKER_HISTORY_UNAVAILABLE',
+      code: error.safeCode || 'WORKER_HISTORY_UNAVAILABLE',
     };
   } finally {
     try {

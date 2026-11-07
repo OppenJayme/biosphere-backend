@@ -1,7 +1,14 @@
 /** Actual child-process worker, generated synthetic credentials and three owned databases. */
 import { spawnSync } from 'node:child_process';
 import { resolve } from 'node:path';
-import { readFileSync, writeFileSync, readdirSync } from 'node:fs';
+import {
+  readFileSync,
+  writeFileSync,
+  readdirSync,
+  existsSync,
+  mkdirSync,
+  unlinkSync,
+} from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import type { INestApplication } from '@nestjs/common';
 import request from 'supertest';
@@ -30,7 +37,7 @@ describe('Owned synthetic recovery worker process', () => {
     );
     app = await createBackupHistoryDatabaseApp(database.url('service_role'));
     workspace = await new RecordedRecoveryWorkspace().start();
-    manifest = database.writeRecoveryWorkerManifest(workspace.root);
+    manifest = await database.writeRecoveryWorkerManifest(workspace.root);
   });
   afterAll(async () => {
     try {
@@ -279,5 +286,215 @@ describe('Owned synthetic recovery worker process', () => {
       .auth('curator-fixture', { type: 'bearer' })
       .expect(200);
     expect(after.body.total).toBe(before.body.total);
+  });
+  it('rejects stale compiled recorder code before creating a checkpoint or history attempt', async () => {
+    const file = resolve(
+      __dirname,
+      '../dist/backup/recovery-history.service.js',
+    );
+    const original = readFileSync(file);
+    const files = () =>
+      existsSync(resolve(workspace.root, 'checkpoints'))
+        ? readdirSync(resolve(workspace.root, 'checkpoints')).sort()
+        : [];
+    const before = files();
+    const auditBefore = await request(app.getHttpServer())
+      .get('/audit-logs')
+      .query({ action: 'recovery_started' })
+      .auth('curator-fixture', { type: 'bearer' })
+      .expect(200);
+    try {
+      writeFileSync(
+        file,
+        Buffer.concat([
+          original,
+          Buffer.from('\n// synthetic stale artifact\n'),
+        ]),
+      );
+      const result = run('capture');
+      expect(result.exit).toBe(1);
+      expect(result.body).toMatchObject({
+        code: 'WORKER_BUILD_STALE',
+        history: 'NOT_RECORDED',
+      });
+      expect(files()).toEqual(before);
+      const auditAfter = await request(app.getHttpServer())
+        .get('/audit-logs')
+        .query({ action: 'recovery_started' })
+        .auth('curator-fixture', { type: 'bearer' })
+        .expect(200);
+      expect(auditAfter.body.total).toBe(auditBefore.body.total);
+    } finally {
+      writeFileSync(file, original);
+    }
+  });
+  it('reports an expired history container without treating a working Docker engine as unavailable', async () => {
+    const expired = await DisposableFaqPostgres.start('recovery-recording');
+    const original = readFileSync(manifest);
+    try {
+      await expired.createRole('service_role');
+      const directory = resolve(workspace.root, 'expired-history');
+      mkdirSync(directory);
+      const oldManifest = await expired.writeRecoveryWorkerManifest(directory);
+      writeFileSync(manifest, readFileSync(oldManifest));
+      await expired.close();
+      const result = run('capture');
+      expect(result.exit).toBe(1);
+      expect(result.body).toMatchObject({
+        code: 'WORKER_HISTORY_EXPIRED',
+        history: 'NOT_RECORDED',
+      });
+    } finally {
+      writeFileSync(manifest, original);
+      await expired.close();
+    }
+  });
+  it.each(['missing', 'mismatched'])(
+    'refuses a reachable database with a %s marker before recording',
+    async (variant) => {
+      const marker = (
+        await database.admin.query('SELECT * FROM recovery_worker_identity')
+      ).rows[0] as {
+        singleton: boolean;
+        owner: string;
+        container_id: string;
+        marker: string;
+      };
+      const before = await request(app.getHttpServer())
+        .get('/audit-logs')
+        .query({ action: 'recovery_started' })
+        .auth('curator-fixture', { type: 'bearer' })
+        .expect(200);
+      try {
+        if (variant === 'missing')
+          await database.admin.query('DELETE FROM recovery_worker_identity');
+        else
+          await database.admin.query(
+            "UPDATE recovery_worker_identity SET marker = repeat('0',64)",
+          );
+        const result = run('capture');
+        expect(result.exit).toBe(1);
+        expect(result.body).toMatchObject({
+          code: 'WORKER_HISTORY_IDENTITY_MISMATCH',
+          history: 'NOT_RECORDED',
+        });
+        const after = await request(app.getHttpServer())
+          .get('/audit-logs')
+          .query({ action: 'recovery_started' })
+          .auth('curator-fixture', { type: 'bearer' })
+          .expect(200);
+        expect(after.body.total).toBe(before.body.total);
+      } finally {
+        await database.admin.query('DELETE FROM recovery_worker_identity');
+        await database.admin.query(
+          'INSERT INTO recovery_worker_identity VALUES (true,$1,$2,$3)',
+          [marker.owner, marker.container_id, marker.marker],
+        );
+      }
+    },
+  );
+  it('requires rebuilding when recorder source changes after the build', () => {
+    const file = resolve(
+      __dirname,
+      '../src/backup/recovery-history.service.ts',
+    );
+    const original = readFileSync(file);
+    try {
+      writeFileSync(
+        file,
+        Buffer.concat([
+          original,
+          Buffer.from('\n// synthetic source change\n'),
+        ]),
+      );
+      const result = run('capture');
+      expect(result.exit).toBe(1);
+      expect(result.body).toMatchObject({
+        code: 'WORKER_BUILD_STALE',
+        history: 'NOT_RECORDED',
+      });
+    } finally {
+      writeFileSync(file, original);
+    }
+  });
+  it('refuses a missing build stamp instead of trusting existing JavaScript files', () => {
+    const file = resolve(__dirname, '../dist/recovery-worker-build.json');
+    const original = readFileSync(file);
+    try {
+      unlinkSync(file);
+      const result = run('capture');
+      expect(result.exit).toBe(1);
+      expect(result.body).toMatchObject({
+        code: 'WORKER_BUILD_REQUIRED',
+        history: 'NOT_RECORDED',
+      });
+    } finally {
+      writeFileSync(file, original, { mode: 0o600 });
+    }
+  });
+  it('preserves the known capture when identity changes before finish and reconciles only after identity is restored', async () => {
+    const original = (
+      await database.admin.query('SELECT marker FROM recovery_worker_identity')
+    ).rows[0] as { marker: string };
+    await database.admin
+      .query(`CREATE FUNCTION change_worker_identity() RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $$
+      BEGIN UPDATE public.recovery_worker_identity SET marker=repeat('0',64); RETURN NEW; END $$;
+      CREATE TRIGGER change_worker_identity AFTER INSERT ON backup_history FOR EACH ROW EXECUTE FUNCTION change_worker_identity();`);
+    let pending: ReturnType<typeof run>;
+    try {
+      pending = run('capture');
+      expect(pending.exit).toBe(1);
+      expect(pending.body).toMatchObject({
+        status: 'RECORDING_PENDING',
+        history: 'PENDING',
+      });
+      expect(await history(pending.body.attemptId)).toMatchObject({
+        status: 'IN_PROGRESS',
+      });
+      const finished = await request(app.getHttpServer())
+        .get('/audit-logs')
+        .query({
+          affectedRecordId: pending.body.attemptId,
+          action: 'recovery_finished',
+        })
+        .auth('curator-fixture', { type: 'bearer' })
+        .expect(200);
+      expect(finished.body.total).toBe(0);
+    } finally {
+      await database.admin.query(
+        'DROP TRIGGER change_worker_identity ON backup_history; DROP FUNCTION change_worker_identity()',
+      );
+      await database.admin.query(
+        'UPDATE recovery_worker_identity SET marker=$1',
+        [original.marker],
+      );
+    }
+    const directory = resolve(workspace.root, 'checkpoints');
+    const before = readdirSync(directory).sort();
+    const bytes = readFileSync(
+      resolve(directory, String(pending!.body.snapshotId) + '.bsp'),
+    );
+    const reconciled = run('reconcile', [
+      '--attempt',
+      String(pending!.body.attemptId),
+    ]);
+    expect(reconciled.exit).toBe(0);
+    expect(reconciled.body).toMatchObject({
+      status: 'CAPTURED',
+      history: 'RECORDED',
+      attemptId: pending!.body.attemptId,
+    });
+    expect(readdirSync(directory).sort()).toEqual(before);
+    expect(
+      readFileSync(
+        resolve(directory, String(pending!.body.snapshotId) + '.bsp'),
+      ),
+    ).toEqual(bytes);
+    const audit = await request(app.getHttpServer())
+      .get('/audit-logs')
+      .query({ affectedRecordId: pending!.body.attemptId })
+      .auth('curator-fixture', { type: 'bearer' })
+      .expect(200);
+    expect(audit.body.total).toBe(2);
   });
 });

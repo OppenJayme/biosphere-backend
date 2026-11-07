@@ -1,6 +1,6 @@
 /** Owns a fresh container, not an environment-supplied connection or an existing database. */
 import { execFileSync } from 'node:child_process';
-import { randomUUID } from 'node:crypto';
+import { randomUUID, randomBytes } from 'node:crypto';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { Client } from 'pg';
@@ -232,21 +232,31 @@ export class DisposableFaqPostgres {
   }
 
   /** Generated credentials for this owned rehearsal only; never accepts a supplied URL. */
-  writeRecoveryWorkerManifest(workspace: string) {
+  async writeRecoveryWorkerManifest(workspace: string) {
     if (this.scope !== 'recovery-recording' || !this.id || this.port < 1) {
       throw new Error(
         'Worker manifests require an owned recovery-recording fixture.',
       );
     }
+    const marker = randomBytes(32).toString('hex');
+    await this.admin.query(`CREATE TABLE recovery_worker_identity (
+      singleton boolean PRIMARY KEY CHECK (singleton), owner uuid NOT NULL,
+      container_id text NOT NULL, marker text NOT NULL);
+      GRANT SELECT ON recovery_worker_identity TO service_role;`);
+    await this.admin.query(
+      'INSERT INTO recovery_worker_identity VALUES (true, $1, $2, $3)',
+      [this.owner, this.id, marker],
+    );
     const file = join(workspace, 'recovery-history.private.json');
     writeFileSync(
       file,
       JSON.stringify({
-        format: 'biosphere-synthetic-history-v1',
+        format: 'biosphere-synthetic-history-v2',
         owner: this.owner,
         containerId: this.id,
         port: this.port,
         password: this.password,
+        marker,
       }),
       { flag: 'wx', mode: 0o600 },
     );
