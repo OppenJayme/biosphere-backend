@@ -381,3 +381,90 @@ deployed scheduling and incident cutover remain separate in
 [the approval record](BACKUP_RECOVERY_APPROVAL.md). Neither this authorization
 nor an engineering PR closes those gates. A second reviewer must assess the
 actual completed evidence; no university approval process is invented here.
+
+## Durable synthetic checkpoint across separate processes
+
+This opt-in extension addresses the earlier in-memory limitation. It remains
+a same-version synthetic Auth/Storage lab, with no hosted source, application
+`.env`, supplied service destination or production restore command.
+
+Run `npm run test:recovery:supabase:files` for native disk, fresh-reader-process
+and real CLI rejection checks. These need no services. Run
+`npm run test:recovery:supabase:durable` for the owned real-service workflow;
+this requires the pinned images, Docker and at least 5 GiB free host RAM.
+Run it sequentially with the original service suite, not concurrently.
+
+For manual rehearsal, `node scripts/recovery/supabase-lab.cjs checkpoint-init`
+creates two owned temporary directories and prints their paths. Pass those
+exact paths to separate invocations:
+
+```text
+node scripts/recovery/supabase-lab.cjs checkpoint-capture --checkpoints <checkpointDir> --keys <keyDir>
+node scripts/recovery/supabase-lab.cjs checkpoint-restore --checkpoints <checkpointDir> --keys <keyDir>
+```
+
+Capture generates a synthetic account and private object, freezes its owned
+services and captures the retained Auth/Storage data and file bytes. It writes
+`checkpoint.bsp` using AES-256-GCM with a fresh 256-bit key. The encrypted
+wrapper binds its owner, artifact ID, source container IDs and verification
+fixture hash. `checkpoint.json` records the ciphertext size and SHA-256.
+Each file is flushed before the receipt is written last. A completed capture
+exits and removes its owned service containers/networks before restore starts.
+
+The separate key directory holds `recovery.key` and
+`recovery-verification.private.json`. The latter contains generated synthetic
+login details and old tokens used solely for the rejection checks, alongside
+expected bytes/identity. Neither directory belongs in Git, a PR attachment or
+public logs. The source signing secret is never included in these files.
+Source transient login rows are excluded; target signing authority is fresh.
+
+Restore authenticates bounded, regular, non-linked files and the verification
+fixture before creating any target. Missing keys, wrong keys, corrupt bytes,
+changed verification material and incomplete receipts refuse recovery. The
+CLI does not consume or overwrite the checkpoint. A separate process verifies
+that all four source service containers are absent, creates a fresh target,
+then checks password sign-in with the preserved user ID, exact private bytes,
+old-token rejection, foreign keys and the pinned anonymous-denial response.
+
+Files are retained for inspection. Partial captures and stale locks are not
+automatically erased or retried into the same directories. Inspect only owned
+lab material; initialize a new pair for a new capture. A lock-release failure
+returns nonzero while preserving whether the receipt was already committed.
+Do not delete a lock unless the owning process has been confirmed stopped.
+
+### Evidence and remaining limits
+
+Native file/CLI checks: **12 passed, zero skipped**, plus the existing **9/9**
+Storage response/archive contracts. The real fresh-process Auth/Storage case
+passed **1/1, zero skipped**, approximately 66 seconds, on November 7. Capture
+and restore ran in different child processes; capture cleanup completed before
+restore, and source-container absence was rechecked before and after target
+verification. The artifact ID and ciphertext hash matched across processes.
+Fresh password sign-in preserved the user ID and private file bytes; old
+access/refresh tokens were rejected, foreign keys remained enforced, and the
+exact anonymous-denial contract passed. All owned service cleanup completed.
+An earlier attempt refused before creating resources because free host memory
+was below 5 GiB; it was not counted as a service pass. Execution resumed only
+after the existing capacity guard passed.
+
+Separate directories on the same machine are not independent custody or an
+offsite copy. Unix permission checks are enforced; Windows ACL isolation has
+not been established. Exclusive writes prevent API overwrite, not owner edits
+or filesystem tampering. File flushes and normal process exit do not prove
+power-loss durability, directory fsync, interrupted-write recovery or crash
+recovery. Key-buffer clearing is not complete JavaScript memory erasure.
+Checkpoints are bounded in memory, not a large-backup streaming implementation.
+The threat model excludes a hostile host administrator or Docker daemon.
+
+The original three service cases also passed after the shared capture/restore
+adapter refactor: containment and source smoke passed together; the original
+restore case passed separately after a capacity-only refusal. No skipped case
+is counted as a pass. Recommended CJS lint, Node syntax, workflow YAML,
+source/test formatting and local document/diff checks passed. The fast file
+checks are included in normal CI; the four real-service cases remain opt-in
+and locally verified. New-head CI and independent review are still required.
+
+Full BioSphere public tables, all five buckets,
+application-level restoration, institutional custody, intended-source recovery
+and deployed scheduling remain separate open gates. This extension alone does
+not close BAK-002 or authorize any hosted export or operating rollout.

@@ -43,4 +43,5 @@ Thumbs.db
 .recovery-rehearsals/
 **/recovery.key
 **/recovery-history.private.json
+**/recovery-verification.private.json
 *.bsp

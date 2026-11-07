@@ -40,18 +40,8 @@ function inventory(sql) {
     SELECT json_object_agg(name, rows ORDER BY name COLLATE "C") FROM lab_counts;
     COMMIT;`);
 }
-async function recoverPlatform({
-  inside,
-  source,
-  fixture,
-  docker,
-  inspect,
-  validate,
-  check,
-  platform,
-  images,
-  setPhase,
-}) {
+function helpers(ctx) {
+  const { docker, inspect, validate, check } = ctx;
   const schema = (service) =>
     hash(
       docker([
@@ -97,6 +87,11 @@ async function recoverPlatform({
       validate(id, true);
     }
   };
+  return { schema, pause, resume };
+}
+function capturePlatform(ctx) {
+  const { source, docker, validate, check, images, setPhase } = ctx;
+  const { schema, pause } = helpers(ctx);
   setPhase('platform-capture');
   for (const id of source.ids) validate(id, true);
   pause(source);
@@ -153,17 +148,218 @@ async function recoverPlatform({
     const name = `auth.${table}`;
     if (Object.hasOwn(expectedRows, name)) expectedRows[name] = 0;
   }
-  const body = Buffer.from(
-    JSON.stringify({
-      format: 'biosphere-platform-fixture-v2',
-      images,
-      schema: sourceSchema,
-      baseline: source.baseline,
-      rows: JSON.stringify(expectedRows),
-      dump: dump.toString('base64'),
-      objects: objects.toString('base64'),
-    }),
+  return {
+    format: 'biosphere-platform-fixture-v2',
+    images,
+    schema: sourceSchema,
+    baseline: source.baseline,
+    rows: JSON.stringify(expectedRows),
+    dump: dump.toString('base64'),
+    objects: objects.toString('base64'),
+  };
+}
+async function stopCapturedSource(ctx) {
+  const { inside, source, docker, inspect, validate, check, setPhase } = ctx;
+  const { resume } = helpers(ctx);
+  setPhase('source-unavailable');
+  resume(source);
+  for (const id of [...source.ids].reverse()) {
+    validate(id, true);
+    docker(['stop', '--time', '1', id]);
+    docker(['network', 'disconnect', '--force', inside, id]);
+    const stopped = inspect(id);
+    check(
+      !stopped.State.Running &&
+        Object.keys(stopped.NetworkSettings.Networks).length === 0,
+      'SOURCE_STILL_AVAILABLE',
+    );
+  }
+  let sourceReachable = false;
+  try {
+    await source.serviceRequest(`${source.authUrl}/health`);
+    sourceReachable = true;
+  } catch {
+    /* expected disconnected source */
+  }
+  check(!sourceReachable, 'SOURCE_API_STILL_AVAILABLE');
+}
+async function restorePlatform(ctx, packet, fixture) {
+  const { inside, docker, check, platform, images, setPhase } = ctx;
+  const { schema, pause, resume } = helpers(ctx);
+  const { assertSourceUnavailable, sourceState } = ctx;
+  validateCapturedPacket(packet, images, check);
+  check(
+    typeof assertSourceUnavailable === 'function',
+    'SOURCE_VERIFICATION_REQUIRED',
   );
+  assertSourceUnavailable();
+  setPhase('target-initialize');
+  const target = await platform(inside, 'target-');
+  check(
+    hash(target.secret) !== fixture.sourceSigningKeyHash &&
+      !Object.hasOwn(packet, 'secret'),
+    'TARGET_SECRET_NOT_ROTATED',
+  );
+  pause(target);
+  setPhase('target-preflight');
+  check(
+    inventory(target.sql) === packet.baseline,
+    'TARGET_HAS_UNEXPECTED_DATA',
+  );
+  target.sql(POLICY_SQL);
+  check(schema(target) === packet.schema, 'TARGET_SCHEMA_MISMATCH');
+  check(
+    target.sql('SHOW session_replication_role') === 'origin',
+    'FOREIGN_KEYS_NOT_ENFORCED',
+  );
+  // This must reject an orphan through the real database constraint, then roll back.
+  target.sql(`BEGIN; DO $$ BEGIN BEGIN
+    INSERT INTO storage.objects (bucket_id,name) VALUES ('lab-no-such-bucket','orphan-probe.txt');
+    RAISE EXCEPTION 'Foreign key enforcement missing';
+    EXCEPTION WHEN foreign_key_violation THEN NULL; END; END $$; ROLLBACK;`);
+  setPhase('platform-restore');
+  docker(
+    [
+      'exec',
+      '-i',
+      target.db,
+      'pg_restore',
+      '-U',
+      'supabase_admin',
+      '-d',
+      'postgres',
+      '--data-only',
+      '--single-transaction',
+      '--exit-on-error',
+      '--no-owner',
+      '--no-privileges',
+    ],
+    Buffer.from(packet.dump, 'base64'),
+  );
+  docker(
+    ['exec', '-i', target.storage, 'tar', '-C', '/var/lib/storage', '-xf', '-'],
+    Buffer.from(packet.objects, 'base64'),
+  );
+  check(
+    JSON.stringify(JSON.parse(inventory(target.sql))) === packet.rows &&
+      schema(target) === packet.schema,
+    'RESTORED_INVENTORY_MISMATCH',
+  );
+  resume(target);
+  setPhase('restored-api-verification');
+  const oldAccess = await target.serviceRequest(`${target.authUrl}/user`, {
+    headers: { Authorization: `Bearer ${fixture.sourceAccessToken}` },
+  });
+  check([401, 403].includes(oldAccess.status), 'SOURCE_ACCESS_TOKEN_ACCEPTED');
+  const oldRefresh = await target.serviceRequest(
+    `${target.authUrl}/token?grant_type=refresh_token`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refresh_token: fixture.sourceRefreshToken }),
+    },
+  );
+  check(
+    oldRefresh.status === 400 &&
+      (await oldRefresh.json()).error_code === 'refresh_token_not_found',
+    'SOURCE_REFRESH_TOKEN_ACCEPTED',
+  );
+  const signIn = await target.serviceRequest(
+    `${target.authUrl}/token?grant_type=password`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: fixture.email,
+        password: fixture.userPassword,
+      }),
+    },
+  );
+  check(signIn.ok, 'RESTORED_PASSWORD_FAILED');
+  const session = await signIn.json();
+  const headers = { Authorization: `Bearer ${session.access_token}` };
+  const identity = await target.serviceRequest(`${target.authUrl}/user`, {
+    headers,
+  });
+  check(
+    identity.ok && (await identity.json()).id === fixture.userId,
+    'RESTORED_IDENTITY_CHANGED',
+  );
+  const objectUrl = `${target.storageUrl}/object/authenticated/${fixture.bucket}/probe.txt`;
+  const restored = await target.serviceRequest(objectUrl, { headers });
+  check(
+    restored.ok &&
+      Buffer.from(await restored.arrayBuffer()).equals(fixture.bytes),
+    'RESTORED_OBJECT_BYTES_CHANGED',
+  );
+  const denied = await target.serviceRequest(objectUrl, {
+    headers: { Authorization: `Bearer ${target.anon}` },
+  });
+  const anonymousDenial = await requireAnonymousObjectHidden(denied);
+  assertSourceUnavailable();
+  return {
+    recovery: 'RESTORED_API_VERIFIED',
+    source: sourceState,
+    identity: 'PRESERVED',
+    sourceAccess: 'REJECTED',
+    sourceRefresh: 'REJECTED',
+    foreignKeys: 'ENFORCED',
+    privateBytes: 'PRESERVED',
+    anonymous: 'DENIED',
+    anonymousDenial,
+  };
+}
+function validateCapturedPacket(packet, images, check) {
+  check(
+    packet?.format === 'biosphere-platform-fixture-v2' &&
+      Object.keys(packet).length === 7 &&
+      JSON.stringify(packet.images) === JSON.stringify(images) &&
+      typeof packet.schema === 'string' &&
+      /^[a-f0-9]{64}$/.test(packet.schema) &&
+      ['baseline', 'rows', 'dump', 'objects'].every(
+        (key) => typeof packet[key] === 'string',
+      ) &&
+      !Object.hasOwn(packet, 'secret'),
+    'PLATFORM_PACKET_INVALID',
+  );
+  for (const key of ['baseline', 'rows']) {
+    let value;
+    try {
+      value = JSON.parse(packet[key]);
+    } catch {
+      check(false, 'PLATFORM_PACKET_INVALID');
+    }
+    check(
+      value &&
+        !Array.isArray(value) &&
+        typeof value === 'object' &&
+        Object.entries(value).every(
+          ([name, count]) =>
+            /^(auth|storage)\./.test(name) &&
+            Number.isSafeInteger(count) &&
+            count >= 0,
+        ),
+      'PLATFORM_PACKET_INVALID',
+    );
+  }
+  for (const key of ['dump', 'objects']) {
+    const decoded = Buffer.from(packet[key], 'base64');
+    check(
+      decoded.length > 0 &&
+        decoded.length < 16 * 1024 ** 2 &&
+        decoded.toString('base64') === packet[key],
+      'PLATFORM_PACKET_INVALID',
+    );
+  }
+  check(
+    Buffer.from(packet.dump, 'base64').subarray(0, 5).toString() === 'PGDMP',
+    'INVALID_DATABASE_CAPTURE',
+  );
+}
+async function recoverPlatform(ctx) {
+  const { source, fixture, inspect, check, images } = ctx;
+  const captured = capturePlatform(ctx);
+  const body = Buffer.from(JSON.stringify(captured));
   const key = randomBytes(32),
     iv = randomBytes(12);
   try {
@@ -213,153 +409,25 @@ async function recoverPlatform({
         JSON.stringify(packet.images) === JSON.stringify(images),
       'PLATFORM_VERSION_MISMATCH',
     );
-    setPhase('source-unavailable');
-    resume(source);
-    for (const id of [...source.ids].reverse()) {
-      validate(id, true);
-      docker(['stop', '--time', '1', id]);
-      docker(['network', 'disconnect', '--force', inside, id]);
-      const stopped = inspect(id);
-      check(
-        !stopped.State.Running &&
-          Object.keys(stopped.NetworkSettings.Networks).length === 0,
-        'SOURCE_STILL_AVAILABLE',
-      );
-    }
-    let sourceReachable = false;
-    try {
-      await source.serviceRequest(`${source.authUrl}/health`);
-      sourceReachable = true;
-    } catch {
-      /* expected disconnected source */
-    }
-    check(!sourceReachable, 'SOURCE_API_STILL_AVAILABLE');
-    setPhase('target-initialize');
-    const target = await platform(inside, 'target-');
-    check(
-      target.secret !== source.secret && !Object.hasOwn(packet, 'secret'),
-      'TARGET_SECRET_NOT_ROTATED',
-    );
-    pause(target);
-    setPhase('target-preflight');
-    check(
-      inventory(target.sql) === packet.baseline,
-      'TARGET_HAS_UNEXPECTED_DATA',
-    );
-    target.sql(POLICY_SQL);
-    check(schema(target) === packet.schema, 'TARGET_SCHEMA_MISMATCH');
-    check(
-      target.sql('SHOW session_replication_role') === 'origin',
-      'FOREIGN_KEYS_NOT_ENFORCED',
-    );
-    // This must reject an orphan through the real database constraint, then roll back.
-    target.sql(`BEGIN; DO $$ BEGIN BEGIN
-    INSERT INTO storage.objects (bucket_id,name) VALUES ('lab-no-such-bucket','orphan-probe.txt');
-    RAISE EXCEPTION 'Foreign key enforcement missing';
-    EXCEPTION WHEN foreign_key_violation THEN NULL; END; END $$; ROLLBACK;`);
-    setPhase('platform-restore');
-    docker(
-      [
-        'exec',
-        '-i',
-        target.db,
-        'pg_restore',
-        '-U',
-        'supabase_admin',
-        '-d',
-        'postgres',
-        '--data-only',
-        '--single-transaction',
-        '--exit-on-error',
-        '--no-owner',
-        '--no-privileges',
-      ],
-      Buffer.from(packet.dump, 'base64'),
-    );
-    docker(
-      [
-        'exec',
-        '-i',
-        target.storage,
-        'tar',
-        '-C',
-        '/var/lib/storage',
-        '-xf',
-        '-',
-      ],
-      Buffer.from(packet.objects, 'base64'),
-    );
-    check(
-      JSON.stringify(JSON.parse(inventory(target.sql))) === packet.rows &&
-        schema(target) === packet.schema,
-      'RESTORED_INVENTORY_MISMATCH',
-    );
-    resume(target);
-    setPhase('restored-api-verification');
-    const oldAccess = await target.serviceRequest(`${target.authUrl}/user`, {
-      headers: { Authorization: `Bearer ${fixture.sourceAccessToken}` },
-    });
-    check(
-      [401, 403].includes(oldAccess.status),
-      'SOURCE_ACCESS_TOKEN_ACCEPTED',
-    );
-    const oldRefresh = await target.serviceRequest(
-      `${target.authUrl}/token?grant_type=refresh_token`,
+    await stopCapturedSource(ctx);
+    const result = await restorePlatform(
       {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ refresh_token: fixture.sourceRefreshToken }),
+        ...ctx,
+        sourceState: 'STOPPED_AND_DISCONNECTED',
+        assertSourceUnavailable: () => {
+          for (const id of source.ids)
+            check(
+              !inspect(id).State.Running &&
+                Object.keys(inspect(id).NetworkSettings.Networks).length === 0,
+              'SOURCE_RESTARTED',
+            );
+        },
       },
+      packet,
+      fixture,
     );
-    check(
-      oldRefresh.status === 400 &&
-        (await oldRefresh.json()).error_code === 'refresh_token_not_found',
-      'SOURCE_REFRESH_TOKEN_ACCEPTED',
-    );
-    const signIn = await target.serviceRequest(
-      `${target.authUrl}/token?grant_type=password`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: fixture.email,
-          password: fixture.userPassword,
-        }),
-      },
-    );
-    check(signIn.ok, 'RESTORED_PASSWORD_FAILED');
-    const session = await signIn.json();
-    const headers = { Authorization: `Bearer ${session.access_token}` };
-    const identity = await target.serviceRequest(`${target.authUrl}/user`, {
-      headers,
-    });
-    check(
-      identity.ok && (await identity.json()).id === fixture.userId,
-      'RESTORED_IDENTITY_CHANGED',
-    );
-    const objectUrl = `${target.storageUrl}/object/authenticated/${fixture.bucket}/probe.txt`;
-    const restored = await target.serviceRequest(objectUrl, { headers });
-    check(
-      restored.ok &&
-        Buffer.from(await restored.arrayBuffer()).equals(fixture.bytes),
-      'RESTORED_OBJECT_BYTES_CHANGED',
-    );
-    const denied = await target.serviceRequest(objectUrl, {
-      headers: { Authorization: `Bearer ${target.anon}` },
-    });
-    const anonymousDenial = await requireAnonymousObjectHidden(denied);
-    for (const id of source.ids)
-      check(!inspect(id).State.Running, 'SOURCE_RESTARTED');
     return {
-      recovery: 'RESTORED_API_VERIFIED',
-      source: 'STOPPED_AND_DISCONNECTED',
-      identity: 'PRESERVED',
-      sourceAccess: 'REJECTED',
-      sourceRefresh: 'REJECTED',
-      foreignKeys: 'ENFORCED',
-      privateBytes: 'PRESERVED',
-      anonymous: 'DENIED',
-      anonymousDenial,
+      ...result,
       integrity: 'TAMPER_REJECTED_BEFORE_RESTORE',
       checkpointSha256: hash(encrypted),
       checkpointBytes: encrypted.length,
@@ -368,4 +436,11 @@ async function recoverPlatform({
     key.fill(0);
   }
 }
-module.exports = { POLICY_SQL, inventory, recoverPlatform };
+module.exports = {
+  POLICY_SQL,
+  inventory,
+  recoverPlatform,
+  capturePlatform,
+  restorePlatform,
+  validateCapturedPacket,
+};

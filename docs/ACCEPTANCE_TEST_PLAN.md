@@ -2242,3 +2242,31 @@ anonymous HTTP/JSON response is checked on the same authenticated object URL.
 The source-token reuse finding was observed failing before repair; [DEF-041](TEST_DEFECT_LOG.md#def-041---supabase-rehearsal-reuses-source-authentication-authority)
 and the [canonical lab record](SUPABASE_RECOVERY_LAB.md#review-reconciliation-for-252-including-merged-253)
 record the scope/limits. New-head CI and reviewer confirmation remain separate.
+
+### November 7 - durable synthetic Auth/Storage checkpoint
+
+The [durable lab extension](SUPABASE_RECOVERY_LAB.md#durable-synthetic-checkpoint-across-separate-processes)
+passed 12 native file/CLI checks, the existing 9 Storage contracts and one real
+fresh-process capture/restore workflow. Capture wrote encrypted files and a
+separate key/verification fixture, then exited with owned cleanup complete.
+Restore ran in a new process with every source service container absent and
+verified fresh password sign-in, preserved identity/private bytes, old-token
+rejection, enforced foreign keys and exact anonymous denial. The artifact ID
+and hash agreed across processes. Missing/wrong keys and corruption were
+rejected by the actual CLI before any target creation. No hosted data, live
+credentials, existing services or institutional custody arrangements changed.
+
+During implementation, a coercible array initially passed the source-owner
+UUID check; the focused test failed before strict primitive-string validation
+was added. This was a lab implementation finding, not a deployed incident.
+An initial real-service attempt was refused by the unchanged memory guard and
+was excluded from passing evidence. Full-system/application recovery, all five
+buckets, independent verification, intended-source rehearsal and operating
+approval remain open; BAK-002 and full Gate B are not closed by this subset.
+
+All three original service workflows also passed on the refactored adapter.
+One original restore launch was refused for capacity and then passed on its
+focused retry; the refusal is excluded from passing evidence. Final scope:
+**21 native file/CLI/Storage-contract checks plus 4 real-service workflows**,
+all exercised successfully locally. Static checks passed; pushed-head CI and
+independent review remain separate from these local results.

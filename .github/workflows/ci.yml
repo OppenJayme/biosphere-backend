@@ -40,6 +40,9 @@ jobs:
       - name: Verify pinned Storage response contract without services
         run: npm run test:recovery:supabase:contracts
 
+      - name: Verify durable checkpoint files and pre-target rejection
+        run: npm run test:recovery:supabase:files
+
       - name: Verify synthetic recovery CLI argument guards
         run: npm run test:recovery:guards
 

@@ -2,7 +2,12 @@
 'use strict';
 // Synthetic local lab only. Never loads dotenv, Supabase CLI state or app providers.
 const { execFileSync } = require('node:child_process');
-const { randomUUID, randomBytes, createHmac } = require('node:crypto');
+const {
+  randomUUID,
+  randomBytes,
+  createHmac,
+  createHash,
+} = require('node:crypto');
 const os = require('node:os');
 const images = require('./supabase-lab-images.json').images;
 const {
@@ -12,7 +17,16 @@ const {
   POLICY_SQL,
   inventory,
   recoverPlatform,
+  capturePlatform,
+  restorePlatform,
+  validateCapturedPacket,
 } = require('./supabase-platform-recovery.cjs');
+const {
+  createWorkspace,
+  assertCaptureAvailable,
+  saveCheckpoint,
+  loadCheckpoint,
+} = require('./supabase-checkpoint-store.cjs');
 const socket =
   process.platform === 'win32'
     ? 'npipe:////./pipe/dockerDesktopLinuxEngine'
@@ -469,7 +483,7 @@ async function platform(inside, prefix = '') {
     ids: [db, auth, rest, storage],
   };
 }
-async function smoke(inside, recover = false) {
+async function smoke(inside, recover = false, checkpointPaths) {
   const source = await platform(inside);
   const { sql, serviceRequest, service, anon, authUrl, storageUrl } = source;
   phase = 'auth-requests';
@@ -534,29 +548,39 @@ async function smoke(inside, recover = false) {
     headers: { Authorization: `Bearer ${anon}` },
   });
   const anonymousDenial = await requireAnonymousObjectHidden(denied);
-  if (recover)
-    return recoverPlatform({
-      inside,
-      source,
-      fixture: {
-        email,
-        userPassword,
-        userId: user.id,
-        bucket,
-        bytes,
-        sourceAccessToken: session.access_token,
-        sourceRefreshToken: session.refresh_token,
+  const fixture = {
+    email,
+    userPassword,
+    userId: user.id,
+    bucket,
+    bytes,
+    sourceAccessToken: session.access_token,
+    sourceRefreshToken: session.refresh_token,
+    sourceSigningKeyHash: createHash('sha256')
+      .update(source.secret)
+      .digest('hex'),
+  };
+  const ctx = labContext(inside, source, fixture);
+  if (checkpointPaths) {
+    phase = 'checkpoint-capture';
+    const payload = capturePlatform(ctx);
+    const saved = saveCheckpoint(
+      checkpointPaths.checkpointDir,
+      checkpointPaths.keyDir,
+      {
+        payload,
+        verification: { ...fixture, bytes: bytes.toString('base64') },
+        source: { owner, ids: source.ids },
       },
-      docker,
-      inspect,
-      validate,
-      check,
-      platform,
-      images,
-      setPhase: (value) => {
-        phase = value;
-      },
-    });
+    );
+    return {
+      status: 'CAPTURED_DURABLE',
+      ...saved,
+      sourceIds: source.ids,
+      capturePid: process.pid,
+    };
+  }
+  if (recover) return recoverPlatform(ctx);
   return {
     auth: 'PASSWORD_AND_IDENTITY_VERIFIED',
     storage: 'PRIVATE_BYTES_VERIFIED',
@@ -595,23 +619,130 @@ function cleanup() {
   }
   return complete ? 'COMPLETE' : 'INCOMPLETE';
 }
+function labContext(inside, source, fixture) {
+  return {
+    inside,
+    source,
+    fixture,
+    docker,
+    inspect,
+    validate,
+    check,
+    platform,
+    images,
+    setPhase: (value) => {
+      phase = value;
+    },
+  };
+}
+function checkpointArguments(args) {
+  check(args.length === 4, 'CHECKPOINT_INVALID_ARGUMENTS');
+  const flags = {};
+  for (let i = 0; i < args.length; i += 2) {
+    check(
+      ['--checkpoints', '--keys'].includes(args[i]) &&
+        typeof args[i + 1] === 'string' &&
+        args[i + 1].length > 0 &&
+        args[i + 1].length < 2048 &&
+        !args[i + 1].startsWith('--') &&
+        !Object.hasOwn(flags, args[i]),
+      'CHECKPOINT_INVALID_ARGUMENTS',
+    );
+    flags[args[i]] = args[i + 1];
+  }
+  check(
+    flags['--checkpoints'] && flags['--keys'],
+    'CHECKPOINT_INVALID_ARGUMENTS',
+  );
+  return { checkpointDir: flags['--checkpoints'], keyDir: flags['--keys'] };
+}
+function verificationFixture(proof) {
+  check(
+    proof &&
+      typeof proof === 'object' &&
+      !Array.isArray(proof) &&
+      Object.keys(proof).length === 8 &&
+      typeof proof.email === 'string' &&
+      /^lab-[a-f0-9-]{36}@example\.invalid$/.test(proof.email) &&
+      typeof proof.userPassword === 'string' &&
+      /^[a-zA-Z0-9_-]{32}$/.test(proof.userPassword) &&
+      typeof proof.userId === 'string' &&
+      /^[a-f0-9-]{36}$/.test(proof.userId) &&
+      proof.bucket === 'synthetic-private' &&
+      typeof proof.bytes === 'string' &&
+      proof.bytes ===
+        Buffer.from('BioSphere synthetic private storage probe\n').toString(
+          'base64',
+        ) &&
+      typeof proof.sourceAccessToken === 'string' &&
+      proof.sourceAccessToken.length < 8192 &&
+      proof.sourceAccessToken.split('.').length === 3 &&
+      typeof proof.sourceRefreshToken === 'string' &&
+      proof.sourceRefreshToken.length > 0 &&
+      proof.sourceRefreshToken.length < 512 &&
+      typeof proof.sourceSigningKeyHash === 'string' &&
+      /^[a-f0-9]{64}$/.test(proof.sourceSigningKeyHash),
+    'CHECKPOINT_VERIFICATION_INVALID',
+  );
+  return { ...proof, bytes: Buffer.from(proof.bytes, 'base64') };
+}
+function requireSourcesAbsent(ids) {
+  for (const id of ids)
+    check(
+      docker([
+        'container',
+        'ls',
+        '--all',
+        '--no-trunc',
+        '--filter',
+        `id=${id}`,
+        '--format',
+        '{{.ID}}',
+      ]) === '',
+      'CAPTURE_SOURCE_STILL_PRESENT',
+    );
+}
 async function main() {
   let evidence;
   try {
-    check(
-      process.argv.length === 3 &&
-        ['containment', 'smoke', 'recover'].includes(process.argv[2]),
-      'UNSUPPORTED_COMMAND',
-    );
+    const mode = process.argv[2];
+    if (mode === 'checkpoint-init') {
+      check(process.argv.length === 3, 'CHECKPOINT_INVALID_ARGUMENTS');
+      phase = 'checkpoint-init';
+      evidence = {
+        status: 'INITIALIZED',
+        scope: 'synthetic-only',
+        ...createWorkspace(),
+      };
+      return;
+    }
+    const durable = ['checkpoint-capture', 'checkpoint-restore'].includes(mode);
+    let paths, loaded, fixture;
+    if (durable) {
+      paths = checkpointArguments(process.argv.slice(3));
+      phase = 'checkpoint-files';
+      if (mode === 'checkpoint-capture')
+        assertCaptureAvailable(paths.checkpointDir, paths.keyDir);
+      else {
+        loaded = loadCheckpoint(paths.checkpointDir, paths.keyDir);
+        validateCapturedPacket(loaded.payload, images, check);
+        fixture = verificationFixture(loaded.verification);
+      }
+    } else
+      check(
+        process.argv.length === 3 &&
+          ['containment', 'smoke', 'recover'].includes(mode),
+        'UNSUPPORTED_COMMAND',
+      );
     phase = 'preflight';
     check(
       ['win32', 'linux'].includes(process.platform),
       'UNSUPPORTED_PLATFORM',
     );
-    // Reduced smoke has a 1,920 MiB hard container cap; full recovery still needs 5 GiB.
     check(
       os.freemem() >=
-        { containment: 3, smoke: 4, recover: 5 }[process.argv[2]] * 1024 ** 3,
+        (durable ? 5 : { containment: 3, smoke: 4, recover: 5 }[mode]) *
+          1024 ** 3,
       'INSUFFICIENT_HOST_MEMORY',
     );
     const info = JSON.parse(docker(['info', '--format', '{{json .}}']));
@@ -622,20 +753,49 @@ async function main() {
       'ENGINE_CAPACITY_MISMATCH',
     );
     for (const spec of Object.values(images)) inspect(spec.image, 'image');
+    if (loaded) requireSourcesAbsent(loaded.source.ids);
     phase = 'containment';
-    const inside = network(true);
-    const outside = network(false);
+    const inside = network(true),
+      outside = network(false);
     evidence = await containment(inside, outside);
-    if (process.argv[2] !== 'containment')
+    if (mode === 'checkpoint-restore') {
+      const result = await restorePlatform(
+        {
+          ...labContext(inside),
+          sourceState: 'CAPTURE_RESOURCES_ABSENT',
+          assertSourceUnavailable: () =>
+            requireSourcesAbsent(loaded.source.ids),
+        },
+        loaded.payload,
+        fixture,
+      );
       evidence = {
         ...evidence,
-        ...(await smoke(inside, process.argv[2] === 'recover')),
+        ...result,
+        status: 'RESTORED_DURABLE',
+        integrity: 'AUTHENTICATED_BEFORE_TARGET',
+        artifactId: loaded.artifactId,
+        sha256: loaded.sha256,
+        checkpointBytes: loaded.bytes,
+        restorePid: process.pid,
       };
+    } else if (mode !== 'containment')
+      evidence = {
+        ...evidence,
+        ...(await smoke(
+          inside,
+          mode === 'recover',
+          mode === 'checkpoint-capture' ? paths : undefined,
+        )),
+      };
+    if (evidence.lock) process.exitCode = 1;
   } catch (error) {
     evidence = {
       result: 'FAILED',
       phase,
       code: error.safeCode ?? 'LAB_CHECK_FAILED',
+      resourcesCreated: containers.length,
+      ...(error.cleanup ? { fileCleanup: error.cleanup } : {}),
     };
     process.exitCode = 1;
   } finally {
