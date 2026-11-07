@@ -50,7 +50,9 @@
     "db:check-collection-collisions": "ts-node --transpile-only scripts/check-collection-collisions.ts",
     "verify:accession-uniqueness": "ts-node --transpile-only scripts/verify-accession-uniqueness.ts",
     "verify:swagger-yaml": "node scripts/verify-swagger-yaml.cjs",
-    "verify:csv-parser": "node scripts/verify-csv-parser.cjs"
+    "verify:csv-parser": "node scripts/verify-csv-parser.cjs",
+    "recovery:readiness": "node scripts/recovery/readiness.cjs",
+    "test:recovery:readiness": "node --test test/recovery-readiness.test.cjs"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
