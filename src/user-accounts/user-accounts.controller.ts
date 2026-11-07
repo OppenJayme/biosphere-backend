@@ -6,6 +6,7 @@ import {
   Get,
   Header,
   Param,
+  HttpCode,
   ParseUUIDPipe,
   Patch,
   Post,
@@ -22,6 +23,7 @@ import {
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
 import type { AuthenticatedUser } from '../auth/types/auth.types';
+import { HandOverCuratorAccountDto } from './dto/hand-over-curator-account.dto';
 import { InviteCuratorDto } from './dto/invite-curator.dto';
 import { UpdateCuratorAccountStatusDto } from './dto/update-curator-account-status.dto';
 import { UserAccountsService } from './user-accounts.service';
@@ -60,10 +62,31 @@ export class UserAccountsController {
     return this.service.inviteCurator(dto, user);
   }
 
+  @Post('handover')
+  @HttpCode(200)
+  @ApiOperation({
+    summary:
+      'Hand over: the signed-in curator names an active successor with their own account; the outgoing account is deactivated and kept, and the handover is audited (REQ-4.1-09, REQ-4.1-11)',
+  })
+  @ApiOkResponse({
+    type: UserAccountSummary,
+    description: 'The outgoing curator account, now inactive',
+  })
+  @ApiNotFoundResponse({ description: 'No curator account has this id' })
+  @ApiConflictResponse({
+    description: 'The successor is not active or has not finished setup',
+  })
+  handOver(
+    @Body() dto: HandOverCuratorAccountDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<UserAccountSummary> {
+    return this.service.handOver(dto, user);
+  }
+
   @Patch(':id/status')
   @ApiOperation({
     summary:
-      'Activate or deactivate another curator account, with a recorded reason (REQ-4.1-08)',
+      'Reactivate another curator account, with a recorded reason (REQ-4.1-08). Deactivating another curator is refused: use handover, or the Developer route.',
   })
   @ApiOkResponse({ type: UserAccountSummary })
   @ApiForbiddenResponse({

@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   ForbiddenException,
   HttpException,
@@ -21,6 +22,7 @@ import {
 } from '../auth/onboarding';
 import type { AuthenticatedUser } from '../auth/types/auth.types';
 import type { InviteCuratorDto } from './dto/invite-curator.dto';
+import type { HandOverCuratorAccountDto } from './dto/hand-over-curator-account.dto';
 import type { UpdateCuratorAccountStatusDto } from './dto/update-curator-account-status.dto';
 import {
   UserAccountStatus,
@@ -46,6 +48,18 @@ type AuditResult = 'SUCCESS' | 'FAILED' | 'DENIED';
 
 export const INVITE_CURATOR_ACTION = 'INVITE_CURATOR';
 export const UPDATE_CURATOR_STATUS_ACTION = 'UPDATE_CURATOR_STATUS';
+export const CURATOR_HANDOVER_ACTION = 'CURATOR_HANDOVER';
+
+/**
+ * The Curator answered on 2026-11-07 that one curator should not turn off
+ * another curator's account: a departing curator turns everything over and
+ * then no longer interferes. So curators may reactivate an account but not
+ * deactivate one; deactivation happens through the outgoing curator's own
+ * handover, or through the Developer route at the museum's direction when the
+ * holder left without handing over.
+ */
+export const PEER_DEACTIVATION_REFUSED =
+  "Curators cannot deactivate another curator's account. The outgoing curator hands over their own account, or the Developer deactivates it at the museum's direction.";
 
 const NOT_COMPLETED =
   'The invitation could not be completed and no account was created. Try again.';
@@ -174,9 +188,9 @@ export class UserAccountsService {
   }
 
   /**
-   * A curator activates or deactivates another curator (REQ-4.1-08). These
-   * rules are the team's recommendation, pending museum approval: see
-   * docs/AUTH_ACCOUNT_DECISIONS_STATUS.md.
+   * A curator reactivates another curator (REQ-4.1-08). Deactivating another
+   * curator is refused (see PEER_DEACTIVATION_REFUSED); the other rules are the
+   * team's recommendation: see docs/AUTH_ACCOUNT_DECISIONS_STATUS.md.
    *
    * Refusing self-changes also protects the last active curator, because the
    * actor stays active. Re-reading the actor under SERIALIZABLE keeps that true
@@ -197,6 +211,9 @@ export class UserAccountsService {
         throw new ForbiddenException(
           'You cannot change the status of your own account.',
         );
+      }
+      if (dto.status === UserAccountStatus.INACTIVE) {
+        throw new ForbiddenException(PEER_DEACTIVATION_REFUSED);
       }
       row = await runSerializableTransaction(
         this.prisma,
@@ -270,6 +287,123 @@ export class UserAccountsService {
         details: {
           previousStatus: target.status,
           newStatus: dto.status,
+          reason: dto.reason,
+        },
+      },
+    });
+    return updated;
+  }
+
+  /**
+   * Handover (REQ-4.1-09, REQ-4.1-11), as the Curator described it on
+   * 2026-11-07: the outgoing curator turns the work over to a successor who
+   * already has their own account, then steps away. No credentials move.
+   *
+   * The successor must be another active curator who has set a password, so
+   * the museum is never left without a working curator. The outgoing account
+   * is deactivated, not deleted, so past records still show who did what, and
+   * the handover is audited in the same transaction. The outgoing session is
+   * refused from the next request on (REQ-4.1-12).
+   */
+  async handOver(
+    dto: HandOverCuratorAccountDto,
+    actor: AuthenticatedUser,
+  ): Promise<UserAccountSummary> {
+    let row: UserAccountRecord;
+    try {
+      if (dto.successorAccountId === actor.accountId) {
+        throw new BadRequestException(
+          'Choose another curator as your successor.',
+        );
+      }
+      const successor = await this.prisma.user_account.findUnique({
+        where: { id: dto.successorAccountId },
+        select: { ...USER_ACCOUNT_SELECT, role: true },
+      });
+      if (successor?.role !== 'CURATOR') {
+        throw new NotFoundException('Successor curator account not found.');
+      }
+      const ready = await authUsersPastInvite(this.prisma, [
+        successor.auth_user_id,
+      ]);
+      if (!ready.has(successor.auth_user_id)) {
+        throw new ConflictException(
+          'The successor has not finished setting up their account. Ask them to accept the invitation and sign in first.',
+        );
+      }
+      row = await runSerializableTransaction(
+        this.prisma,
+        (transaction) =>
+          this.applyHandover(transaction, dto, actor, successor.full_name),
+        'An account changed while saving. Reload and try again.',
+      );
+    } catch (error) {
+      await this.recordAudit(
+        actor,
+        CURATOR_HANDOVER_ACTION,
+        error instanceof ForbiddenException ? 'DENIED' : 'FAILED',
+        {
+          successorAccountId: dto.successorAccountId,
+          reason: dto.reason,
+          failure: this.errorMessage(error),
+        },
+        actor.accountId,
+      );
+      if (error instanceof HttpException) throw error;
+      throw new InternalServerErrorException(
+        'The handover could not be completed. Try again.',
+      );
+    }
+
+    const pastInvite = await authUsersPastInvite(this.prisma, [
+      row.auth_user_id,
+    ]);
+    return this.toSummary(row, pastInvite.has(row.auth_user_id));
+  }
+
+  private async applyHandover(
+    transaction: Prisma.TransactionClient,
+    dto: HandOverCuratorAccountDto,
+    actor: AuthenticatedUser,
+    successorName: string,
+  ): Promise<UserAccountRecord> {
+    const outgoing = await transaction.user_account.findUnique({
+      where: { id: actor.accountId },
+      select: { status: true, role: true },
+    });
+    if (outgoing?.role !== 'CURATOR' || outgoing.status !== 'ACTIVE') {
+      throw new ForbiddenException('Your account is no longer active.');
+    }
+    // Re-read under SERIALIZABLE so two curators handing over to each other
+    // at once cannot both leave: the retried one sees its successor inactive.
+    const successor = await transaction.user_account.findUnique({
+      where: { id: dto.successorAccountId },
+      select: { status: true, role: true },
+    });
+    if (successor?.role !== 'CURATOR' || successor.status !== 'ACTIVE') {
+      throw new ConflictException(
+        'The successor account is not active. Choose an active curator.',
+      );
+    }
+
+    const updated = await transaction.user_account.update({
+      where: { id: actor.accountId },
+      data: { status: 'INACTIVE' },
+      select: USER_ACCOUNT_SELECT,
+    });
+    await transaction.audit_log.create({
+      data: {
+        user_id: actor.accountId,
+        affected_record_id: actor.accountId,
+        affected_record_type: 'user_account',
+        action: CURATOR_HANDOVER_ACTION,
+        module: 'user-accounts',
+        status: 'SUCCESS',
+        details: {
+          successorAccountId: dto.successorAccountId,
+          successorName,
+          previousStatus: 'ACTIVE',
+          newStatus: 'INACTIVE',
           reason: dto.reason,
         },
       },

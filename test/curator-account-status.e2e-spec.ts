@@ -26,7 +26,7 @@ describe('Curator account status (e2e)', () => {
       id: targetId,
       auth_user_id: 'auth-target',
       full_name: 'Target Curator',
-      status: 'INACTIVE',
+      status: 'ACTIVE',
       created_at: new Date('2026-11-01T00:00:00.000Z'),
       users: { email: 'target@usc.edu.ph', last_sign_in_at: null },
     };
@@ -35,7 +35,7 @@ describe('Curator account status (e2e)', () => {
       (args: { where: { id?: string; auth_user_id?: string } }) => {
         if (args.where.auth_user_id) return accounts[args.where.auth_user_id];
         if (args.where.id === curatorId) return { status: 'ACTIVE' };
-        return { ...row, status: 'ACTIVE', role: 'CURATOR' };
+        return { ...row, status: 'INACTIVE', role: 'CURATOR' };
       },
     );
     const transaction = {
@@ -88,13 +88,22 @@ describe('Curator account status (e2e)', () => {
     );
     return token ? call.set('Authorization', `Bearer ${token}`) : call;
   };
-  const body = { status: 'INACTIVE', reason: 'Left the museum' };
+  const body = { status: 'ACTIVE', reason: 'Returned to the museum' };
 
-  it('lets a curator deactivate another curator', async () => {
+  it('lets a curator reactivate another curator', async () => {
     const response = await patch(targetId, 'curator').send(body).expect(200);
 
-    expect(response.body).toMatchObject({ id: targetId, status: 'INACTIVE' });
+    expect(response.body).toMatchObject({ id: targetId, status: 'ACTIVE' });
     expect(update).toHaveBeenCalledTimes(1);
+  });
+
+  // The Curator answered on 2026-11-07 that curators should not turn off
+  // another curator's account; handover or the Developer route does that.
+  it('refuses to let a curator deactivate another curator', async () => {
+    await patch(targetId, 'curator')
+      .send({ status: 'INACTIVE', reason: 'Left the museum' })
+      .expect(403);
+    expect(update).not.toHaveBeenCalled();
   });
 
   it('requires a session', async () => {
@@ -113,7 +122,7 @@ describe('Curator account status (e2e)', () => {
   });
 
   it('requires a reason', async () => {
-    await patch(targetId, 'curator').send({ status: 'INACTIVE' }).expect(400);
+    await patch(targetId, 'curator').send({ status: 'ACTIVE' }).expect(400);
     expect(update).not.toHaveBeenCalled();
   });
 

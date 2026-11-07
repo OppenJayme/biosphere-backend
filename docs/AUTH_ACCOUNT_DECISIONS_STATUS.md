@@ -1,6 +1,6 @@
 # Auth and curator account decisions: status
 
-Last updated 2026-11-05. This page separates what the SRS requires, what is configured today, what
+Last updated 2026-11-07. This page separates what the SRS requires, what is configured today, what
 the team recommends, and what still needs curator or client approval. A recommendation here is not
 an approved policy and must not be cited as an SRS requirement.
 
@@ -15,8 +15,8 @@ remain.
 
 | Item | Requirement | Status | Waiting on |
 | --- | --- | --- | --- |
-| Curator activate and deactivate | REQ-4.1-08 | Built to the recommended rules, backend and Users page; not complete | Museum approval of the procedure |
-| Curator handover | REQ-4.1-09, REQ-4.1-11 | Separate successor account available; no handover action or handover audit | Museum approval of the procedure |
+| Curator activate and deactivate | REQ-4.1-08 | Changed per the Curator's 2026-11-07 answer: curators may reactivate another curator but not deactivate one | Team review of the change |
+| Curator handover | REQ-4.1-09, REQ-4.1-11 | Built per the Curator's 2026-11-07 answer: the outgoing curator hands over to an active successor, and their own account is deactivated, kept and audited (`CURATOR_HANDOVER`) | Team review; hosted test |
 | Inactivity timeout | REQ-4.1-05 | Partial: built and enforced by the frontend, including an offline lock; 30 minutes is a team decision for the $0 baseline | Final requirement and client acceptance |
 | Public signup | REQ-4.1-03 | Turned off and retested on hosted; all four retest steps passed | Nothing |
 | Invite and reset expiry | REQ-4.1-19 | Single use proven; hosted value is 3600 seconds, not an approved period | Approved period |
@@ -156,11 +156,32 @@ Proposed by the team for review by Sir Fidel and the museum.
 
 The outgoing account is deactivated and kept, not deleted, so historical attribution stays intact.
 
+## Curator answers (2026-11-07)
+
+Sir Fidel answered the team's questions in writing on 2026-11-07:
+
+- Asked whether another curator may turn off a departing curator's account with a recorded reason,
+  he answered **No**: once he retires or leaves USC he has no right to interfere with the
+  successor's work, because everything is turned over.
+- The physical development and records management of the museum are now under the Department of
+  Library, and whether the system is turned over to DCISM depends on the University.
+
+What was built from this:
+
+- `POST /user-accounts/handover` (signed-in curator): names a successor who is another **active**
+  curator and has finished setup, with a required reason. In one SERIALIZABLE transaction the
+  outgoing account becomes INACTIVE and a `CURATOR_HANDOVER` audit entry records the successor and
+  reason. The account is kept, so historical attribution stays intact. No credentials move.
+- `PATCH /user-accounts/:id/status` now refuses `INACTIVE` for another curator (403, audited as
+  DENIED). Reactivation still works with a reason.
+- When a curator leaves without handing over, the Developer status route (with its
+  `authorizationReason`) deactivates the account at the museum's direction.
+
 ## Needs curator or client approval
 
 | Decision | Who decides | Blocks |
 | --- | --- | --- |
-| Deactivation rules and handover steps above | Sir Fidel and the museum | Building and closing REQ-4.1-08; REQ-4.1-09 handover action |
+| Who directs the Developer route when a curator leaves without handing over (likely the Department of Library) | Museum / Department of Library | Closing REQ-4.1-08 |
 | Final acceptance of the 30-minute period and frontend enforcement | Curator or client | Closing REQ-4.1-05 |
 | Production sender model | USC IT, requested or endorsed by Sir Fidel or the museum | Accepting production email deliverability |
 | Invitation and reset expiry periods, including whether 1 hour suits invitations | Curator or client | Closing REQ-4.1-19 |

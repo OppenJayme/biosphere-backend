@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   ForbiddenException,
   InternalServerErrorException,
@@ -77,12 +78,20 @@ describe('UserAccountsService.updateCuratorStatus', () => {
     status: UserAccountStatus.INACTIVE,
     reason: 'Left the museum',
   };
+  const activate = {
+    status: UserAccountStatus.ACTIVE,
+    reason: 'Returned to the museum',
+  };
+  const inactiveTarget = {
+    ...accountRow({ id: targetId, status: 'INACTIVE' }),
+    role: 'CURATOR',
+  };
 
   type FixtureRow = Record<string, unknown> | null;
 
   function statusFixture({
     acting = { status: 'ACTIVE' },
-    target = { ...accountRow({ id: targetId }), role: 'CURATOR' },
+    target = inactiveTarget,
     transactionError,
   }: {
     acting?: FixtureRow;
@@ -93,7 +102,7 @@ describe('UserAccountsService.updateCuratorStatus', () => {
     const txAuditCreate = jest.fn().mockResolvedValue({});
     const update = jest
       .fn()
-      .mockResolvedValue(accountRow({ id: targetId, status: 'INACTIVE' }));
+      .mockResolvedValue(accountRow({ id: targetId, status: 'ACTIVE' }));
     const findUnique = jest
       .fn()
       .mockResolvedValueOnce(acting)
@@ -125,20 +134,34 @@ describe('UserAccountsService.updateCuratorStatus', () => {
     };
   }
 
-  it('deactivates another curator and audits it in the same transaction', async () => {
+  it('refuses to deactivate another curator and audits the denial', async () => {
+    const { service, runTransaction, auditCreate } = statusFixture({
+      target: { ...accountRow({ id: targetId }), role: 'CURATOR' },
+    });
+
+    await expect(
+      service.updateCuratorStatus(targetId, deactivate, actor),
+    ).rejects.toThrow(/hands over their own account/);
+
+    expect(runTransaction).not.toHaveBeenCalled();
+    expect(auditCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        action: 'UPDATE_CURATOR_STATUS',
+        status: 'DENIED',
+      }) as unknown,
+    });
+  });
+
+  it('reactivates another curator and audits it in the same transaction', async () => {
     const { service, update, txAuditCreate, auditCreate } = statusFixture();
 
-    const result = await service.updateCuratorStatus(
-      targetId,
-      deactivate,
-      actor,
-    );
+    const result = await service.updateCuratorStatus(targetId, activate, actor);
 
-    expect(result.status).toBe('INACTIVE');
+    expect(result.status).toBe('ACTIVE');
     expect(update).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { id: targetId },
-        data: { status: 'INACTIVE' },
+        data: { status: 'ACTIVE' },
       }),
     );
     expect(txAuditCreate).toHaveBeenCalledWith({
@@ -149,9 +172,9 @@ describe('UserAccountsService.updateCuratorStatus', () => {
         module: 'user-accounts',
         status: 'SUCCESS',
         details: {
-          previousStatus: 'ACTIVE',
-          newStatus: 'INACTIVE',
-          reason: 'Left the museum',
+          previousStatus: 'INACTIVE',
+          newStatus: 'ACTIVE',
+          reason: 'Returned to the museum',
         },
       }) as unknown,
     });
@@ -162,7 +185,7 @@ describe('UserAccountsService.updateCuratorStatus', () => {
     const { service, runTransaction, auditCreate } = statusFixture();
 
     await expect(
-      service.updateCuratorStatus(actor.accountId, deactivate, actor),
+      service.updateCuratorStatus(actor.accountId, activate, actor),
     ).rejects.toBeInstanceOf(ForbiddenException);
 
     expect(runTransaction).not.toHaveBeenCalled();
@@ -180,7 +203,7 @@ describe('UserAccountsService.updateCuratorStatus', () => {
     });
 
     await expect(
-      service.updateCuratorStatus(targetId, deactivate, actor),
+      service.updateCuratorStatus(targetId, activate, actor),
     ).rejects.toBeInstanceOf(ForbiddenException);
     expect(update).not.toHaveBeenCalled();
   });
@@ -192,7 +215,7 @@ describe('UserAccountsService.updateCuratorStatus', () => {
     const { service, update, auditCreate } = statusFixture({ target });
 
     await expect(
-      service.updateCuratorStatus(targetId, deactivate, actor),
+      service.updateCuratorStatus(targetId, activate, actor),
     ).rejects.toBeInstanceOf(NotFoundException);
 
     expect(update).not.toHaveBeenCalled();
@@ -203,19 +226,12 @@ describe('UserAccountsService.updateCuratorStatus', () => {
 
   it('changes nothing when the account already has the status', async () => {
     const { service, update, txAuditCreate } = statusFixture({
-      target: {
-        ...accountRow({ id: targetId, status: 'INACTIVE' }),
-        role: 'CURATOR',
-      },
+      target: { ...accountRow({ id: targetId }), role: 'CURATOR' },
     });
 
-    const result = await service.updateCuratorStatus(
-      targetId,
-      deactivate,
-      actor,
-    );
+    const result = await service.updateCuratorStatus(targetId, activate, actor);
 
-    expect(result.status).toBe('INACTIVE');
+    expect(result.status).toBe('ACTIVE');
     expect(update).not.toHaveBeenCalled();
     expect(txAuditCreate).not.toHaveBeenCalled();
   });
@@ -226,7 +242,7 @@ describe('UserAccountsService.updateCuratorStatus', () => {
     });
 
     await expect(
-      service.updateCuratorStatus(targetId, deactivate, actor),
+      service.updateCuratorStatus(targetId, activate, actor),
     ).rejects.toBeInstanceOf(InternalServerErrorException);
     expect(auditCreate).toHaveBeenCalledWith({
       data: expect.objectContaining({ status: 'FAILED' }) as unknown,
@@ -459,5 +475,160 @@ describe('UserAccountsService.inviteCurator', () => {
     await expect(service.inviteCurator(dto, actor)).resolves.toMatchObject({
       id: 'acc-new',
     });
+  });
+});
+
+describe('UserAccountsService.handOver', () => {
+  const successorId = 'acc-successor';
+  const handover = { successorAccountId: successorId, reason: 'Retiring' };
+  const successorRow = {
+    ...accountRow({
+      id: successorId,
+      auth_user_id: 'auth-successor',
+      full_name: 'Ana Reyes',
+    }),
+    role: 'CURATOR',
+  };
+
+  function handoverFixture({
+    successor = successorRow,
+    successorReady = true,
+    outgoing = { status: 'ACTIVE', role: 'CURATOR' },
+    successorInTx = { status: 'ACTIVE', role: 'CURATOR' },
+  } = {}) {
+    const auditCreate = jest.fn().mockResolvedValue({});
+    const txAuditCreate = jest.fn().mockResolvedValue({});
+    const update = jest.fn().mockResolvedValue(
+      accountRow({
+        id: actor.accountId,
+        auth_user_id: actor.id,
+        status: 'INACTIVE',
+      }),
+    );
+    const txFindUnique = jest
+      .fn()
+      .mockResolvedValueOnce(outgoing)
+      .mockResolvedValueOnce(successorInTx);
+    const transaction = {
+      user_account: { findUnique: txFindUnique, update },
+      audit_log: { create: txAuditCreate },
+    };
+    const runTransaction = jest.fn((operation: (tx: unknown) => unknown) =>
+      operation(transaction),
+    );
+    const usersFindMany = jest.fn((args: { where: { id: { in: string[] } } }) =>
+      Promise.resolve(
+        args.where.id.in
+          .filter((id) => id !== 'auth-successor' || successorReady)
+          .map((id) => ({ id, raw_app_meta_data: {} })),
+      ),
+    );
+    const prisma = {
+      $transaction: runTransaction,
+      user_account: { findUnique: jest.fn().mockResolvedValue(successor) },
+      users: { findMany: usersFindMany },
+      audit_log: { create: auditCreate },
+    } as unknown as PrismaService;
+    return {
+      service: new UserAccountsService(
+        prisma,
+        {} as SupabaseClient,
+        {} as ConfigService,
+      ),
+      runTransaction,
+      auditCreate,
+      txAuditCreate,
+      update,
+    };
+  }
+
+  it('deactivates the outgoing account, keeps it, and audits the handover together', async () => {
+    const { service, update, txAuditCreate, auditCreate } = handoverFixture();
+
+    const result = await service.handOver(handover, actor);
+
+    expect(result.status).toBe('INACTIVE');
+    expect(update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: actor.accountId },
+        data: { status: 'INACTIVE' },
+      }),
+    );
+    expect(txAuditCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        user_id: actor.accountId,
+        affected_record_id: actor.accountId,
+        action: 'CURATOR_HANDOVER',
+        status: 'SUCCESS',
+        details: {
+          successorAccountId: successorId,
+          successorName: 'Ana Reyes',
+          previousStatus: 'ACTIVE',
+          newStatus: 'INACTIVE',
+          reason: 'Retiring',
+        },
+      }) as unknown,
+    });
+    expect(auditCreate).not.toHaveBeenCalled();
+  });
+
+  it('refuses yourself as the successor', async () => {
+    const { service, runTransaction, auditCreate } = handoverFixture();
+
+    await expect(
+      service.handOver(
+        { successorAccountId: actor.accountId, reason: 'Retiring' },
+        actor,
+      ),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(runTransaction).not.toHaveBeenCalled();
+    expect(lastAudit(auditCreate)).toMatchObject({
+      action: 'CURATOR_HANDOVER',
+      status: 'FAILED',
+    });
+  });
+
+  it.each([
+    ['an unknown account', null],
+    ['a developer account', { ...successorRow, role: 'DEVELOPER' }],
+  ])('refuses %s as the successor', async (_label, successor) => {
+    const { service, update } = handoverFixture({ successor });
+
+    await expect(service.handOver(handover, actor)).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it('refuses a successor who has not finished setting up', async () => {
+    const { service, update } = handoverFixture({ successorReady: false });
+
+    await expect(service.handOver(handover, actor)).rejects.toThrow(
+      /finished setting up/,
+    );
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it('refuses an inactive successor, so the museum keeps a working curator', async () => {
+    const { service, update } = handoverFixture({
+      successorInTx: { status: 'INACTIVE', role: 'CURATOR' },
+    });
+
+    await expect(service.handOver(handover, actor)).rejects.toBeInstanceOf(
+      ConflictException,
+    );
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it('refuses an outgoing curator who is already inactive', async () => {
+    const { service, update, auditCreate } = handoverFixture({
+      outgoing: { status: 'INACTIVE', role: 'CURATOR' },
+    });
+
+    await expect(service.handOver(handover, actor)).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
+    expect(update).not.toHaveBeenCalled();
+    expect(lastAudit(auditCreate)).toMatchObject({ status: 'DENIED' });
   });
 });
