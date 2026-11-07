@@ -4,6 +4,14 @@ const { spawnSync } = require('node:child_process');
 const path = require('node:path');
 
 const enabled = process.env.RUN_SUPABASE_LAB === 'true';
+const env = {
+  ...process.env,
+  DATABASE_URL: 'postgresql://synthetic:synthetic@127.0.0.1:1/wrong',
+  SUPABASE_URL: 'https://example.invalid',
+  SUPABASE_SERVICE_ROLE_KEY: 'synthetic-invalid',
+  DOCKER_HOST: 'tcp://127.0.0.1:1',
+  HTTP_PROXY: 'http://127.0.0.1:1',
+};
 test(
   'restored Auth and private Storage remain usable with every source service stopped',
   { skip: !enabled, timeout: 540000 },
@@ -15,6 +23,7 @@ test(
         encoding: 'utf8',
         timeout: 520000,
         windowsHide: true,
+        env,
       },
     );
     assert.equal(result.status, 0, result.stdout + result.stderr);
@@ -22,20 +31,22 @@ test(
     assert.equal(evidence.recovery, 'RESTORED_API_VERIFIED');
     assert.equal(evidence.source, 'STOPPED_AND_DISCONNECTED');
     assert.equal(evidence.identity, 'PRESERVED');
+    assert.equal(evidence.sourceAccess, 'REJECTED');
+    assert.equal(evidence.sourceRefresh, 'REJECTED');
+    assert.equal(evidence.foreignKeys, 'ENFORCED');
     assert.equal(evidence.privateBytes, 'PRESERVED');
     assert.equal(evidence.anonymous, 'DENIED');
+    assert.deepEqual(evidence.anonymousDenial, {
+      status: 400,
+      statusCode: '404',
+      error: 'not_found',
+      message: 'Object not found',
+    });
     assert.equal(evidence.integrity, 'TAMPER_REJECTED_BEFORE_RESTORE');
     assert.equal(evidence.cleanup, 'COMPLETE');
   },
 );
-const env = {
-  ...process.env,
-  DATABASE_URL: 'postgresql://synthetic:synthetic@127.0.0.1:1/wrong',
-  SUPABASE_URL: 'https://example.invalid',
-  SUPABASE_SERVICE_ROLE_KEY: 'synthetic-invalid',
-  DOCKER_HOST: 'tcp://127.0.0.1:1',
-  HTTP_PROXY: 'http://127.0.0.1:1',
-};
+
 test(
   'synthetic user signs in and reads private uploaded bytes while anonymous access is denied',
   { skip: !enabled, timeout: 480000 },
@@ -56,6 +67,12 @@ test(
     assert.equal(evidence.auth, 'PASSWORD_AND_IDENTITY_VERIFIED');
     assert.equal(evidence.storage, 'PRIVATE_BYTES_VERIFIED');
     assert.equal(evidence.anonymous, 'DENIED');
+    assert.deepEqual(evidence.anonymousDenial, {
+      status: 400,
+      statusCode: '404',
+      error: 'not_found',
+      message: 'Object not found',
+    });
     assert.equal(evidence.cleanup, 'COMPLETE');
   },
 );

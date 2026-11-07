@@ -2230,3 +2230,15 @@ Final local worker run: **16/16 passed, zero skipped**. A fresh wrapper-driven
 Nest build, TypeScript checking, scoped TS/recommended CJS lint, Node syntax,
 Prettier and local document/diff checks passed. The new Linux CI run must be
 verified on the pushed head; run 516 remains evidence for the old head only.
+
+### November 7 - #252 integration and inherited #253 review fixes
+
+Merged the current develop/#251 safeguards without discarding #253's restore
+work. Local verification passed 9 native response/archive contracts and all
+3 owned Auth/Storage/containment/recovery cases. The restored target rejects
+source access/refresh tokens and requires fresh password sign-in; FK triggers
+remain enabled and reject a rolled-back orphan probe. The exact pinned
+anonymous HTTP/JSON response is checked on the same authenticated object URL.
+The source-token reuse finding was observed failing before repair; [DEF-041](TEST_DEFECT_LOG.md#def-041---supabase-rehearsal-reuses-source-authentication-authority)
+and the [canonical lab record](SUPABASE_RECOVERY_LAB.md#review-reconciliation-for-252-including-merged-253)
+record the scope/limits. New-head CI and reviewer confirmation remain separate.

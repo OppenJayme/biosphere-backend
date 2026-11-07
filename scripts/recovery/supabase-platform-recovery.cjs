@@ -6,11 +6,27 @@ const {
   createCipheriv,
   createDecipheriv,
 } = require('node:crypto');
+const {
+  requireAnonymousObjectHidden,
+  containsFixtureObjectFile,
+} = require('./supabase-storage-contract.cjs');
 const POLICY_SQL = `CREATE POLICY lab_owner_insert ON storage.objects FOR INSERT TO authenticated
   WITH CHECK (bucket_id = 'synthetic-private' AND owner_id = (SELECT auth.jwt()->>'sub'));
   CREATE POLICY lab_owner_read ON storage.objects FOR SELECT TO authenticated
   USING (bucket_id = 'synthetic-private' AND owner_id = (SELECT auth.jwt()->>'sub'));`;
 const hash = (bytes) => createHash('sha256').update(bytes).digest('hex');
+// Fresh-target account recovery intentionally excludes active/transient login state.
+const REAUTH_TABLES = [
+  'sessions',
+  'refresh_tokens',
+  'mfa_amr_claims',
+  'mfa_challenges',
+  'flow_state',
+  'one_time_tokens',
+  'saml_relay_states',
+  'oauth_authorizations',
+  'oauth_client_states',
+];
 function inventory(sql) {
   return sql(`BEGIN;
     CREATE TEMP TABLE lab_counts (name text, rows bigint) ON COMMIT DROP;
@@ -101,6 +117,7 @@ async function recoverPlatform({
       '--schema=storage',
       '--exclude-table=auth.schema_migrations',
       '--exclude-table=storage.migrations',
+      ...REAUTH_TABLES.map((table) => `--exclude-table=auth.${table}`),
       '--no-owner',
       '--no-privileges',
     ],
@@ -120,7 +137,7 @@ async function recoverPlatform({
     objects,
   );
   check(
-    objectPaths.includes('probe.txt'),
+    containsFixtureObjectFile(objectPaths),
     'OBJECT_ARCHIVE_MISSING_EXPECTED_FILE',
   );
   check(
@@ -131,179 +148,224 @@ async function recoverPlatform({
     inventory(source.sql) === before && schema(source) === sourceSchema,
     'SOURCE_CHANGED_DURING_CAPTURE',
   );
+  const expectedRows = JSON.parse(before);
+  for (const table of REAUTH_TABLES) {
+    const name = `auth.${table}`;
+    if (Object.hasOwn(expectedRows, name)) expectedRows[name] = 0;
+  }
   const body = Buffer.from(
     JSON.stringify({
-      format: 'biosphere-platform-fixture-v1',
+      format: 'biosphere-platform-fixture-v2',
       images,
       schema: sourceSchema,
       baseline: source.baseline,
-      rows: before,
-      secret: source.secret,
+      rows: JSON.stringify(expectedRows),
       dump: dump.toString('base64'),
       objects: objects.toString('base64'),
     }),
   );
   const key = randomBytes(32),
     iv = randomBytes(12);
-  const magic = Buffer.from('BSSLAB01');
-  const cipher = createCipheriv('aes-256-gcm', key, iv);
-  cipher.setAAD(magic);
-  const encrypted = Buffer.concat([
-    magic,
-    iv,
-    Buffer.alloc(16),
-    cipher.update(body),
-    cipher.final(),
-  ]);
-  cipher.getAuthTag().copy(encrypted, 20);
-  const open = (packet) => {
-    check(
-      packet.length >= 36 && packet.subarray(0, 8).equals(magic),
-      'INVALID_PLATFORM_PACKET',
-    );
-    const decipher = createDecipheriv(
-      'aes-256-gcm',
-      key,
-      packet.subarray(8, 20),
-    );
-    decipher.setAAD(magic);
-    decipher.setAuthTag(packet.subarray(20, 36));
-    return JSON.parse(
-      Buffer.concat([
-        decipher.update(packet.subarray(36)),
-        decipher.final(),
-      ]).toString(),
-    );
-  };
-  const corrupt = Buffer.from(encrypted);
-  corrupt[corrupt.length - 1] ^= 1;
-  let rejected = false;
   try {
-    open(corrupt);
-  } catch {
-    rejected = true;
-  }
-  check(rejected, 'TAMPER_NOT_REJECTED');
-  // Authentication happens before any target construction or write.
-  const packet = open(encrypted);
-  check(
-    packet.format === 'biosphere-platform-fixture-v1' &&
-      JSON.stringify(packet.images) === JSON.stringify(images),
-    'PLATFORM_VERSION_MISMATCH',
-  );
-  setPhase('source-unavailable');
-  resume(source);
-  for (const id of [...source.ids].reverse()) {
-    validate(id, true);
-    docker(['stop', '--time', '1', id]);
-    docker(['network', 'disconnect', '--force', inside, id]);
-    const stopped = inspect(id);
+    const magic = Buffer.from('BSSLAB02');
+    const cipher = createCipheriv('aes-256-gcm', key, iv);
+    cipher.setAAD(magic);
+    const encrypted = Buffer.concat([
+      magic,
+      iv,
+      Buffer.alloc(16),
+      cipher.update(body),
+      cipher.final(),
+    ]);
+    cipher.getAuthTag().copy(encrypted, 20);
+    const open = (packet) => {
+      check(
+        packet.length >= 36 && packet.subarray(0, 8).equals(magic),
+        'INVALID_PLATFORM_PACKET',
+      );
+      const decipher = createDecipheriv(
+        'aes-256-gcm',
+        key,
+        packet.subarray(8, 20),
+      );
+      decipher.setAAD(magic);
+      decipher.setAuthTag(packet.subarray(20, 36));
+      return JSON.parse(
+        Buffer.concat([
+          decipher.update(packet.subarray(36)),
+          decipher.final(),
+        ]).toString(),
+      );
+    };
+    const corrupt = Buffer.from(encrypted);
+    corrupt[corrupt.length - 1] ^= 1;
+    let rejected = false;
+    try {
+      open(corrupt);
+    } catch {
+      rejected = true;
+    }
+    check(rejected, 'TAMPER_NOT_REJECTED');
+    // Authentication happens before any target construction or write.
+    const packet = open(encrypted);
     check(
-      !stopped.State.Running &&
-        Object.keys(stopped.NetworkSettings.Networks).length === 0,
-      'SOURCE_STILL_AVAILABLE',
+      packet.format === 'biosphere-platform-fixture-v2' &&
+        JSON.stringify(packet.images) === JSON.stringify(images),
+      'PLATFORM_VERSION_MISMATCH',
     );
-  }
-  let sourceReachable = false;
-  try {
-    await source.serviceRequest(`${source.authUrl}/health`);
-    sourceReachable = true;
-  } catch {
-    /* expected disconnected source */
-  }
-  check(!sourceReachable, 'SOURCE_API_STILL_AVAILABLE');
-  setPhase('target-initialize');
-  const target = await platform(inside, 'target-', packet.secret);
-  pause(target);
-  setPhase('target-preflight');
-  check(
-    inventory(target.sql) === packet.baseline,
-    'TARGET_HAS_UNEXPECTED_DATA',
-  );
-  target.sql(POLICY_SQL);
-  check(schema(target) === packet.schema, 'TARGET_SCHEMA_MISMATCH');
-  setPhase('platform-restore');
-  docker(
-    [
-      'exec',
-      '-i',
-      target.db,
-      'pg_restore',
-      '-U',
-      'supabase_admin',
-      '-d',
-      'postgres',
-      '--data-only',
-      '--single-transaction',
-      '--exit-on-error',
-      '--disable-triggers',
-      '--no-owner',
-      '--no-privileges',
-    ],
-    Buffer.from(packet.dump, 'base64'),
-  );
-  docker(
-    ['exec', '-i', target.storage, 'tar', '-C', '/var/lib/storage', '-xf', '-'],
-    Buffer.from(packet.objects, 'base64'),
-  );
-  check(
-    inventory(target.sql) === packet.rows && schema(target) === packet.schema,
-    'RESTORED_INVENTORY_MISMATCH',
-  );
-  resume(target);
-  setPhase('restored-api-verification');
-  const signIn = await target.serviceRequest(
-    `${target.authUrl}/token?grant_type=password`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        email: fixture.email,
-        password: fixture.userPassword,
-      }),
-    },
-  );
-  check(signIn.ok, 'RESTORED_PASSWORD_FAILED');
-  const session = await signIn.json();
-  const headers = { Authorization: `Bearer ${session.access_token}` };
-  const identity = await target.serviceRequest(`${target.authUrl}/user`, {
-    headers,
-  });
-  check(
-    identity.ok && (await identity.json()).id === fixture.userId,
-    'RESTORED_IDENTITY_CHANGED',
-  );
-  const restored = await target.serviceRequest(
-    `${target.storageUrl}/object/authenticated/${fixture.bucket}/probe.txt`,
-    { headers },
-  );
-  check(
-    restored.ok &&
-      Buffer.from(await restored.arrayBuffer()).equals(fixture.bytes),
-    'RESTORED_OBJECT_BYTES_CHANGED',
-  );
-  const denied = await target.serviceRequest(
-    `${target.storageUrl}/object/authenticated/${fixture.bucket}/probe.txt`,
-    {
+    setPhase('source-unavailable');
+    resume(source);
+    for (const id of [...source.ids].reverse()) {
+      validate(id, true);
+      docker(['stop', '--time', '1', id]);
+      docker(['network', 'disconnect', '--force', inside, id]);
+      const stopped = inspect(id);
+      check(
+        !stopped.State.Running &&
+          Object.keys(stopped.NetworkSettings.Networks).length === 0,
+        'SOURCE_STILL_AVAILABLE',
+      );
+    }
+    let sourceReachable = false;
+    try {
+      await source.serviceRequest(`${source.authUrl}/health`);
+      sourceReachable = true;
+    } catch {
+      /* expected disconnected source */
+    }
+    check(!sourceReachable, 'SOURCE_API_STILL_AVAILABLE');
+    setPhase('target-initialize');
+    const target = await platform(inside, 'target-');
+    check(
+      target.secret !== source.secret && !Object.hasOwn(packet, 'secret'),
+      'TARGET_SECRET_NOT_ROTATED',
+    );
+    pause(target);
+    setPhase('target-preflight');
+    check(
+      inventory(target.sql) === packet.baseline,
+      'TARGET_HAS_UNEXPECTED_DATA',
+    );
+    target.sql(POLICY_SQL);
+    check(schema(target) === packet.schema, 'TARGET_SCHEMA_MISMATCH');
+    check(
+      target.sql('SHOW session_replication_role') === 'origin',
+      'FOREIGN_KEYS_NOT_ENFORCED',
+    );
+    // This must reject an orphan through the real database constraint, then roll back.
+    target.sql(`BEGIN; DO $$ BEGIN BEGIN
+    INSERT INTO storage.objects (bucket_id,name) VALUES ('lab-no-such-bucket','orphan-probe.txt');
+    RAISE EXCEPTION 'Foreign key enforcement missing';
+    EXCEPTION WHEN foreign_key_violation THEN NULL; END; END $$; ROLLBACK;`);
+    setPhase('platform-restore');
+    docker(
+      [
+        'exec',
+        '-i',
+        target.db,
+        'pg_restore',
+        '-U',
+        'supabase_admin',
+        '-d',
+        'postgres',
+        '--data-only',
+        '--single-transaction',
+        '--exit-on-error',
+        '--no-owner',
+        '--no-privileges',
+      ],
+      Buffer.from(packet.dump, 'base64'),
+    );
+    docker(
+      [
+        'exec',
+        '-i',
+        target.storage,
+        'tar',
+        '-C',
+        '/var/lib/storage',
+        '-xf',
+        '-',
+      ],
+      Buffer.from(packet.objects, 'base64'),
+    );
+    check(
+      JSON.stringify(JSON.parse(inventory(target.sql))) === packet.rows &&
+        schema(target) === packet.schema,
+      'RESTORED_INVENTORY_MISMATCH',
+    );
+    resume(target);
+    setPhase('restored-api-verification');
+    const oldAccess = await target.serviceRequest(`${target.authUrl}/user`, {
+      headers: { Authorization: `Bearer ${fixture.sourceAccessToken}` },
+    });
+    check(
+      [401, 403].includes(oldAccess.status),
+      'SOURCE_ACCESS_TOKEN_ACCEPTED',
+    );
+    const oldRefresh = await target.serviceRequest(
+      `${target.authUrl}/token?grant_type=refresh_token`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refresh_token: fixture.sourceRefreshToken }),
+      },
+    );
+    check(
+      oldRefresh.status === 400 &&
+        (await oldRefresh.json()).error_code === 'refresh_token_not_found',
+      'SOURCE_REFRESH_TOKEN_ACCEPTED',
+    );
+    const signIn = await target.serviceRequest(
+      `${target.authUrl}/token?grant_type=password`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: fixture.email,
+          password: fixture.userPassword,
+        }),
+      },
+    );
+    check(signIn.ok, 'RESTORED_PASSWORD_FAILED');
+    const session = await signIn.json();
+    const headers = { Authorization: `Bearer ${session.access_token}` };
+    const identity = await target.serviceRequest(`${target.authUrl}/user`, {
+      headers,
+    });
+    check(
+      identity.ok && (await identity.json()).id === fixture.userId,
+      'RESTORED_IDENTITY_CHANGED',
+    );
+    const objectUrl = `${target.storageUrl}/object/authenticated/${fixture.bucket}/probe.txt`;
+    const restored = await target.serviceRequest(objectUrl, { headers });
+    check(
+      restored.ok &&
+        Buffer.from(await restored.arrayBuffer()).equals(fixture.bytes),
+      'RESTORED_OBJECT_BYTES_CHANGED',
+    );
+    const denied = await target.serviceRequest(objectUrl, {
       headers: { Authorization: `Bearer ${target.anon}` },
-    },
-  );
-  check(
-    [400, 401, 403, 404].includes(denied.status),
-    'RESTORED_ANONYMOUS_ACCESS',
-  );
-  for (const id of source.ids)
-    check(!inspect(id).State.Running, 'SOURCE_RESTARTED');
-  key.fill(0);
-  return {
-    recovery: 'RESTORED_API_VERIFIED',
-    source: 'STOPPED_AND_DISCONNECTED',
-    identity: 'PRESERVED',
-    privateBytes: 'PRESERVED',
-    anonymous: 'DENIED',
-    integrity: 'TAMPER_REJECTED_BEFORE_RESTORE',
-    checkpointSha256: hash(encrypted),
-    checkpointBytes: encrypted.length,
-  };
+    });
+    const anonymousDenial = await requireAnonymousObjectHidden(denied);
+    for (const id of source.ids)
+      check(!inspect(id).State.Running, 'SOURCE_RESTARTED');
+    return {
+      recovery: 'RESTORED_API_VERIFIED',
+      source: 'STOPPED_AND_DISCONNECTED',
+      identity: 'PRESERVED',
+      sourceAccess: 'REJECTED',
+      sourceRefresh: 'REJECTED',
+      foreignKeys: 'ENFORCED',
+      privateBytes: 'PRESERVED',
+      anonymous: 'DENIED',
+      anonymousDenial,
+      integrity: 'TAMPER_REJECTED_BEFORE_RESTORE',
+      checkpointSha256: hash(encrypted),
+      checkpointBytes: encrypted.length,
+    };
+  } finally {
+    key.fill(0);
+  }
 }
 module.exports = { POLICY_SQL, inventory, recoverPlatform };

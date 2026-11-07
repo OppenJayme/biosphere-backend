@@ -69,8 +69,13 @@ launch budget reserves 1 GiB for the host and 1,152 MiB for engine/cache
 overhead. Database data and object bytes use bounded tmpfs inside those caps.
 It omits Studio, gateway, Realtime, image transformation, functions, pooler and
 analytics. Services publish no ports; real HTTP requests run inside the owned
-network probe, with credentials passed on stdin and responses kept in process
-memory. Only the outside counter has a loopback host port. In-network service
+network probe, with HTTP request payloads passed on stdin and responses kept in
+process memory. This is not a claim that every credential uses stdin: generated
+database passwords and JWT/service configuration also enter Docker argv and
+container environment, visible to local process listings and Docker inspection
+while the lab runs. These are synthetic, short-lived lab values only; this
+pattern must be redesigned/reviewed before real credentials or data are used.
+Only the outside counter has a loopback host port. In-network service
 requests do not prove a complete platform,
 gateway integration or recovery. The full recovery rehearsal retains its
 5 GiB policy until separately budgeted. Neither command lowers thresholds
@@ -267,25 +272,32 @@ live stack is kept concurrently. It changes no raw worker/recorder code.
    owner-scoped RLS policies, private bucket and known object used by smoke.
 2. Freeze Auth/REST containers and the Storage server process. Capture an
    explicit custom `pg_dump` of Auth/Storage **data**, excluding each service's
-   migration ledger. Capture physical object bytes separately. Compare source
+   migration ledger and the listed transient session/token/challenge/flow
+   tables. Preserve account identities/password hashes but require fresh
+   authentication. Capture physical object bytes separately. Compare source
    schema and table-count inventories before/after capture.
 3. Authenticate/encrypt a bounded in-memory checkpoint with AES-256-GCM,
-   including platform pins, schema fingerprint, data inventory, JWT signing
-   secret, database archive and object archive. A deliberately changed
+   including platform pins, schema fingerprint, retained-data inventory,
+   database archive and object archive, with no source signing-secret field.
+   A deliberately changed
    ciphertext byte must fail authentication before target construction/writes.
 4. Stop and disconnect every source service. Inspect their stopped/disconnected
    state and verify that the source Auth endpoint is unreachable from the
    probe. Initialize a **new** same-version target with a fresh DB password,
-   the captured JWT secret and target-local URLs.
+   a new target-specific JWT signing secret and target-local URLs.
 5. Freeze target applications, require its complete Auth/Storage table-count
    inventory to equal the fresh source baseline, recreate only the two known
    fixture RLS policies, and require an equal normalized schema fingerprint.
    Restore data transactionally with `pg_restore --single-transaction
-   --exit-on-error --disable-triggers`. Preserve the target's platform-managed
+   --exit-on-error`, keeping foreign-key triggers enabled. A real orphaned
+   Storage insert must fail with a foreign-key violation inside a rolled-back
+   probe transaction. Preserve the target's platform-managed
    DDL/migration history; do not drop schemas or weaken the raw worker guard.
 6. Restore physical bytes in the target Storage mount, verify schema/count
-   inventories, resume target apps, and verify the original password/user ID,
-   exact private bytes and anonymous denial through the real APIs. Confirm
+   inventories (excluded transient tables must be empty), resume target apps,
+   reject the old source-issued access and refresh tokens, and require a new
+   password sign-in. Verify the same user ID, exact private bytes and the exact
+   pinned anonymous-denial response through the real APIs. Confirm
    source services remain stopped; remove exact owned resources afterward.
 
 An implementation run recovered Auth but failed file download: Docker's archive
@@ -294,6 +306,9 @@ was **not** counted as recovery success. Physical capture/restore now uses `tar`
 inside the Storage mount namespace while its server PID 1 is SIGSTOP-frozen;
 auxiliary exec can access the real mount. The harness checks `/proc/1/status`
 for the stopped state and refuses an archive missing the known `probe.txt`.
+The archive check matches a whole filename component on a non-directory entry
+in the pinned backend's nested tenant/bucket/version layout; suffixes such as
+`probe.txt.tmp`, prefixes and a directory without payload do not pass.
 Auth/REST stay Docker-paused during this operation. The server is resumed with
 SIGCONT only after restoration. The repaired end-to-end case passed with the
 source unavailable and complete owned cleanup.
@@ -324,6 +339,41 @@ verification remain unclaimed. BAK-002 and full Gate B therefore stay open.
 BioSphere database/bucket/configuration set, then run the application-level
 restore rehearsal. Intended-source rehearsal and operating approval remain
 separate. This subset pass must not be relabelled complete system recovery.
+
+### Review reconciliation for #252, including merged #253
+
+#253 was merged into #252, not directly into develop. Its review findings
+therefore apply to this branch. The original restore pass above did not prove
+the procedure's reauthentication rule: a new regression actually observed a
+source-issued token still being accepted by the restored target. That run
+failed and was not counted as policy-compliant acceptance.
+
+The corrected v2 fixture checkpoint omits the source signing-secret field and
+transient Auth state listed in `REAUTH_TABLES`. A fresh target generates its own
+secret; old source access/refresh tokens must fail before a new password sign-in
+is verified. Retained account identities, object ownership and bytes stay
+unchanged. This tests the password-based fixture, not every OAuth/MFA/provider
+recovery scenario. No shared Auth records or real credentials are modified.
+
+Restore no longer disables triggers. Native foreign keys run during the
+single-transaction restore; a real orphan insert is rejected and rolled back
+before restoring. AES key-buffer cleanup is in `finally`, including failure
+paths; this is not complete JavaScript-memory erasure or custody proof.
+Archive checks recognize whole filename components on non-directory entries.
+
+Pinned Storage v1.89.12 returns HTTP **400** with JSON
+`{"statusCode":"404","error":"not_found","message":"Object not found"}`
+for the anonymous request to the same object URL just read successfully with
+authentication. Both smoke and restore now require that exact contract.
+Malformed responses, route errors and unrelated authentication errors do not
+count as the expected RLS-hidden-object result.
+
+Final local review run: **9/9 native response/archive contracts and 3/3 real
+owned service workflows passed, zero skipped**. Native contracts are included
+in normal CI; real service execution remains opt-in and locally verified only.
+The develop merge retains #251's build/marker safeguards and both acceptance
+checkpoint sections. Recheck CI and review on the new #252 head before merging;
+approval at 31ef817 does not cover these subsequent restore/security changes.
 
 Gate B remains partial until complete isolated synthetic recovery succeeds.
 Intended-source access/export, institutional custody and operating decisions,

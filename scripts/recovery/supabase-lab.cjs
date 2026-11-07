@@ -6,6 +6,9 @@ const { randomUUID, randomBytes, createHmac } = require('node:crypto');
 const os = require('node:os');
 const images = require('./supabase-lab-images.json').images;
 const {
+  requireAnonymousObjectHidden,
+} = require('./supabase-storage-contract.cjs');
+const {
   POLICY_SQL,
   inventory,
   recoverPlatform,
@@ -262,9 +265,11 @@ async function containment(inside, outside) {
   );
   return { containment: 'PASS', outsideControlHits: 1, blockedAttemptHits: 0 };
 }
-async function platform(inside, prefix = '', restoredSecret) {
+async function platform(inside, prefix = '') {
   // Private services never publish ports. HTTP crosses their real API boundary
-  // from the single-network owned probe; credentials travel over stdin only.
+  // from the single-network owned probe; HTTP request payloads use stdin.
+  // Synthetic DB passwords/JWT config also use Docker argv/environment and
+  // remain visible to local process/Docker inspection. Never use real secrets.
   const serviceRequest = async (url, options = {}) => {
     check(
       new RegExp(
@@ -297,7 +302,7 @@ async function platform(inside, prefix = '', restoredSecret) {
     });
   };
   const password = randomBytes(24).toString('hex');
-  const secret = restoredSecret ?? randomBytes(32).toString('hex');
+  const secret = randomBytes(32).toString('hex');
   const make = (options) => create({ ...options, name: prefix + options.name });
   const token = (role) => {
     const header = Buffer.from(
@@ -519,24 +524,29 @@ async function smoke(inside, recover = false) {
     },
   );
   check(uploaded.ok, 'STORAGE_UPLOAD_FAILED');
-  const downloaded = await serviceRequest(
-    `${storageUrl}/object/authenticated/${bucket}/probe.txt`,
-    { headers },
-  );
+  const objectUrl = `${storageUrl}/object/authenticated/${bucket}/probe.txt`;
+  const downloaded = await serviceRequest(objectUrl, { headers });
   check(
     downloaded.ok && Buffer.from(await downloaded.arrayBuffer()).equals(bytes),
     'STORAGE_BYTES_MISMATCH',
   );
-  const denied = await serviceRequest(
-    `${storageUrl}/object/authenticated/${bucket}/probe.txt`,
-    { headers: { Authorization: `Bearer ${anon}` } },
-  );
-  check([400, 401, 403, 404].includes(denied.status), 'ANONYMOUS_NOT_DENIED');
+  const denied = await serviceRequest(objectUrl, {
+    headers: { Authorization: `Bearer ${anon}` },
+  });
+  const anonymousDenial = await requireAnonymousObjectHidden(denied);
   if (recover)
     return recoverPlatform({
       inside,
       source,
-      fixture: { email, userPassword, userId: user.id, bucket, bytes },
+      fixture: {
+        email,
+        userPassword,
+        userId: user.id,
+        bucket,
+        bytes,
+        sourceAccessToken: session.access_token,
+        sourceRefreshToken: session.refresh_token,
+      },
       docker,
       inspect,
       validate,
@@ -552,6 +562,7 @@ async function smoke(inside, recover = false) {
     storage: 'PRIVATE_BYTES_VERIFIED',
     anonymous: 'DENIED',
     anonymousStatus: denied.status,
+    anonymousDenial,
   };
 }
 function cleanup() {
