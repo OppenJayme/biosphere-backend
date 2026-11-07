@@ -42,4 +42,5 @@ Thumbs.db
 # Local recovery rehearsal material; never commit keys, snapshots or restore files.
 .recovery-rehearsals/
 **/recovery.key
+**/recovery-history.private.json
 *.bsp

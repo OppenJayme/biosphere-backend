@@ -107,6 +107,8 @@ system is not a reason to postpone all fixes until the end.
 
 | ID      | Date       | Module                     | Summary                                                                 | Severity    | Priority | Status | Owner                   |
 | ------- | ---------- | -------------------------- | ----------------------------------------------------------------------- | ----------- | -------- | ------ | ----------------------- |
+| [DEF-040](#def-040---worker-runtime-and-connected-history-identity-are-not-verified) | 2026-11-07 | Recovery / Standalone worker | Stale compiled code and a reachable database with an incorrect/missing identity marker are accepted; expired manifests have a misleading error | S3 Moderate | P2 | Ready for retest | Kyer / Ivan; MarQtie review |
+| [DEF-039](#def-039---recovery-feed-fixture-omits-current-incomplete-record-scope) | 2026-11-07 | Recovery / Notification test fixture | Current real notification feed queries specimen data absent from the older recovery fixture | S4 Minor | P2 | Ready for retest | Kyer / Ivan; CI finding |
 | [DEF-038](#def-038---lock-cleanup-masks-the-recovery-outcome) | 2026-11-06 | Recovery / Synthetic adapter | Cleanup replaces an already recorded outcome/code and leaves reconciliation blocked by its marker | S3 Moderate | P2 | Ready for retest | Kyer / Ivan; MarQtie finding |
 | [DEF-037](#def-037---recovery-retries-expire-under-a-slow-lock-holder) | 2026-11-06 | Recovery / Internal recorder | Six-second start/finish audit holders exceed the implicit five-second transaction limit | S3 Moderate | P2 | Ready for retest | Kyer / Ivan; MarQtie finding |
 | [DEF-036](#def-036---synthetic-recovery-results-leak-into-operational-backup-views) | 2026-11-06 | Recovery / Backup History / Notifications | Rehearsal failures raise real backup alerts and completed non-captures mix into default lists | S3 Moderate | P1 | Ready for retest | Kyer / Ivan; MarQtie finding |
@@ -147,6 +149,55 @@ system is not a reason to postpone all fixes until the end.
 | [DEF-015](#def-015---audit-http-fixture-omits-the-security-audit-create-method) | 2026-10-19 | Audit / HTTP test fixture | Missing security-audit create mock logs an error despite green denial test | S3 Moderate | P2 | Ready for retest | Audit tests / coordinate with Auth |
 
 ## 3. Defect details
+
+### DEF-040 - Worker runtime and connected history identity are not verified
+
+**Observed:** November 7, 2026, MarQtie's #251 review at bf6ea48, followed by
+owned child-process/PostgreSQL reproduction. No deployed/shared-data incident.
+**Disposition:** Ready for retest; original review categorized these as non-blocking.
+
+The worker loaded whichever compiled recorder existed in dist, and Docker
+preflight alone did not establish the identity reached by the DB connection.
+The removed-container diagnostic also incorrectly reported Docker unavailable.
+Real regressions observed modified compiled code being accepted and reachable
+missing/mismatched-marker fixtures recording captures before the new guard.
+An actual removed owned container reproduced the misleading error. The narrow
+port-removal/reassignment race itself was not induced or claimed reproduced.
+
+The fix adds a successful-build stamp binding runtime/source inputs and emitted
+runtime bytes; a v2 private manifest and DB-owned nonce/owner/container marker;
+and identity verification after connection and on every actual recorder
+transaction connection before reads/writes. The application recorder service
+and shared schema remain unchanged. Expired IDs are distinguished through a
+successful Docker listing, without treating a failed listing as proof of expiry.
+
+Seven regressions cover stale compiled/source code, missing stamps, a removed
+container, missing/mismatched markers and identity changes before finish.
+The drift case keeps capture pending, restores the fixture marker, and reconciles
+the same attempt without changing checkpoint files/bytes or adding duplicate
+transition audits. Rebuild the dedicated checkout and regenerate old v1 owned
+manifests. No shared migration or institution/deployment approval is implied.
+See the [operating contract](../scripts/recovery/README.md#standalone-synthetic-worker).
+
+### DEF-039 - Recovery feed fixture omits current incomplete-record scope
+
+**Observed:** November 7, 2026, #251 Backend CI run 515 on f4730ac.
+**Disposition:** Ready for retest; test fixture gap, no product or live-data failure established.
+**Owner:** Kyer / Ivan.
+
+The combined develop branch includes #243's incomplete-record notifications.
+The real feed therefore queries public.specimen even without an account-specific
+alert scope. The older recovery-history fixture seeded inquiry/visit/history
+tables only; its notification-isolation case failed with PostgreSQL 42P01
+(relation public.specimen does not exist). CI passed 24/25 recorder cases and
+stopped before running the new worker step. The 16 standalone CLI checks passed.
+
+The repair adds only the minimal empty specimen/status scope used by the real
+incomplete-record query, with SELECT granted to the synthetic service role.
+No feed collaborator was mocked/skipped and no production notification or
+Inventory logic, migration or shared database was changed. All 25 owned
+recorder/feed cases then passed locally. Remote CI and independent review on
+the repaired head remain separate evidence.
 
 ### DEF-038 - Lock cleanup masks the recovery outcome
 

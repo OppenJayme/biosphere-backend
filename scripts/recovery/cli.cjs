@@ -649,7 +649,8 @@ function workspaceFingerprint(p) {
 /**
  * Worker-process-only adapter: execute() uses blocking Docker subprocesses.
  * Never call this inside the request-serving Nest/API process. Supply the
- * default-off recorder from a standalone application context in that worker.
+ * default-off recorder from an explicitly configured standalone provider
+ * assembly/application context in that worker.
  */
 async function runRecorded(input, recorder) {
   let p, command, key;

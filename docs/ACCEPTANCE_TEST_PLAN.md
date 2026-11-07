@@ -2155,3 +2155,60 @@ Local results after these repairs: adapter 11/11; standalone real Docker/CLI
 formatting and diff checks passed. The parent recorder's 25 cases remain in
 the remote recovery job. Recheck both CI jobs and the 11-case step on the new
 head before merging; the previous 9-case green run does not validate this patch.
+
+### November 7 - standalone owned synthetic worker
+
+The user approved the actual child-process command against fresh owned Docker
+fixtures, with generated synthetic credentials and protected history readback.
+The first process capture/restore case was observed failing before implementation
+and then passing. The completed worker suite passes 9/9 locally: actual child
+identity, capture/restore, inherited application/Docker destination isolation,
+four malformed/mismatched history manifests, unknown connection arguments,
+nonzero engine failure, malformed source identity rejection and fresh-process reconciliation of a pending finish.
+The checkpoint set/bytes stay unchanged during reconciliation, and the attempt
+retains exactly one start/finish audit. Invalid manifests leave start counts
+unchanged. Preflight source inspection establishes that container/port/owner
+checks precede construction of the database client; the tests do not observe
+every possible network connection or prove a hostile-host isolation boundary.
+
+The worker reads no application .env, starts no HTTP listener, applies no
+migrations and creates/deletes no databases or containers. Test setup alone
+creates/removes its exact owned resources. The generated private manifest is
+Git-ignored and becomes unusable after fixture cleanup. No shared credentials,
+records, running services, real email, hosted export or scheduler was involved.
+See the [command/preconditions](../scripts/recovery/README.md#standalone-synthetic-worker).
+BAK-002, full Supabase-compatible recovery, real-data authorization, custody and
+independent/deployment acceptance gates remain open.
+
+Strict profile typing was observed red: a singleton array containing a valid
+source identity passed JavaScript regex coercion and reached a recorded failure.
+The worker now requires primitive string identities before database construction.
+This was an implementation-stage validation finding in the new isolated command,
+not a shared deployment defect or an existing defect closure.
+
+CI run 515 additionally exposed an older integration fixture gap (DEF-039):
+the new incomplete-record feed in merged #243 needs specimen/status data that
+the recovery-history fixture had not declared. The run passed the CLI 16/16,
+then 24/25 recorder checks; worker steps had not run. Adding the minimal empty
+specimen scope repaired the real query without skipping/mocking it; all 25
+recorder/feed checks passed locally afterward. No application rule, shared
+schema or museum record changed. Verify the replacement CI run on the repaired
+head before relying on the worker's Linux result.
+
+### November 7 - #251 worker review safeguards
+
+The stale-artifact regression first demonstrated that modified compiled code
+was accepted; missing/mismatched DB markers likewise recorded a capture before
+the guard was implemented. The removed-container case first returned the wrong
+Docker-unavailable diagnostic. These cases now reject before unsafe recording.
+Build-time source/output hashes, v2 fixture markers, post-connect checks and
+checks on each transaction connection address the three review notes.
+Additional source/stamp and mid-transition drift/reconciliation checks cover
+pending outcomes without repeating capture. See the [worker contract](../scripts/recovery/README.md#standalone-synthetic-worker)
+and [DEF-040](TEST_DEFECT_LOG.md#def-040---worker-runtime-and-connected-history-identity-are-not-verified).
+No shared migration, hosted data, application-serving build or scheduler changed.
+New-head CI and independent review remain separate from local verification.
+Final local worker run: **16/16 passed, zero skipped**. A fresh wrapper-driven
+Nest build, TypeScript checking, scoped TS/recommended CJS lint, Node syntax,
+Prettier and local document/diff checks passed. The new Linux CI run must be
+verified on the pushed head; run 516 remains evidence for the old head only.
