@@ -56,6 +56,12 @@ export class SpecimenImportPreviewRow {
   valid!: boolean;
 
   @ApiProperty({
+    description:
+      'True when the row has no accession number, so the next USC-BM-YYYY-NNNN number is assigned at commit',
+  })
+  accessionNumberWillBeGenerated!: boolean;
+
+  @ApiProperty({
     type: ImportCatalogReadiness,
     description:
       'Missing catalog requirements never make a row invalid; they tell the curator what is still needed before the record can be Cataloged',

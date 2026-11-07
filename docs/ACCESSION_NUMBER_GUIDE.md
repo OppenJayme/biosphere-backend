@@ -10,13 +10,46 @@ is assigned (REQ-4.4-03).
 | ---------------- | --------------------------------------------------------------------------------- |
 | Scope            | Global across **every** specimen record, **including Archived** ones. Numbers are never reused. |
 | Comparison       | `lower(btrim(...))`: surrounding **spaces** are ignored and matching is case-insensitive, so ` abc-100 ` equals `ABC-100`. Inner whitespace is significant, and `btrim` does not strip tabs or newlines. |
-| Format           | Free text, at most 100 characters. No pattern is enforced yet.                    |
+| Format           | Free text, at most 100 characters. Curator-entered numbers in any format are kept. |
+| Generated        | A new record saved without a number gets `USC-BM-YYYY-NNNN` (see below).          |
 | Unassigned       | `null` (and legacy blank values) never collide.                                   |
+| Clearing         | An assigned number can be corrected but never cleared (`400`).                    |
 | Existing data    | The migration never rewrites data. It aborts and lists collisions if any exist.   |
 
 When the museum confirms an official format, add it as a DTO validator plus
 a `CHECK` constraint in a new migration. The uniqueness rule does not need
 to change.
+
+## Generated numbers
+
+Client proposal §1 (2026-10-22). Sent to the Curator as a team decision on
+2026-11-07; he asked for no change. The Curator had earlier left the accession
+format to the team.
+
+- Every entry path (manual create, offline-draft sync, bulk import) that
+  saves a record without an accession number calls
+  `SpecimenAccessionService.allocateNext` inside the same transaction, so the
+  record is numbered as soon as it is accepted, while still Uncataloged.
+- Format: `USC-BM-` + the acceptance year in Asia/Manila + a four-digit
+  sequence that restarts at `0001` each year (`USC-BM-2026-0001`). The
+  sequence widens past 9999 instead of wrapping.
+- The next number is one more than the highest `USC-BM-<year>-<n>` held by
+  **any** record, Archived included, so numbers are never reissued. Gaps left
+  by rolled-back transactions are not refilled.
+- A transaction-scoped advisory lock (`pg_advisory_xact_lock`) serializes
+  allocators. Under `SERIALIZABLE` (import rows) a concurrent loser is
+  reported as a serialization failure and retried by the existing helper; the
+  unique index remains the final guard.
+- The number never changes on cataloging, lot movement, archiving, or
+  restoration. The create audit event records `accessionNumber` and
+  `accessionNumberGenerated`.
+- Import preview flags rows that will be numbered with
+  `accessionNumberWillBeGenerated`, and their catalog readiness treats the
+  accession requirement as met.
+
+Open museum questions: the official format and historical examples; whether
+a documented group acquired together may share one number; how specimens
+with missing historical numbers should be recorded.
 
 ## Enforcement layers
 
