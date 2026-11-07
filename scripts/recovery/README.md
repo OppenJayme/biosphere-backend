@@ -372,6 +372,11 @@ compatibility, API capacity under load, process/power-loss recovery, real key
 custody nor an approved deployed backup schedule. The Linux recovery CI job
 builds the worker and runs this suite after the existing 52 recovery checks.
 
+The next full-service slice has a [Supabase lab preflight and execution order](../../docs/SUPABASE_RECOVERY_LAB.md).
+Its November 7 launch was withheld for low host-memory headroom and unresolved
+platform-version selection. No real Auth/Storage smoke or recovery pass follows
+from the raw PostgreSQL worker results.
+
 References: [PostgreSQL pg_dump](https://www.postgresql.org/docs/17/app-pgdump.html),
 [pg_restore](https://www.postgresql.org/docs/17/app-pgrestore.html),
 [Node authenticated encryption](https://nodejs.org/docs/latest-v22.x/api/crypto.html).
