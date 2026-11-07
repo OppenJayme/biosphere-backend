@@ -46,6 +46,7 @@ describe('Specimen details (e2e)', () => {
     };
 
     const prismaMock = {
+      specimen_lot_transaction: { findFirst: jest.fn(() => null) },
       user_account: {
         findUnique: jest.fn(
           ({ where }: { where: { auth_user_id: string } }) => {
@@ -137,7 +138,11 @@ describe('Specimen details (e2e)', () => {
         taxonomy: null,
         provenance: null,
         activeLots: [],
-        lotOverview: { activeLotCount: 0, totalQuantity: 0 },
+        lotOverview: {
+          activeLotCount: 0,
+          totalQuantity: 0,
+          zeroQuantityReason: null,
+        },
         media: [],
         tags: [],
       }),
