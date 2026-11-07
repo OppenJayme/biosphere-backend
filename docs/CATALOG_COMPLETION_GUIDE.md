@@ -72,9 +72,19 @@ required value or the last qualifying lot being deactivated mid-completion.
 It also rejects duplicate completion history from two simultaneous requests.
 Serialization failures are retried up to three times, then reported as `409`.
 
-Inventory changes are not made or blocked by this Cataloging feature. Future
-inventory policy must decide how deaccessioning or depleting the final active
-lot affects an already Cataloged record.
+Inventory changes are not made or blocked by this Cataloging feature.
+
+### Zero quantity after cataloging
+
+Client proposal §2 (2026-10-22), a team decision the Curator left unchanged on
+2026-11-07: when a Cataloged record's active quantity reaches zero it **stays
+Cataloged** and keeps its accession number. The reduction is a quantity
+adjustment with a required reason (`MISSING_LOSS`, `TRANSFER_OUT`,
+`DESTRUCTION`, `DEACCESSION`, `REMOVAL`, or `TEMPORARY_ABSENCE` for loans and
+off-site conservation). `GET /specimens/:id/details` reports the latest such
+reduction as `lotOverview.zeroQuantityReason` when the quantity is zero. The
+Curator also confirmed removed records are kept forever for auditing, and the
+Inventory report lists every permanent removal.
 
 ## Deferred decisions
 
