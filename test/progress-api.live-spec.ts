@@ -643,6 +643,7 @@ describe('Authentication and accounts (§4.1, §4.2)', () => {
 
     res = await api('POST', '/auth/onboarding/complete', {
       token: tokens.pendingCurator,
+      body: { password: 'Fixture-First-Password-2026!' },
     });
     const meta = await one(
       `SELECT raw_app_meta_data m FROM auth.users WHERE id=$1`,
@@ -666,7 +667,9 @@ describe('Authentication and accounts (§4.1, §4.2)', () => {
         !!audit,
       db: `app_metadata after: ${JSON.stringify(meta?.m)}`,
     });
-    res = await api('POST', '/auth/onboarding/complete');
+    res = await api('POST', '/auth/onboarding/complete', {
+      body: { password: 'Fixture-First-Password-2026!' },
+    });
     record({
       id: 'AUTH-ONBOARD-NOJWT',
       module: 'auth',
@@ -764,7 +767,7 @@ describe('Authentication and accounts (§4.1, §4.2)', () => {
       res: null,
       expect: 200,
       check: curatorStatusRoute,
-      note: 'No curator-side route to activate/deactivate or hand over an account exists (only /developer/curators/:id/status).',
+      note: 'Not executed: reconcile the legacy Curator activation requirement with the Nov 7 Developer-owned status/handover decision and its owner-accepted HTTP evidence.',
     });
     const passwordRoute = ROUTES.some((r) => /password/i.test(r.path));
     record({
@@ -777,7 +780,7 @@ describe('Authentication and accounts (§4.1, §4.2)', () => {
       res: null,
       expect: 200,
       check: passwordRoute,
-      note: 'No backend change-password or confirmation-email route; password changes would happen directly in Supabase with no BioSphere audit (REQ-4.1-11).',
+      note: 'Not executed here: backend password change/recovery/reset routes exist; their current HTTP and audit behavior still needs executed evidence in this progress harness.',
     });
   });
 
@@ -3765,7 +3768,7 @@ describe('Inquiries, visit requests, notifications, dashboard (§4.3, §4.8, §4
       res: null,
       expect: 200,
       check: false,
-      note: 'CuratorNotificationType has only NEW_INQUIRY, NEW_VISIT_REQUEST, SUBMISSION_EMAIL_FAILED; no sync-failure, backup, report, QR/AR or other operational notification exists.',
+      note: 'Not executed: the current feed includes SYNC_FAILED; create a synthetic sync-failure fixture and read it through the notification API before accepting this requirement.',
     });
 
     res = await api('GET', '/dashboard/summary', { token: C });
@@ -4435,8 +4438,32 @@ describe('Reports, FAQ, offline sync, audit, backups (§4.7, §4.11, §4.14, §4
       res: null,
       expect: 200,
       check: backupWrite,
-      note: 'No backup, restore, failure-alert or verification mechanism exists in the backend; backup_history is read-only.',
+      note: 'Not executed: standalone synthetic recovery and history recording exist; intended-source recovery and deployed scheduling/retention/custody acceptance remain separate gates. No public restore POST is required.',
     });
+  });
+
+  // Keep this after the initial login cases: the real per-route five/minute
+  // throttle stays enabled while the paced full suite exercises other modules.
+  it('signs in with the password chosen during onboarding', async () => {
+    const firstLogin = await api('POST', '/auth/login', {
+      body: {
+        email: accounts.pendingCurator.email,
+        password: 'Fixture-First-Password-2026!',
+      },
+    });
+    record({
+      id: 'AUTH-ONBOARD-FIRST-LOGIN',
+      module: 'auth',
+      srs: ['REQ-4.1-07', 'REQ-4.1-11'],
+      method: 'POST',
+      path: '/auth/login',
+      kind: 'happy',
+      res: firstLogin,
+      expect: 201,
+      check:
+        firstLogin.body?.user?.accountId === accounts.pendingCurator.accountId,
+    });
+    expect(firstLogin.status).toBe(201);
   });
 
   it('serves the root status route', async () => {

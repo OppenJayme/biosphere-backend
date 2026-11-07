@@ -52,7 +52,7 @@ export class FakeSupabase {
   readonly users = new Map<string, FakeUser>();
   readonly tokens = new Map<string, string>();
   readonly calls: RecordedCall[] = [];
-  readonly storedObjects = new Map<string, number>();
+  readonly storedObjects = new Map<string, Buffer>();
   baseUrl = '';
 
   constructor(private readonly db: Client) {}
@@ -93,7 +93,7 @@ export class FakeSupabase {
     const type = req.headers['content-type'] ?? '';
     if (type.includes('application/json') && raw.length > 0)
       return JSON.parse(raw.toString('utf8'));
-    return { bytes: raw.length };
+    return raw;
   }
 
   private userJson(user: FakeUser) {
@@ -185,7 +185,11 @@ export class FakeSupabase {
     if (adminUser && req.method === 'PUT') {
       const user = this.users.get(adminUser[1]);
       if (!user) return this.json(res, 404, { msg: 'User not found' });
-      const attrs = body as { app_metadata?: Record<string, unknown> };
+      const attrs = body as {
+        app_metadata?: Record<string, unknown>;
+        password?: string;
+      };
+      if (typeof attrs.password === 'string') user.password = attrs.password;
       if (attrs.app_metadata) {
         // GoTrue merges app_metadata keys; a null value removes one.
         for (const [key, value] of Object.entries(attrs.app_metadata)) {
@@ -207,7 +211,7 @@ export class FakeSupabase {
       return this.json(res, 200, {});
     }
 
-    // Storage: signed URL, upload, remove
+    // Storage: signed URL, binary upload/download, remove.
     const sign = url.pathname.match(
       /^\/storage\/v1\/object\/sign\/([^/]+)\/(.+)$/,
     );
@@ -216,11 +220,16 @@ export class FakeSupabase {
         signedURL: `/object/sign/${sign[1]}/${sign[2]}?token=fake`,
       });
     const object = url.pathname.match(/^\/storage\/v1\/object\/([^/]+)\/(.+)$/);
+    if (object && req.method === 'GET') {
+      const bytes = this.storedObjects.get(`${object[1]}/${object[2]}`);
+      if (!bytes) return this.json(res, 404, { msg: 'Object not found' });
+      res.writeHead(200, { 'content-type': 'application/octet-stream' });
+      return res.end(bytes);
+    }
     if (object && (req.method === 'POST' || req.method === 'PUT')) {
-      this.storedObjects.set(
-        `${object[1]}/${object[2]}`,
-        (body as { bytes?: number }).bytes ?? 0,
-      );
+      if (!Buffer.isBuffer(body))
+        return this.json(res, 400, { msg: 'Expected binary object content' });
+      this.storedObjects.set(`${object[1]}/${object[2]}`, Buffer.from(body));
       return this.json(res, 200, {
         Key: `${object[1]}/${object[2]}`,
         Id: randomUUID(),

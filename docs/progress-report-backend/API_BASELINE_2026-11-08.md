@@ -22,10 +22,21 @@ for that draft. The 11 allocator unit tests, focused HTTP regression, TypeScript
 build check and scoped lint also passed. This is a repaired product path with
 an explicitly incomplete overall baseline, not an all-green release check.
 
+The completed fixture follow-up recorded **791 observations: 787 passed and
+4 unresolved**, all four with no executed response (`actualStatus: null`).
+All 27 scenario blocks passed, but the suite correctly exited **1** for those
+four unexecuted requirement observations. No executed observation failed.
+Onboarding returned 200, valid-input/no-JWT rejection 401, chosen-password login
+201 and AR activation 200. Mail stayed captured (15 messages), no blocked
+outbound requests were recorded, no token-shaped strings were found in the
+committed report, and independent cleanup readback found no owned test container.
+This is not whole-module or real-provider acceptance.
+
 Evidence:
 
 - [Initial recorded observations](./api-test-results-2026-11-08.json)
 - [Post-fix recorded observations](./api-test-results-2026-11-08-fixed.json)
+- [Auth/Storage fixture follow-up](./api-test-results-2026-11-08-fixtures.json)
 - [Static route inventory](./route-inventory-2026-11-08.json)
 
 The first invocation omitted the VM-modules flag and stopped during setup;
@@ -45,6 +56,42 @@ HTTP creation workflow now checks that two successive omitted-accession
 requests receive `0001` and `0002`. It failed with HTTP 409 before the fix and
 passed after it against fresh PostgreSQL with real Nest/Prisma. No migration,
 shared-data correction or historical accession rewrite is required.
+
+## Auth and Storage fixture follow-up
+
+The onboarding requests now provide the password required by the current DTO,
+including the no-JWT request so its result isolates authentication rather than
+invalid input. The fake Auth admin update now applies the chosen synthetic
+password; a real application login with that password verifies the outward
+contract. It returned 401 with the old fake and succeeds after the repair.
+An initial test assertion expected login HTTP 200; it was corrected to the
+existing controller's POST status 201, without changing the controller.
+
+Fake Storage now retains uploaded binary content rather than only byte counts
+and serves those bytes for object downloads, with 404 for an absent object.
+AR activation therefore reaches the real stored-model validator. No business
+validation is disabled and no arbitrary valid model is substituted on reads.
+The Auth/Storage fake remains a test adapter, not Supabase authentication,
+cryptography, Storage RLS or provider-availability acceptance.
+
+The first combined follow-up hit the intended five-logins/minute limit on the
+new chosen-password check (HTTP 429). Its real application rate limit was not
+changed or bypassed. That check now runs after the suite's other paced workflows,
+when the initial login window has expired. The throttled diagnostic is not a
+passing full-baseline result; the completed rerun is recorded separately.
+
+The four unexecuted requirement observations remain distinct from HTTP failures:
+Curator activation versus the current Developer handover decision, unexercised
+password-management routes, operational sync-notification evidence and deployed
+backup/restore acceptance. They must not be relabelled successful merely
+because the three fixture failures are repaired. Their historical raw-note
+claims are interpreted using the dispositions below, not as proof of absent
+current features.
+
+The final harness notes for those four observations now explicitly say
+"Not executed" and describe the current feature/evidence boundary. They still
+fail the overall baseline until their required evidence/disposition is supplied;
+they are not silently skipped or promoted by checking whether a route exists.
 
 ## Initial failures and disposition
 

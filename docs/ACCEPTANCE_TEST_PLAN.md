@@ -14,6 +14,12 @@ a reproduced generated-accession collision; dated before/after evidence and
 unresolved fixture/coverage/operational follow-ups are retained. This does not
 establish full module or deployment acceptance.
 
+The [Auth/Storage fixture follow-up](./progress-report-backend/API_BASELINE_2026-11-08.md#auth-and-storage-fixture-follow-up)
+records 791 observations: 787 passing and four unexecuted requirement gaps;
+all 27 scenario blocks passed, with overall exit 1 retained for the unresolved
+gaps. Three fixture failures are repaired without changing application business
+rules or throttling. No executed observation failed in that completed run.
+
 2026-11-06 first recovery implementation: the [synthetic-only manual CLI](./BACKUP_RECOVERY_PROCEDURE.md#implementation-checkpoint---2026-11-06)
 initially passed 15/15 owned PostgreSQL/CLI checks, with encrypted capture,
 unavailable-source restore and independent SQL/file/config verification. The
