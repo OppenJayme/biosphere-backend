@@ -99,6 +99,53 @@ before creating an account or purchasing anything. Local rehearsal files,
 source Supabase buckets and the CI test job are not an established independent
 backup destination.
 
+### Storage and runner candidates - checked November 8, 2026
+
+Recommendation: first use an existing approved museum-controlled account if one
+is available and can meet the measurements. Otherwise, evaluate a dedicated
+Google Drive account with recovery/MFA custody retained by the museum. This is a
+candidate for a decision, not a selected destination or permission to create an
+account, connect credentials or upload museum data.
+
+| Candidate | Current published allowance / capability | Decision still needed |
+| --- | --- | --- |
+| Google Drive | Google describes consumer storage as **up to 15 GB**, shared with Gmail/Photos; actual available space must be inspected. [Google storage](https://support.google.com/drive/answer/9312312?hl=en). | Continuing account/MFA custody, actual quota, authorized use for encrypted museum exports and an automation configuration that remains within approved cost limits. |
+| OneDrive | Microsoft's free account storage is **5 GB**, shared with other Microsoft storage uses. [Microsoft storage FAQ](https://support.microsoft.com/en-us/onedrive/microsoft-storage-faqs). | Same ownership/privacy/capacity checks; consider it if a suitable approved account already exists. No education/organization entitlement is assumed. |
+| GitHub-hosted runner | Private execution uses a plan-dependent included compute allowance; the current GitHub Free table lists 500 MB artifact storage. [GitHub Actions billing](https://docs.github.com/en/billing/concepts/product-billing/github-actions). | Check the repository owner's actual plan, remaining allowance, budgets and existing CI consumption. Evaluate as a runner; ordinary CI artifacts are not the proposed retained independent recovery copy. |
+
+Google's [Drive API limits](https://developers.google.com/workspace/drive/api/guides/limits)
+changed for newer projects in May 2026 and include a daily billing threshold;
+the page says usage below that threshold incurs no extra charges, with further
+billing details subject to notice. Therefore, storage being free does not
+establish indefinitely free automation. Verify the intended API project and
+enforce the agreed spending limits before enabling anything; do not add billing
+or a payment method as an incidental setup step.
+
+If rclone is selected, its [Drive documentation](https://rclone.org/drive/)
+currently calls for an owned OAuth client because its shared client is being
+retired during 2026. It also documents weekly grant expiry for an OAuth app left
+in Testing. Resolve the approved client, consent/scope and durable authorization
+setup before treating unattended operation as maintainable. No tool installation
+or OAuth consent was performed in this assessment.
+
+**Retention protection is a separate open design check.** A folder and encrypted
+files alone do not establish that a compromised writer cannot remove retained
+copies. Google's [file-delete API](https://developers.google.com/workspace/drive/api/reference/rest/v3/files/delete)
+supports `drive.file` authorization; Microsoft's
+[app-folder documentation](https://learn.microsoft.com/en-us/graph/onedrive-sharepoint-appfolder)
+states that the owning user can delete/replace its contents. These consumer
+storage options therefore do not, by themselves, prove the procedure's protected
+retention/separation requirement. Demonstrate the actual permission boundary and
+independent-copy protection, or obtain an explicit policy deviation with its
+risk accepted by the authorized approver. Do not silently weaken the procedure
+to fit a free provider or mark the requirement passed from a no-delete script.
+
+Before choosing a provider, record its owner and measured available space, then
+compare them with the intended-source checkpoint size, retained full copies,
+incoming-copy headroom and reserve. Synthetic example sizes are not estimates of
+the museum's real holdings. Public documentation research did not inspect any
+actual account, approve a provider or establish its suitability.
+
 ### Four remaining work packages
 
 | Order | Work and responsible role | Completion evidence |
