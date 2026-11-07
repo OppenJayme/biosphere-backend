@@ -107,6 +107,7 @@ system is not a reason to postpone all fixes until the end.
 
 | ID      | Date       | Module                     | Summary                                                                 | Severity    | Priority | Status | Owner                   |
 | ------- | ---------- | -------------------------- | ----------------------------------------------------------------------- | ----------- | -------- | ------ | ----------------------- |
+| [DEF-041](#def-041---supabase-rehearsal-reuses-source-authentication-authority) | 2026-11-07 | Recovery / Supabase fixture | Restored target accepts source authentication; restore bypasses FK triggers and denial checks accept unrelated errors | S3 Moderate | P2 | Ready for retest | Kyer / Ivan; MarQtie #252/#253 review |
 | [DEF-040](#def-040---worker-runtime-and-connected-history-identity-are-not-verified) | 2026-11-07 | Recovery / Standalone worker | Stale compiled code and a reachable database with an incorrect/missing identity marker are accepted; expired manifests have a misleading error | S3 Moderate | P2 | Ready for retest | Kyer / Ivan; MarQtie review |
 | [DEF-039](#def-039---recovery-feed-fixture-omits-current-incomplete-record-scope) | 2026-11-07 | Recovery / Notification test fixture | Current real notification feed queries specimen data absent from the older recovery fixture | S4 Minor | P2 | Ready for retest | Kyer / Ivan; CI finding |
 | [DEF-038](#def-038---lock-cleanup-masks-the-recovery-outcome) | 2026-11-06 | Recovery / Synthetic adapter | Cleanup replaces an already recorded outcome/code and leaves reconciliation blocked by its marker | S3 Moderate | P2 | Ready for retest | Kyer / Ivan; MarQtie finding |
@@ -149,6 +150,36 @@ system is not a reason to postpone all fixes until the end.
 | [DEF-015](#def-015---audit-http-fixture-omits-the-security-audit-create-method) | 2026-10-19 | Audit / HTTP test fixture | Missing security-audit create mock logs an error despite green denial test | S3 Moderate | P2 | Ready for retest | Audit tests / coordinate with Auth |
 
 ## 3. Defect details
+
+### DEF-041 - Supabase rehearsal reuses source authentication authority
+
+**Observed:** November 7, 2026, review at #253/1fcedeb (merged into #252),
+followed by a real owned source-unavailable restore regression.
+**Disposition:** Ready for retest; synthetic implementation finding, no
+production credential exposure or shared-database incident established.
+
+The target reused the source signing secret and restored sessions/tokens,
+contradicting the recovery procedure's fresh-secret/sign-in requirement.
+The regression observed `SOURCE_ACCESS_TOKEN_ACCEPTED` after restore.
+The same review identified disabled FK triggers, success-only key cleanup and
+a substring archive check. #252's review also identified imprecise stdin-only
+credential wording and acceptance of arbitrary 4xx responses as RLS denial.
+
+The fix generates fresh target secrets, excludes transient Auth rows from the
+v2 fixture checkpoint, and verifies old access/refresh rejection plus fresh
+password login with the same user ID. Signing secrets are not checkpoint
+configuration fields. Native FK enforcement stays on during transactional
+restore; a rolled-back orphan probe proves enforcement in the owned target.
+AES key-buffer cleanup runs in finally. Archive filename-component checks
+reject suffix/directory false matches. Both source and target private-object
+checks require the pinned HTTP 400 / JSON 404 not_found contract.
+
+Generated lab DB/JWT values remain visible in Docker argv/environment and
+local inspection; only HTTP payloads use stdin. That lab limitation is now
+explicit, not represented as safe handling of real secrets. Local results:
+9/9 native contracts and 3/3 owned service workflows passed with zero skips.
+Independent updated-head review/CI and complete-system/custody/deployment
+acceptance remain separate; no existing acceptance gate was promoted.
 
 ### DEF-040 - Worker runtime and connected history identity are not verified
 

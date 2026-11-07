@@ -2195,6 +2195,24 @@ recorder/feed checks passed locally afterward. No application rule, shared
 schema or museum record changed. Verify the replacement CI run on the repaired
 head before relying on the worker's Linux result.
 
+### November 7: isolated Supabase service prerequisite
+
+Local owned Docker checks verified blocked outbound HTTP/control counter,
+synthetic Auth password sign-in/identity and private Storage byte readback with
+anonymous denial. See [the lab record](SUPABASE_RECOVERY_LAB.md) for resource
+refusals, corrected setup findings, exact pins and reproducible commands.
+This is a reduced-service prerequisite; BAK-002/Gate B remains open until
+full isolated recovery succeeds. No hosted export, scheduler or shared record
+was involved. Independent verification and Linux execution are not claimed.
+
+The subsequent same-version Auth/Storage restore case also passed locally:
+stopped/disconnected source, original password/user identity on a new target,
+exact private-byte readback, anonymous denial and checkpoint tamper rejection.
+The observed empty tmpfs archive and repaired mount-aware capture are recorded
+in the [lab contract](SUPABASE_RECOVERY_LAB.md#subsequent-same-version-authstorage-restore).
+Its checkpoint is in-memory and its fixture excludes BioSphere public tables;
+this does not close complete-system or custody/deployment gates.
+
 ### November 7 - #251 worker review safeguards
 
 The stale-artifact regression first demonstrated that modified compiled code
@@ -2212,3 +2230,15 @@ Final local worker run: **16/16 passed, zero skipped**. A fresh wrapper-driven
 Nest build, TypeScript checking, scoped TS/recommended CJS lint, Node syntax,
 Prettier and local document/diff checks passed. The new Linux CI run must be
 verified on the pushed head; run 516 remains evidence for the old head only.
+
+### November 7 - #252 integration and inherited #253 review fixes
+
+Merged the current develop/#251 safeguards without discarding #253's restore
+work. Local verification passed 9 native response/archive contracts and all
+3 owned Auth/Storage/containment/recovery cases. The restored target rejects
+source access/refresh tokens and requires fresh password sign-in; FK triggers
+remain enabled and reject a rolled-back orphan probe. The exact pinned
+anonymous HTTP/JSON response is checked on the same authenticated object URL.
+The source-token reuse finding was observed failing before repair; [DEF-041](TEST_DEFECT_LOG.md#def-041---supabase-rehearsal-reuses-source-authentication-authority)
+and the [canonical lab record](SUPABASE_RECOVERY_LAB.md#review-reconciliation-for-252-including-merged-253)
+record the scope/limits. New-head CI and reviewer confirmation remain separate.

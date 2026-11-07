@@ -423,6 +423,28 @@ The drift case preserves the pending capture, then checks same-ID reconciliation
 with unchanged checkpoint files/bytes and exactly two transition audits after
 the marker is restored. No real port-swap race or live Docker outage is induced.
 
+The next full-service slice has a [Supabase lab preflight and execution order](../../docs/SUPABASE_RECOVERY_LAB.md).
+After the initial November 7 capacity refusal, the separate opt-in command
+`npm run test:recovery:supabase` passed local containment and real synthetic
+Auth/Storage HTTP checks using a pinned reduced platform. It never loads app
+configuration, publishes Auth/Storage ports, exports hosted data or invokes the
+raw worker. A subsequent `recover` mode now restores bounded synthetic
+Auth/Storage data and physical bytes into a new same-version target, then
+checks the real APIs with its source stopped/disconnected. The full opt-in
+suite needs 5 GiB free RAM. See the linked capture contract, resource budgets,
+image prerequisites and observed archive repair. Its in-memory checkpoint
+does not establish durable custody, a complete BioSphere restore, Linux/CI
+execution or production recovery.
+
+The reviewed lab now requires the pinned HTTP 400 / JSON 404 `not_found`
+anonymous response, instead of accepting arbitrary 4xx errors. Recovery uses
+fresh target signing secrets, omits transient login state, rejects source access/
+refresh tokens and requires fresh sign-in; foreign keys remain enforced. HTTP
+payloads use stdin, while generated DB/JWT configuration is also visible in
+Docker argv/environment/inspection. Never reuse that lab pattern with real
+secrets. Fast native response/archive contracts run in normal CI; the heavy
+three-case real-service suite remains a separate opt-in local check.
+
 References: [PostgreSQL pg_dump](https://www.postgresql.org/docs/17/app-pgdump.html),
 [pg_restore](https://www.postgresql.org/docs/17/app-pgrestore.html),
 [Node authenticated encryption](https://nodejs.org/docs/latest-v22.x/api/crypto.html).
