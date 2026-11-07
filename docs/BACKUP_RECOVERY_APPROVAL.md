@@ -22,6 +22,9 @@ Confirm the academic timing with the adviser; do not invent a university process
 
 ## Decisions to complete
 
+For the next practical handoff, use the [November 8 closeout order](#closeout-order---november-8-2026)
+below. It groups the decisions without marking any of them approved.
+
 | Decision | Proposed value / evidence required | Approved value / owner / date |
 | --- | --- | --- |
 | Accountable institution and approver | USC/DCISM authorized representative; team approval alone is not assumed equivalent | Pending |
@@ -64,6 +67,73 @@ coverage at each gate. A failed or incomplete verification leaves that gate open
 The user authorized the November 6 isolated implementation/rehearsal only. No
 institutional policy approval, real-source access/export, destination selection,
 scheduled deployment or incident cutover follows from that authorization.
+
+## Closeout order - November 8, 2026
+
+### What exists and what has not been established
+
+The standalone synthetic worker, history/audit recorder and durable encrypted
+Auth/Storage rehearsal are implemented. The expanded full-schema/five-bucket
+candidate in [PR #265](https://github.com/OppenJayme/biosphere-backend/pull/265)
+at `d464412` has 34 native checks and five owned service workflows passing
+locally, with both CI jobs passing in
+[run 547](https://github.com/OppenJayme/biosphere-backend/actions/runs/42398525474).
+It remains open for independent review as of this checkpoint. These are
+synthetic engineering results, not intended-source recovery or Gate B acceptance.
+
+**Backup destination: none yet confirmed.** Read-only discovery found:
+
+- No selected destination, storage-account owner or custody reference in the
+  tracked procedure, approval record, recovery scripts or environment example.
+- No backup/recovery or object-store destination settings in the checked local
+  backend `.env` or frontend `.env.local`. Only matching setting names and
+  populated/not-populated flags were inspected for the report; no secret values
+  were printed or committed.
+- The repository workflow runs isolated synthetic recovery tests. It has no
+  scheduled backup trigger or configured retained-checkpoint upload.
+
+This does not prove that no team member owns a suitable storage account.
+Provider dashboards, repository secret values, external storage accounts and
+their available quotas were not inspected. Confirm ownership with the team
+before creating an account or purchasing anything. Local rehearsal files,
+source Supabase buckets and the CI test job are not an established independent
+backup destination.
+
+### Four remaining work packages
+
+| Order | Work and responsible role | Completion evidence |
+| --- | --- | --- |
+| 1 | Independent technical reviewer: finish #265 review; team/business owner: identify the accountable approver, intended source, continuing account/key custodians and on-demand support route. | Named review tied to the fixed commit; actual decisions recorded above. A merge alone is not rehearsal acceptance. |
+| 2 | Account owner and technical implementer: select a recoverable independent destination and runner; measure capacity, transfer, runtime and account recovery. | Restricted identity references; verified access without student devices; measured space for the proposed retention and temporary restore/export needs. No free-capacity or permanent-support assumption. |
+| 3 | Technical implementer, after explicit source/target authorization: complete the intended-source adapter and coordinated checkpoint controls, restore into an isolated target, then obtain technical and Curator validation. | Version-specific capture/restore manifest, write-freeze/drain/abort checks, DB/Auth/object/config integrity, fresh login, protected application checks, rollback/failure outcomes and the completed rehearsal record. No live cutover. |
+| 4 | Technical implementer and account owner: provision the approved schedule, protected copy/readback, retention, independent missed-run detection, history reconciliation and handover. | Least-privilege operation; failed/no-start jobs visible; last usable copy retained; approved expiry/holds verified; independent key retrieval and Curator checklist demonstrated. Enable only after the prerequisite gates pass. |
+
+Packages 2–4 contain remaining engineering and deployment work; they are not
+completed by selecting values in this document. No new public restore endpoint
+is needed. Avoid another broad synthetic test campaign unless review finds a
+defect or a changed implementation needs verification.
+
+### Short decision request for the owner/approver
+
+The team may send the following manually. It is a request for decisions, not a
+claim that Sir Fidel alone has institutional deployment authority.
+
+> We have implemented and tested BioSphere's synthetic backup/restore path.
+> Before configuring real backups, please help us confirm:
+>
+> 1. Who is authorized to approve the procedure, and which project is the intended source?
+> 2. Who will retain the project/storage accounts, MFA recovery and encryption-key access after graduation?
+> 3. Is there an existing approved independent storage account and a runner we may use at no recurring cost? None is confirmed in our current setup.
+> 4. Is the proposed daily capture and seven-daily-checkpoint retention acceptable, subject to measured capacity and privacy requirements?
+> 5. Who authorizes a recovery, validates restored museum data and can request qualified technical assistance when needed?
+>
+> Please identify the role/account owner and decision date. Keep passwords,
+> keys, MFA codes and database connection details out of the reply. We will
+> separately request permission for any real-data export and isolated restore.
+
+Until those answers arrive, preserve the reviewed synthetic evidence and leave
+hosted export, scheduler enablement and retention deletion unexecuted. This is
+not a waiver of SRS 4.15 or approval to overwrite the live service.
 
 ## Approval statement
 
