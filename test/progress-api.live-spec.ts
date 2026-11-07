@@ -7,7 +7,7 @@
  * SUPABASE_URL; Brevo email is captured; every other outbound host is blocked.
  * Nothing reaches the team's hosted database or sends real email.
  *
- * Run: RUN_PROGRESS_API_LIVE=true npx jest --config ./test/jest-progress-api-live.json --runInBand
+ * Run: npm run test:progress-api:db
  * Results: docs/progress-report-backend/api-test-results.json
  */
 import { INestApplication, ValidationPipe } from '@nestjs/common';
@@ -361,6 +361,12 @@ afterAll(async () => {
     await fake?.stop();
     await db?.close();
     outbound?.restore();
+  }
+  const failures = results.filter((result) => !result.pass);
+  if (results.length === 0 || failures.length > 0) {
+    throw new Error(
+      `Progress API observations: ${results.length} recorded, ${failures.length} failed. ${failures.map((result) => result.id).join(', ')}`,
+    );
   }
 });
 
@@ -1253,8 +1259,12 @@ describe('Specimens, cataloging, lots (§4.4, §4.5, §4.6)', () => {
     }
   });
 
-  it('creates specimens as Uncataloged with system IDs and optional accession numbers', async () => {
+  it('creates specimens as Uncataloged with unique generated or supplied accession numbers', async () => {
     const C = tokens.curatorA;
+    const year = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Manila',
+      year: 'numeric',
+    }).format(new Date());
     let res = await api('POST', '/specimens', {
       token: C,
       body: {
@@ -1287,11 +1297,28 @@ describe('Specimens, cataloging, lots (§4.4, §4.5, §4.6)', () => {
       expect: 201,
       check:
         row?.status === 'UNCATALOGED' &&
-        row?.accession_number === null &&
+        row?.accession_number === `USC-BM-${year}-0001` &&
         row?.created_by === accounts.curatorA.accountId &&
         row?.public_display_allowed === false,
       db: JSON.stringify(row),
     });
+    const next = await api('POST', '/specimens', {
+      token: C,
+      body: { commonName: 'Synthetic consecutive accession check' },
+    });
+    record({
+      id: 'SPC-CREATE-NEXT-ACCESSION',
+      module: 'specimens',
+      srs: ['REQ-4.4-03', 'REQ-4.4-04'],
+      method: 'POST',
+      path: '/specimens',
+      kind: 'happy',
+      res: next,
+      expect: 201,
+      check: next.body.accessionNumber === `USC-BM-${year}-0002`,
+    });
+    expect(next.status).toBe(201);
+    expect(next.body.accessionNumber).toBe(`USC-BM-${year}-0002`);
     res = await api('POST', '/specimens', {
       token: C,
       body: { commonName: 'x', gender: 'ROBOT' },

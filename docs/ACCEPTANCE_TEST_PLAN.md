@@ -7,6 +7,13 @@
 
 ## Start here
 
+2026-11-08 [merged-develop API baseline](./progress-report-backend/API_BASELINE_2026-11-08.md):
+the initial report contains 789 observations, including ten failures despite a
+successful Jest exit. The harness now fails on recorded failures. DEF-042 fixes
+a reproduced generated-accession collision; dated before/after evidence and
+unresolved fixture/coverage/operational follow-ups are retained. This does not
+establish full module or deployment acceptance.
+
 2026-11-06 first recovery implementation: the [synthetic-only manual CLI](./BACKUP_RECOVERY_PROCEDURE.md#implementation-checkpoint---2026-11-06)
 initially passed 15/15 owned PostgreSQL/CLI checks, with encrypted capture,
 unavailable-source restore and independent SQL/file/config verification. The
