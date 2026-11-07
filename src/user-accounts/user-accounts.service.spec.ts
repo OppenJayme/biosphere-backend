@@ -490,11 +490,17 @@ describe('UserAccountsService.handOver', () => {
     role: 'CURATOR',
   };
 
+  type Row = Record<string, unknown> | null;
   function handoverFixture({
     successor = successorRow,
     successorReady = true,
     outgoing = { status: 'ACTIVE', role: 'CURATOR' },
     successorInTx = { status: 'ACTIVE', role: 'CURATOR' },
+  }: {
+    successor?: Row;
+    successorReady?: boolean;
+    outgoing?: Row;
+    successorInTx?: Row;
   } = {}) {
     const auditCreate = jest.fn().mockResolvedValue({});
     const txAuditCreate = jest.fn().mockResolvedValue({});
