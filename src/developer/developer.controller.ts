@@ -3,6 +3,8 @@ import {
   Controller,
   Delete,
   Get,
+  HttpCode,
+  HttpStatus,
   Param,
   ParseUUIDPipe,
   Patch,
@@ -17,6 +19,7 @@ import type { AuthenticatedUser } from '../auth/types/auth.types';
 import { DeveloperService } from './developer.service';
 import { OnboardCuratorDto } from './dto/onboard-curator.dto';
 import { UpdateCuratorStatusDto } from './dto/update-curator-status.dto';
+import { HandOverCuratorDto } from './dto/hand-over-curator.dto';
 import { CreateArAssetDto } from './dto/create-ar-asset.dto';
 import { UpdateArAssetDto } from './dto/update-ar-asset.dto';
 import { ActivateArAssetDto } from './dto/activate-ar-asset.dto';
@@ -47,6 +50,17 @@ export class DeveloperController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.developerService.updateCuratorStatus(id, dto, user.id);
+  }
+
+  // Curator handover (REQ-4.1-09): deactivates the outgoing curator once
+  // their successor has their own active, signed-in account.
+  @Post('curators/handover')
+  @HttpCode(HttpStatus.OK)
+  handOverCurator(
+    @Body() dto: HandOverCuratorDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.developerService.handOverCurator(dto, user.id);
   }
 
   // ---- AR asset deployment (REQ-4.2-04, REQ-4.2-05) ----

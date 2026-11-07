@@ -23,6 +23,7 @@ const prismaMock = {
   users: {
     findFirst: jest.fn(),
     findMany: jest.fn(),
+    findUnique: jest.fn(),
   },
   user_account: {
     findMany: jest.fn(),
@@ -43,6 +44,8 @@ const prismaMock = {
   audit_log: {
     create: jest.fn(),
   },
+  // Runs the callback against this same mock, as a transaction client.
+  $transaction: jest.fn(),
 };
 
 const supabaseMock = {
@@ -129,6 +132,9 @@ describe('DeveloperService', () => {
   beforeEach(async () => {
     jest.clearAllMocks();
     prismaMock.audit_log.create.mockResolvedValue({});
+    prismaMock.$transaction.mockImplementation(
+      (operation: (tx: typeof prismaMock) => unknown) => operation(prismaMock),
+    );
     supabaseMock.auth.admin.updateUserById.mockResolvedValue({
       data: {},
       error: null,
@@ -645,6 +651,236 @@ describe('DeveloperService', () => {
           }),
         }),
       );
+    });
+  });
+
+  // ===========================================================
+  // handOverCurator — REQ-4.1-09 / REQ-4.1-11
+  // ===========================================================
+  describe('handOverCurator', () => {
+    const OUTGOING = '11111111-1111-4111-8111-111111111111';
+    const SUCCESSOR = '22222222-2222-4222-8222-222222222222';
+    const dto = {
+      outgoingCuratorId: OUTGOING,
+      successorCuratorId: SUCCESSOR,
+      authorizationReason: 'Curator retired; museum memo 2027-01',
+    };
+
+    function curatorRow(id: string, overrides: Record<string, unknown> = {}) {
+      return {
+        id,
+        auth_user_id: `auth-${id}`,
+        full_name: `Curator ${id.slice(0, 2)}`,
+        role: 'CURATOR',
+        status: 'ACTIVE',
+        avatar_path: null,
+        created_at: new Date('2026-01-01'),
+        updated_at: new Date('2026-01-02'),
+        ...overrides,
+      };
+    }
+
+    // Accounts by ID; the acting developer is looked up by auth user ID.
+    function given({
+      outgoing = curatorRow(OUTGOING),
+      successor = curatorRow(SUCCESSOR),
+      successorAccepted = true,
+      successorSignedIn = true,
+    }: {
+      outgoing?: Record<string, unknown> | null;
+      successor?: Record<string, unknown> | null;
+      successorAccepted?: boolean;
+      successorSignedIn?: boolean;
+    } = {}) {
+      prismaMock.user_account.findUnique.mockImplementation(({ where }) => {
+        if (where?.auth_user_id) {
+          return Promise.resolve({ id: ACTING_DEVELOPER_ACCOUNT_ID });
+        }
+        if (where?.id === OUTGOING) return Promise.resolve(outgoing);
+        if (where?.id === SUCCESSOR) return Promise.resolve(successor);
+        return Promise.resolve(null);
+      });
+      prismaMock.users.findMany.mockImplementation(({ where }) =>
+        Promise.resolve(
+          (where.id.in as string[])
+            .filter((id) => successorAccepted || id !== `auth-${SUCCESSOR}`)
+            .map((id) => ({ id, raw_app_meta_data: {} })),
+        ),
+      );
+      prismaMock.users.findUnique.mockResolvedValue({
+        last_sign_in_at: successorSignedIn ? new Date('2026-11-07') : null,
+      });
+      prismaMock.user_account.update.mockResolvedValue(
+        curatorRow(OUTGOING, { status: 'INACTIVE' }),
+      );
+    }
+
+    function auditCalls() {
+      return (
+        prismaMock.audit_log.create.mock.calls as [
+          { data: Record<string, unknown> },
+        ][]
+      ).map(([args]) => args.data);
+    }
+
+    it('deactivates the outgoing curator and audits the handover in one transaction', async () => {
+      given();
+
+      const result = await service.handOverCurator(
+        dto,
+        ACTING_DEVELOPER_AUTH_ID,
+      );
+
+      expect(prismaMock.$transaction).toHaveBeenCalledWith(
+        expect.any(Function),
+        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+      );
+      expect(prismaMock.user_account.update).toHaveBeenCalledTimes(1);
+      expect(prismaMock.user_account.update).toHaveBeenCalledWith({
+        where: { id: OUTGOING },
+        data: { status: 'INACTIVE' },
+      });
+      expect(auditCalls()).toEqual([
+        {
+          user_id: ACTING_DEVELOPER_ACCOUNT_ID,
+          affected_record_id: OUTGOING,
+          affected_record_type: 'user_account',
+          action: 'HAND_OVER_CURATOR',
+          module: 'developer',
+          status: 'SUCCESS',
+          details: {
+            successorAccountId: SUCCESSOR,
+            previousStatus: 'ACTIVE',
+            newStatus: 'INACTIVE',
+            authorizationReason: dto.authorizationReason,
+          },
+        },
+      ]);
+      expect(result.outgoing).toMatchObject({
+        id: OUTGOING,
+        status: 'INACTIVE',
+        inviteAccepted: true,
+      });
+      expect(result.successor).toMatchObject({
+        id: SUCCESSOR,
+        status: 'ACTIVE',
+        inviteAccepted: true,
+      });
+    });
+
+    it('keeps the outgoing account instead of deleting anything', async () => {
+      given();
+
+      await service.handOverCurator(dto, ACTING_DEVELOPER_AUTH_ID);
+
+      expect(supabaseMock.auth.admin.deleteUser).not.toHaveBeenCalled();
+      expect(supabaseMock.auth.admin.updateUserById).not.toHaveBeenCalled();
+    });
+
+    it('refuses a handover to the same account and audits DENIED', async () => {
+      given();
+
+      await expect(
+        service.handOverCurator(
+          { ...dto, successorCuratorId: OUTGOING },
+          ACTING_DEVELOPER_AUTH_ID,
+        ),
+      ).rejects.toThrow(BadRequestException);
+
+      expect(prismaMock.$transaction).not.toHaveBeenCalled();
+      expect(prismaMock.user_account.update).not.toHaveBeenCalled();
+      expect(auditCalls()).toEqual([
+        expect.objectContaining({
+          action: 'HAND_OVER_CURATOR',
+          status: 'DENIED',
+          affected_record_id: OUTGOING,
+        }),
+      ]);
+    });
+
+    it.each([
+      ['the outgoing account is missing', { outgoing: null }],
+      [
+        'the outgoing account is a Developer',
+        { outgoing: curatorRow(OUTGOING, { role: 'DEVELOPER' }) },
+      ],
+      ['the successor account is missing', { successor: null }],
+      [
+        'the successor account is a Developer',
+        { successor: curatorRow(SUCCESSOR, { role: 'DEVELOPER' }) },
+      ],
+    ])('returns 404 when %s', async (_case, setup) => {
+      given(setup);
+
+      await expect(
+        service.handOverCurator(dto, ACTING_DEVELOPER_AUTH_ID),
+      ).rejects.toThrow(NotFoundException);
+      expect(prismaMock.user_account.update).not.toHaveBeenCalled();
+      expect(auditCalls()).toEqual([
+        expect.objectContaining({ status: 'DENIED' }),
+      ]);
+    });
+
+    it.each([
+      [
+        'the outgoing account is already inactive',
+        { outgoing: curatorRow(OUTGOING, { status: 'INACTIVE' }) },
+      ],
+      [
+        'the successor account is inactive',
+        { successor: curatorRow(SUCCESSOR, { status: 'INACTIVE' }) },
+      ],
+      [
+        'the successor has not accepted the invitation',
+        { successorAccepted: false },
+      ],
+      ['the successor has never signed in', { successorSignedIn: false }],
+    ])('returns 409 when %s', async (_case, setup) => {
+      given(setup);
+
+      await expect(
+        service.handOverCurator(dto, ACTING_DEVELOPER_AUTH_ID),
+      ).rejects.toThrow(ConflictException);
+      expect(prismaMock.user_account.update).not.toHaveBeenCalled();
+      expect(auditCalls()).toEqual([
+        expect.objectContaining({
+          status: 'DENIED',
+          details: expect.objectContaining({
+            successorAccountId: SUCCESSOR,
+            authorizationReason: dto.authorizationReason,
+          }),
+        }),
+      ]);
+    });
+
+    it('retries a write conflict and then reports 409 without a change', async () => {
+      given();
+      prismaMock.$transaction.mockRejectedValue(
+        new Prisma.PrismaClientKnownRequestError('conflict', {
+          code: 'P2034',
+          clientVersion: 'test',
+        }),
+      );
+
+      await expect(
+        service.handOverCurator(dto, ACTING_DEVELOPER_AUTH_ID),
+      ).rejects.toThrow(ConflictException);
+      expect(prismaMock.$transaction).toHaveBeenCalledTimes(3);
+    });
+
+    it('hides an unexpected failure and audits FAILED', async () => {
+      given();
+      prismaMock.user_account.update.mockRejectedValue(new Error('db down'));
+
+      await expect(
+        service.handOverCurator(dto, ACTING_DEVELOPER_AUTH_ID),
+      ).rejects.toThrow(InternalServerErrorException);
+      expect(auditCalls()).toEqual([
+        expect.objectContaining({
+          status: 'FAILED',
+          details: expect.objectContaining({ failure: 'db down' }),
+        }),
+      ]);
     });
   });
 

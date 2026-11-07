@@ -1,5 +1,5 @@
 import type { User } from '@supabase/supabase-js';
-import type { PrismaService } from '../prisma/prisma.service';
+import type { Prisma } from '../generated/prisma/client';
 
 /**
  * Set in Supabase app_metadata when a curator is invited and cleared once
@@ -27,7 +27,8 @@ export function isOnboardingPending(user: {
  * check, so no hash is ever read.
  */
 export async function authUsersPastInvite(
-  prisma: PrismaService,
+  // A transaction client works too, so a check can run inside one.
+  prisma: Pick<Prisma.TransactionClient, 'users'>,
   ids: string[],
 ): Promise<Set<string>> {
   if (ids.length === 0) return new Set();
