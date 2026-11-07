@@ -20,18 +20,23 @@ import { extname } from 'node:path';
 import { SUPABASE_CLIENT } from '../supabase/supabase.constants';
 import { StorageService } from '../supabase/storage.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { runSerializableTransaction } from '../prisma/serializable-transaction';
 import {
   authUsersPastInvite,
   ONBOARDING_PENDING_KEY,
 } from '../auth/onboarding';
 import { OnboardCuratorDto } from './dto/onboard-curator.dto';
 import { UpdateCuratorStatusDto } from './dto/update-curator-status.dto';
+import { HandOverCuratorDto } from './dto/hand-over-curator.dto';
 import {
   CreateArAssetDto,
   type ArModelFormat,
 } from './dto/create-ar-asset.dto';
 import { UpdateArAssetDto } from './dto/update-ar-asset.dto';
-import { CuratorAccountEntity } from './entities/curator-account.entity';
+import {
+  CuratorAccountEntity,
+  CuratorHandoverEntity,
+} from './entities/curator-account.entity';
 import { ArAssetEntity, ArExhibitEntity } from './entities/ar-asset.entity';
 import {
   AR_ASSET_STORAGE_BUCKET,
@@ -40,6 +45,8 @@ import {
 import { glbFileError } from './glb-validation';
 
 type AuditStatus = 'SUCCESS' | 'FAILED' | 'DENIED';
+
+export const HAND_OVER_CURATOR_ACTION = 'HAND_OVER_CURATOR';
 
 const INVITE_NOT_COMPLETED =
   'The invitation could not be completed and no account was created. Try again.';
@@ -284,6 +291,143 @@ export class DeveloperService {
       updated,
       pastInvite.has(updated.auth_user_id),
     );
+  }
+
+  /**
+   * Hands a curator's role over to a successor (REQ-4.1-09). The museum
+   * decided on 2026-11-07 that curators do not deactivate each other, so this
+   * is a Developer action. The successor must already hold their own active
+   * curator account and have signed in with it: no credentials move between
+   * people. The outgoing account is deactivated and kept, so its history
+   * stays attributed to it.
+   *
+   * SERIALIZABLE keeps two handovers, or a handover and a status change, from
+   * both acting on stale statuses. The status change and its audit entry
+   * commit together, and every refused attempt is audited (REQ-4.1-11).
+   * Sessions need no separate ending: an inactive account is refused on every
+   * request (REQ-4.1-12).
+   */
+  async handOverCurator(
+    dto: HandOverCuratorDto,
+    actingDeveloperId: string,
+  ): Promise<CuratorHandoverEntity> {
+    let result: { outgoing: user_account; successor: user_account };
+    try {
+      if (dto.outgoingCuratorId === dto.successorCuratorId) {
+        throw new BadRequestException(
+          'The successor must have their own, separate curator account.',
+        );
+      }
+      result = await runSerializableTransaction(
+        this.prisma,
+        (transaction) =>
+          this.applyHandover(transaction, dto, actingDeveloperId),
+        'A curator account changed during the handover. Reload and try again.',
+      );
+    } catch (error) {
+      const refused = error instanceof HttpException;
+      await this.recordAudit({
+        actingAuthUserId: actingDeveloperId,
+        action: HAND_OVER_CURATOR_ACTION,
+        affectedRecordId: dto.outgoingCuratorId,
+        affectedRecordType: 'user_account',
+        status: refused ? 'DENIED' : 'FAILED',
+        details: {
+          successorAccountId: dto.successorCuratorId,
+          authorizationReason: dto.authorizationReason,
+          failure: this.errorMessage(error),
+        },
+      });
+      if (refused) throw error;
+      throw new InternalServerErrorException(
+        'The handover could not be completed. No account was changed.',
+      );
+    }
+
+    const pastInvite = await authUsersPastInvite(this.prisma, [
+      result.outgoing.auth_user_id,
+    ]);
+    return {
+      outgoing: this.toCuratorAccountEntity(
+        result.outgoing,
+        pastInvite.has(result.outgoing.auth_user_id),
+      ),
+      // The handover only succeeds once the successor has accepted.
+      successor: this.toCuratorAccountEntity(result.successor, true),
+    };
+  }
+
+  private async applyHandover(
+    transaction: Prisma.TransactionClient,
+    dto: HandOverCuratorDto,
+    actingDeveloperId: string,
+  ): Promise<{ outgoing: user_account; successor: user_account }> {
+    const acting = await transaction.user_account.findUnique({
+      where: { auth_user_id: actingDeveloperId },
+      select: { id: true },
+    });
+    if (!acting) {
+      throw new ForbiddenException('Your account could not be found.');
+    }
+
+    const outgoing = await transaction.user_account.findUnique({
+      where: { id: dto.outgoingCuratorId },
+    });
+    const successor = await transaction.user_account.findUnique({
+      where: { id: dto.successorCuratorId },
+    });
+    if (outgoing?.role !== 'CURATOR') {
+      throw new NotFoundException('Outgoing curator account not found.');
+    }
+    if (successor?.role !== 'CURATOR') {
+      throw new NotFoundException('Successor curator account not found.');
+    }
+    if (outgoing.status !== 'ACTIVE') {
+      throw new ConflictException(
+        'The outgoing curator account is already inactive.',
+      );
+    }
+    if (successor.status !== 'ACTIVE') {
+      throw new ConflictException(
+        "The successor's account is inactive. Activate it before the handover.",
+      );
+    }
+    // Accepted the invitation and signed in with their own account.
+    const accepted = await authUsersPastInvite(transaction, [
+      successor.auth_user_id,
+    ]);
+    const signIn = await transaction.users.findUnique({
+      where: { id: successor.auth_user_id },
+      select: { last_sign_in_at: true },
+    });
+    if (!accepted.has(successor.auth_user_id) || !signIn?.last_sign_in_at) {
+      throw new ConflictException(
+        'The successor has not finished setting up their account. They must accept the invitation and sign in before the handover.',
+      );
+    }
+
+    const updated = await transaction.user_account.update({
+      where: { id: outgoing.id },
+      data: { status: 'INACTIVE' },
+    });
+    // Same transaction: the handover never lands without its audit entry.
+    await transaction.audit_log.create({
+      data: {
+        user_id: acting.id,
+        affected_record_id: outgoing.id,
+        affected_record_type: 'user_account',
+        action: HAND_OVER_CURATOR_ACTION,
+        module: 'developer',
+        status: 'SUCCESS',
+        details: {
+          successorAccountId: successor.id,
+          previousStatus: outgoing.status,
+          newStatus: 'INACTIVE',
+          authorizationReason: dto.authorizationReason,
+        },
+      },
+    });
+    return { outgoing: updated, successor };
   }
 
   // ===========================================================

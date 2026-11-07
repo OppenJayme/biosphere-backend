@@ -17,3 +17,10 @@ export class CuratorAccountEntity {
   createdAt!: Date;
   updatedAt!: Date;
 }
+
+// Result of a curator handover (REQ-4.1-09): the outgoing account, now
+// inactive and kept, and the successor's own account.
+export class CuratorHandoverEntity {
+  outgoing!: CuratorAccountEntity;
+  successor!: CuratorAccountEntity;
+}
