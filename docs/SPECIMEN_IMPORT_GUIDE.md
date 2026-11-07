@@ -213,8 +213,7 @@ the backend support before exposing the frontend XLSX option.
 Import creates the same core `UNCATALOGED` specimen record as
 `POST /specimens`, plus, when the row supplies them, its taxonomy, provenance,
 and one initial specimen lot. Media and tags are outside this slice. The
-approved CSV template is not yet frozen by the museum; the supported columns
-below may be extended once a template is confirmed.
+template is described under [Import template](#import-template).
 
 ## Two-phase flow
 
@@ -249,6 +248,36 @@ restart, and it would not be shared if BioSphere ever ran more than one
 backend instance. If either of those becomes a real requirement, this cache
 should move to a shared store (e.g. a dedicated table or Redis) behind the
 same `previewId` contract.
+
+## Import template
+
+The Curator left the template to the team (7 Nov 2026). The team's template
+is the **minimum set of columns a curator needs to finish each record**: the
+catalog requirements in `catalog-completion.policy.ts` plus the names a
+curator searches by. The downloadable file
+(`biosphere-frontend/public/templates/specimen-import-template.csv`) has these
+headers, in this order:
+
+| Template header       | Why it is there                                              |
+| --------------------- | ------------------------------------------------------------ |
+| `Accession Number`    | Leave blank to get the next USC-BM number on import          |
+| `Common Name`         | Catalog requirement                                          |
+| `Scientific Name`     | Main search name; may be blank for unidentified specimens    |
+| `Specimen Category`   | Groups the record on the catalog and reports                 |
+| `Kingdom`             | Catalog requirement                                          |
+| `Collection Date`     | Catalog requirement (`YYYY-MM-DD`)                            |
+| `Preservation Type`   | Catalog requirement                                          |
+| `Preservation Method` | Catalog requirement                                          |
+| `Storage Unit`        | With Condition and Quantity, creates the record's first lot  |
+| `Condition`           | Lot condition (Excellent, Good, Fair, Poor, Critical)        |
+| `Quantity`            | Lot quantity, at least 1                                     |
+| `Remarks`             | Anything that does not fit another column                    |
+
+No column is mandatory for the importer: a blank cell just leaves that field
+for the curator to fill in before completing the record. The collection is
+not in the template because it is chosen by its system ID; the curator
+assigns it in the app. Any other supported column below can be added to a
+file; the header matching rules are the same.
 
 ## Supported columns
 
@@ -343,8 +372,7 @@ the system. The import page tells users that imported records stay
 Uncataloged. Complete rows are therefore not cataloged at commit; do not add
 automatic cataloging to `SpecimenImportService.createRow`.
 
-The column template is a separate question: the supported columns and header
-aliases are still a provisional mapping until the museum approves a template.
+The column template is covered under [Import template](#import-template).
 
 ## Duplicate warnings (REQ-4.4-21/22/23, BR-09)
 
