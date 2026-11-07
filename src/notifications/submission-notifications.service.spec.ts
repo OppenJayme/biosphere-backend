@@ -147,7 +147,10 @@ describe('SubmissionNotificationsService', () => {
     const receipt = sentTo('juan@example.com');
     expect(receipt.text).toContain('Preferred option 1: October 15, 2030');
     expect(receipt.text).toContain('This is not yet an approval.');
-    expect(receipt.text).toContain('within 3 to 5 office weekdays');
+    expect(receipt.text).toContain(
+      'Campus entry is usually issued within 3 to 5 office days',
+    );
+    expect(receipt.text).not.toContain('reviews requests within');
     expect(receipt.text).toContain('check your spam or junk folder');
     expect(receipt.text).toContain('To change or cancel your visit request');
     expect(sentTo('one@museum.example').text).toContain(

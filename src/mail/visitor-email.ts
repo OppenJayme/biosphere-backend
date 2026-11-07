@@ -19,8 +19,10 @@ export function referenceIdRange(code: string): { gte: string; lte: string } {
   };
 }
 
-// How long a curator usually takes to review a visit request (set by the team 2026-11-03).
-export const VISIT_REVIEW_TIME = '3 to 5 office weekdays';
+// How long campus entry usually takes once the visitor has given every detail the museum needs.
+// The Curator confirmed on 2026-11-07 that this is not a review deadline: visitors often ask a
+// month ahead, so the email promises no reply time for the request itself.
+export const CAMPUS_ENTRY_TIME = '3 to 5 office days';
 
 // Visitors have no self-service change or cancel; both go to a curator
 // through a General Inquiry that quotes the reference number.

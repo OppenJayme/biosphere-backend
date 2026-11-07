@@ -4,7 +4,7 @@ import { Prisma } from '../generated/prisma/client';
 import { MailService } from '../mail/mail.service';
 import {
   VISIT_CHANGE_GUIDANCE,
-  VISIT_REVIEW_TIME,
+  CAMPUS_ENTRY_TIME,
   buildVisitorEmail,
   referenceCode,
 } from '../mail/visitor-email';
@@ -98,8 +98,8 @@ export class SubmissionNotificationsService {
           ]
         : [
             'Thank you for your interest in visiting the museum. We have received your visit request, and a curator will review your preferred schedules.',
-            `This is not yet an approval. A curator usually reviews requests within ${VISIT_REVIEW_TIME} and will email you once your request has been reviewed.`,
-            'If you have not heard from us by then, please check your spam or junk folder first, then send a General Inquiry on the museum website or contact the museum, and include your reference number.',
+            `This is not yet an approval. A curator will email you once your request has been reviewed. Campus entry is usually issued within ${CAMPUS_ENTRY_TIME} once the museum has all the details it needs from you.`,
+            'If you have not heard from us and your visit date is getting close, please check your spam or junk folder first, then send a General Inquiry on the museum website or contact the museum, and include your reference number.',
             VISIT_CHANGE_GUIDANCE,
           ],
       details: submission.receiptDetails,
