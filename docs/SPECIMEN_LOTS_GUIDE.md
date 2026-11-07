@@ -108,12 +108,10 @@ specimen attribution, creates a specimen revision with
 Storage-unit `capacity` is advisory (REQ-4.6-11). Exceeding it never blocks a
 lot operation; instead the response carries a `capacityWarning`.
 
-**What capacity measures (provisional, pending museum confirmation).** The
-SRS says only that the curator is warned when a configured capacity is
-exceeded; it does not say what capacity counts. The backend currently treats
-`storage_unit.capacity` as the **maximum number of individual specimens held
-directly in that unit**, and compares it with the sum of `quantity` across
-the unit's active lots:
+**What capacity measures (confirmed by the Curator, 7 Nov 2026).**
+`storage_unit.capacity` is the **maximum number of individual specimens held
+directly in that unit**. It is compared with the sum of `quantity` across the
+unit's active lots:
 
 - `capacity = 10`, Lot A `quantity = 6`, Lot B `quantity = 5` → occupancy 11
   → warning (`exceededBy = 1`).
@@ -121,11 +119,9 @@ the unit's active lots:
 - A unit with `capacity = null` never warns.
 
 It does not mean number of lots, number of containers or slots, or volume.
-This is the same measure `GET /storage-locations/occupancy-summary` has
-used since before these warnings existed. Do not treat it as final until the
-museum confirms it; once confirmed, record the decision in the SRS
-(REQ-4.6-11) and remove this note. If a different measure is chosen, the
-occupancy calculation lives in three places that must change together:
+This is the same measure `GET /storage-locations/occupancy-summary` uses. The
+SRS (REQ-4.6-11) should state it when it is next exported. The calculation
+lives in three places that must stay consistent:
 `SpecimenLotsService.findCapacityWarning`,
 `StorageLocationsService.checkCapacity`, and
 `StorageLocationsService.findOccupancySummary`.
