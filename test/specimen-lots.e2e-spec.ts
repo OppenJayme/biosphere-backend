@@ -267,10 +267,16 @@ describe('Specimen lots (e2e)', () => {
         id: lotId,
         specimenId,
         storageUnitId,
-        conditionClass: 'GOOD',
+        // A standard condition typed in any case is saved with its listed spelling.
+        conditionClass: 'Good',
         quantity: 10,
         isActive: true,
         createdBy: curatorAccountId,
+      }),
+    );
+    expect(lotDelegate.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ condition_class: 'Good' }),
       }),
     );
     expect(transactionDelegate.create).toHaveBeenCalledWith({

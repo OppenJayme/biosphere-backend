@@ -779,6 +779,9 @@ model offline_draft_sync {
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+/// Active-lot uniqueness (specimen, unit, condition ignoring case) is enforced by
+/// uq_active_specimen_lot in migrations. Prisma cannot represent this expression
+/// index. Never drop it in generated SQL.
 model specimen_lot {
   id                                                                            String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   specimen_id                                                                   String                     @db.Uuid
@@ -798,7 +801,6 @@ model specimen_lot {
   specimen_lot_transaction_specimen_lot_transaction_source_lot_idTospecimen_lot specimen_lot_transaction[] @relation("specimen_lot_transaction_source_lot_idTospecimen_lot")
   specimen_lot_transaction_specimen_lot_transaction_target_lot_idTospecimen_lot specimen_lot_transaction[] @relation("specimen_lot_transaction_target_lot_idTospecimen_lot")
 
-  @@unique([specimen_id, storage_unit_id, condition_class], map: "uq_active_specimen_lot", where: raw("(is_active = true)"))
   @@index([specimen_id], map: "idx_specimen_lot_specimen_id")
   @@index([storage_unit_id], map: "idx_specimen_lot_storage_unit_id")
   @@schema("public")

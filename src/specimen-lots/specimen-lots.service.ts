@@ -81,11 +81,10 @@ export class SpecimenLotsService {
     dto: CreateSpecimenLotDto,
     actingCuratorAccountId: string,
   ): Promise<CreatedSpecimenLot> {
-    // The database unique index on active lots compares condition_class
-    // exactly, so it cannot stop two concurrent creates that differ only by
-    // case ("Good" / "good"). Under SERIALIZABLE isolation both requests'
-    // case-insensitive lookups conflict with each other's insert, PostgreSQL
-    // aborts one, and its retry finds the winner and returns a Conflict.
+    // uq_active_specimen_lot compares lower(condition_class), so the database
+    // itself refuses a second active lot that differs only by case. Under
+    // SERIALIZABLE isolation the losing request's retry finds the winner and
+    // returns a Conflict; a unique violation (P2002) maps to the same.
     return this.runSerializableLotMutation((transaction) =>
       this.createInTransaction(
         transaction,
