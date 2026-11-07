@@ -10,6 +10,7 @@ import {
   type storage_unit,
 } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { assertArrangementAllowed } from './storage-arrangement.policy';
 import { CreateStorageUnitDto } from './dto/create-storage-unit.dto';
 import { MoveStorageUnitDto } from './dto/move-storage-unit.dto';
 import {
@@ -45,6 +46,7 @@ export class StorageLocationsService {
           where: { id: dto.parentId },
         });
         this.assertUsableParent(parent, dto.parentId);
+        assertArrangementAllowed(parent, dto.unitType, dto.label);
       }
 
       const unit = await transaction.storage_unit.create({
@@ -281,6 +283,11 @@ export class StorageLocationsService {
         changedFields.push('label');
       }
       if (dto.unitType !== undefined && dto.unitType !== existing.unit_type) {
+        await this.assertUnitTypeFitsHierarchy(
+          transaction,
+          existing,
+          dto.unitType,
+        );
         data.unit_type = dto.unitType;
         changedFields.push('unitType');
       }
@@ -362,6 +369,7 @@ export class StorageLocationsService {
           where: { id: dto.newParentId },
         });
         this.assertUsableParent(parent, dto.newParentId);
+        assertArrangementAllowed(parent, unit.unit_type, unit.label);
         await this.assertNoHierarchyCycle(transaction, id, dto.newParentId);
       }
 
@@ -464,6 +472,31 @@ export class StorageLocationsService {
     }
 
     return unit;
+  }
+
+  /** A retyped unit must still fit its parent and its active children. */
+  private async assertUnitTypeFitsHierarchy(
+    transaction: Prisma.TransactionClient,
+    unit: storage_unit,
+    unitType: string,
+  ): Promise<void> {
+    if (unit.parent_id) {
+      const parent = await transaction.storage_unit.findUnique({
+        where: { id: unit.parent_id },
+      });
+      if (parent) assertArrangementAllowed(parent, unitType, unit.label);
+    }
+    const children = await transaction.storage_unit.findMany({
+      where: { parent_id: unit.id, archived_at: null },
+      select: { label: true, unit_type: true },
+    });
+    for (const child of children) {
+      assertArrangementAllowed(
+        { label: unit.label, unit_type: unitType },
+        child.unit_type,
+        child.label,
+      );
+    }
   }
 
   private assertUsableParent(

@@ -427,10 +427,48 @@ describe('StorageLocationsService', () => {
     });
   });
 
+  it('rejects moving a cabinet into a drawer (impossible arrangement)', async () => {
+    storageUnitDelegate.findUnique
+      .mockResolvedValueOnce(storageUnitRecord({ parent_id: 'old-parent' }))
+      .mockResolvedValueOnce(
+        storageUnitRecord({
+          id: 'drawer-1',
+          unit_type: 'Drawer',
+          label: 'Drawer 1',
+        }),
+      );
+
+    await expect(
+      service.move('unit-1', { newParentId: 'drawer-1' }, 'account-1'),
+    ).rejects.toThrow('cannot be placed inside "Drawer 1" (Drawer)');
+    expect(storageUnitDelegate.update).not.toHaveBeenCalled();
+    expect(movementDelegate.create).not.toHaveBeenCalled();
+  });
+
+  it('rejects creating a room inside a cabinet', async () => {
+    storageUnitDelegate.findUnique.mockResolvedValue(storageUnitRecord());
+
+    await expect(
+      service.create(
+        {
+          parentId: 'unit-1',
+          unitType: 'ROOM',
+          label: 'Zoology Room',
+          storageType: 'DRY',
+          holdsSpecimens: false,
+        },
+        'account-1',
+      ),
+    ).rejects.toThrow('cannot be placed inside');
+    expect(storageUnitDelegate.create).not.toHaveBeenCalled();
+  });
+
   it('moves a unit atomically and records the internal account id', async () => {
     storageUnitDelegate.findUnique
       .mockResolvedValueOnce(storageUnitRecord({ parent_id: 'old-parent' }))
-      .mockResolvedValueOnce(storageUnitRecord({ id: 'new-parent' }))
+      .mockResolvedValueOnce(
+        storageUnitRecord({ id: 'new-parent', unit_type: 'ROOM' }),
+      )
       .mockResolvedValueOnce({ parent_id: null });
     storageUnitDelegate.update.mockResolvedValue(
       storageUnitRecord({ parent_id: 'new-parent' }),

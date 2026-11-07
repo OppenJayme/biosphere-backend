@@ -19,6 +19,7 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
 import type { AuthenticatedUser } from '../auth/types/auth.types';
 import { StorageLocationsService } from './storage-locations.service';
+import { STORAGE_ARRANGEMENT_TIERS } from './storage-arrangement.policy';
 import { CreateStorageUnitDto } from './dto/create-storage-unit.dto';
 import { UpdateStorageUnitDto } from './dto/update-storage-unit.dto';
 import { MoveStorageUnitDto } from './dto/move-storage-unit.dto';
@@ -49,6 +50,18 @@ export class StorageLocationsController {
   @ApiOkResponse({ type: [StorageUnit] })
   findAll(): Promise<StorageUnit[]> {
     return this.service.findAll();
+  }
+
+  @Get('arrangement-rules')
+  @ApiOperation({
+    summary:
+      'Proposed unit-type tiers used to reject impossible parent/child arrangements',
+  })
+  getArrangementRules() {
+    return {
+      tiers: STORAGE_ARRANGEMENT_TIERS,
+      rule: 'A unit may sit inside a parent of a higher tier (tiers may be skipped). Containers may also nest inside containers. Unlisted types are not restricted.',
+    };
   }
 
   @Get('occupancy-summary')

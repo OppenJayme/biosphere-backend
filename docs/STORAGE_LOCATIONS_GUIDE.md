@@ -75,10 +75,29 @@ curator needs to clear them.
 - Moving to the current parent is rejected because it is not a real movement
   and violates the movement-history different-parent constraint.
 
-The SRS requires invalid parent combinations to be rejected, but it does not
-yet define a permanent compatibility matrix between the curator-extensible
-`unitType` values. Do not invent or hard-code such a matrix until the museum
-confirms those rules.
+### Arrangement rules
+
+Per client proposal §6 (2026-10-22), a team decision the Curator left unchanged on 2026-11-07, `src/storage-locations/storage-arrangement.policy.ts`
+assigns recognised unit types to tiers and rejects impossible arrangements on
+create, move, and unit-type update (`400` naming both units):
+
+| Tier | Name              | Unit types                                         |
+| ---- | ----------------- | -------------------------------------------------- |
+| 1    | Space             | BUILDING, ROOM, GALLERY, STOREROOM, LABORATORY     |
+| 2    | Furniture         | CABINET, SHELVING_UNIT, RACK, COMPACTOR, FREEZER, TANK |
+| 3    | Compartment       | SHELF, DRAWER, TRAY                                |
+| 4    | Container         | BOX, JAR, BOTTLE, CONTAINER, BAG                   |
+| 5    | Primary container | VIAL, TUBE, SLIDE, ENVELOPE                        |
+
+A unit may sit inside any parent of a higher tier (tiers may be skipped, so a
+box directly in a cabinet is valid); containers (tier 4) may also nest in each
+other. Types are compared case-insensitively with spaces and hyphens treated as
+underscores. A type that is not listed stays unrestricted, so curator-added
+types keep working, and existing data is never rewritten. A retyped unit must
+still fit its parent and its active children. `GET
+/storage-locations/arrangement-rules` returns the table for display. The table
+is for museum review; edit the policy file to change it. Capacity remains
+optional and quantities are still tracked from lots.
 
 ## Archive rules
 
