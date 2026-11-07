@@ -2204,3 +2204,11 @@ refusals, corrected setup findings, exact pins and reproducible commands.
 This is a reduced-service prerequisite; BAK-002/Gate B remains open until
 full isolated recovery succeeds. No hosted export, scheduler or shared record
 was involved. Independent verification and Linux execution are not claimed.
+
+The subsequent same-version Auth/Storage restore case also passed locally:
+stopped/disconnected source, original password/user identity on a new target,
+exact private-byte readback, anonymous denial and checkpoint tamper rejection.
+The observed empty tmpfs archive and repaired mount-aware capture are recorded
+in the [lab contract](SUPABASE_RECOVERY_LAB.md#subsequent-same-version-authstorage-restore).
+Its checkpoint is in-memory and its fixture excludes BioSphere public tables;
+this does not close complete-system or custody/deployment gates.
