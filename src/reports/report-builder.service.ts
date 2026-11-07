@@ -44,6 +44,22 @@ export interface ReportContext {
   generatedBy: string;
 }
 
+/**
+ * Adjustment types that take specimens out of the collection for good. The
+ * Curator confirmed on 2026-11-07 that removed specimens must stay listed in
+ * the Inventory report forever, for auditing, so the report lists every one of
+ * these for the specimens it covers, whatever the reporting period.
+ * TEMPORARY_ABSENCE (on loan, being cleaned) and DATA_CORRECTION are not
+ * removals.
+ */
+export const PERMANENT_REMOVAL_TYPES = [
+  'DEACCESSION',
+  'MISSING_LOSS',
+  'DESTRUCTION',
+  'TRANSFER_OUT',
+  'REMOVAL',
+] as const;
+
 const insensitive = (value: string | undefined) =>
   value === undefined
     ? undefined
@@ -367,11 +383,13 @@ export class ReportBuilderService {
         { created_at: 'asc' },
       ],
       select: {
+        id: true,
         accession_number: true,
         scientific_name: true,
         common_name: true,
         specimen_category: true,
         status: true,
+        archived_at: true,
         classification_status: true,
         public_display_allowed: true,
         created_at: true,
@@ -388,11 +406,54 @@ export class ReportBuilderService {
       },
     });
 
+    const removals = specimens.length
+      ? await this.prisma.specimen_lot_transaction.findMany({
+          where: {
+            transaction_type: 'QUANTITY_ADJUSTMENT',
+            adjustment_type: { in: [...PERMANENT_REMOVAL_TYPES] },
+            specimen_lot_specimen_lot_transaction_source_lot_idTospecimen_lot: {
+              is: { specimen_id: { in: specimens.map((s) => s.id) } },
+            },
+          },
+          orderBy: { created_at: 'asc' },
+          select: {
+            created_at: true,
+            adjustment_type: true,
+            quantity_affected: true,
+            reason: true,
+            user_account: { select: { full_name: true } },
+            specimen_lot_specimen_lot_transaction_source_lot_idTospecimen_lot: {
+              select: {
+                specimen_id: true,
+                storage_unit_id: true,
+                condition_class: true,
+              },
+            },
+          },
+        })
+      : [];
+    const removalLot = (removal: (typeof removals)[number]) =>
+      removal.specimen_lot_specimen_lot_transaction_source_lot_idTospecimen_lot;
+    const removedBySpecimen = new Map<string, number>();
+    for (const removal of removals) {
+      const lot = removalLot(removal);
+      if (!lot) continue;
+      removedBySpecimen.set(
+        lot.specimen_id,
+        (removedBySpecimen.get(lot.specimen_id) ?? 0) +
+          (removal.quantity_affected ?? 0),
+      );
+    }
+
     const locations = await resolveStorageLocations(this.prisma, [
       ...(dto.storageUnitId ? [dto.storageUnitId] : []),
       ...specimens.flatMap((specimen) =>
         specimen.specimen_lot.map((lot) => lot.storage_unit_id),
       ),
+      ...removals.flatMap((removal) => {
+        const lot = removalLot(removal);
+        return lot ? [lot.storage_unit_id] : [];
+      }),
     ]);
     const storagePath = (unitId: string) =>
       locations.get(unitId)?.pathLabel ?? 'Unknown location';
@@ -404,8 +465,13 @@ export class ReportBuilderService {
     let totalLots = 0;
     const printedRows: ReportCell[][] = [];
 
+    // Either archive marker counts as Archived, as in the consolidated report.
+    const statusOf = (specimen: (typeof specimens)[number]) =>
+      specimen.archived_at ? 'ARCHIVED' : specimen.status;
+    const specimenById = new Map(specimens.map((s) => [s.id, s]));
     const rows = specimens.map((specimen): ReportCell[] => {
-      increment(statusCounts, specimen.status);
+      const status = statusOf(specimen);
+      increment(statusCounts, status);
       categoryCounts.push({
         key: specimen.specimen_category ?? 'Uncategorized',
         values: [1],
@@ -428,7 +494,7 @@ export class ReportBuilderService {
       printedRows.push([
         specimen.accession_number,
         stacked(specimen.scientific_name, specimen.common_name),
-        SPECIMEN_STATUS_LABELS[specimen.status],
+        SPECIMEN_STATUS_LABELS[status],
         quantity,
         conditions.join('; ') || null,
         storagePaths.join('\n') || null,
@@ -440,10 +506,11 @@ export class ReportBuilderService {
         specimen.specimen_category,
         specimen.collection?.collection_name ?? null,
         specimen.specimen_taxonomy?.family ?? null,
-        SPECIMEN_STATUS_LABELS[specimen.status],
+        SPECIMEN_STATUS_LABELS[status],
         specimen.classification_status,
         specimen.public_display_allowed ? 'Yes' : 'No',
         quantity,
+        removedBySpecimen.get(specimen.id) ?? 0,
         conditions.join('; ') || null,
         storagePaths.join('; ') || null,
         formatReportDate(specimen.created_at),
@@ -462,6 +529,7 @@ export class ReportBuilderService {
         'Classification',
         'Public Display',
         'Active Qty',
+        'Removed Qty',
         'Condition',
         'Storage Location',
         'Date Added',
@@ -529,6 +597,44 @@ export class ReportBuilderService {
       ),
       heading('Specimen Inventory'),
       { kind: 'table', table: printed },
+      heading('Removed from the Collection'),
+      removals.length
+        ? table(
+            'Every recorded removal, whatever the reporting period',
+            [
+              'Date',
+              'Accession No.',
+              'Specimen',
+              'Removal',
+              'Qty',
+              'From',
+              'Reason',
+              'Recorded by',
+            ],
+            removals.map((removal) => {
+              const lot = removalLot(removal);
+              const specimen = lot ? specimenById.get(lot.specimen_id) : null;
+              return [
+                formatReportDate(removal.created_at),
+                specimen?.accession_number ?? null,
+                specimen
+                  ? stacked(specimen.scientific_name, specimen.common_name)
+                  : null,
+                removal.adjustment_type
+                  ? ADJUSTMENT_LABELS[removal.adjustment_type]
+                  : null,
+                removal.quantity_affected ?? null,
+                lot
+                  ? `${storagePath(lot.storage_unit_id)} (${lot.condition_class})`
+                  : null,
+                removal.reason,
+                removal.user_account.full_name,
+              ];
+            }),
+          )
+        : paragraph(
+            'No removals are recorded for the specimens in this report.',
+          ),
     ];
 
     return this.document(context, {

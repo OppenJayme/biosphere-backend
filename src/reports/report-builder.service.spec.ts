@@ -16,7 +16,7 @@ const prismaMock = {
   specimen: { count: jest.fn(), findMany: jest.fn(), groupBy: jest.fn() },
   specimen_lot: { groupBy: jest.fn(), aggregate: jest.fn() },
   specimen_revision_history: { count: jest.fn() },
-  specimen_lot_transaction: { groupBy: jest.fn() },
+  specimen_lot_transaction: { groupBy: jest.fn(), findMany: jest.fn() },
   inquiry: { count: jest.fn(), findMany: jest.fn(), groupBy: jest.fn() },
   visit_request: { count: jest.fn(), findMany: jest.fn(), groupBy: jest.fn() },
   exhibit: { count: jest.fn(), findMany: jest.fn(), groupBy: jest.fn() },
@@ -119,8 +119,11 @@ describe('ReportBuilderService', () => {
   describe('inventory report', () => {
     beforeEach(() => {
       prismaMock.specimen.count.mockResolvedValue(1);
+      prismaMock.specimen_lot_transaction.findMany.mockResolvedValue([]);
       prismaMock.specimen.findMany.mockResolvedValue([
         {
+          id: 'spec-1',
+          archived_at: null,
           accession_number: 'ENT-1',
           scientific_name: 'Papilio polytes',
           common_name: 'Common Mormon',
@@ -215,6 +218,7 @@ describe('ReportBuilderService', () => {
         'Identified',
         'Yes',
         5,
+        0,
         'Good',
         'Room 101 › Cabinet A › Drawer 3; Room 101 › Cabinet A',
         'Sep 15, 2026',
@@ -230,7 +234,7 @@ describe('ReportBuilderService', () => {
         context({ type: ReportType.INVENTORY }),
       );
 
-      expect(document.csvTable?.columns).toHaveLength(13);
+      expect(document.csvTable?.columns).toHaveLength(14);
       expect(printedDetail(document)).toEqual({
         columns: [
           'Accession No.',
@@ -254,6 +258,86 @@ describe('ReportBuilderService', () => {
       // The period is in the report header, so the scope box doesn't repeat it.
       expect(keyValue(document, 'Period')).toBeUndefined();
       expect(keyValue(document, 'Period applies to')).toBeDefined();
+    });
+
+    it('keeps removed specimens listed with every recorded removal, whatever the period', async () => {
+      prismaMock.specimen.findMany.mockResolvedValue([
+        {
+          id: 'spec-2',
+          archived_at: new Date('2026-10-01T00:00:00.000Z'),
+          accession_number: 'ENT-2',
+          scientific_name: 'Troides rhadamantus',
+          common_name: null,
+          specimen_category: 'Entomology',
+          status: 'CATALOGED',
+          classification_status: 'Identified',
+          public_display_allowed: false,
+          created_at: new Date('2025-01-10T02:00:00.000Z'),
+          collection: null,
+          specimen_taxonomy: null,
+          specimen_lot: [],
+        },
+      ]);
+      prismaMock.specimen_lot_transaction.findMany.mockResolvedValue([
+        {
+          created_at: new Date('2026-09-20T02:00:00.000Z'),
+          adjustment_type: 'DEACCESSION',
+          quantity_affected: 2,
+          reason: 'Transferred to partner university',
+          user_account: { full_name: 'Test Curator' },
+          specimen_lot_specimen_lot_transaction_source_lot_idTospecimen_lot: {
+            specimen_id: 'spec-2',
+            storage_unit_id: 'drawer',
+            condition_class: 'Fair',
+          },
+        },
+      ]);
+
+      const document = await service.build(
+        context({ type: ReportType.INVENTORY }),
+      );
+
+      // Only permanent removals are listed; temporary absence is not one.
+      const where =
+        prismaMock.specimen_lot_transaction.findMany.mock.calls[0][0].where;
+      expect(where.adjustment_type.in).toEqual(
+        expect.arrayContaining(['DEACCESSION', 'MISSING_LOSS', 'DESTRUCTION']),
+      );
+      expect(where.adjustment_type.in).not.toContain('TEMPORARY_ABSENCE');
+      expect(where).not.toHaveProperty('created_at');
+
+      // The specimen stays listed, shown as Archived, with no active quantity.
+      expect(document.csvTable?.rows[0][6]).toBe('Archived');
+      expect(document.csvTable?.rows[0][9]).toBe(0);
+      expect(document.csvTable?.rows[0][10]).toBe(2);
+      expect(
+        tableRows(
+          document,
+          'Every recorded removal, whatever the reporting period',
+        ),
+      ).toEqual([
+        [
+          'Sep 20, 2026',
+          'ENT-2',
+          'Troides rhadamantus',
+          'Deaccession',
+          2,
+          'Room 101 › Cabinet A › Drawer 3 (Fair)',
+          'Transferred to partner university',
+          'Test Curator',
+        ],
+      ]);
+    });
+
+    it('says so when no removals are recorded', async () => {
+      const document = await service.build(
+        context({ type: ReportType.INVENTORY }),
+      );
+
+      expect(document.blocks).toContainEqual({
+        kind: 'paragraph',
+        text: 'No removals are recorded for the specimens in this report.',
+      });
     });
 
     it('refuses to build a report past the row limit instead of truncating it', async () => {
