@@ -55,7 +55,7 @@ export class StorageLocationsController {
   @Get('arrangement-rules')
   @ApiOperation({
     summary:
-      'Proposed unit-type tiers used to reject impossible parent/child arrangements',
+      'Unit-type tiers used to reject impossible parent/child arrangements',
   })
   getArrangementRules() {
     return {
