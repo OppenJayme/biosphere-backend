@@ -377,9 +377,13 @@ After the initial November 7 capacity refusal, the separate opt-in command
 `npm run test:recovery:supabase` passed local containment and real synthetic
 Auth/Storage HTTP checks using a pinned reduced platform. It never loads app
 configuration, publishes Auth/Storage ports, exports hosted data or invokes the
-raw worker. See the linked resource budgets, image prerequisites and setup
-findings. This service smoke result does not establish complete recovery or a
-Linux/CI pass; the platform-specific restore adapter remains to be implemented.
+raw worker. A subsequent `recover` mode now restores bounded synthetic
+Auth/Storage data and physical bytes into a new same-version target, then
+checks the real APIs with its source stopped/disconnected. The full opt-in
+suite needs 5 GiB free RAM. See the linked capture contract, resource budgets,
+image prerequisites and observed archive repair. Its in-memory checkpoint
+does not establish durable custody, a complete BioSphere restore, Linux/CI
+execution or production recovery.
 
 References: [PostgreSQL pg_dump](https://www.postgresql.org/docs/17/app-pgdump.html),
 [pg_restore](https://www.postgresql.org/docs/17/app-pgrestore.html),

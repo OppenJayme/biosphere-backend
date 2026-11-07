@@ -4,6 +4,30 @@ const { spawnSync } = require('node:child_process');
 const path = require('node:path');
 
 const enabled = process.env.RUN_SUPABASE_LAB === 'true';
+test(
+  'restored Auth and private Storage remain usable with every source service stopped',
+  { skip: !enabled, timeout: 540000 },
+  () => {
+    const result = spawnSync(
+      process.execPath,
+      [path.join(__dirname, '../scripts/recovery/supabase-lab.cjs'), 'recover'],
+      {
+        encoding: 'utf8',
+        timeout: 520000,
+        windowsHide: true,
+      },
+    );
+    assert.equal(result.status, 0, result.stdout + result.stderr);
+    const evidence = JSON.parse(result.stdout);
+    assert.equal(evidence.recovery, 'RESTORED_API_VERIFIED');
+    assert.equal(evidence.source, 'STOPPED_AND_DISCONNECTED');
+    assert.equal(evidence.identity, 'PRESERVED');
+    assert.equal(evidence.privateBytes, 'PRESERVED');
+    assert.equal(evidence.anonymous, 'DENIED');
+    assert.equal(evidence.integrity, 'TAMPER_REJECTED_BEFORE_RESTORE');
+    assert.equal(evidence.cleanup, 'COMPLETE');
+  },
+);
 const env = {
   ...process.env,
   DATABASE_URL: 'postgresql://synthetic:synthetic@127.0.0.1:1/wrong',

@@ -5,6 +5,11 @@ const { execFileSync } = require('node:child_process');
 const { randomUUID, randomBytes, createHmac } = require('node:crypto');
 const os = require('node:os');
 const images = require('./supabase-lab-images.json').images;
+const {
+  POLICY_SQL,
+  inventory,
+  recoverPlatform,
+} = require('./supabase-platform-recovery.cjs');
 const socket =
   process.platform === 'win32'
     ? 'npipe:////./pipe/dockerDesktopLinuxEngine'
@@ -37,17 +42,18 @@ let phase = 'arguments';
 function check(value, code) {
   if (!value) throw Object.assign(new Error(code), { safeCode: code });
 }
-function docker(args, input) {
+function docker(args, input, binary = false) {
   try {
-    return execFileSync('docker', ['--host', socket, ...args], {
+    const result = execFileSync('docker', ['--host', socket, ...args], {
       env,
       input,
-      encoding: 'utf8',
+      encoding: binary ? undefined : 'utf8',
       windowsHide: true,
       timeout: 90000,
-      maxBuffer: 1024 * 1024,
+      maxBuffer: binary ? 32 * 1024 * 1024 : 1024 * 1024,
       stdio: ['pipe', 'pipe', 'pipe'],
-    }).trim();
+    });
+    return binary ? result : result.trim();
   } catch {
     throw Object.assign(new Error('DOCKER_COMMAND_FAILED'), {
       safeCode: 'DOCKER_COMMAND_FAILED',
@@ -256,12 +262,14 @@ async function containment(inside, outside) {
   );
   return { containment: 'PASS', outsideControlHits: 1, blockedAttemptHits: 0 };
 }
-async function smoke(inside) {
+async function platform(inside, prefix = '', restoredSecret) {
   // Private services never publish ports. HTTP crosses their real API boundary
   // from the single-network owned probe; credentials travel over stdin only.
   const serviceRequest = async (url, options = {}) => {
     check(
-      /^http:\/\/(auth:9999|storage:5000)\//.test(url),
+      new RegExp(
+        '^http://(' + prefix + 'auth:9999|' + prefix + 'storage:5000)/',
+      ).test(url),
       'UNSAFE_SERVICE_URL',
     );
     const payload = {
@@ -289,7 +297,8 @@ async function smoke(inside) {
     });
   };
   const password = randomBytes(24).toString('hex');
-  const secret = randomBytes(32).toString('hex');
+  const secret = restoredSecret ?? randomBytes(32).toString('hex');
+  const make = (options) => create({ ...options, name: prefix + options.name });
   const token = (role) => {
     const header = Buffer.from(
       JSON.stringify({ alg: 'HS256', typ: 'JWT' }),
@@ -306,7 +315,7 @@ async function smoke(inside) {
     return `${value}.${createHmac('sha256', secret).update(value).digest('base64url')}`;
   };
   phase = 'database-start';
-  const db = create({
+  const db = make({
     name: 'database',
     image: images.database.image,
     net: inside,
@@ -366,7 +375,7 @@ async function smoke(inside) {
     ALTER USER supabase_auth_admin WITH PASSWORD '${password}';
     ALTER USER supabase_storage_admin WITH PASSWORD '${password}';`);
   phase = 'auth-start';
-  const auth = create({
+  const auth = make({
     name: 'auth',
     image: images.auth.image,
     net: inside,
@@ -376,10 +385,10 @@ async function smoke(inside) {
     vars: {
       GOTRUE_API_HOST: '0.0.0.0',
       GOTRUE_API_PORT: '9999',
-      API_EXTERNAL_URL: 'http://auth:9999',
+      API_EXTERNAL_URL: `http://${prefix}auth:9999`,
       GOTRUE_SITE_URL: 'http://127.0.0.1',
       GOTRUE_DB_DRIVER: 'postgres',
-      GOTRUE_DB_DATABASE_URL: `postgres://supabase_auth_admin:${password}@database:5432/postgres`,
+      GOTRUE_DB_DATABASE_URL: `postgres://supabase_auth_admin:${password}@${prefix}database:5432/postgres`,
       GOTRUE_JWT_SECRET: secret,
       GOTRUE_JWT_EXP: '3600',
       GOTRUE_JWT_AUD: 'authenticated',
@@ -396,16 +405,16 @@ async function smoke(inside) {
     },
   });
   validate(auth, true);
-  const authUrl = 'http://auth:9999';
+  const authUrl = `http://${prefix}auth:9999`;
   await wait(`${authUrl}/health`, serviceRequest);
   phase = 'storage-start';
-  create({
+  const rest = make({
     name: 'rest',
     image: images.rest.image,
     net: inside,
     memory: '128m',
     vars: {
-      PGRST_DB_URI: `postgres://authenticator:${password}@database:5432/postgres`,
+      PGRST_DB_URI: `postgres://authenticator:${password}@${prefix}database:5432/postgres`,
       PGRST_DB_SCHEMAS: 'public,storage',
       PGRST_DB_ANON_ROLE: 'anon',
       PGRST_JWT_SECRET: secret,
@@ -413,7 +422,7 @@ async function smoke(inside) {
   });
   const service = token('service_role');
   const anon = token('anon');
-  const storage = create({
+  const storage = make({
     name: 'storage',
     image: images.storage.image,
     net: inside,
@@ -423,9 +432,9 @@ async function smoke(inside) {
       ANON_KEY: anon,
       SERVICE_KEY: service,
       AUTH_JWT_SECRET: secret,
-      POSTGREST_URL: 'http://rest:3000',
-      DATABASE_URL: `postgres://supabase_storage_admin:${password}@database:5432/postgres`,
-      STORAGE_PUBLIC_URL: 'http://storage:5000',
+      POSTGREST_URL: `http://${prefix}rest:3000`,
+      DATABASE_URL: `postgres://supabase_storage_admin:${password}@${prefix}database:5432/postgres`,
+      STORAGE_PUBLIC_URL: `http://${prefix}storage:5000`,
       STORAGE_BACKEND: 'file',
       FILE_STORAGE_BACKEND_PATH: '/var/lib/storage',
       FILE_SIZE_LIMIT: '1048576',
@@ -436,9 +445,28 @@ async function smoke(inside) {
     },
   });
   validate(storage, true);
-  const storageUrl = 'http://storage:5000';
+  const storageUrl = `http://${prefix}storage:5000`;
   await wait(`${storageUrl}/status`, serviceRequest);
-  for (const id of containers) validate(id, true);
+  for (const id of [db, auth, rest, storage]) validate(id, true);
+  return {
+    db,
+    auth,
+    rest,
+    storage,
+    sql,
+    serviceRequest,
+    secret,
+    service,
+    anon,
+    authUrl,
+    storageUrl,
+    baseline: inventory(sql),
+    ids: [db, auth, rest, storage],
+  };
+}
+async function smoke(inside, recover = false) {
+  const source = await platform(inside);
+  const { sql, serviceRequest, service, anon, authUrl, storageUrl } = source;
   phase = 'auth-requests';
   const email = `lab-${owner}@example.invalid`;
   const userPassword = randomBytes(24).toString('base64url');
@@ -476,10 +504,7 @@ async function smoke(inside) {
     json({ id: bucket, name: bucket, public: false }, service),
   );
   check(bucketResponse.ok, 'BUCKET_CREATE_FAILED');
-  sql(`CREATE POLICY lab_owner_insert ON storage.objects FOR INSERT TO authenticated
-    WITH CHECK (bucket_id = 'synthetic-private' AND owner_id = (SELECT auth.jwt()->>'sub'));
-    CREATE POLICY lab_owner_read ON storage.objects FOR SELECT TO authenticated
-    USING (bucket_id = 'synthetic-private' AND owner_id = (SELECT auth.jwt()->>'sub'));`);
+  sql(POLICY_SQL);
   const bytes = Buffer.from(
     'BioSphere synthetic private storage probe\n',
     'utf8',
@@ -507,6 +532,21 @@ async function smoke(inside) {
     { headers: { Authorization: `Bearer ${anon}` } },
   );
   check([400, 401, 403, 404].includes(denied.status), 'ANONYMOUS_NOT_DENIED');
+  if (recover)
+    return recoverPlatform({
+      inside,
+      source,
+      fixture: { email, userPassword, userId: user.id, bucket, bytes },
+      docker,
+      inspect,
+      validate,
+      check,
+      platform,
+      images,
+      setPhase: (value) => {
+        phase = value;
+      },
+    });
   return {
     auth: 'PASSWORD_AND_IDENTITY_VERIFIED',
     storage: 'PRIVATE_BYTES_VERIFIED',
@@ -549,7 +589,7 @@ async function main() {
   try {
     check(
       process.argv.length === 3 &&
-        ['containment', 'smoke'].includes(process.argv[2]),
+        ['containment', 'smoke', 'recover'].includes(process.argv[2]),
       'UNSUPPORTED_COMMAND',
     );
     phase = 'preflight';
@@ -559,7 +599,8 @@ async function main() {
     );
     // Reduced smoke has a 1,920 MiB hard container cap; full recovery still needs 5 GiB.
     check(
-      os.freemem() >= (process.argv[2] === 'smoke' ? 4 : 3) * 1024 ** 3,
+      os.freemem() >=
+        { containment: 3, smoke: 4, recover: 5 }[process.argv[2]] * 1024 ** 3,
       'INSUFFICIENT_HOST_MEMORY',
     );
     const info = JSON.parse(docker(['info', '--format', '{{json .}}']));
@@ -574,8 +615,11 @@ async function main() {
     const inside = network(true);
     const outside = network(false);
     evidence = await containment(inside, outside);
-    if (process.argv[2] === 'smoke')
-      evidence = { ...evidence, ...(await smoke(inside)) };
+    if (process.argv[2] !== 'containment')
+      evidence = {
+        ...evidence,
+        ...(await smoke(inside, process.argv[2] === 'recover')),
+      };
   } catch (error) {
     evidence = {
       result: 'FAILED',

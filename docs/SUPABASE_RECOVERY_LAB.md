@@ -3,9 +3,10 @@
 Date: November 7, 2026. Scope: synthetic data only. Engineering base:
 `bf6ea48948c31fd5e81d9303234528842c4a74c6` (standalone worker, PR #251).
 
-**Status: local containment and reduced Auth/Storage smoke checks passed.**
+**Status: local containment, reduced Auth/Storage smoke and the bounded
+Auth/Storage restore scenario passed.**
 The initial launch was withheld until capacity and version checks were resolved;
-that history follows below. Full-service recovery has not been tested.
+that history follows below. Complete BioSphere recovery has not been tested.
 This is a lab engineering record, not a BAK-002 pass or a deployment approval.
 
 ## Authorization and observed environment
@@ -253,10 +254,76 @@ terminated, inspect remaining exact IDs/owner labels before manual cleanup;
 never use global prune or prefix deletion. A resource refusal is an unexecuted
 test, not a skipped acceptance pass.
 
-**Next:** implement the separate platform recovery adapter and verify restored
-Auth state and Storage bytes against a new target with its source unavailable
-(execution steps 5–6 above). Do not reuse or relax the raw worker's empty-target
-guard. Service smoke success alone does not close that restore gap.
+### Subsequent same-version Auth/Storage restore
+
+The `recover` command adds a separate managed-platform **fixture** recovery
+contract. The first public CLI case rejected the unimplemented command before
+implementation. The implemented focused restore case then passed locally.
+It requires **5 GiB free RAM**, the same four cached image digests, and the
+existing containment preflight. Source and target run sequentially; no second
+live stack is kept concurrently. It changes no raw worker/recorder code.
+
+1. Initialize an owned source and create only the known synthetic user,
+   owner-scoped RLS policies, private bucket and known object used by smoke.
+2. Freeze Auth/REST containers and the Storage server process. Capture an
+   explicit custom `pg_dump` of Auth/Storage **data**, excluding each service's
+   migration ledger. Capture physical object bytes separately. Compare source
+   schema and table-count inventories before/after capture.
+3. Authenticate/encrypt a bounded in-memory checkpoint with AES-256-GCM,
+   including platform pins, schema fingerprint, data inventory, JWT signing
+   secret, database archive and object archive. A deliberately changed
+   ciphertext byte must fail authentication before target construction/writes.
+4. Stop and disconnect every source service. Inspect their stopped/disconnected
+   state and verify that the source Auth endpoint is unreachable from the
+   probe. Initialize a **new** same-version target with a fresh DB password,
+   the captured JWT secret and target-local URLs.
+5. Freeze target applications, require its complete Auth/Storage table-count
+   inventory to equal the fresh source baseline, recreate only the two known
+   fixture RLS policies, and require an equal normalized schema fingerprint.
+   Restore data transactionally with `pg_restore --single-transaction
+   --exit-on-error --disable-triggers`. Preserve the target's platform-managed
+   DDL/migration history; do not drop schemas or weaken the raw worker guard.
+6. Restore physical bytes in the target Storage mount, verify schema/count
+   inventories, resume target apps, and verify the original password/user ID,
+   exact private bytes and anonymous denial through the real APIs. Confirm
+   source services remain stopped; remove exact owned resources afterward.
+
+An implementation run recovered Auth but failed file download: Docker's archive
+copy saw only `./` for the paused tmpfs mount. A database-only success therefore
+was **not** counted as recovery success. Physical capture/restore now uses `tar`
+inside the Storage mount namespace while its server PID 1 is SIGSTOP-frozen;
+auxiliary exec can access the real mount. The harness checks `/proc/1/status`
+for the stopped state and refuses an archive missing the known `probe.txt`.
+Auth/REST stay Docker-paused during this operation. The server is resumed with
+SIGCONT only after restoration. The repaired end-to-end case passed with the
+source unavailable and complete owned cleanup.
+
+Run `node scripts/recovery/supabase-lab.cjs recover` for this case, or
+`npm run test:recovery:supabase` for all three cases. The full suite now needs
+5 GiB free host RAM. No supplied target/URL/key/profile is accepted.
+
+Final combined local result: **3/3 passed, zero skipped**, approximately
+73 seconds (restore 47 s, source smoke 19 s, containment 6 s). The focused
+restore case also passed independently. Invalid inherited provider/database/
+Docker/proxy settings remained present in the child environment. Syntax,
+focused CJS lint, local document links and diff checks passed. No CI or
+independent Linux/reviewer execution is implied by these local results.
+
+**Limits:** this checkpoint/key exist in one process's memory, not a persistent
+recoverable institutional backup or restart/custody mechanism. No retained
+encrypted artifact, disk durability, source crash, independent-key recovery,
+large-file streaming or scheduled operation is established. This is a fixed
+same-version synthetic Auth/Storage recipe, not a general schema/role migration
+adapter. Schema compatibility and fresh-data guards are implemented; deliberate
+nonempty-target and alternate-version negative cases have not been exercised.
+The tested platform has no BioSphere public tables, all five project buckets,
+AR/browser workflow or deployed Auth configuration. Linux/CI and independent
+verification remain unclaimed. BAK-002 and full Gate B therefore stay open.
+
+**Next:** integrate a durable encrypted checkpoint and the complete synthetic
+BioSphere database/bucket/configuration set, then run the application-level
+restore rehearsal. Intended-source rehearsal and operating approval remain
+separate. This subset pass must not be relabelled complete system recovery.
 
 Gate B remains partial until complete isolated synthetic recovery succeeds.
 Intended-source access/export, institutional custody and operating decisions,
