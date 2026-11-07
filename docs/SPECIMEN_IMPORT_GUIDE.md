@@ -327,7 +327,7 @@ requirement passes only when the row's lot columns validated and resolved to
 an active unit that holds specimens. The preview total `catalogReadyRows`
 counts valid rows with `requirementsMet: true`.
 
-### Imported-record status (pending team decision)
+### Imported-record status (approved)
 
 Import always creates records as `UNCATALOGED`, including rows with
 `requirementsMet: true`, so `resultingStatus` is always `UNCATALOGED`. A
@@ -336,12 +336,15 @@ curator then marks a ready record Cataloged with
 manual entry. This matches the existing rule that a record becomes Cataloged
 only through an explicit curator action, never automatically.
 
-Whether complete imported rows should instead become Cataloged at commit is
-not yet decided for the pilot migration. Until the team and museum confirm
-it, do not treat the current behavior as final. If automatic cataloging is
-chosen, the change belongs in `SpecimenImportService.createRow` (complete
-cataloging inside the row's transaction when `requirementsMet` is true) and
-`resultingStatus` would then report `CATALOGED` for those rows.
+This is the approved rule for the pilot migration and any later import of old
+records. The Curator confirmed on 7 Nov 2026 that a curator checks each old
+record before it is marked done, which matters most for species not yet in
+the system. The import page tells users that imported records stay
+Uncataloged. Complete rows are therefore not cataloged at commit; do not add
+automatic cataloging to `SpecimenImportService.createRow`.
+
+The column template is a separate question: the supported columns and header
+aliases are still a provisional mapping until the museum approves a template.
 
 ## Duplicate warnings (REQ-4.4-21/22/23, BR-09)
 
