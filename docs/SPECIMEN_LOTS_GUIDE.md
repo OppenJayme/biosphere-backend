@@ -66,17 +66,19 @@ quantities. It is never copied into a manually maintained specimen field.
   as a matching lot, a move or condition change merges into the existing lot
   and keeps that lot's spelling, and a condition change that differs only by
   case is rejected as unchanged.
+- Conditions are uniform (team decision, 7 Nov 2026). The five standard
+  conditions (Excellent, Good, Fair, Poor, Critical) are saved with that
+  exact spelling whatever case is typed, through the API, the curator form
+  and import alike. Other conditions keep the curator's spelling.
 - Lot creation runs under `SERIALIZABLE` isolation with up to three retries,
   like moves, condition changes, and quantity adjustments. The database
-  unique index `uq_active_specimen_lot` compares `condition_class` exactly, so
-  on its own it cannot stop two simultaneous creates that differ only by case
-  (`Good` / `good`). Under `SERIALIZABLE`, each request's case-insensitive
-  lookup conflicts with the other's insert; PostgreSQL aborts one, and its
-  retry finds the first lot and returns `409 Conflict`. This guarantee holds
-  only for writes made through this service at `SERIALIZABLE` isolation. A
-  case-insensitive database index (for example on `lower(condition_class)`)
-  would enforce it for every writer, but needs a reviewed migration and a
-  check for existing rows that differ only by case.
+  unique index `uq_active_specimen_lot` covers active lots on
+  `(specimen_id, storage_unit_id, lower(condition_class))`, so every writer,
+  including direct SQL, is refused a second active lot that differs only by
+  case. Migration `20261107000000_uniform_lot_conditions` replaced the
+  earlier exact-case index and stops with a list if active rows already
+  clash. Prisma cannot express this index; the schema carries a comment
+  instead, and generated SQL must never drop it.
 - Creating a lot records a `QUANTITY_ADJUSTMENT` transaction with adjustment
   type `ADDITION`, the target lot, quantity, optional reason, timestamp, and
   acting curator.
