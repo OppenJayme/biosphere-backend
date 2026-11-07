@@ -297,7 +297,12 @@ controllers, an HTTP listener, email or a scheduler. Build/install it in a
 Do not let a build overwrite a running backend's output.
 
 After installing the locked dependencies and building that checkout, inspect
-the command without connecting to anything:
+the command without connecting to anything. `npm run build` also writes
+`dist/.recovery-worker-build.json`, a hash of the `src/` tree it compiled. The
+worker compares it with the current `src/` before loading `dist/`: a missing
+stamp returns `WORKER_BUILD_REQUIRED` and a changed `src/` (for example after a
+pull) returns `WORKER_BUILD_STALE`. Rebuild with `npm run build` after every
+pull; a bare `nest build` skips the stamp.
 
 ```powershell
 npm run recovery:synthetic:worker -- help
@@ -328,7 +333,13 @@ only. Never publish this file, keys or checkpoint/restored bytes.
 Before constructing a database client, the worker verifies the fixed local
 Docker socket, exact owner label, pinned image, running/non-paused container,
 temporary data storage with no bind/persistent mounts, log driver and a single
-matching 127.0.0.1 port. Source, restore target and history container identities
+matching 127.0.0.1 port. A manifest whose container no longer exists returns
+`WORKER_HISTORY_CONTAINER_MISSING`: regenerate the owned lab and its manifest
+rather than debugging Docker. After connecting, and before any history is
+written, the worker asks the server for its own address and port and requires
+the inspected container's network address on 5432. Another local PostgreSQL
+that took over the published port in between returns
+`WORKER_HISTORY_IDENTITY_MISMATCH` without recording. Source, restore target and history container identities
 must be distinct. The history database/role are fixed to the owned fixture's
 `biosphere_recovery_recording_disposable` / `service_role`; no database URL or
 remote host flag is accepted. Application/provider environment values are
@@ -362,9 +373,10 @@ npm run build
 npm run test:recovery-worker:db
 ```
 
-The nine cases check real capture/restore and protected history readback,
+The eleven cases check real capture/restore and protected history readback,
 actual child PID separation, inherited destination rejection/ignoring,
-wrong-owner/port/identity/extra-URL manifest refusal, argument rejection, nonzero
+wrong-owner/port/identity/extra-URL manifest refusal, a removed history
+container, a stale build stamp, argument rejection, nonzero
 engine-failure exits, malformed source identity rejection, and pending-finish reconciliation in a fresh process with
 unchanged checkpoint bytes/count and exactly two transition audits. The test's
 fixture is synthetic and minimal; it proves neither Supabase Auth/Storage

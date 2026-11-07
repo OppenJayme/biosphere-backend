@@ -5,6 +5,8 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 const { runRecorded, reconcileRecorded } = require('./cli.cjs');
+const { stampStatus } = require('./build-stamp.cjs');
+const REPO = path.resolve(__dirname, '..', '..');
 const IMAGE =
   'postgres@sha256:eee6c6e1b0894fa4fe0075eb054af9fd1cf39a35321c2d4110626cfe506411fb';
 const UUID =
@@ -58,7 +60,13 @@ function readFile(file, max) {
   );
   return fs.readFileSync(file, 'utf8');
 }
-function docker(args) {
+/** Docker reports an absent object as `No such object/container/image`. */
+function dockerFailureCode(stderr, missingCode) {
+  return missingCode && /\bNo such (object|container|image)\b/i.test(stderr)
+    ? missingCode
+    : 'WORKER_DOCKER_UNAVAILABLE';
+}
+function docker(args, missingCode) {
   try {
     return execFileSync('docker', ['--host', HOST, ...args], {
       env: OS_ENV,
@@ -68,9 +76,18 @@ function docker(args) {
       maxBuffer: 1024 * 1024,
       stdio: ['ignore', 'pipe', 'pipe'],
     }).trim();
-  } catch {
-    check(false, 'WORKER_DOCKER_UNAVAILABLE');
+  } catch (error) {
+    check(false, dockerFailureCode(String(error?.stderr ?? ''), missingCode));
   }
+}
+/** The history server must answer from inside the inspected container, not another local Postgres. */
+function serverMatches(server, expected) {
+  return (
+    !!server &&
+    typeof server.address === 'string' &&
+    expected.addresses.includes(server.address) &&
+    Number(server.port) === 5432
+  );
 }
 function preflight(profileFile, historyFile) {
   check(
@@ -128,8 +145,22 @@ function preflight(profileFile, historyFile) {
     check((fs.statSync(historyFile).mode & 0o077) === 0, 'WORKER_UNSAFE_FILE');
   }
   // Inspect actual containment and mapping before constructing any database client.
-  const container = JSON.parse(docker(['inspect', history.containerId]))[0];
-  const image = JSON.parse(docker(['image', 'inspect', IMAGE]))[0];
+  // A removed container means an expired manifest; regenerate the lab instead of debugging Docker.
+  const container = JSON.parse(
+    docker(
+      ['inspect', history.containerId],
+      'WORKER_HISTORY_CONTAINER_MISSING',
+    ),
+  )[0];
+  const image = JSON.parse(
+    docker(['image', 'inspect', IMAGE], 'WORKER_IMAGE_MISSING'),
+  )[0];
+  const addresses = [
+    container.NetworkSettings?.IPAddress,
+    ...Object.values(container.NetworkSettings?.Networks ?? {}).map(
+      (network) => network?.IPAddress,
+    ),
+  ].filter((address) => typeof address === 'string' && address !== '');
   const bindings = container.NetworkSettings?.Ports?.['5432/tcp'];
   check(
     container.Id === history.containerId &&
@@ -147,7 +178,8 @@ function preflight(profileFile, historyFile) {
       bindings[0].HostIp === '127.0.0.1' &&
       bindings[0].HostPort === String(history.port) &&
       typeof container.HostConfig?.Tmpfs?.['/var/lib/postgresql/data'] ===
-        'string',
+        'string' &&
+      addresses.length > 0,
     'WORKER_HISTORY_REJECTED',
   );
   check(
@@ -162,7 +194,7 @@ function preflight(profileFile, historyFile) {
     ]) === 'tmpfs',
     'WORKER_HISTORY_REJECTED',
   );
-  return history;
+  return { ...history, addresses: [...new Set(addresses)] };
 }
 function argumentsFor(args) {
   const operation = args.shift();
@@ -201,6 +233,10 @@ async function main(args) {
     };
   }
   const { operation, flags } = argumentsFor(args);
+  // dist/ must be built from this checkout's current src/ (rebuild after every pull).
+  const build = stampStatus(REPO);
+  check(build !== 'MISSING', 'WORKER_BUILD_REQUIRED');
+  check(build === 'CURRENT', 'WORKER_BUILD_STALE');
   const history = preflight(flags['--profile'], flags['--history']);
   // Strip inherited application/provider settings in this dedicated process only.
   for (const key of Object.keys(process.env))
@@ -224,6 +260,10 @@ async function main(args) {
   let result;
   try {
     await prisma.$connect();
+    // Re-check after connecting: the port could have been rebound since docker inspect.
+    const [server] =
+      await prisma.$queryRaw`SELECT host(inet_server_addr()) AS address, inet_server_port() AS port`;
+    check(serverMatches(server, history), 'WORKER_HISTORY_IDENTITY_MISMATCH');
     const recorder = new RecoveryHistoryService(prisma, config);
     result =
       operation === 'reconcile'
@@ -241,11 +281,14 @@ async function main(args) {
             },
             recorder,
           );
-  } catch {
+  } catch (error) {
     result = {
       status: 'FAILED',
       history: 'NOT_RECORDED',
-      code: 'WORKER_HISTORY_UNAVAILABLE',
+      code:
+        error?.safeCode === 'WORKER_HISTORY_IDENTITY_MISMATCH'
+          ? error.safeCode
+          : 'WORKER_HISTORY_UNAVAILABLE',
     };
   } finally {
     try {
@@ -256,6 +299,7 @@ async function main(args) {
   }
   return { ...result, workerPid: process.pid };
 }
+module.exports = { dockerFailureCode, serverMatches };
 if (require.main === module) {
   main(process.argv.slice(2))
     .then((result) => {

@@ -40,6 +40,9 @@ jobs:
       - name: Verify synthetic recovery CLI argument guards
         run: npm run test:recovery:guards
 
+      - name: Verify standalone worker build-stamp and identity guards
+        run: npm run test:recovery:worker-guards
+
       - name: E2E tests
         run: npm run test:e2e
 

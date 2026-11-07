@@ -2,7 +2,7 @@
 import { spawnSync } from 'node:child_process';
 import { resolve } from 'node:path';
 import { readFileSync, writeFileSync, readdirSync } from 'node:fs';
-import { randomUUID } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import type { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import type { App } from 'supertest/types';
@@ -163,6 +163,60 @@ describe('Owned synthetic recovery worker process', () => {
       expect(after.body.total).toBe(before.body.total);
     },
   );
+  it('reports an expired manifest whose history container no longer exists', async () => {
+    const original = readFileSync(manifest);
+    const value = JSON.parse(original.toString('utf8')) as Record<
+      string,
+      unknown
+    >;
+    // Valid 64-hex identity that no container has, as after the lab was removed.
+    value.containerId = randomBytes(32).toString('hex');
+    const before = await request(app.getHttpServer())
+      .get('/audit-logs')
+      .query({ action: 'recovery_started' })
+      .auth('curator-fixture', { type: 'bearer' })
+      .expect(200);
+    try {
+      writeFileSync(manifest, JSON.stringify(value));
+      const result = run('capture');
+      expect(result.exit).toBe(1);
+      expect(result.body).toMatchObject({
+        status: 'FAILED',
+        history: 'NOT_RECORDED',
+        code: 'WORKER_HISTORY_CONTAINER_MISSING',
+      });
+    } finally {
+      writeFileSync(manifest, original);
+    }
+    const after = await request(app.getHttpServer())
+      .get('/audit-logs')
+      .query({ action: 'recovery_started' })
+      .auth('curator-fixture', { type: 'bearer' })
+      .expect(200);
+    expect(after.body.total).toBe(before.body.total);
+  });
+  it('refuses a dist build that no longer matches src before reading the history manifest', () => {
+    const stamp = resolve(__dirname, '../dist/.recovery-worker-build.json');
+    const original = readFileSync(stamp);
+    try {
+      writeFileSync(
+        stamp,
+        JSON.stringify({
+          format: 'biosphere-worker-build-v1',
+          source: '0'.repeat(64),
+        }),
+      );
+      const result = run('capture');
+      expect(result.exit).toBe(1);
+      expect(result.body).toMatchObject({
+        status: 'FAILED',
+        history: 'NOT_RECORDED',
+        code: 'WORKER_BUILD_STALE',
+      });
+    } finally {
+      writeFileSync(stamp, original);
+    }
+  });
   it('rejects connection flags before using a profile or history destination', () => {
     const result = run('capture', [
       '--database-url',
