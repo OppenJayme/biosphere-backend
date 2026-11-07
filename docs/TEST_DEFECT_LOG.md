@@ -6,6 +6,16 @@ defect entry.
 
 ## Start here
 
+2026-11-08 recovery-lab implementation findings: the new isolated full-profile
+checker initially contacted its unowned loopback canary twice. It now requires
+owned Docker identities and a connected database nonce; the canary sees zero
+connections and the real wrong-nonce case is rejected. Storage-limit alignment,
+the fixture callback and the Windows V8 heap-budget correction are also recorded
+in [the full rehearsal evidence](SUPABASE_RECOVERY_LAB.md#full-profile-evidence-and-limits).
+These were prepublication lab findings, not observed deployed product defects.
+Final local checks passed; existing defect statuses and module acceptance are
+not promoted by this record. Independent review remains required.
+
 2026-10-30 Audit form/pagination follow-up: [nine read-only assertions](./AUDIT_LOG_GUIDE.md#live-toolbar-actor-search-and-pagination-follow-up---2026-10-30)
 pass for real form submission, actor-name search, populated Next/Previous and
 filter reset using existing logs. The avatar/name selector and insufficient

@@ -2270,3 +2270,24 @@ focused retry; the refusal is excluded from passing evidence. Final scope:
 **21 native file/CLI/Storage-contract checks plus 4 real-service workflows**,
 all exercised successfully locally. Static checks passed; pushed-head CI and
 independent review remain separate from these local results.
+
+### November 8 - full-schema and five-bucket synthetic recovery
+
+The [expanded owned profile](SUPABASE_RECOVERY_LAB.md#full-biosphere-schema-and-five-bucket-rehearsal)
+passed **26 native checks and one complete separate-process recovery workflow**
+locally. It applied/read back real migration history, restored representative
+linked public records and Auth identities with FK enforcement, compared schema
+including grants/RLS, and verified distinct file bytes and anonymous denial in
+all five configured buckets. The real compiled `AppModule` then passed protected
+specimen, lot/location, audit and FAQ reads plus signed media download, with
+missing-token and wrong connected-marker denial. Source resources were absent
+before/after verification and all owned cleanup completed. Earlier canary,
+Storage-limit, callback and heap-budget findings are retained in the canonical
+record; capacity refusals are not passes.
+
+No hosted data/configuration, real credentials, existing servers or scheduler
+changed. This fixed synthetic recipe is engineering evidence for Gate B, pending
+independent acceptance. BAK-002, institutional decisions, intended-source
+recovery, custody, independent copies and deployed operation remain separate.
+Full service execution is locally Windows-verified; Linux CI covers the fast
+guards only. Earlier smaller service results are not relabelled final-head runs.

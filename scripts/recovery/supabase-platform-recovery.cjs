@@ -27,12 +27,12 @@ const REAUTH_TABLES = [
   'oauth_authorizations',
   'oauth_client_states',
 ];
-function inventory(sql) {
+function inventory(sql, full = false) {
   return sql(`BEGIN;
     CREATE TEMP TABLE lab_counts (name text, rows bigint) ON COMMIT DROP;
     DO $$ DECLARE t record; BEGIN
       FOR t IN SELECT schemaname, tablename FROM pg_tables
-        WHERE schemaname IN ('auth','storage') AND tablename NOT IN ('schema_migrations','migrations')
+        WHERE schemaname IN ('auth','storage'${full ? ",'public'" : ''}) AND tablename NOT IN ('schema_migrations','migrations')
         ORDER BY schemaname COLLATE "C", tablename COLLATE "C"
       LOOP EXECUTE format('INSERT INTO lab_counts SELECT %L, count(*) FROM %I.%I',
         t.schemaname || '.' || t.tablename, t.schemaname, t.tablename); END LOOP;
@@ -41,7 +41,7 @@ function inventory(sql) {
     COMMIT;`);
 }
 function helpers(ctx) {
-  const { docker, inspect, validate, check } = ctx;
+  const { docker, inspect, validate, check, fullProfile } = ctx;
   const schema = (service) =>
     hash(
       docker([
@@ -54,9 +54,10 @@ function helpers(ctx) {
         'postgres',
         '--schema=auth',
         '--schema=storage',
+        ...(fullProfile ? ['--schema=public'] : []),
         '--schema-only',
         '--no-owner',
-        '--no-privileges',
+        ...(!fullProfile ? ['--no-privileges'] : []),
       ]).replace(/^\\(?:un)?restrict .*\r?$/gm, ''),
     );
   const apps = (service) => [service.auth, service.rest, service.storage];
@@ -90,12 +91,13 @@ function helpers(ctx) {
   return { schema, pause, resume };
 }
 function capturePlatform(ctx) {
-  const { source, docker, validate, check, images, setPhase } = ctx;
+  const { source, docker, validate, check, images, setPhase, fullProfile } =
+    ctx;
   const { schema, pause } = helpers(ctx);
   setPhase('platform-capture');
   for (const id of source.ids) validate(id, true);
   pause(source);
-  const before = inventory(source.sql);
+  const before = inventory(source.sql, fullProfile);
   const sourceSchema = schema(source);
   const dump = docker(
     [
@@ -110,6 +112,9 @@ function capturePlatform(ctx) {
       '--data-only',
       '--schema=auth',
       '--schema=storage',
+      ...(fullProfile
+        ? ['--schema=public', '--exclude-table=public._prisma_migrations']
+        : []),
       '--exclude-table=auth.schema_migrations',
       '--exclude-table=storage.migrations',
       ...REAUTH_TABLES.map((table) => `--exclude-table=auth.${table}`),
@@ -140,7 +145,8 @@ function capturePlatform(ctx) {
     'FIXTURE_CAPTURE_TOO_LARGE',
   );
   check(
-    inventory(source.sql) === before && schema(source) === sourceSchema,
+    inventory(source.sql, fullProfile) === before &&
+      schema(source) === sourceSchema,
     'SOURCE_CHANGED_DURING_CAPTURE',
   );
   const expectedRows = JSON.parse(before);
@@ -149,7 +155,17 @@ function capturePlatform(ctx) {
     if (Object.hasOwn(expectedRows, name)) expectedRows[name] = 0;
   }
   return {
-    format: 'biosphere-platform-fixture-v2',
+    format: fullProfile
+      ? 'biosphere-platform-fixture-v3'
+      : 'biosphere-platform-fixture-v2',
+    ...(fullProfile
+      ? {
+          application: {
+            ...source.application,
+            publicDataHash: ctx.publicDataHash(source.sql),
+          },
+        }
+      : {}),
     images,
     schema: sourceSchema,
     baseline: source.baseline,
@@ -184,10 +200,11 @@ async function stopCapturedSource(ctx) {
   check(!sourceReachable, 'SOURCE_API_STILL_AVAILABLE');
 }
 async function restorePlatform(ctx, packet, fixture) {
-  const { inside, docker, check, platform, images, setPhase } = ctx;
+  const { inside, docker, check, platform, images, setPhase, fullProfile } =
+    ctx;
   const { schema, pause, resume } = helpers(ctx);
   const { assertSourceUnavailable, sourceState } = ctx;
-  validateCapturedPacket(packet, images, check);
+  validateCapturedPacket(packet, images, check, fullProfile);
   check(
     typeof assertSourceUnavailable === 'function',
     'SOURCE_VERIFICATION_REQUIRED',
@@ -203,10 +220,20 @@ async function restorePlatform(ctx, packet, fixture) {
   pause(target);
   setPhase('target-preflight');
   check(
-    inventory(target.sql) === packet.baseline,
+    inventory(target.sql, fullProfile) === packet.baseline,
     'TARGET_HAS_UNEXPECTED_DATA',
   );
-  target.sql(POLICY_SQL);
+  if (fullProfile)
+    check(
+      target.application.migrationsHash === packet.application.migrationsHash &&
+        target.application.bucketRulesHash ===
+          packet.application.bucketRulesHash &&
+        target.application.applicationBuildHash ===
+          packet.application.applicationBuildHash &&
+        target.application.settingsHash === packet.application.settingsHash,
+      'APPLICATION_CONFIGURATION_MISMATCH',
+    );
+  target.sql(ctx.profilePolicy || POLICY_SQL);
   check(schema(target) === packet.schema, 'TARGET_SCHEMA_MISMATCH');
   check(
     target.sql('SHOW session_replication_role') === 'origin',
@@ -241,10 +268,15 @@ async function restorePlatform(ctx, packet, fixture) {
     Buffer.from(packet.objects, 'base64'),
   );
   check(
-    JSON.stringify(JSON.parse(inventory(target.sql))) === packet.rows &&
-      schema(target) === packet.schema,
+    JSON.stringify(JSON.parse(inventory(target.sql, fullProfile))) ===
+      packet.rows && schema(target) === packet.schema,
     'RESTORED_INVENTORY_MISMATCH',
   );
+  if (fullProfile)
+    check(
+      ctx.publicDataHash(target.sql) === packet.application.publicDataHash,
+      'RESTORED_PUBLIC_CONTENT_CHANGED',
+    );
   resume(target);
   setPhase('restored-api-verification');
   const oldAccess = await target.serviceRequest(`${target.authUrl}/user`, {
@@ -296,8 +328,18 @@ async function restorePlatform(ctx, packet, fixture) {
     headers: { Authorization: `Bearer ${target.anon}` },
   });
   const anonymousDenial = await requireAnonymousObjectHidden(denied);
+  let application = {};
+  if (fullProfile) {
+    application = {
+      buckets: await ctx.verifyBuckets(target, session.access_token, check),
+      ...(await ctx.verifyApplication(target)),
+      publicData: 'CONTENT_AND_RELATIONSHIPS_PRESERVED',
+      migrations: 'APPLIED_AND_VERIFIED',
+    };
+  }
   assertSourceUnavailable();
   return {
+    ...application,
     recovery: 'RESTORED_API_VERIFIED',
     source: sourceState,
     identity: 'PRESERVED',
@@ -309,10 +351,13 @@ async function restorePlatform(ctx, packet, fixture) {
     anonymousDenial,
   };
 }
-function validateCapturedPacket(packet, images, check) {
+function validateCapturedPacket(packet, images, check, fullProfile = false) {
   check(
-    packet?.format === 'biosphere-platform-fixture-v2' &&
-      Object.keys(packet).length === 7 &&
+    packet?.format ===
+      (fullProfile
+        ? 'biosphere-platform-fixture-v3'
+        : 'biosphere-platform-fixture-v2') &&
+      Object.keys(packet).length === (fullProfile ? 8 : 7) &&
       JSON.stringify(packet.images) === JSON.stringify(images) &&
       typeof packet.schema === 'string' &&
       /^[a-f0-9]{64}$/.test(packet.schema) &&
@@ -322,6 +367,23 @@ function validateCapturedPacket(packet, images, check) {
       !Object.hasOwn(packet, 'secret'),
     'PLATFORM_PACKET_INVALID',
   );
+  if (fullProfile)
+    check(
+      packet.application?.profile === 'biosphere-full-v1' &&
+        Object.keys(packet.application).length === 6 &&
+        [
+          'migrationsHash',
+          'bucketRulesHash',
+          'publicDataHash',
+          'applicationBuildHash',
+          'settingsHash',
+        ].every(
+          (k) =>
+            typeof packet.application[k] === 'string' &&
+            /^[a-f0-9]{64}$/.test(packet.application[k]),
+        ),
+      'APPLICATION_PACKET_INVALID',
+    );
   for (const key of ['baseline', 'rows']) {
     let value;
     try {
@@ -335,7 +397,10 @@ function validateCapturedPacket(packet, images, check) {
         typeof value === 'object' &&
         Object.entries(value).every(
           ([name, count]) =>
-            /^(auth|storage)\./.test(name) &&
+            (fullProfile
+              ? /^(auth|storage|public)\./
+              : /^(auth|storage)\./
+            ).test(name) &&
             Number.isSafeInteger(count) &&
             count >= 0,
         ),

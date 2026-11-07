@@ -43,6 +43,9 @@ jobs:
       - name: Verify durable checkpoint files and pre-target rejection
         run: npm run test:recovery:supabase:files
 
+      - name: Verify owned synthetic application target guards
+        run: npm run test:recovery:supabase:application-guards
+
       - name: Verify synthetic recovery CLI argument guards
         run: npm run test:recovery:guards
 
