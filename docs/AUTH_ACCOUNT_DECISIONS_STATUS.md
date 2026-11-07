@@ -1,11 +1,14 @@
 # Auth and curator account decisions: status
 
-Last updated 2026-11-05. This page separates what the SRS requires, what is configured today, what
-the team recommends, and what still needs curator or client approval. A recommendation here is not
-an approved policy and must not be cited as an SRS requirement.
+Last updated 2026-11-07. This page separates what the SRS requires, what is configured today, what
+the team recommends, and what the curator has decided. A recommendation here is not an approved
+policy and must not be cited as an SRS requirement.
 
-REQ-4.1-08 is built and tested, but stays incomplete until the museum approves the procedure. Its
-rules are the recommendations below, so an approved change may mean a code change.
+On 2026-11-07 Sir Fidel answered the account questions (see [Curator decisions](#curator-decisions-2026-11-07)).
+He said curators must not deactivate each other, so the curator status route and the Users page
+controls were removed, and handover became a Developer action. REQ-4.1-08 as written in SRS v0.10
+conflicts with his answer, so the team asked Voltaire to revise it; the proposed wording is in
+[SRS revision for REQ-4.1-08](#srs-revision-for-req-41-08).
 
 Full hosted Auth acceptance is not claimed. The public signup retest passed and the session settings
 have been read, but the approvals and checks under [Pending team action](#pending-team-action)
@@ -15,9 +18,9 @@ remain.
 
 | Item | Requirement | Status | Waiting on |
 | --- | --- | --- | --- |
-| Curator activate and deactivate | REQ-4.1-08 | Built to the recommended rules, backend and Users page; not complete | Museum approval of the procedure |
-| Curator handover | REQ-4.1-09, REQ-4.1-11 | Separate successor account available; no handover action or handover audit | Museum approval of the procedure |
-| Inactivity timeout | REQ-4.1-05 | Partial: built and enforced by the frontend, including an offline lock; 30 minutes is a team decision for the $0 baseline | Final requirement and client acceptance |
+| Curator activate and deactivate | REQ-4.1-08 | Curator route and Users page controls removed on 2026-11-07; only the Developer route changes curator status | SRS revision by Voltaire (proposed wording below) |
+| Curator handover | REQ-4.1-09, REQ-4.1-11 | Developer handover action built, with one audit entry per attempt | Museum acceptance test; the curator was not asked about orientation |
+| Inactivity timeout | REQ-4.1-05 | Built and enforced by the frontend, including an offline lock; the curator confirmed 30 minutes on 2026-11-07, and the team decided not to raise the frontend-only limitation with him | Nothing |
 | Public signup | REQ-4.1-03 | Turned off and retested on hosted; all four retest steps passed | Nothing |
 | Invite and reset expiry | REQ-4.1-19 | Single use proven; hosted value is 3600 seconds, not an approved period | Approved period |
 | Real email delivery | REQ-4.1-07, REQ-4.1-10 | Invite, recovery and password-change emails each reached a USC inbox through Brevo; production deliverability not accepted | USC IT decision on the sender |
@@ -47,8 +50,9 @@ Observed facts, not approved targets.
 
 | Area | Observed on 2026-11-05 | Source |
 | --- | --- | --- |
-| Curator status changes | `PATCH /user-accounts/:id/status` lets a curator activate or deactivate another curator. It requires a reason, refuses the curator's own account, hides Developer accounts and audits every attempt as `UPDATE_CURATOR_STATUS`. The Users page offers it for every curator except the signed-in one. | Backend code |
-| Developer status route | Requires `authorizationReason`, but has no self or last-active-curator rule, because a Developer is not a curator. It does not implement the recommended procedure below. | Backend code |
+| Curator status changes | Removed on 2026-11-07. `PATCH /user-accounts/:id/status` no longer exists, and the Users page tells curators that a leaving curator's account is handed over by the system developer. | Backend and frontend code |
+| Developer status route | `PATCH /developer/curators/:id/status` requires `authorizationReason`, but has no last-active-curator rule, because a Developer is not a curator. | Backend code |
+| Developer handover | `POST /developer/curators/handover` takes the outgoing and successor curator IDs and an authorization reason. See [Handover as built](#handover-as-built). | Backend code and Developer page |
 | Inactivity timeout | `NEXT_PUBLIC_SESSION_IDLE_MINUTES` is required, and a frontend build stops without it. Activity resets the timer. Timeout and logout end the session and require a new sign-in. It is enforced by the frontend, so direct API calls with a valid token are not affected. | Frontend code and browser test |
 | Hosted Auth version | GoTrue v2.197.0 | Hosted health endpoint |
 | Hosted signup | Was `disable_signup: false`. After the team's change it reads `disable_signup: true`, and a synthetic signup returned 422 `signup_disabled` with no user created. | Hosted public settings and signup endpoints |
@@ -136,7 +140,84 @@ access token can stay usable until its JWT expiry. The refresh token in that bro
 inactivity limit at the provider, although the proxy ends the session when that browser next opens
 a protected page.
 
-## Recommended policy (not approved)
+## Curator decisions (2026-11-07)
+
+Sir Fidel's answers, as relayed to the team on 2026-11-07. No written artifact is recorded here.
+
+| Question | Answer | What changed |
+| --- | --- | --- |
+| May one curator turn off another curator's account? | No. Once he retires he will not interfere, and everything is turned over to the next curator. | Curator status route and Users page controls removed. Handover moved to the Developer. |
+| Is there an orientation for a new curator? | He is not sure there is one. | Nothing. Onboarding stays the invitation flow. |
+| Log out after 30 minutes without use? | Confirmed, no change requested. | Nothing. `NEXT_PUBLIC_SESSION_IDLE_MINUTES=30` stays. |
+| Invitation and reset link expiry | Not answered. | Still pending. Hosted value stays 3600 seconds. |
+
+Not raised with him: that the timeout is enforced by the frontend, and that an issued access token
+can stay valid for up to an hour after a browser is closed. See
+[Session control wording](#session-control-wording-for-acceptance).
+
+### Team decisions (2026-11-07)
+
+Development team decisions, recorded in the team chat. They are not museum approval.
+
+1. **Handover is a Developer action.** Curators do not change each other's status.
+2. **The frontend-only timeout is not raised with the curator** (John Mark). REQ-4.1-05 is treated
+   as met by the 30-minute frontend timeout he confirmed. The residual access-token lifetime stays
+   an accepted limitation, described in
+   [Session control wording](#session-control-wording-for-acceptance).
+3. **REQ-4.1-08 is revised in the SRS by Voltaire** (John Mark).
+4. **A Developer may change any curator's status without a curator's sign-off.** Every change
+   requires a recorded reason and is in the Audit Log, where curators can review it and respond.
+   The team accepted this during the 2026-11-07 handover test.
+
+### SRS revision for REQ-4.1-08
+
+The SRS is kept in the repos only as `docs/BioSphere-SRS.pdf` (v0.10), so the revision has to be
+made in the source document and the PDF re-exported. Proposed text:
+
+> **REQ-4.1-08** The system shall not allow a curator to activate or deactivate another curator
+> account. Curator account activation and deactivation, including the deactivation of an outgoing
+> curator during handover, shall be performed only by an authorized Developer with recorded formal
+> authorization (REQ-4.2-03).
+
+Optional, to match what was built for REQ-4.1-09:
+
+> **REQ-4.1-09** The system shall support curator succession or handover by providing the
+> successor with a separate authorized account without transferring or sharing the outgoing
+> curator's credentials. The outgoing curator's account shall be deactivated and retained only
+> after the successor has accepted their invitation and signed in.
+
+Revision history entry: *2026-11-07, v0.11, REQ-4.1-08 revised to follow the curator's decision that
+curators do not deactivate each other; Voltaire.* Until the PDF is replaced, this page is the record
+of the change.
+
+### Handover as built
+
+`POST /developer/curators/handover` (Developer only):
+
+1. Body: `outgoingCuratorId`, `successorCuratorId` and a required `authorizationReason` (trimmed,
+   at most 500 characters). Any other field is rejected.
+2. The two accounts must differ, and both must be curator accounts. A Developer account or unknown
+   ID returns 404.
+3. The outgoing account must be active, or the request returns 409.
+4. The successor must be active, must have accepted their invitation, and must have signed in at
+   least once, or the request returns 409 with the reason.
+5. The outgoing account is set to `INACTIVE` and kept. Nothing is deleted, and no credentials
+   move. An inactive account is refused on every request, so its sessions end.
+6. The status change and its `HAND_OVER_CURATOR` audit entry commit together under SERIALIZABLE.
+   The entry records the successor ID, the previous and new status, and the reason. Every refused
+   or failed attempt is also audited, as `DENIED` or `FAILED`.
+
+The Developer page has a Curator handover form. A browser check on a disposable local stack on
+2026-11-07 confirmed a refused handover to a curator who had never signed in, a successful
+handover, both audit entries, a 403 for the outgoing curator, and a 404 for the removed curator
+route. Voltaire then repeated it against the hosted project from a local build on 2026-11-07: a
+test curator was handed over, shown as Inactive with the handover in the Audit Log, and reactivated
+through the Developer status route. The deployed site does not run this change yet.
+
+## Recommended policy (historical)
+
+Proposed on 2026-11-05. The curator's 2026-11-07 answers replaced the deactivation rules: curators
+no longer deactivate each other at all. The handover steps below were built as a Developer action.
 
 Proposed by the team for review by Sir Fidel and the museum.
 
@@ -160,8 +241,7 @@ The outgoing account is deactivated and kept, not deleted, so historical attribu
 
 | Decision | Who decides | Blocks |
 | --- | --- | --- |
-| Deactivation rules and handover steps above | Sir Fidel and the museum | Building and closing REQ-4.1-08; REQ-4.1-09 handover action |
-| Final acceptance of the 30-minute period and frontend enforcement | Curator or client | Closing REQ-4.1-05 |
+| Re-export the SRS with the REQ-4.1-08 revision above | Voltaire | Closing REQ-4.1-08 |
 | Production sender model | USC IT, requested or endorsed by Sir Fidel or the museum | Accepting production email deliverability |
 | Invitation and reset expiry periods, including whether 1 hour suits invitations | Curator or client | Closing REQ-4.1-19 |
 
