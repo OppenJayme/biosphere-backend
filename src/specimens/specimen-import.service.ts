@@ -197,6 +197,8 @@ interface CachedPreviewRow {
   inFlight?: Promise<Specimen>;
 }
 
+const GENERATED_ACCESSION_PLACEHOLDER = 'generated at import';
+
 interface CachedPreview {
   createdBy: string;
   createdAt: number;
@@ -333,6 +335,8 @@ export class SpecimenImportService {
           duplicateWarnings,
           possibleDuplicates,
           valid: errors.length === 0,
+          accessionNumberWillBeGenerated:
+            accessionNumberKey(context.fields.accessionNumber) === undefined,
           catalogReadiness: this.buildCatalogReadiness(context.fields, extras),
           dto: this.toCreateSpecimenDto(context.fields),
           extras,
@@ -362,6 +366,7 @@ export class SpecimenImportService {
         duplicateWarnings: row.duplicateWarnings,
         possibleDuplicates: row.possibleDuplicates,
         valid: row.valid,
+        accessionNumberWillBeGenerated: row.accessionNumberWillBeGenerated,
         catalogReadiness: row.catalogReadiness,
       })),
       unmappedColumns,
@@ -808,7 +813,9 @@ export class SpecimenImportService {
       : null;
     const results = evaluateCatalogRequirements({
       collectionId: fields.collectionId ?? null,
-      accessionNumber: fields.accessionNumber ?? null,
+      // A blank number is generated at commit, so it never blocks readiness.
+      accessionNumber:
+        fields.accessionNumber ?? GENERATED_ACCESSION_PLACEHOLDER,
       commonName: fields.commonName ?? null,
       kingdom: fields.kingdom ?? null,
       collectionDate:

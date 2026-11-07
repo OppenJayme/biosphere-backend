@@ -869,13 +869,14 @@ describe('SpecimenImportService', () => {
 
       expect(result.rows[0].valid).toBe(true);
       expect(result.rows[0].errors).toEqual([]);
+      // A blank accession number is generated at commit.
+      expect(result.rows[0].accessionNumberWillBeGenerated).toBe(true);
       expect(result.rows[0].catalogReadiness).toEqual(
         expect.objectContaining({
           requirementsMet: false,
           resultingStatus: 'UNCATALOGED',
           missingRequirements: [
             'Collection is assigned',
-            'Accession number is assigned',
             'A valid collection date on or before today is recorded',
             'Preservation type is recorded',
             'Preservation method is recorded',

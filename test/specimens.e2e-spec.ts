@@ -175,6 +175,7 @@ describe('Specimens (e2e)', () => {
       specimen_revision_history: revisionDelegate,
       audit_log: auditDelegate,
       $queryRaw: queryRawMock,
+      $executeRaw: jest.fn(() => 1),
       $transaction: jest.fn((operation: unknown) => {
         if (Array.isArray(operation)) return Promise.all(operation);
         return Promise.resolve(

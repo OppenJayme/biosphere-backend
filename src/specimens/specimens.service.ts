@@ -43,7 +43,10 @@ import {
   assertCatalogedValueRetained,
   hasCatalogText,
 } from './catalog-completion.policy';
-import { SpecimenAccessionService } from './specimen-accession.service';
+import {
+  SpecimenAccessionService,
+  accessionNumberKey,
+} from './specimen-accession.service';
 import { SpecimenCatalogingService } from './specimen-cataloging.service';
 import { SpecimenRestoreResult } from './entities/specimen-restore.entity';
 
@@ -298,6 +301,19 @@ export class SpecimensService {
           hasCatalogText(dto.commonName ?? null),
           'Common name',
         );
+
+        // Once assigned, the number stays with the record through
+        // cataloging, movement, archiving, and restoration. It may be
+        // corrected, but never cleared.
+        if (
+          dto.accessionNumber !== undefined &&
+          !hasCatalogText(dto.accessionNumber ?? null) &&
+          hasCatalogText(existing.accession_number)
+        ) {
+          throw new BadRequestException(
+            'An assigned accession number cannot be cleared. Correct it instead.',
+          );
+        }
 
         if (dto.collectionId) {
           await this.assertCollectionExists(transaction, dto.collectionId);
@@ -990,7 +1006,13 @@ export class SpecimensService {
     if (dto.collectionId) {
       await this.assertCollectionExists(transaction, dto.collectionId);
     }
-    await this.accession.assertAvailable(transaction, dto.accessionNumber);
+    // Every newly accepted record gets an accession number immediately,
+    // even while Uncataloged; a curator-supplied number is kept as entered.
+    const accessionNumber =
+      accessionNumberKey(dto.accessionNumber) === undefined
+        ? await this.accession.allocateNext(transaction)
+        : dto.accessionNumber;
+    await this.accession.assertAvailable(transaction, accessionNumber);
 
     let created: specimen;
     try {
@@ -999,7 +1021,7 @@ export class SpecimensService {
           collection_id: dto.collectionId,
           created_by: actingCuratorAccountId,
           updated_by: actingCuratorAccountId,
-          accession_number: dto.accessionNumber,
+          accession_number: accessionNumber,
           specimen_category: dto.specimenCategory,
           scientific_name: dto.scientificName,
           common_name: dto.commonName,
@@ -1011,14 +1033,19 @@ export class SpecimensService {
         },
       });
     } catch (error) {
-      throw this.toAccessionConflict(error, dto.accessionNumber);
+      throw this.toAccessionConflict(error, accessionNumber);
     }
 
     await this.recordAudit(transaction, {
       userId: actingCuratorAccountId,
       specimenId: created.id,
       action: auditAction,
-      details: { status: created.status, ...extraAuditDetails },
+      details: {
+        status: created.status,
+        accessionNumber,
+        accessionNumberGenerated: accessionNumber !== dto.accessionNumber,
+        ...extraAuditDetails,
+      },
     });
 
     return this.toEntity(created);
