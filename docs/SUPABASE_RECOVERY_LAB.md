@@ -50,6 +50,36 @@ before launching; earlier samples expire as other applications consume memory.
 Do not stop existing services to satisfy the threshold automatically. Free
 unneeded desktop resources or use a separately approved suitable machine.
 
+### Follow-up preflight on November 7
+
+After the user closed unused applications, available Windows memory increased
+to **2,569 MiB**. Docker was available and the same ten unrelated containers
+were still running. This remains below the 5 GiB launch threshold. No service
+was launched or stopped.
+
+The official documented release `self-hosted/v0.8.4` was resolved with public
+`git ls-remote`. It is an annotated tag: the tag object is
+`3f8e6c2e2bdca35bd6eacc8b7782aa73acb58ebc`, and its underlying source commit is
+**`189adda99d1b56da55fc5a6ee3f849354aaea92a`**. Fetch source files by the
+underlying commit; using the tag-object hash as a raw source revision returned
+404 and was not accepted as a successful source check.
+
+The [pinned official configuration](https://github.com/supabase/supabase/blob/189adda99d1b56da55fc5a6ee3f849354aaea92a/docker/docker-compose.yml)
+selects PostgreSQL `17.6.1.136`, GoTrue `v2.197.0`, Storage `v1.89.12` and
+PostgREST `v14.18`. Public registry manifest reads verified their Linux/amd64
+child digests and index digests, recorded in
+[the candidate image lock](../scripts/recovery/supabase-lab-images.json).
+The Compose UTF-8 SHA-256 is recorded there as well. No image was pulled.
+
+This selects a coherent upstream **candidate** for the four core services,
+not a tested complete lab or a security certification. Gateway/sink/probe
+images, startup SQL, mounts, secrets, reduced-service dependencies, network
+configuration and resource caps still need review and immutable pins before
+launch. None of the upstream Compose startup commands may be run as-is: its
+default names, published ports and mounts are not the isolated lab contract.
+Matching PostgreSQL major 17 does not prove compatibility with BioSphere's
+hosted platform or remove the managed-schema restore issue below.
+
 ## Execution order after prerequisites pass
 
 1. **Select one coherent platform release.** Record an immutable official

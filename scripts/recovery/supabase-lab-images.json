@@ -1,0 +1,32 @@
+{
+  "purpose": "synthetic-lab-candidate-only",
+  "platform": "linux/amd64",
+  "sourceRepository": "https://github.com/supabase/supabase",
+  "sourceTag": "self-hosted/v0.8.4",
+  "sourceCommit": "189adda99d1b56da55fc5a6ee3f849354aaea92a",
+  "composePath": "docker/docker-compose.yml",
+  "composeUtf8Sha256": "91d706ea68ae8bc194aa278680a91c486f642f1e7ee89a1ebc096d4f72c9c157",
+  "verifiedDate": "2026-11-07",
+  "images": {
+    "database": {
+      "tag": "supabase/postgres:17.6.1.136",
+      "indexDigest": "sha256:f371b5f3f2ac0a05703f33d6e6134515fb2498cab708fb948a0aeb7481467c00",
+      "image": "supabase/postgres@sha256:5a4314708484bec672de2c09653a5c01fb1c84a998564ac231b0325e2238ed5b"
+    },
+    "auth": {
+      "tag": "supabase/gotrue:v2.197.0",
+      "indexDigest": "sha256:1736a63078f5922b198c4cbe50f80ab9a2d3b54fe8b7b6cfb2e9dc5dbbc12c6b",
+      "image": "supabase/gotrue@sha256:839f529492d116b4e8b7777c953a27c381d34c15a744b1bcefde5eefaa1f9f9f"
+    },
+    "storage": {
+      "tag": "supabase/storage-api:v1.89.12",
+      "indexDigest": "sha256:8526956cb462e9f7d392e9848ec77133b2769982ed614e9753cc687e8e4339a6",
+      "image": "supabase/storage-api@sha256:4a71028f91060c8d2e86d7426faa6841947d63f4ee97f9683d058d3ec367fb6c"
+    },
+    "rest": {
+      "tag": "postgrest/postgrest:v14.18",
+      "indexDigest": "sha256:c7cd7e265a85b05248abf53f4473fcec7e327c282d0bd0cf60f1551996d09fcf",
+      "image": "postgrest/postgrest@sha256:c847127074bd26e1b8d3f7c0e6e01e5346f4b85dd34f5d699fd230af960827c0"
+    }
+  }
+}
