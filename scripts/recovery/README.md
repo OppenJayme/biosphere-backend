@@ -1,5 +1,103 @@
 # Synthetic manual recovery CLI
 
+## Local deployment-planning readiness check
+
+Before provisioning an intended-source runner, a technical implementer can
+check the decision record without starting services or supplying credentials:
+
+```text
+npm run recovery:readiness -- check --record docs/examples/recovery-readiness.pending.json
+npm run test:recovery:readiness
+```
+
+The [pending example](../../docs/examples/recovery-readiness.pending.json)
+contains only null decisions, so the first command is expected to return
+`READINESS_BLOCKED` and exit 1. Keep the example pending. Copy it into an approved
+private working location as `recovery-readiness.private.json` and fill it from
+the [approval/operating record](../../docs/BACKUP_RECOVERY_APPROVAL.md), measured
+capacity and actual review evidence. That filename is ignored by Git as an
+additional precaution; it is not encryption or institutional custody.
+
+Use short opaque references, not names, contact details, URLs, object paths,
+database connection strings, tokens or key material. References must match
+`[a-z0-9][a-z0-9._-]{0,79}`; pending/none/unknown/todo are not completed evidence.
+Each reference must map to a restricted record the reviewer can actually inspect.
+The checker outputs static blocker codes/field names, the museum-calendar date
+and a calculated destination byte requirement; it does not echo references,
+commits, supplied paths or raw error text.
+
+| Section | Required declaration |
+| --- | --- |
+| `release`, `approval` | Full backend/frontend commit SHAs, matching approval release, evidence/approver references and valid confirmation/review dates. |
+| `ownership` | Intended-source identity/owner, continuing account/key custody, demonstrated recovery access and assistance route references. |
+| `destination`, `runner` | Identity/owner references plus independence, key separation, readback and least-privilege evidence. Equal source/destination references are blocked; different references alone do not prove independence. |
+| `policy` | Positive integer capture interval/RPO hours and retained checkpoint count; approved policy evidence reference. An interval greater than the stated RPO is blocked; a shorter interval does not establish an actual RPO. |
+| `capacity` | Dated measurements/review expiry, maximum full encrypted checkpoint bytes, destination budget/reserve, staging/transfer requirements and available budgets, runner seconds required/available. |
+| `verification` | Independent synthetic review, authorized intended-source restore, write coordination, retention safety, missed-run detection, history reconciliation and Curator handover references. |
+
+All fields must exist; `null` means missing and blocks readiness. Unknown fields,
+wrong types, malformed dates, unsafe integers, nonpositive requirements and
+negative budgets are rejected. Dates use `YYYY-MM-DD`; review dates are inclusive
+on the current day in Asia/Manila. Future confirmations/measurements, expired
+reviews and inverted date ranges block readiness. Refresh evidence after release,
+scope, capacity or operating-policy changes; matching commits alone do not prove
+the rest of the record was approved.
+
+The conservative destination requirement is:
+
+```text
+checkpointBytes * (retainedCheckpoints + 1 incoming copy) + destinationReserveBytes
+```
+
+`destinationAvailableBytes` is the currently usable, uncommitted budget. This
+model reserves a complete retention set plus the incoming copy before replacing
+anything. It assumes no compression/deduplication savings or early deletion of
+the last good checkpoint. Staging, transfer and runner requirements are separate
+measured declarations, not inferred from encrypted file size. Large products
+use integer arithmetic and are emitted as a decimal string. The checker does
+not measure storage, fetch quotas, predict growth or prove a free plan suffices.
+
+`runnerRequiredSeconds` and `runnerAvailableSeconds` are both **per scheduled
+capture attempt**, including capture, encryption, upload, readback and result
+recording. Available seconds are the usable job timeout after reserving startup
+and cleanup time. Do not enter a daily/monthly allowance in this field. Monthly
+runner allowance, other CI consumption and retries must be budgeted separately;
+this comparison alone does not establish $0 operation. Staging is peak bytes per
+attempt, and the declared transfer pair likewise covers one capture attempt.
+
+| Exit | Result | Meaning |
+| --- | --- | --- |
+| 0 | `READY_FOR_MANUAL_REVIEW` | The declared checklist is internally consistent; an authorized reviewer must still inspect the evidence. |
+| 1 | `READINESS_BLOCKED` | Required decisions/evidence or declared resource budgets remain incomplete/inconsistent. |
+| 2 | `READINESS_USAGE`, `READINESS_INPUT_*` or `READINESS_RECORD_INVALID` | Unsupported invocation, unsafe/unreadable/oversized input or invalid record. |
+
+Every result has `deploymentAuthorized: false`. The checker cannot authenticate
+an approval or prove the referenced evidence is true. It has no worker hook,
+enable/restore/schedule command, HTTP route, network client, dotenv loading or
+write operation. It reads only the explicitly supplied regular JSON file, with a
+64 KiB bound and rejection of final-file symlinks and UNC/device paths. POSIX
+uses `O_NOFOLLOW` where available. Windows has no equivalent flag here: the
+checker uses an initial symlink check and exact open-handle inode comparison,
+comparing device IDs only when both are known (nonzero). This is not an atomic
+no-follow guarantee on Windows or protection against a hostile filesystem. It does
+not inspect the source project, existing servers or actual provider accounts.
+Neither a passing result nor a merged PR closes BAK-002 or authorizes real-data
+export, scheduling, retention deletion or live cutover.
+
+November 8 verification: 27 isolated CLI checks (including nested cases) passed,
+zero skipped. Missing/stale decisions, release mismatch, contradictory policies,
+budget shortfalls/precision, malformed inputs and sanitized output were checked
+with synthetic local files. These checks are included in ordinary backend CI;
+the pushed-head CI result remains separate from this local evidence.
+
+Windows review follow-up: [DEF-043](../../docs/TEST_DEFECT_LOG.md#def-043---readiness-check-rejects-valid-files-on-windows-node-2214)
+reproduced 27 failures on Node 22.14.0 before repair; all 27 checks then passed
+on Windows Node 22.14.0 and 24.7.0, zero skipped. CI now explicitly runs the
+reported Windows version as well as the existing Linux checks. This is local
+CLI compatibility evidence, not intended-source recovery or deployment approval.
+
+## Synthetic capture/restore implementation
+
 This first implementation is an engineering rehearsal tool. It accepts only
 owned local Docker PostgreSQL fixtures with networking disabled and no bound
 ports/host mounts. It cannot take a PostgreSQL URL, Supabase credentials or the

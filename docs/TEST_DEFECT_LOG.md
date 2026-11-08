@@ -134,6 +134,7 @@ system is not a reason to postpone all fixes until the end.
 
 | ID      | Date       | Module                     | Summary                                                                 | Severity    | Priority | Status | Owner                   |
 | ------- | ---------- | -------------------------- | ----------------------------------------------------------------------- | ----------- | -------- | ------ | ----------------------- |
+| [DEF-043](#def-043---readiness-check-rejects-valid-files-on-windows-node-2214) | 2026-11-08 | Recovery / Planning CLI | Unknown path device ID differs from the open handle on Windows Node 22.14, rejecting valid records | S3 Moderate | P2 | Ready for retest | Kyer / Ivan; Raidiniom review |
 | [DEF-042](#def-042---automatic-accession-allocation-reissues-the-first-number) | 2026-11-08 | Cataloging / Offline sync | Second omitted-accession creation conflicts with the first generated accession | S2 Major | P1 | Ready for retest | Kyer / Ivan |
 | [DEF-041](#def-041---supabase-rehearsal-reuses-source-authentication-authority) | 2026-11-07 | Recovery / Supabase fixture | Restored target accepts source authentication; restore bypasses FK triggers and denial checks accept unrelated errors | S3 Moderate | P2 | Ready for retest | Kyer / Ivan; MarQtie #252/#253 review |
 | [DEF-040](#def-040---worker-runtime-and-connected-history-identity-are-not-verified) | 2026-11-07 | Recovery / Standalone worker | Stale compiled code and a reachable database with an incorrect/missing identity marker are accepted; expired manifests have a misleading error | S3 Moderate | P2 | Ready for retest | Kyer / Ivan; MarQtie review |
@@ -178,6 +179,33 @@ system is not a reason to postpone all fixes until the end.
 | [DEF-015](#def-015---audit-http-fixture-omits-the-security-audit-create-method) | 2026-10-19 | Audit / HTTP test fixture | Missing security-audit create mock logs an error despite green denial test | S3 Moderate | P2 | Ready for retest | Audit tests / coordinate with Auth |
 
 ## 3. Defect details
+
+### DEF-043 - Readiness check rejects valid files on Windows Node 22.14
+
+**Observed:** November 8, 2026; Raidiniom's #268 review, reproduced after merge
+on develop `d7e8825` using checksum-verified portable Node 22.14.0 on Windows.
+**Disposition:** Ready for retest; local repair verified, pushed-head CI and
+independent review remain separate.
+**Owner:** Kyer / Ivan (Recovery tooling).
+
+Running the real CLI against a regular pending or complete synthetic record
+returns exit 2 / `READINESS_INPUT_UNSAFE` instead of the expected assessment.
+All 27 existing CLI checks failed on Node 22.14.0 before repair. Prior Windows
+Node 24 and Linux CI passes did not cover this affected runtime. The sandbox's
+initial child-process `EPERM` was a test-launch restriction, not this defect;
+the reproduction above ran after allowing the isolated child processes.
+
+Older Windows Node reports a zero (unknown) path device ID while the open handle
+reports its actual volume ID. Compare device IDs only when both are known,
+retain inode matching, and use BigInt stats for exact file identity. Existing
+file-type and size guards remain. Windows lacks `O_NOFOLLOW` here, so these
+checks do not establish an atomic no-follow guarantee on a hostile filesystem.
+
+After repair: 27/27 real CLI checks pass with zero skipped on both Windows
+Node 22.14.0 and Node 24.7.0. CI now explicitly includes Windows Node 22.14.0,
+alongside the existing Linux workflow. No hosted data, credentials, services,
+backup destination or scheduler was used. Every assessment still returns
+`deploymentAuthorized: false`; this finding does not authorize recovery rollout.
 
 ### DEF-042 - Automatic accession allocation reissues the first number
 
