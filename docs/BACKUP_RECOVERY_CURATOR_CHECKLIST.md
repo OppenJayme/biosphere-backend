@@ -4,6 +4,16 @@
 this document. Use only after setup, rehearsal and applicable approval. This is
 the business-owner companion to the [technical procedure](./BACKUP_RECOVERY_PROCEDURE.md).
 
+**November 8 setup status:** no independent backup destination or continuing
+storage-account owner is confirmed. The current CI recovery job is a synthetic
+test, not a scheduled museum backup. Use the
+[closeout order and short decision request](./BACKUP_RECOVERY_APPROVAL.md#closeout-order---november-8-2026)
+to finish setup; the ordinary-use steps below remain conditional.
+
+The full-schema/five-bucket synthetic recovery implementation (#265) is now
+merged and has passing CI. That does not establish a scheduled backup of the
+museum's actual data or complete the separate rehearsal acceptance and turnover.
+
 ## During ordinary use
 
 1. At first use on a museum working day, check the backup status and last
