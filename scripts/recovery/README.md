@@ -57,6 +57,14 @@ measured declarations, not inferred from encrypted file size. Large products
 use integer arithmetic and are emitted as a decimal string. The checker does
 not measure storage, fetch quotas, predict growth or prove a free plan suffices.
 
+`runnerRequiredSeconds` and `runnerAvailableSeconds` are both **per scheduled
+capture attempt**, including capture, encryption, upload, readback and result
+recording. Available seconds are the usable job timeout after reserving startup
+and cleanup time. Do not enter a daily/monthly allowance in this field. Monthly
+runner allowance, other CI consumption and retries must be budgeted separately;
+this comparison alone does not establish $0 operation. Staging is peak bytes per
+attempt, and the declared transfer pair likewise covers one capture attempt.
+
 | Exit | Result | Meaning |
 | --- | --- | --- |
 | 0 | `READY_FOR_MANUAL_REVIEW` | The declared checklist is internally consistent; an authorized reviewer must still inspect the evidence. |
@@ -67,7 +75,11 @@ Every result has `deploymentAuthorized: false`. The checker cannot authenticate
 an approval or prove the referenced evidence is true. It has no worker hook,
 enable/restore/schedule command, HTTP route, network client, dotenv loading or
 write operation. It reads only the explicitly supplied regular JSON file, with a
-64 KiB bound and rejection of final-file symlinks and UNC/device paths. It does
+64 KiB bound and rejection of final-file symlinks and UNC/device paths. POSIX
+uses `O_NOFOLLOW` where available. Windows has no equivalent flag here: the
+checker uses an initial symlink check and exact open-handle inode comparison,
+comparing device IDs only when both are known (nonzero). This is not an atomic
+no-follow guarantee on Windows or protection against a hostile filesystem. It does
 not inspect the source project, existing servers or actual provider accounts.
 Neither a passing result nor a merged PR closes BAK-002 or authorizes real-data
 export, scheduling, retention deletion or live cutover.
@@ -77,6 +89,12 @@ zero skipped. Missing/stale decisions, release mismatch, contradictory policies,
 budget shortfalls/precision, malformed inputs and sanitized output were checked
 with synthetic local files. These checks are included in ordinary backend CI;
 the pushed-head CI result remains separate from this local evidence.
+
+Windows review follow-up: [DEF-043](../../docs/TEST_DEFECT_LOG.md#def-043---readiness-check-rejects-valid-files-on-windows-node-2214)
+reproduced 27 failures on Node 22.14.0 before repair; all 27 checks then passed
+on Windows Node 22.14.0 and 24.7.0, zero skipped. CI now explicitly runs the
+reported Windows version as well as the existing Linux checks. This is local
+CLI compatibility evidence, not intended-source recovery or deployment approval.
 
 ## Synthetic capture/restore implementation
 
