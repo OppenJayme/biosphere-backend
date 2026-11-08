@@ -151,7 +151,8 @@
     "capturedEmailCount": 15,
     "blockedOutboundRequestCount": 0,
     "rawReportSha256": "645af0390d36519f59b406a9778f025787fca25e4527b0195de85693f7dd1bae",
-    "rawReportCommitted": false,
-    "localRawReport": ".sync-alert-full-result.log"
+    "rawReportCommitted": true,
+    "localRawReport": ".sync-alert-full-result.log",
+    "rawReportPath": "api-test-results-2026-11-08-final.json"
   }
 }

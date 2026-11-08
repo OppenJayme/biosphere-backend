@@ -1,10 +1,10 @@
 {
-  "generatedAt": "2026-11-07T18:22:12.723Z",
+  "generatedAt": "2026-11-08T06:33:01.333Z",
   "target": "disposable local PostgreSQL (prisma/migrations) + loopback fake Supabase; Brevo captured",
   "totals": {
-    "cases": 790,
-    "passed": 783,
-    "failed": 7
+    "cases": 797,
+    "passed": 794,
+    "failed": 3
   },
   "outboundBlocked": [],
   "emailsCaptured": [
@@ -12,37 +12,37 @@
       "to": [
         "visitor@example.test"
       ],
-      "subject": "We received your BioSphere museum inquiry (Ref D197E64B)"
+      "subject": "We received your BioSphere museum inquiry (Ref 23A7EC03)"
     },
     {
       "to": [
         "curatora@example.test"
       ],
-      "subject": "New general inquiry received (Ref D197E64B)"
+      "subject": "New general inquiry received (Ref 23A7EC03)"
     },
     {
       "to": [
         "pendingcurator@example.test"
       ],
-      "subject": "New general inquiry received (Ref D197E64B)"
+      "subject": "New general inquiry received (Ref 23A7EC03)"
     },
     {
       "to": [
         "new.curator@example.test"
       ],
-      "subject": "New general inquiry received (Ref D197E64B)"
+      "subject": "New general inquiry received (Ref 23A7EC03)"
     },
     {
       "to": [
         "initial.curator@example.test"
       ],
-      "subject": "New general inquiry received (Ref D197E64B)"
+      "subject": "New general inquiry received (Ref 23A7EC03)"
     },
     {
       "to": [
         "curatorb@example.test"
       ],
-      "subject": "New general inquiry received (Ref D197E64B)"
+      "subject": "New general inquiry received (Ref 23A7EC03)"
     },
     {
       "to": [
@@ -54,37 +54,37 @@
       "to": [
         "teacher@example.test"
       ],
-      "subject": "We received your BioSphere visit request (Ref 5937FC6C)"
+      "subject": "We received your BioSphere visit request (Ref E1E25EF4)"
     },
     {
       "to": [
         "curatora@example.test"
       ],
-      "subject": "New visit request received (Ref 5937FC6C)"
+      "subject": "New visit request received (Ref E1E25EF4)"
     },
     {
       "to": [
         "pendingcurator@example.test"
       ],
-      "subject": "New visit request received (Ref 5937FC6C)"
+      "subject": "New visit request received (Ref E1E25EF4)"
     },
     {
       "to": [
         "new.curator@example.test"
       ],
-      "subject": "New visit request received (Ref 5937FC6C)"
+      "subject": "New visit request received (Ref E1E25EF4)"
     },
     {
       "to": [
         "initial.curator@example.test"
       ],
-      "subject": "New visit request received (Ref 5937FC6C)"
+      "subject": "New visit request received (Ref E1E25EF4)"
     },
     {
       "to": [
         "curatorb@example.test"
       ],
-      "subject": "New visit request received (Ref 5937FC6C)"
+      "subject": "New visit request received (Ref E1E25EF4)"
     },
     {
       "to": [
@@ -96,7 +96,7 @@
       "to": [
         "teacher@example.test"
       ],
-      "subject": "Your BioSphere museum visit schedule has been approved (Ref 5937FC6C)"
+      "subject": "Your BioSphere museum visit schedule has been approved (Ref E1E25EF4)"
     }
   ],
   "results": [
@@ -7490,10 +7490,9 @@
       "path": "/auth/onboarding/complete",
       "kind": "happy",
       "expected": "200|201 + checks",
-      "actualStatus": 400,
-      "pass": false,
-      "db": "app_metadata after: {\"onboarding_pending\":true}",
-      "note": "{\"message\":[\"password must be shorter than or equal to 72 characters\",\"password must be longer than or equal to 8 characters\",\"password must be a string\"],\"error\":\"Bad Request\",\"statusCode\":400}"
+      "actualStatus": 200,
+      "pass": true,
+      "db": "app_metadata after: {\"onboarding_pending\":false}"
     },
     {
       "id": "AUTH-ONBOARD-NOJWT",
@@ -7505,9 +7504,8 @@
       "path": "/auth/onboarding/complete",
       "kind": "no-jwt",
       "expected": "401",
-      "actualStatus": 400,
-      "pass": false,
-      "note": "{\"message\":[\"password must be shorter than or equal to 72 characters\",\"password must be longer than or equal to 8 characters\",\"password must be a string\"],\"error\":\"Bad Request\",\"statusCode\":400}"
+      "actualStatus": 401,
+      "pass": true
     },
     {
       "id": "ACCT-INVITE",
@@ -7564,7 +7562,7 @@
       "expected": "200 + checks",
       "actualStatus": 200,
       "pass": true,
-      "note": "invitee entry: {\"id\":\"8e4fb291-c495-433d-abc3-e1f67b71f1fb\",\"fullName\":\"Invited Curator\",\"email\":\"new.curator@example.test\",\"status\":\"ACTIVE\",\"inviteAccepted\":false,\"lastSignInAt\":null,\"createdAt\":\"2026-11-07T18:21:"
+      "note": "invitee entry: {\"id\":\"f87d00c8-0d50-43e2-9223-de199e79179a\",\"fullName\":\"Invited Curator\",\"email\":\"new.curator@example.test\",\"status\":\"ACTIVE\",\"inviteAccepted\":false,\"lastSignInAt\":null,\"createdAt\":\"2026-11-08T06:31:"
     },
     {
       "id": "ACCT-CURATOR-ACTIVATE",
@@ -7579,7 +7577,7 @@
       "expected": "200 + checks",
       "actualStatus": null,
       "pass": false,
-      "note": "No curator-side route to activate/deactivate or hand over an account exists (only /developer/curators/:id/status)."
+      "note": "Not executed: reconcile the legacy Curator activation requirement with the Nov 7 Developer-owned status/handover decision and its owner-accepted HTTP evidence."
     },
     {
       "id": "ACCT-CHANGE-PASSWORD",
@@ -7594,7 +7592,7 @@
       "expected": "200 + checks",
       "actualStatus": null,
       "pass": false,
-      "note": "No backend change-password or confirmation-email route; password changes would happen directly in Supabase with no BioSphere audit (REQ-4.1-11)."
+      "note": "Not executed here: backend password change/recovery/reset routes exist; their current HTTP and audit behavior still needs executed evidence in this progress harness."
     },
     {
       "id": "DEV-ONBOARD",
@@ -7609,7 +7607,7 @@
       "expected": "201 + checks",
       "actualStatus": 201,
       "pass": true,
-      "db": "created {\"id\":\"ababa50a-826d-4e95-a696-f88b1551ef2a\",\"status\":\"ACTIVE\",\"m\":{\"role\":\"CURATOR\",\"onboarding_pending\":true}}"
+      "db": "created {\"id\":\"7a066661-fcbd-4926-ad0d-1249dff80edf\",\"status\":\"ACTIVE\",\"m\":{\"role\":\"CURATOR\",\"onboarding_pending\":true}}"
     },
     {
       "id": "DEV-ONBOARD-PENDING-FLAG",
@@ -7665,7 +7663,7 @@
       "expected": "200 + checks",
       "actualStatus": 200,
       "pass": true,
-      "note": "invitee as Developer sees it: {\"id\":\"8e4fb291-c495-433d-abc3-e1f67b71f1fb\",\"authUserId\":\"7fc24f10-d9d4-4ac6-b22b-3d1973e7b159\",\"role\":\"CURATOR\",\"status\":\"ACTIVE\",\"inviteAccepted\":false,\"avatarPath\":null,\"createdAt\":\"2026-11-07T18:21:08.086Z\",\"updated"
+      "note": "invitee as Developer sees it: {\"id\":\"f87d00c8-0d50-43e2-9223-de199e79179a\",\"authUserId\":\"35fbcc09-ce42-4286-acf6-fc2552186e1c\",\"role\":\"CURATOR\",\"status\":\"ACTIVE\",\"inviteAccepted\":false,\"avatarPath\":null,\"createdAt\":\"2026-11-08T06:31:51.516Z\",\"updated"
     },
     {
       "id": "DEV-STATUS-NO-REASON",
@@ -7810,7 +7808,7 @@
         "REQ-4.6-04"
       ],
       "method": "GET",
-      "path": "/storage-locations/39fea716-f598-4f5d-95ca-cc10981964c3",
+      "path": "/storage-locations/a318dcdd-035a-4303-a079-c753a3408c0f",
       "kind": "happy",
       "expected": "200 + checks",
       "actualStatus": 200,
@@ -7823,7 +7821,7 @@
         "REQ-4.6-08"
       ],
       "method": "GET",
-      "path": "/storage-locations/39fea716-f598-4f5d-95ca-cc10981964c3/path",
+      "path": "/storage-locations/a318dcdd-035a-4303-a079-c753a3408c0f/path",
       "kind": "happy",
       "expected": "200 + checks",
       "actualStatus": 200,
@@ -7836,7 +7834,7 @@
         "REQ-4.6-03"
       ],
       "method": "GET",
-      "path": "/storage-locations/db3655bb-54f6-4994-83f4-6cf5df78bd41/children",
+      "path": "/storage-locations/6e48dec4-4961-4152-8376-0385b1a25153/children",
       "kind": "happy",
       "expected": "200 + checks",
       "actualStatus": 200,
@@ -7849,7 +7847,7 @@
         "REQ-4.6-11"
       ],
       "method": "GET",
-      "path": "/storage-locations/39fea716-f598-4f5d-95ca-cc10981964c3/capacity-check",
+      "path": "/storage-locations/a318dcdd-035a-4303-a079-c753a3408c0f/capacity-check",
       "kind": "happy",
       "expected": "200 + checks",
       "actualStatus": 200,
@@ -8044,7 +8042,7 @@
       "expected": "201 + checks",
       "actualStatus": 201,
       "pass": true,
-      "db": "{\"status\":\"UNCATALOGED\",\"accession_number\":\"USC-BM-2026-0001\",\"created_by\":\"7d5b3fed-1d23-44e6-aad1-8fa8067ed9c9\",\"public_display_allowed\":false}"
+      "db": "{\"status\":\"UNCATALOGED\",\"accession_number\":\"USC-BM-2026-0001\",\"created_by\":\"bd0b969d-15fa-4862-948e-3ec5b63327af\",\"public_display_allowed\":false}"
     },
     {
       "id": "SPC-CREATE-NEXT-ACCESSION",
@@ -8483,7 +8481,7 @@
       "expected": "200|201 + checks",
       "actualStatus": 201,
       "pass": true,
-      "db": "lots=[{\"storage_unit_id\":\"39fea716-f598-4f5d-95ca-cc10981964c3\",\"quantity\":4,\"condition_class\":\"Good\"},{\"storage_unit_id\":\"ae443c8e-9de8-4e21-b146-d0afa44b515d\",\"quantity\":2,\"condition_class\":\"Good\"}]; tx=yes"
+      "db": "lots=[{\"storage_unit_id\":\"a318dcdd-035a-4303-a079-c753a3408c0f\",\"quantity\":4,\"condition_class\":\"Good\"},{\"storage_unit_id\":\"e619123c-b2aa-4ad5-b751-d0aa77a5c551\",\"quantity\":2,\"condition_class\":\"Good\"}]; tx=yes"
     },
     {
       "id": "LOT-MERGE",
@@ -8589,7 +8587,7 @@
         "REQ-4.5-01"
       ],
       "method": "GET",
-      "path": "/specimens/48138bf6-95a5-4fe8-a3ad-4745ec619400/lots",
+      "path": "/specimens/a558faa7-9374-4a8e-b3e7-76ad2eaa80ad/lots",
       "kind": "happy",
       "expected": "200",
       "actualStatus": 200,
@@ -8602,7 +8600,7 @@
         "REQ-4.5-11"
       ],
       "method": "GET",
-      "path": "/specimens/48138bf6-95a5-4fe8-a3ad-4745ec619400/lots/history",
+      "path": "/specimens/a558faa7-9374-4a8e-b3e7-76ad2eaa80ad/lots/history",
       "kind": "happy",
       "expected": "200",
       "actualStatus": 200,
@@ -8615,7 +8613,7 @@
         "REQ-4.5-02"
       ],
       "method": "GET",
-      "path": "/specimens/48138bf6-95a5-4fe8-a3ad-4745ec619400/lots/ae2a4730-2ec4-4d1b-b19a-3324774239e1",
+      "path": "/specimens/a558faa7-9374-4a8e-b3e7-76ad2eaa80ad/lots/949a240e-6a47-4bc3-8217-6422876cd60a",
       "kind": "happy",
       "expected": "200",
       "actualStatus": 200,
@@ -8628,7 +8626,7 @@
         "REQ-4.5-11"
       ],
       "method": "GET",
-      "path": "/specimens/48138bf6-95a5-4fe8-a3ad-4745ec619400/lots/ae2a4730-2ec4-4d1b-b19a-3324774239e1/transactions",
+      "path": "/specimens/a558faa7-9374-4a8e-b3e7-76ad2eaa80ad/lots/949a240e-6a47-4bc3-8217-6422876cd60a/transactions",
       "kind": "happy",
       "expected": "200",
       "actualStatus": 200,
@@ -8641,7 +8639,7 @@
         "REQ-4.6-02"
       ],
       "method": "GET",
-      "path": "/storage-locations/39fea716-f598-4f5d-95ca-cc10981964c3/inventory",
+      "path": "/storage-locations/a318dcdd-035a-4303-a079-c753a3408c0f/inventory",
       "kind": "happy",
       "expected": "200",
       "actualStatus": 200,
@@ -8654,7 +8652,7 @@
         "REQ-4.6-09"
       ],
       "method": "GET",
-      "path": "/storage-locations/ae443c8e-9de8-4e21-b146-d0afa44b515d/lot-movements",
+      "path": "/storage-locations/e619123c-b2aa-4ad5-b751-d0aa77a5c551/lot-movements",
       "kind": "happy",
       "expected": "200",
       "actualStatus": 200,
@@ -9049,7 +9047,7 @@
       "expected": "200|201 + checks",
       "actualStatus": 201,
       "pass": true,
-      "note": "{\"previewId\":\"b411a814-8b72-4f7c-99b6-c02817f8caf2\",\"expiresAt\":\"2026-11-07T18:51:11.745Z\",\"rows\":[{\"rowNumber\":1,\"data\":{\"rowNumber\":1,\"collectionId\":\"5e48f0b0-7661-4ef8-b4ea-3ff8fbc81137\",\"accessionNumber\":\"USC-BM-TEST-0100\",\"scientificName\":\"Buceros hydrocorax\",\"commonName\":\"R"
+      "note": "{\"previewId\":\"478ed503-4a39-46d6-936b-b5c3748ff327\",\"expiresAt\":\"2026-11-08T07:01:58.305Z\",\"rows\":[{\"rowNumber\":1,\"data\":{\"rowNumber\":1,\"collectionId\":\"06ed2093-1b43-4b42-bd0b-4f83a157debb\",\"accessionNumber\":\"USC-BM-TEST-0100\",\"scientificName\":\"Buceros hydrocorax\",\"commonName\":\"R"
     },
     {
       "id": "IMP-COMMIT",
@@ -9432,9 +9430,8 @@
       "path": "/developer/ar-assets/:id/activate",
       "kind": "happy",
       "expected": "200",
-      "actualStatus": 500,
-      "pass": false,
-      "note": "{\"message\":\"Failed to read file from ar-assets\",\"error\":\"Internal Server Error\",\"statusCode\":500}"
+      "actualStatus": 200,
+      "pass": true
     },
     {
       "id": "EXH-AR-ENABLE",
@@ -9464,7 +9461,7 @@
       "expected": "200 + checks",
       "actualStatus": 200,
       "pass": true,
-      "note": "ar={\"available\":true,\"models\":[{\"format\":\"glb\",\"url\":\"http://127.0.0.1:14298/storage/v1/object/sign/ar-assets/13e30c38-dede-48fb-b992-ceaf73577fc0/5d0bdbd8-c01f-4c"
+      "note": "ar={\"available\":true,\"models\":[{\"format\":\"glb\",\"url\":\"http://127.0.0.1:61065/storage/v1/object/sign/ar-assets/4bedaa26-5a36-44b7-8d9a-942f24b55cf4/689c5a52-9ef6-48"
     },
     {
       "id": "DEV-AR-DEACTIVATE",
@@ -9646,7 +9643,7 @@
       "expected": "201 + checks",
       "actualStatus": 201,
       "pass": true,
-      "db": "{\"status\":\"PENDING\",\"consent_accepted_at\":\"2026-11-07T18:21:26.217Z\",\"created_at\":\"2026-11-07T18:21:26.217Z\"}"
+      "db": "{\"status\":\"PENDING\",\"consent_accepted_at\":\"2026-11-08T06:32:33.815Z\",\"created_at\":\"2026-11-08T06:32:33.815Z\"}"
     },
     {
       "id": "INQ-EMAILS",
@@ -9661,7 +9658,7 @@
       "expected": "200 + checks",
       "actualStatus": 200,
       "pass": true,
-      "note": "visitor@example.test: We received your BioSphere museum inquiry (Ref D197E64B) | curatora@example.test: New general inquiry received (Ref D197E64B) | pendingcurator@example.test: New general inquiry received (Ref D197E64B) | new.curator@example.test: New general inquiry received (Ref D197E64B) | initial.curator@example.test: New general inquiry received (Ref D197E64B) | curatorb@example.test: New general inquiry received (Ref D197E64B)"
+      "note": "visitor@example.test: We received your BioSphere museum inquiry (Ref 23A7EC03) | curatora@example.test: New general inquiry received (Ref 23A7EC03) | pendingcurator@example.test: New general inquiry received (Ref 23A7EC03) | new.curator@example.test: New general inquiry received (Ref 23A7EC03) | initial.curator@example.test: New general inquiry received (Ref 23A7EC03) | curatorb@example.test: New general inquiry received (Ref 23A7EC03)"
     },
     {
       "id": "NOTIF-NEW-INQUIRY",
@@ -9677,7 +9674,7 @@
       "expected": "200 + checks",
       "actualStatus": 200,
       "pass": true,
-      "note": "{\"id\":\"NEW_INQUIRY:d197e64b-04c3-41eb-9158-ac55d71be792\",\"type\":\"NEW_INQUIRY\",\"title\":\"New general inquiry\",\"recordType\":\"inquiry\",\"recordId\":\"d197e64b-04c3-41eb-9158-ac55d71be792\",\"referenceCode\":\"D197E64B\",\"createdAt\":"
+      "note": "{\"id\":\"NEW_INQUIRY:23a7ec03-beff-4f49-b0d1-49f7523f03ae\",\"type\":\"NEW_INQUIRY\",\"title\":\"New general inquiry\",\"recordType\":\"inquiry\",\"recordId\":\"23a7ec03-beff-4f49-b0d1-49f7523f03ae\",\"referenceCode\":\"23A7EC03\",\"createdAt\":"
     },
     {
       "id": "INQ-LIST",
@@ -9772,7 +9769,7 @@
       "expected": "201 + checks",
       "actualStatus": 201,
       "pass": true,
-      "db": "{\"delivery_result\":\"SENT <fake-29b52129-7ef1-4801-9f14-a0959f1b85ea>\",\"recipient_email\":\"visitor@example.test\",\"sent_at\":\"2026-11-07T18:21:27.924Z\",\"recorded_by\":\"7d5b3fed-1d23-44e6-aad1-8fa8067ed9c9\"}"
+      "db": "{\"delivery_result\":\"SENT <fake-b70f00a1-577f-4f1d-b51a-de8a155085c0>\",\"recipient_email\":\"visitor@example.test\",\"sent_at\":\"2026-11-08T06:32:35.888Z\",\"recorded_by\":\"bd0b969d-15fa-4862-948e-3ec5b63327af\"}"
     },
     {
       "id": "INQ-REPLY-INVALID",
@@ -9813,7 +9810,7 @@
       "expected": "201 + checks",
       "actualStatus": 201,
       "pass": true,
-      "db": "{\"id\":\"04b8c1d1-7743-4f14-859c-3a592e63af45\",\"status\":\"TURNED_TO_VISIT_REQUEST\"}"
+      "db": "{\"id\":\"56595257-7575-4b37-a14c-8c6f061c4b13\",\"status\":\"TURNED_TO_VISIT_REQUEST\"}"
     },
     {
       "id": "INQ-REFERRAL-INVALID",
@@ -9925,7 +9922,7 @@
       "expected": "200 + checks",
       "actualStatus": 200,
       "pass": true,
-      "note": "teacher@example.test: We received your BioSphere visit request (Ref 5937FC6C) | curatora@example.test: New visit request received (Ref 5937FC6C) | pendingcurator@example.test: New visit request received (Ref 5937FC6C) | new.curator@example.test: New visit request received (Ref 5937FC6C) | initial.curator@example.test: New visit request received (Ref 5937FC6C) | curatorb@example.test: New visit request received (Ref 5937FC6C)"
+      "note": "teacher@example.test: We received your BioSphere visit request (Ref E1E25EF4) | curatora@example.test: New visit request received (Ref E1E25EF4) | pendingcurator@example.test: New visit request received (Ref E1E25EF4) | new.curator@example.test: New visit request received (Ref E1E25EF4) | initial.curator@example.test: New visit request received (Ref E1E25EF4) | curatorb@example.test: New visit request received (Ref E1E25EF4)"
     },
     {
       "id": "VIS-LIST",
@@ -10092,7 +10089,7 @@
       "expected": "200 + checks",
       "actualStatus": 200,
       "pass": true,
-      "note": "{\"total\":2,\"pendingInquiries\":0,\"pendingVisitRequests\":1,\"emailFailures\":0,\"operationalAlerts\":1,\"changeEvents\":0,\"incompleteRecords\":0,\"items\":[{\"id\":\"NEW_VISIT_REQUEST:04b8c1d1-7743-4f14-859c-3a592e"
+      "note": "{\"total\":2,\"pendingInquiries\":0,\"pendingVisitRequests\":1,\"emailFailures\":0,\"operationalAlerts\":1,\"changeEvents\":0,\"incompleteRecords\":0,\"items\":[{\"id\":\"NEW_VISIT_REQUEST:56595257-7575-4b37-a14c-8c6f06"
     },
     {
       "id": "NOTIF-NO-PRIVATE",
@@ -10134,21 +10131,6 @@
       "pass": true
     },
     {
-      "id": "NOTIF-SYNC-FAILED",
-      "module": "notifications",
-      "srs": [
-        "REQ-4.3-05",
-        "REQ-4.3-10"
-      ],
-      "method": "GET",
-      "path": "/notifications",
-      "kind": "happy",
-      "expected": "200 + checks",
-      "actualStatus": null,
-      "pass": false,
-      "note": "CuratorNotificationType has only NEW_INQUIRY, NEW_VISIT_REQUEST, SUBMISSION_EMAIL_FAILED; no sync-failure, backup, report, QR/AR or other operational notification exists."
-    },
-    {
       "id": "DASH-SUMMARY",
       "module": "dashboard",
       "srs": [
@@ -10163,7 +10145,7 @@
       "actualStatus": 200,
       "pass": true,
       "db": "{\"u\":3,\"c\":1,\"a\":0}",
-      "note": "{\"generatedAt\":\"2026-11-07T18:22:10.318Z\",\"specimens\":{\"total\":4,\"byStatus\":{\"UNCATALOGED\":3,\"CATALOGED\":1,\"ARCHIVED\":0},\"addedThisMonth\":4,\"possibleDuplicates\":0,\"byCategory\":[{\"category\":\"Uncategorized\",\"count\":3},{\"category\":\"Bird\",\"count\":1}],\"addedByMonth\":[{\"month\":\"2025-12\",\"count\":0},{\"month"
+      "note": "{\"generatedAt\":\"2026-11-08T06:32:54.230Z\",\"specimens\":{\"total\":4,\"byStatus\":{\"UNCATALOGED\":3,\"CATALOGED\":1,\"ARCHIVED\":0},\"addedThisMonth\":4,\"possibleDuplicates\":0,\"byCategory\":[{\"category\":\"Uncategorized\",\"count\":3},{\"category\":\"Bird\",\"count\":1}],\"addedByMonth\":[{\"month\":\"2025-12\",\"count\":0},{\"month"
     },
     {
       "id": "DASH-SYNC-STATES",
@@ -10801,7 +10783,119 @@
       "expected": "200 + checks",
       "actualStatus": null,
       "pass": false,
-      "note": "No backup, restore, failure-alert or verification mechanism exists in the backend; backup_history is read-only."
+      "note": "Not executed: standalone synthetic recovery and history recording exist; intended-source recovery and deployed scheduling/retention/custody acceptance remain separate gates. No public restore POST is required."
+    },
+    {
+      "id": "NOTIF-SYNC-FIXTURE",
+      "module": "notifications",
+      "srs": [
+        "REQ-4.3-05",
+        "REQ-4.3-10"
+      ],
+      "method": "POST",
+      "path": "/specimens",
+      "kind": "happy",
+      "expected": "201 + checks",
+      "actualStatus": 201,
+      "pass": true
+    },
+    {
+      "id": "NOTIF-SYNC-OTHER-BASELINE",
+      "module": "notifications",
+      "srs": [
+        "REQ-4.3-05",
+        "REQ-4.3-10"
+      ],
+      "method": "GET",
+      "path": "/notifications",
+      "kind": "happy",
+      "expected": "200 + checks",
+      "actualStatus": 200,
+      "pass": true
+    },
+    {
+      "id": "NOTIF-SYNC-REJECTED",
+      "module": "notifications",
+      "srs": [
+        "REQ-4.3-05",
+        "REQ-4.3-10"
+      ],
+      "method": "POST",
+      "path": "/offline-sync/specimen-drafts",
+      "kind": "invalid-input",
+      "expected": "409 + checks",
+      "actualStatus": 409,
+      "pass": true
+    },
+    {
+      "id": "NOTIF-SYNC-FAILED",
+      "module": "notifications",
+      "srs": [
+        "REQ-4.3-05",
+        "REQ-4.3-10"
+      ],
+      "method": "GET",
+      "path": "/notifications",
+      "kind": "happy",
+      "expected": "200 + checks",
+      "actualStatus": 200,
+      "pass": true
+    },
+    {
+      "id": "NOTIF-SYNC-OTHER-ISOLATED",
+      "module": "notifications",
+      "srs": [
+        "REQ-4.3-05",
+        "REQ-4.3-10"
+      ],
+      "method": "GET",
+      "path": "/notifications",
+      "kind": "happy",
+      "expected": "200 + checks",
+      "actualStatus": 200,
+      "pass": true
+    },
+    {
+      "id": "NOTIF-SYNC-RECOVERED",
+      "module": "notifications",
+      "srs": [
+        "REQ-4.3-05",
+        "REQ-4.3-10"
+      ],
+      "method": "POST",
+      "path": "/offline-sync/specimen-drafts",
+      "kind": "happy",
+      "expected": "200 + checks",
+      "actualStatus": 200,
+      "pass": true
+    },
+    {
+      "id": "NOTIF-SYNC-CLEARED",
+      "module": "notifications",
+      "srs": [
+        "REQ-4.3-05",
+        "REQ-4.3-10"
+      ],
+      "method": "GET",
+      "path": "/notifications",
+      "kind": "happy",
+      "expected": "200 + checks",
+      "actualStatus": 200,
+      "pass": true
+    },
+    {
+      "id": "AUTH-ONBOARD-FIRST-LOGIN",
+      "module": "auth",
+      "srs": [
+        "REQ-4.1-07",
+        "REQ-4.1-11"
+      ],
+      "method": "POST",
+      "path": "/auth/login",
+      "kind": "happy",
+      "expected": "201 + checks",
+      "actualStatus": 201,
+      "pass": true
     },
     {
       "id": "ROOT",

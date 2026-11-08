@@ -178,6 +178,13 @@ change and passed with consecutive `0001`/`0002` afterward. The existing
 allocator unit suite also passed 11 checks. The full-harness result and remaining
 unrelated findings are in the [dated baseline](./progress-report-backend/API_BASELINE_2026-11-08.md).
 
+**Review follow-up, November 8:** the approved public allocator/real-Prisma
+PostgreSQL regression reproduces `0001` on the second allocation when the cast is
+removed, then passes with `0002` after restoration. It is wired into the existing
+Linux Docker CI job; current-head CI remains separate from the local Windows
+pass. [Post-deployment retry/retest instructions](./ACCESSION_NUMBER_GUIDE.md#post-deployment-retest-and-offline-recovery)
+are prepared, not executed. This does not promote DEF-042 to closed.
+
 No shared migration, hosted-data correction, historical accession rewrite or
 existing-server restart was performed. Do not close this from synthetic local
 evidence alone.

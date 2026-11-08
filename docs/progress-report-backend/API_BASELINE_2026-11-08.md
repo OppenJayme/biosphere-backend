@@ -41,13 +41,31 @@ including curator isolation and resolution after corrected same-ID sync.
 Evidence:
 
 - [Initial recorded observations](./api-test-results-2026-11-08.json)
-- [Post-fix recorded observations](./api-test-results-2026-11-08-fixed.json)
-- [Auth/Storage fixture follow-up](./api-test-results-2026-11-08-fixtures.json)
+- [Final integrated recorded observations](./api-test-results-2026-11-08-final.json)
+- [Intermediate allocator report in immutable history](https://github.com/OppenJayme/biosphere-backend/blob/5177746feef3dedc5af16fb305daca2bb1f49bf9/docs/progress-report-backend/api-test-results-2026-11-08-fixed.json)
+- [Intermediate Auth/Storage report in immutable history](https://github.com/OppenJayme/biosphere-backend/blob/5177746feef3dedc5af16fb305daca2bb1f49bf9/docs/progress-report-backend/api-test-results-2026-11-08-fixtures.json)
 - [Compact sync-alert follow-up evidence](./api-sync-alert-followup-2026-11-08.json)
 - [Static route inventory](./route-inventory-2026-11-08.json)
 
 The first invocation omitted the VM-modules flag and stopped during setup;
 it completed no API cases and is excluded from the application results.
+
+### Review follow-up: regression prevention and report size
+
+The focused [real-Prisma allocator regression](../ACCESSION_NUMBER_GUIDE.md#ci-regression-for-automatic-allocation-def-042)
+is now part of the existing Linux Docker CI job. In an owned fixture, removing
+the explicit position cast reproduced `0001` on the second allocation; restoring
+it passed the test. This closes the mocked-unit-test blind spot for this specific
+bug without adding the full progress harness to CI. Linux execution on the new
+head must still be verified independently from the local Windows result.
+
+Only initial and final raw snapshots remain in the current tree; intermediate
+reports are linked above at their existing commit. No historic result is changed.
+The optional exit-code redesign is deferred: the complete-baseline command still
+fails conservatively for unresolved requirements, with executed failures and
+unexecuted gaps distinguished in the documented/compact result. The three open
+acceptance requirements remain open. Post-deployment retry instructions are
+prepared in the guide, not executed against any shared environment.
 
 ## Reproduced product defect: generated accession reuse
 
@@ -127,10 +145,12 @@ with 15 captured synthetic emails, no blocked outbound requests and no owned
 progress-API container left after independent cleanup readback. The committed
 compact summary retains both run totals, all seven integrated observations,
 the three remaining unresolved observations, exact local source-byte hashes
-(including line endings) and the full report's SHA-256. The full generated JSON
-is retained locally as ignored `.sync-alert-full-result.log`; the summary is
-not presented as a complete per-observation raw export. Prior raw baselines are
-unchanged. Remaining gaps: account-handover/SRS reconciliation, password API/audit
+(including line endings) and the full report's SHA-256. The initial and final
+full raw reports are retained in the current tree; the two duplicate intermediate
+snapshots remain linked from immutable Git history rather than repeated here.
+The final raw JSON is also retained locally as ignored
+`.sync-alert-full-result.log`. The compact summary is not presented as a complete
+per-observation raw export. Remaining gaps: account-handover/SRS reconciliation, password API/audit
 coverage in this harness, and intended-source/deployed backup acceptance.
 
 | Observation           | Finding                                                                                                                                                            | Follow-up / owner                                                                                                                      |
