@@ -11,8 +11,25 @@ const source = path.resolve(
 );
 const quote = (s) => "'" + s.replace(/'/g, "''") + "'";
 function run(args, prelude = '', script = source) {
+  const mode = args.includes('-Create')
+    ? 'create'
+    : args.includes('-Inspect')
+      ? 'inspect'
+      : 'plan';
+  process.stdout.write('# Starting synthetic PowerShell ' + mode + '\n');
   const env = {};
-  for (const k of ['SystemRoot', 'WINDIR', 'TEMP', 'TMP'])
+  for (const k of [
+    'SystemRoot',
+    'WINDIR',
+    'SystemDrive',
+    'ComSpec',
+    'TEMP',
+    'TMP',
+    'USERPROFILE',
+    'APPDATA',
+    'LOCALAPPDATA',
+    'ProgramData',
+  ])
     if (process.env[k]) env[k] = process.env[k];
   const result = spawnSync(
     path.join(
@@ -29,12 +46,16 @@ function run(args, prelude = '', script = source) {
     {
       encoding: 'utf8',
       env,
+      stdio: ['ignore', 'pipe', 'pipe'],
       timeout: 20000,
       maxBuffer: 65536,
       windowsHide: true,
     },
   );
   assert.ifError(result.error);
+  process.stdout.write(
+    '# Synthetic PowerShell completed with exit ' + result.status + '\n',
+  );
   assert.equal(result.stderr, '');
   assert.ok(!result.stdout.includes('admin-secret-canary'));
   return {

@@ -119,3 +119,13 @@ Node 22.14.0 and 24.7.0. Added regressions reject reused provider key IDs and
 string-valued safety flags; those cases failed before correction. PowerShell
 syntax, recommended CJS test lint, test formatting, workflow parsing and diff
 checks pass. Pushed-head Windows CI and independent review remain separate.
+
+CI follow-up: run 574 passed the Linux build/recovery jobs but the Windows job
+hit its five-minute limit during this suite, without a completed test result.
+That cancellation is not passing evidence and does not establish a helper or
+provider failure cause. The test launch now closes child stdin and retains the
+Windows profile/application-data paths needed by PowerShell/DPAPI, still excluding
+application credentials and user Node options. Windows CI invokes the test file
+directly so the inner Node test-runner output is not hidden behind another test
+process, and has a two-minute step limit. The exact hosted cause and new-head
+result must be checked rather than inferred from the local pass.
