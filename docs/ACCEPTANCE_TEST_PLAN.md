@@ -7,6 +7,14 @@
 
 ## Start here
 
+2026-11-08 [local recovery-readiness planning CLI](../scripts/recovery/README.md#local-deployment-planning-readiness-check):
+27 isolated synthetic CLI checks passed, including missing/expired decisions,
+release mismatches, capacity budgets and invalid-input/output handling. The
+pending example remains blocked. A passing record permits manual review only;
+no institutional approval, actual quota measurement, hosted export, schedule or
+BAK-002 acceptance is inferred. Development red/green checks are not new
+production defects or closures of existing defects.
+
 2026-11-08 [merged-develop API baseline](./progress-report-backend/API_BASELINE_2026-11-08.md):
 the initial report contains 789 observations, including ten failures despite a
 successful Jest exit. The harness now fails on recorded failures. DEF-042 fixes

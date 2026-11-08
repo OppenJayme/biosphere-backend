@@ -52,6 +52,9 @@ jobs:
       - name: Isolated curator FAQ content evaluation
         run: npm run evaluate:faq:curator
 
+      - name: Verify local recovery-readiness planning checks
+        run: npm run test:recovery:readiness
+
   synthetic-recovery:
     runs-on: ubuntu-latest
     timeout-minutes: 10
