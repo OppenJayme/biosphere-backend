@@ -19,7 +19,7 @@ import {
   isVisitRequestChange,
   isVisitRequestTransaction,
   matchFaqEntries,
-  normalizeFaqText,
+  parseFaqFollowup,
   tokenizeFaqText,
   type FaqMatchResult,
 } from './faq-matcher';
@@ -74,18 +74,16 @@ export class FaqAssistantService {
     const selected = dto.selectedFaqId
       ? candidates.find((entry) => entry.id === dto.selectedFaqId)
       : undefined;
-    const followup = normalizeFaqText(dto.question).match(
-      /^(?:how|what) about(?: (.*))?$/,
-    );
+    const followup = parseFaqFollowup(dto.question);
     let match: FaqMatchResult<(typeof candidates)[number]>;
     if (dto.selectedFaqId) {
       match = {
         best: selected ? { entry: selected, score: 1 } : null,
         related: [],
       };
-    } else if (followup) {
+    } else if (followup !== null) {
       const context = candidates.find((entry) => entry.id === dto.contextFaqId);
-      const qualifiers = tokenizeFaqText(followup[1] ?? '');
+      const qualifiers = tokenizeFaqText(followup);
       const topic = context ? tokenizeFaqText(context.question) : [];
       // Context is a public hint, not authority. Require approved vocabulary
       // for every meaningful qualifier and some evidence of the prior topic.
@@ -107,7 +105,7 @@ export class FaqAssistantService {
           : [];
       match = context
         ? matchFaqEntries(
-            `${context.question} ${followup[1] ?? ''}`,
+            `${context.question} ${followup}`,
             contextualCandidates,
           )
         : { best: null, related: [] };
@@ -159,7 +157,7 @@ export class FaqAssistantService {
       related: relatedQuestions,
       message: visitTransaction
         ? FAQ_VISIT_REQUEST_MESSAGE
-        : followup && !dto.selectedFaqId
+        : followup !== null && !dto.selectedFaqId
           ? FAQ_CONTEXT_MESSAGE
           : FAQ_NO_MATCH_MESSAGE,
       redirect: visitTransaction

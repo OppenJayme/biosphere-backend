@@ -140,6 +140,22 @@ export interface FaqMatchResult<T extends FaqMatchCandidate> {
   ambiguous?: true;
 }
 
+// Explicit English follow-up openers only. "And" counts only before a
+// stopword preposition ("And on Saturday?"), so a complete new question such
+// as "And how much is the fee?" stays a standalone question.
+const FOLLOWUP_PATTERN =
+  /^(?:(?:how|what) about|and(?= (?:on|for|at|in|with|if) ))(?: (.*))?$/;
+
+/**
+ * Returns the follow-up qualifier ("" when absent) for a recognized follow-up
+ * opener, otherwise null. The public widget mirrors this pattern to decide when
+ * to send its single topic hint; keep both in sync.
+ */
+export function parseFaqFollowup(question: string): string | null {
+  const match = FOLLOWUP_PATTERN.exec(normalizeFaqText(question));
+  return match ? (match[1] ?? '') : null;
+}
+
 export function normalizeFaqText(text: string): string {
   return text
     .normalize('NFKD')
