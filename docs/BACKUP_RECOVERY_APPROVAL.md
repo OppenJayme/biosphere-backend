@@ -74,12 +74,16 @@ scheduled deployment or incident cutover follows from that authorization.
 
 The standalone synthetic worker, history/audit recorder and durable encrypted
 Auth/Storage rehearsal are implemented. The expanded full-schema/five-bucket
-candidate in [PR #265](https://github.com/OppenJayme/biosphere-backend/pull/265)
-at `d464412` has 34 native checks and five owned service workflows passing
-locally, with both CI jobs passing in
-[run 547](https://github.com/OppenJayme/biosphere-backend/actions/runs/42398525474).
-It remains open for independent review as of this checkpoint. These are
-synthetic engineering results, not intended-source recovery or Gate B acceptance.
+implementation in [PR #265](https://github.com/OppenJayme/biosphere-backend/pull/265)
+merged November 8 at `5d55820`, from synchronized head `05410da`. MarQtie approved
+the corrections at `d464412`; the later integration head passed all three CI jobs
+in [run 564](https://github.com/OppenJayme/biosphere-backend/actions/runs/42464282968).
+Historical local evidence at `d464412` comprises 34 native checks and five owned
+service workflows. After synchronization, a fresh build and 38 focused native
+checks passed, including the 27 planning-readiness checks. The service workflows
+were not rerun on that integration head. These are synthetic engineering results,
+not intended-source recovery or Gate B acceptance. A merged implementation and
+code review do not complete the separate rehearsal acceptance/turnover record.
 
 **Backup destination: none yet confirmed.** Read-only discovery found:
 
@@ -112,7 +116,7 @@ alternatives rather than the preferred recommendation.
 | Candidate | Current published allowance / capability | Decision still needed |
 | --- | --- | --- |
 | Backblaze B2 | The first **10 GB** of storage are free; signup says **no credit card required**. Object Lock has no extra feature charge, but locked storage remains subject to normal storage charges. [Pricing](https://www.backblaze.com/cloud-storage/pricing), [signup](https://www.backblaze.com/sign-up/cloud-storage), [Object Lock](https://www.backblaze.com/docs/cloud-storage-object-lock). | Continuing account/MFA/key custody, measured retention budget, permitted data location, actual free-account capability and private-bucket/readback/denial tests. No paid activation is authorized. |
-| Google Drive | Google describes consumer storage as **up to 15 GB**, shared with Gmail/Photos; actual available space must be inspected. [Google storage](https://support.google.com/drive/answer/9312312?hl=en). | Continuing account/MFA custody, actual quota, authorized use for encrypted museum exports and an automation configuration that remains within approved cost limits. |
+| Google Drive | Google describes consumer storage as **up to 15 GB**, shared with Gmail/Photos. This is not a guaranteed initial allowance for a newly created account: inspect its actual granted quota, remaining space and any verification requirements before budgeting. [Google storage](https://support.google.com/drive/answer/9312312?hl=en). | Continuing account/MFA custody, verified actual quota, authorized use for encrypted museum exports and an automation configuration that remains within approved cost limits. |
 | OneDrive | Microsoft's free account storage is **5 GB**, shared with other Microsoft storage uses. [Microsoft storage FAQ](https://support.microsoft.com/en-us/onedrive/microsoft-storage-faqs). | Same ownership/privacy/capacity checks; consider it if a suitable approved account already exists. No education/organization entitlement is assumed. |
 | GitHub-hosted runner | Private execution uses a plan-dependent included compute allowance; the current GitHub Free table lists 500 MB artifact storage. [GitHub Actions billing](https://docs.github.com/en/billing/concepts/product-billing/github-actions). | Check the repository owner's actual plan, remaining allowance, budgets and existing CI consumption. Evaluate as a runner; ordinary CI artifacts are not the proposed retained independent recovery copy. |
 
@@ -148,8 +152,11 @@ or a payment method as an incidental setup step.
 
 If rclone is selected, its [Drive documentation](https://rclone.org/drive/)
 currently calls for an owned OAuth client because its shared client is being
-retired during 2026. It also documents weekly grant expiry for an OAuth app left
-in Testing. Resolve the approved client, consent/scope and durable authorization
+retired during 2026. Google's own [OAuth token-expiration documentation](https://developers.google.com/identity/protocols/oauth2#expiration)
+states that refresh tokens for external apps in Testing expire after seven days,
+except when requested scopes are limited to basic identity information; that
+exception does not cover Drive file access. Resolve the approved client,
+consent/scope and durable authorization
 setup before treating unattended operation as maintainable. No tool installation
 or OAuth consent was performed in this assessment.
 
@@ -175,7 +182,7 @@ actual account, approve a provider or establish its suitability.
 
 | Order | Work and responsible role | Completion evidence |
 | --- | --- | --- |
-| 1 | Independent technical reviewer: finish #265 review; team/business owner: identify the accountable approver, intended source, continuing account/key custodians and on-demand support route. | Named review tied to the fixed commit; actual decisions recorded above. A merge alone is not rehearsal acceptance. |
+| 1 | Technical reviewer and team/business owner: complete the separate synthetic rehearsal acceptance record using the merged #265 evidence and its stated limits; identify the accountable approver, intended source, continuing account/key custodians and on-demand support route. | Named acceptance tied to the reviewed/tested versions; actual decisions recorded above. #265 code approval/merge is recorded, not a substitute for rehearsal acceptance. |
 | 2 | Account owner and technical implementer: select a recoverable independent destination and runner; measure capacity, transfer, runtime and account recovery. | Restricted identity references; verified access without student devices; measured space for the proposed retention and temporary restore/export needs. No free-capacity or permanent-support assumption. |
 | 3 | Technical implementer, after explicit source/target authorization: complete the intended-source adapter and coordinated checkpoint controls, restore into an isolated target, then obtain technical and Curator validation. | Version-specific capture/restore manifest, write-freeze/drain/abort checks, DB/Auth/object/config integrity, fresh login, protected application checks, rollback/failure outcomes and the completed rehearsal record. No live cutover. |
 | 4 | Technical implementer and account owner: provision the approved schedule, protected copy/readback, retention, independent missed-run detection, history reconciliation and handover. | Least-privilege operation; failed/no-start jobs visible; last usable copy retained; approved expiry/holds verified; independent key retrieval and Curator checklist demonstrated. Enable only after the prerequisite gates pass. |
