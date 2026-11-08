@@ -34,6 +34,9 @@ function Save-SetupPacket {
 try {
   Assert-Setup ($env:OS -eq 'Windows_NT' -or [Environment]::OSVersion.Platform -eq 'Win32NT')
   Add-Type -AssemblyName System.Security
+  if (-not ('Security.Cryptography.ProtectedData' -as [type])) {
+    Add-Type -AssemblyName System.Security.Cryptography.ProtectedData -ErrorAction Stop
+  }
   Assert-Setup (-not ($Create -and $Inspect))
   if ($Inspect) {
     Assert-Setup ($RunId -cmatch '^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$')

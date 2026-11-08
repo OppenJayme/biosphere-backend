@@ -10,7 +10,8 @@ const source = path.resolve(
   '../scripts/recovery/b2-owner-key-setup.ps1',
 );
 const quote = (s) => "'" + s.replace(/'/g, "''") + "'";
-function launch(command, useFile = false) {
+const usePowerShell7 = process.argv.includes('--powershell7');
+function launch(command, useFile = false, bootstrap = true) {
   const env = {};
   for (const k of [
     'SystemRoot',
@@ -32,13 +33,32 @@ function launch(command, useFile = false) {
   ])
     if (process.env[k]) env[k] = process.env[k];
   const systemDirectory = path.join(process.env.SystemRoot, 'System32');
-  const powershellDirectory = path.join(
-    systemDirectory,
-    'WindowsPowerShell/v1.0',
-  );
+  const powershellDirectory = usePowerShell7
+    ? path.join(process.env.ProgramFiles, 'PowerShell/7')
+    : path.join(systemDirectory, 'WindowsPowerShell/v1.0');
   // Do not inherit the runner's PATH, custom modules, secrets or Node options.
   env.PATH = systemDirectory + path.delimiter + powershellDirectory;
   env.PSModulePath = path.join(powershellDirectory, 'Modules');
+  env.PSModuleAnalysisCachePath = 'NUL';
+  env.PSDisableModuleAnalysisCacheCleanup = '1';
+  if (bootstrap) {
+    const imports = ['Utility', 'Management', 'Security']
+      .map(
+        (name) =>
+          'Import-Module ' +
+          quote(
+            path.join(
+              env.PSModulePath,
+              'Microsoft.PowerShell.' + name,
+              'Microsoft.PowerShell.' + name + '.psd1',
+            ),
+          ) +
+          ' -ErrorAction Stop;',
+      )
+      .join(' ');
+    command =
+      "$PSModuleAutoLoadingPreference='None'; " + imports + ' ' + command;
+  }
   const wrapperBase = useFile ? fs.realpathSync(os.tmpdir()) : null;
   const wrapperRoot = useFile
     ? fs.mkdtempSync(path.join(wrapperBase, 'biosphere-b2-wrapper-'))
@@ -49,7 +69,10 @@ function launch(command, useFile = false) {
   let result;
   try {
     result = spawnSync(
-      path.join(powershellDirectory, 'powershell.exe'),
+      path.join(
+        powershellDirectory,
+        usePowerShell7 ? 'pwsh.exe' : 'powershell.exe',
+      ),
       [
         '-NoLogo',
         '-NoProfile',
@@ -80,9 +103,16 @@ function launch(command, useFile = false) {
 }
 if (process.platform === 'win32')
   before(() => {
+    process.stdout.write(
+      '# Test runtime: ' +
+        (usePowerShell7 ? 'PowerShell 7' : 'Windows PowerShell 5.1') +
+        '\n',
+    );
     process.stdout.write('# Checking isolated PowerShell host startup\n');
     const host = launch(
       "[Console]::Out.WriteLine('B2_OWNER_TEST_HOST_READY'); exit 0",
+      false,
+      false,
     );
     assert.equal(host.status, 0);
     assert.equal(host.stderr, '');

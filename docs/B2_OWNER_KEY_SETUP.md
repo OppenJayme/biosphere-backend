@@ -150,3 +150,30 @@ Wrappers contain synthetic fixtures only and are individually removed after
 verifying their owned temporary parent. All 15 local checks still pass. This
 entry-point change awaits hosted confirmation; it does not relax any helper
 scope, permission, credential or retention requirement.
+
+Run 579 isolated the failure further: the Console command passed but a plain
+`ConvertTo-Json` command timed out before helper/file execution. The test host
+now explicitly imports only the Windows Utility/Management/Security manifests,
+disables automatic module discovery and disables the child module-analysis cache
+using [Microsoft's documented child settings](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_environment_variables).
+This does not delete or modify the host user's shared cache, install modules,
+change machine policy or skip the JSON/control/workflow checks. It tests the
+module-loading layer implicated by the hosted control, without claiming a
+specific cache corruption cause.
+
+Current hosted verification explicitly selects the runner's preinstalled
+PowerShell 7 (`node test/b2-owner-key-setup.test.cjs --powershell7`). The same
+15 cases, native JSON/file/plan controls, real DPAPI storage and scope checks
+remain enabled; no automatic fallback or skip converts a Windows PowerShell
+5.1 failure into a pass. Windows PowerShell 5.1 remains the locally tested host
+(`node test/b2-owner-key-setup.test.cjs`). Its Windows Server 2025 module-loading
+failure remains unresolved and is not claimed as hosted coverage. A successful
+PowerShell 7 result will establish only that explicitly named host's coverage.
+
+The helper can also be invoked with `pwsh.exe -NoProfile -File ...` if PowerShell
+7 is already installed; this work does not install or replace the owner's shell.
+On that runtime the helper loads the framework's ProtectedData assembly if the
+type was not supplied by System.Security. Encryption remains DPAPI CurrentUser,
+with no plaintext fallback. Test children import fixed built-in module manifests
+and use child-only cache/policy settings; they do not change the owner's global
+module path, cache or policy. Approval and actual owner execution remain separate.
