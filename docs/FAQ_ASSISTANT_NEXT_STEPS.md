@@ -4,6 +4,16 @@ Source review checkpoint, not feature acceptance or approval to publish test
 answers. Backend reviewed at `a3961d1`; frontend at `9ea97c7`. No chatbot code
 or active knowledge was changed and no public ask request was made here.
 
+## Conversational brief reconciliation - 2026-11-08
+
+An external zero-cost chatbot brief was audited against this module. Its
+AI-free scope already existed; this slice adds `And on ...` follow-ups, a
+widget New chat reset, personal-information advice and injection/personal-data
+unit cases. The brief's optional Gemini rewrite is **not implemented**. It
+conflicts with SRS 4.11.1/REQ-4.11-04 and the no-generated-answers direction,
+and it needs an approved requirement change before any provider work. See
+[the reconciliation](./FAQ_KNOWLEDGE_GUIDE.md#zero-cost-conversational-brief-reconciliation---2026-11-08).
+
 ## Publication update - 2026-11-06
 
 The subsequent [S06 batch-coordination answer update](./FAQ_KNOWLEDGE_GUIDE.md#general-inquiry-batch-coordination-update---2026-11-06)

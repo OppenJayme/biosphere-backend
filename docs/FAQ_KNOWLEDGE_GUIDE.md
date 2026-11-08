@@ -552,3 +552,54 @@ old DTOs reject `contextFaqId`). Independent/live acceptance and representative
 language/context/near-tie evaluation remain pending. FAQ-004 is In progress.
 Next unresolved work includes duplicate knowledge policy and safe unanswered
 review retention/access/abuse decisions before any persistent log is introduced.
+
+## Zero-cost conversational brief reconciliation - 2026-11-08
+
+The user supplied an external implementation brief ("₱0 Hybrid Conversational
+Chatbot") and asked for its non-AI gaps to be closed. The source audit found
+that its AI-free core already exists: ACTIVE-only retrieval, curator-stored
+answers, synonyms through alternative wording/keywords, equal-score
+clarification, one-topic follow-ups, Visit Request/General Inquiry referral,
+a 500-character DTO limit, per-route throttling and memory-only widget chat.
+Its in-JavaScript matcher over the small ACTIVE set was kept; no PostgreSQL
+full-text, `pg_trgm`, embeddings or schema change was introduced.
+
+**Requirements discrepancy, not implemented:** the brief's optional Gemini
+rewrite (`@google/genai`, `CHATBOT_AI_ENABLED`) would display text other than
+the stored curator answer. That conflicts with SRS 4.11.1 ("rule-based"),
+REQ-4.11-04/-05, BR-18 and this guide's recorded "no generated answers"
+direction. The user chose to skip it. Any future provider needs an approved SRS
+amendment plus the brief's own provider-terms, age, data-use and university
+privacy approvals before code is written; nothing here authorizes it.
+
+Implemented in this slice (backend `feat/faq-assistant-followup-safeguards-20261108`,
+frontend `feat/faq-assistant-new-chat-privacy-20261108`, both from current develop):
+
+- `parseFaqFollowup` in `faq-matcher.ts` is the single follow-up recognizer.
+  Besides `How about ...`/`What about ...` it accepts `And` only directly before
+  a stopword preposition (`on`, `for`, `at`, `in`, `with`, `if`), for example
+  `And on Saturday?`. A complete `And is there an entrance fee?` stays a
+  standalone question. Context rules, thresholds and ACTIVE rechecks are unchanged.
+  The widget's `isFaqFollowup` mirrors the pattern; keep both in sync.
+- The widget has a **New chat** control (shown once a conversation exists,
+  disabled while a request is pending). It clears the in-memory messages, draft
+  and topic hint. Nothing is persisted or sent.
+- A visible line under the question field asks visitors not to include personal
+  details; the input references it through `aria-describedby`. This wording is
+  a proposal pending the university privacy-wording approval.
+- New unit cases: an instruction-injection question returns the ordinary
+  General Inquiry fallback after only the ACTIVE FAQ read, and a question
+  carrying an email/phone is not echoed in the response. Because those extra
+  tokens dilute overlap (2·2/(8+2) + one keyword bonus = 0.55 < 0.6), that
+  example becomes a related-question hint rather than an answer. This is the
+  existing conservative behavior, recorded rather than tuned.
+
+Local Windows checks on November 8: FAQ unit 35/35 and FAQ HTTP 29/29; full
+backend unit 811/811 (55 suites) and E2E 454 passed with 17 existing skips;
+curator FAQ evaluation 36/36 and synthetic evaluation 25/25; backend lint:ci
+0 errors (6 existing unused-disable warnings), non-emitting type-check and
+`npm run build` passed. Frontend vitest 577/577 (84 files), eslint, `tsc
+--noEmit` and `next build` passed. No browser walkthrough of the New chat control or
+privacy line was run in this slice; isolated widget/browser and independent
+acceptance remain pending. Deploy backend first: the old backend treats
+`And on ...` as a standalone question, which is safe but unhelpful.
