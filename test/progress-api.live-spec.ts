@@ -3758,18 +3758,6 @@ describe('Inquiries, visit requests, notifications, dashboard (§4.3, §4.8, §4
       res,
       expect: 400,
     });
-    record({
-      id: 'NOTIF-SYNC-FAILED',
-      module: 'notifications',
-      srs: ['REQ-4.3-05', 'REQ-4.3-10'],
-      method: 'GET',
-      path: '/notifications',
-      kind: 'happy',
-      res: null,
-      expect: 200,
-      check: false,
-      note: 'Not executed: the current feed includes SYNC_FAILED; create a synthetic sync-failure fixture and read it through the notification API before accepting this requirement.',
-    });
 
     res = await api('GET', '/dashboard/summary', { token: C });
     const counts = await one(
@@ -4440,6 +4428,151 @@ describe('Reports, FAQ, offline sync, audit, backups (§4.7, §4.11, §4.14, §4
       check: backupWrite,
       note: 'Not executed: standalone synthetic recovery and history recording exist; intended-source recovery and deployed scheduling/retention/custody acceptance remain separate gates. No public restore POST is required.',
     });
+  });
+
+  it('isolates a rejected draft alert to its curator and clears it after successful sync', async () => {
+    const draftId = randomUUID();
+    const accessionNumber = `TEST-SYNC-ALERT-${draftId}`;
+    const matchesDraft = (response: ApiResponse): boolean => {
+      const items: unknown = response.body?.items;
+      if (!Array.isArray(items)) return false;
+      return items.some((item: unknown) => {
+        if (typeof item !== 'object' || item === null) return false;
+        const value = item as {
+          type?: unknown;
+          recordType?: unknown;
+          recordId?: unknown;
+        };
+        return (
+          value.type === 'SYNC_FAILED' &&
+          value.recordType === 'offline_draft' &&
+          value.recordId === draftId
+        );
+      });
+    };
+    const observation = (
+      id: string,
+      method: string,
+      path: string,
+      res: ApiResponse,
+      expected: number,
+      check: boolean,
+    ) => {
+      const passed = record({
+        id,
+        module: 'notifications',
+        srs: ['REQ-4.3-05', 'REQ-4.3-10'],
+        method,
+        path,
+        kind: expected >= 400 ? 'invalid-input' : 'happy',
+        res,
+        expect: expected,
+        check,
+      });
+      expect(passed).toBe(true);
+    };
+    let res = await api('POST', '/specimens', {
+      token: tokens.curatorA,
+      body: { accessionNumber, commonName: 'Synthetic sync-alert holder' },
+    });
+    observation(
+      'NOTIF-SYNC-FIXTURE',
+      'POST',
+      '/specimens',
+      res,
+      201,
+      !!idOf(res),
+    );
+
+    res = await api('GET', '/notifications', {
+      token: tokens.curatorB,
+      query: { limit: 100 },
+    });
+    const otherCuratorCount = res.body?.operationalAlerts;
+    observation(
+      'NOTIF-SYNC-OTHER-BASELINE',
+      'GET',
+      '/notifications',
+      res,
+      200,
+      Number.isInteger(otherCuratorCount) && Array.isArray(res.body?.items),
+    );
+    const draft = {
+      accessionNumber,
+      commonName: 'Synthetic rejected offline draft',
+    };
+    res = await api('POST', '/offline-sync/specimen-drafts', {
+      token: tokens.curatorA,
+      body: { clientDraftId: draftId, draft },
+    });
+    observation(
+      'NOTIF-SYNC-REJECTED',
+      'POST',
+      '/offline-sync/specimen-drafts',
+      res,
+      409,
+      res.body?.code === 'ACCESSION_NUMBER_TAKEN',
+    );
+    res = await api('GET', '/notifications', {
+      token: tokens.curatorA,
+      query: { limit: 100 },
+    });
+    const ownerFailureCount = res.body?.operationalAlerts;
+    observation(
+      'NOTIF-SYNC-FAILED',
+      'GET',
+      '/notifications',
+      res,
+      200,
+      matchesDraft(res) &&
+        Number.isInteger(ownerFailureCount) &&
+        ownerFailureCount > 0,
+    );
+    res = await api('GET', '/notifications', {
+      token: tokens.curatorB,
+      query: { limit: 100 },
+    });
+    observation(
+      'NOTIF-SYNC-OTHER-ISOLATED',
+      'GET',
+      '/notifications',
+      res,
+      200,
+      Array.isArray(res.body?.items) &&
+        !matchesDraft(res) &&
+        res.body?.operationalAlerts === otherCuratorCount,
+    );
+    res = await api('POST', '/offline-sync/specimen-drafts', {
+      token: tokens.curatorA,
+      body: {
+        clientDraftId: draftId,
+        draft: { ...draft, accessionNumber: `TEST-SYNC-RECOVER-${draftId}` },
+      },
+    });
+    observation(
+      'NOTIF-SYNC-RECOVERED',
+      'POST',
+      '/offline-sync/specimen-drafts',
+      res,
+      200,
+      res.body?.alreadySynchronized === false &&
+        res.body?.specimen?.status === 'UNCATALOGED' &&
+        res.body?.specimen?.publicDisplay === false,
+    );
+    res = await api('GET', '/notifications', {
+      token: tokens.curatorA,
+      query: { limit: 100 },
+    });
+    observation(
+      'NOTIF-SYNC-CLEARED',
+      'GET',
+      '/notifications',
+      res,
+      200,
+      Array.isArray(res.body?.items) &&
+        !matchesDraft(res) &&
+        res.body?.operationalAlerts === ownerFailureCount - 1,
+    );
   });
 
   // Keep this after the initial login cases: the real per-route five/minute

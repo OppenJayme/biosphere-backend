@@ -32,11 +32,18 @@ outbound requests were recorded, no token-shaped strings were found in the
 committed report, and independent cleanup readback found no owned test container.
 This is not whole-module or real-provider acceptance.
 
+The latest sync-alert integration run recorded **797 observations: 794 passed
+and 3 unexecuted requirement observations unresolved**. All 28 scenario blocks
+passed; the overall exit remains **1** for the three unexecuted requirements.
+No executed observation failed. `NOTIF-SYNC-FAILED` now has real HTTP evidence,
+including curator isolation and resolution after corrected same-ID sync.
+
 Evidence:
 
 - [Initial recorded observations](./api-test-results-2026-11-08.json)
 - [Post-fix recorded observations](./api-test-results-2026-11-08-fixed.json)
 - [Auth/Storage fixture follow-up](./api-test-results-2026-11-08-fixtures.json)
+- [Compact sync-alert follow-up evidence](./api-sync-alert-followup-2026-11-08.json)
 - [Static route inventory](./route-inventory-2026-11-08.json)
 
 The first invocation omitted the VM-modules flag and stopped during setup;
@@ -80,7 +87,8 @@ changed or bypassed. That check now runs after the suite's other paced workflows
 when the initial login window has expired. The throttled diagnostic is not a
 passing full-baseline result; the completed rerun is recorded separately.
 
-The four unexecuted requirement observations remain distinct from HTTP failures:
+At the Auth/Storage fixture checkpoint, four unexecuted requirement observations
+remained distinct from HTTP failures:
 Curator activation versus the current Developer handover decision, unexercised
 password-management routes, operational sync-notification evidence and deployed
 backup/restore acceptance. They must not be relabelled successful merely
@@ -88,12 +96,42 @@ because the three fixture failures are repaired. Their historical raw-note
 claims are interpreted using the dispositions below, not as proof of absent
 current features.
 
-The final harness notes for those four observations now explicitly say
-"Not executed" and describe the current feature/evidence boundary. They still
-fail the overall baseline until their required evidence/disposition is supplied;
-they are not silently skipped or promoted by checking whether a route exists.
+The harness notes for those four observations were corrected to explicitly say
+"Not executed" and describe the current feature/evidence boundary. The later
+sync-alert scenario below supplies actual evidence for one of them. The other
+three still fail the overall baseline until their required evidence/disposition
+is supplied; no requirement is passed merely because a route exists.
 
 ## Initial failures and disposition
+
+**Sync-notification follow-up:** seven focused real HTTP/PostgreSQL observations
+passed. The scenario creates an owned synthetic accession holder, rejects a
+conflicting offline draft, checks the owner's alert and the other curator's
+unchanged operational count/feed, then synchronizes corrected content with the
+same draft ID. The alert disappears and the owner's operational count decreases
+by exactly one, preserving other operational alerts. All setup and assertions
+use public application HTTP routes; authentication/provider services remain
+synthetic. No production business logic changed.
+
+The first focused invocation stopped during setup because the Docker
+Linux-engine pipe was unavailable; zero API observations ran. After the user
+started Docker, the focused scenario passed and its owned container was
+independently verified absent. The setup failure and the earlier TypeScript
+matcher correction are not product defects or passing application evidence.
+This covers the specific alert lifecycle in an owned fixture, not the browser,
+real session expiry, live provider behavior, arbitrary concurrent mutations or
+independent notification-module acceptance.
+
+The completed integrated run also passed all seven sync-alert observations,
+with 15 captured synthetic emails, no blocked outbound requests and no owned
+progress-API container left after independent cleanup readback. The committed
+compact summary retains both run totals, all seven integrated observations,
+the three remaining unresolved observations, exact local source-byte hashes
+(including line endings) and the full report's SHA-256. The full generated JSON
+is retained locally as ignored `.sync-alert-full-result.log`; the summary is
+not presented as a complete per-observation raw export. Prior raw baselines are
+unchanged. Remaining gaps: account-handover/SRS reconciliation, password API/audit
+coverage in this harness, and intended-source/deployed backup acceptance.
 
 | Observation           | Finding                                                                                                                                                            | Follow-up / owner                                                                                                                      |
 | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------- |

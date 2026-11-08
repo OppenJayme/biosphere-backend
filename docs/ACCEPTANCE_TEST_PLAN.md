@@ -20,6 +20,13 @@ all 27 scenario blocks passed, with overall exit 1 retained for the unresolved
 gaps. Three fixture failures are repaired without changing application business
 rules or throttling. No executed observation failed in that completed run.
 
+The subsequent [owned sync-alert scenario](./NOTIFICATION_STATE_GUIDE.md#owned-sync-alert-http-checkpoint---november-8-2026)
+passed seven focused observations and the integrated rerun: 797 observations,
+794 passing and three unexecuted requirement gaps, with all 28 scenario blocks
+passing and overall exit 1 retained. Curator isolation and alert removal after
+corrected same-ID sync now have public HTTP/PostgreSQL evidence; no deployed or
+independent module acceptance is inferred.
+
 2026-11-06 first recovery implementation: the [synthetic-only manual CLI](./BACKUP_RECOVERY_PROCEDURE.md#implementation-checkpoint---2026-11-06)
 initially passed 15/15 owned PostgreSQL/CLI checks, with encrypted capture,
 unavailable-source restore and independent SQL/file/config verification. The

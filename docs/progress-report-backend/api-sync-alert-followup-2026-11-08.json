@@ -1,0 +1,157 @@
+{
+  "format": "biosphere-api-followup-summary-v1",
+  "scope": "Owned PostgreSQL / real Nest HTTP / synthetic Auth and Storage; not deployed acceptance",
+  "focusedRun": {
+    "generatedAt": "2026-11-08T06:28:06.800Z",
+    "totals": {
+      "cases": 7,
+      "passed": 7,
+      "failed": 0
+    }
+  },
+  "fullRun": {
+    "generatedAt": "2026-11-08T06:33:01.333Z",
+    "baseCommit": "ec228587c9154f4ed13568b18b4d7ed7cab66a68",
+    "priorHead": "5177746feef3dedc5af16fb305daca2bb1f49bf9",
+    "harnessSha256": "585491f7ce2f0d4a2a2d6d8d2dc57af925788dd63e64254e73f9775f6ebf4931",
+    "providerAdapterSha256": "47333908bf53d313cfb51cecef71b996947dcf07b7ab7c693e887cef774c2233",
+    "totals": {
+      "cases": 797,
+      "passed": 794,
+      "failed": 3
+    },
+    "scenarioBlocksPassed": 28,
+    "scenarioBlocksSkipped": 0,
+    "processExit": 1,
+    "executedObservationFailures": 0,
+    "remainingUnexecuted": [
+      {
+        "id": "ACCT-CURATOR-ACTIVATE",
+        "module": "user-accounts",
+        "srs": ["REQ-4.1-08", "REQ-4.1-09"],
+        "method": "PATCH",
+        "path": "/user-accounts/:id/status",
+        "kind": "happy",
+        "expected": "200 + checks",
+        "actualStatus": null,
+        "pass": false,
+        "note": "Not executed: reconcile the legacy Curator activation requirement with the Nov 7 Developer-owned status/handover decision and its owner-accepted HTTP evidence."
+      },
+      {
+        "id": "ACCT-CHANGE-PASSWORD",
+        "module": "auth",
+        "srs": ["REQ-4.1-16", "REQ-4.1-18"],
+        "method": "POST",
+        "path": "(none)",
+        "kind": "happy",
+        "expected": "200 + checks",
+        "actualStatus": null,
+        "pass": false,
+        "note": "Not executed here: backend password change/recovery/reset routes exist; their current HTTP and audit behavior still needs executed evidence in this progress harness."
+      },
+      {
+        "id": "BAK-RUN-RESTORE",
+        "module": "backup",
+        "srs": [
+          "REQ-4.15-05",
+          "REQ-4.15-06",
+          "REQ-4.15-07",
+          "REQ-4.15-08",
+          "REQ-4.15-09",
+          "REQ-4.15-11"
+        ],
+        "method": "POST",
+        "path": "(none)",
+        "kind": "happy",
+        "expected": "200 + checks",
+        "actualStatus": null,
+        "pass": false,
+        "note": "Not executed: standalone synthetic recovery and history recording exist; intended-source recovery and deployed scheduling/retention/custody acceptance remain separate gates. No public restore POST is required."
+      }
+    ],
+    "syncAlertChecks": [
+      {
+        "id": "NOTIF-SYNC-FIXTURE",
+        "module": "notifications",
+        "srs": ["REQ-4.3-05", "REQ-4.3-10"],
+        "method": "POST",
+        "path": "/specimens",
+        "kind": "happy",
+        "expected": "201 + checks",
+        "actualStatus": 201,
+        "pass": true
+      },
+      {
+        "id": "NOTIF-SYNC-OTHER-BASELINE",
+        "module": "notifications",
+        "srs": ["REQ-4.3-05", "REQ-4.3-10"],
+        "method": "GET",
+        "path": "/notifications",
+        "kind": "happy",
+        "expected": "200 + checks",
+        "actualStatus": 200,
+        "pass": true
+      },
+      {
+        "id": "NOTIF-SYNC-REJECTED",
+        "module": "notifications",
+        "srs": ["REQ-4.3-05", "REQ-4.3-10"],
+        "method": "POST",
+        "path": "/offline-sync/specimen-drafts",
+        "kind": "invalid-input",
+        "expected": "409 + checks",
+        "actualStatus": 409,
+        "pass": true
+      },
+      {
+        "id": "NOTIF-SYNC-FAILED",
+        "module": "notifications",
+        "srs": ["REQ-4.3-05", "REQ-4.3-10"],
+        "method": "GET",
+        "path": "/notifications",
+        "kind": "happy",
+        "expected": "200 + checks",
+        "actualStatus": 200,
+        "pass": true
+      },
+      {
+        "id": "NOTIF-SYNC-OTHER-ISOLATED",
+        "module": "notifications",
+        "srs": ["REQ-4.3-05", "REQ-4.3-10"],
+        "method": "GET",
+        "path": "/notifications",
+        "kind": "happy",
+        "expected": "200 + checks",
+        "actualStatus": 200,
+        "pass": true
+      },
+      {
+        "id": "NOTIF-SYNC-RECOVERED",
+        "module": "notifications",
+        "srs": ["REQ-4.3-05", "REQ-4.3-10"],
+        "method": "POST",
+        "path": "/offline-sync/specimen-drafts",
+        "kind": "happy",
+        "expected": "200 + checks",
+        "actualStatus": 200,
+        "pass": true
+      },
+      {
+        "id": "NOTIF-SYNC-CLEARED",
+        "module": "notifications",
+        "srs": ["REQ-4.3-05", "REQ-4.3-10"],
+        "method": "GET",
+        "path": "/notifications",
+        "kind": "happy",
+        "expected": "200 + checks",
+        "actualStatus": 200,
+        "pass": true
+      }
+    ],
+    "capturedEmailCount": 15,
+    "blockedOutboundRequestCount": 0,
+    "rawReportSha256": "645af0390d36519f59b406a9778f025787fca25e4527b0195de85693f7dd1bae",
+    "rawReportCommitted": false,
+    "localRawReport": ".sync-alert-full-result.log"
+  }
+}
