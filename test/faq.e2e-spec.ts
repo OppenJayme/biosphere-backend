@@ -588,6 +588,14 @@ describe('FAQ knowledge management (e2e)', () => {
             category: 'Visit',
           });
         });
+      await request(app.getHttpServer())
+        .post('/faq/assistant/ask')
+        .send({ question: 'And on weekends?', contextFaqId: entryId })
+        .expect(200)
+        .expect((response) => {
+          expect(response.body.outcome).toBe('ANSWERED');
+          expect(response.body.answer.id).toBe(secondEntryId);
+        });
       expect(faqCreate).not.toHaveBeenCalled();
       expect(faqUpdate).not.toHaveBeenCalled();
       expect(auditCreate).not.toHaveBeenCalled();
@@ -620,6 +628,7 @@ describe('FAQ knowledge management (e2e)', () => {
         'What about hiring?',
         'How about?',
         'What about the museum?',
+        'And on weekends?',
       ]) {
         await request(app.getHttpServer())
           .post('/faq/assistant/ask')

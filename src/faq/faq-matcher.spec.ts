@@ -4,6 +4,7 @@ import {
   isVisitRequestTransaction,
   matchFaqEntries,
   normalizeFaqText,
+  parseFaqFollowup,
   scoreFaqCandidate,
   tokenizeFaqText,
 } from './faq-matcher';
@@ -131,5 +132,27 @@ describe('faq-matcher', () => {
     expect(isVisitRequestChange('Book a visit for Friday')).toBe(false);
     expect(isVisitRequestChange('Approve my visit request')).toBe(false);
     expect(isVisitRequestChange('Cancel the newsletter')).toBe(false);
+  });
+});
+
+describe('parseFaqFollowup', () => {
+  it('returns the qualifier for explicit how/what-about openers', () => {
+    expect(parseFaqFollowup('What about Saturday?')).toBe('saturday');
+    expect(parseFaqFollowup('How about on weekends?')).toBe('on weekends');
+    expect(parseFaqFollowup('How about?')).toBe('');
+  });
+
+  it('accepts "and" only before a preposition', () => {
+    expect(parseFaqFollowup('And on Saturday?')).toBe('on saturday');
+    expect(parseFaqFollowup('and for students')).toBe('for students');
+    expect(parseFaqFollowup('And if we bring kids?')).toBe('if we bring kids');
+  });
+
+  it('leaves complete or unrelated questions to the standalone matcher', () => {
+    expect(parseFaqFollowup('And how much is the entrance fee?')).toBeNull();
+    expect(parseFaqFollowup('And?')).toBeNull();
+    expect(parseFaqFollowup('Android app?')).toBeNull();
+    expect(parseFaqFollowup('Tell me about the museum')).toBeNull();
+    expect(parseFaqFollowup('What time does the museum open?')).toBeNull();
   });
 });
