@@ -12,6 +12,8 @@
     "test:recovery:supabase:contracts": "node --test test/supabase-storage-contract.test.cjs",
     "test:recovery:supabase:files": "node --test test/supabase-checkpoint-store.test.cjs test/supabase-durable-guards.test.cjs",
     "test:recovery:supabase:durable": "cross-env RUN_SUPABASE_LAB=true node --test test/supabase-durable-process.test.cjs",
+    "test:recovery:supabase:biosphere": "cross-env RUN_SUPABASE_LAB=true node --test test/supabase-biosphere-process.test.cjs",
+    "test:recovery:supabase:application-guards": "node --test test/supabase-biosphere-guards.test.cjs test/supabase-application-guards.test.cjs test/supabase-application-result.test.cjs test/supabase-lab-docker.test.cjs test/supabase-sql-readiness.test.cjs",
     "test:recovery:cli": "cross-env RUN_RECOVERY_REHEARSAL=true node --test test/recovery-cli.test.cjs",
     "test:recovery:guards": "cross-env RUN_RECOVERY_REHEARSAL=false node --test test/recovery-cli.test.cjs",
     "test:restoration:db": "cross-env RUN_RESTORATION_DISPOSABLE_DB=true node --experimental-vm-modules node_modules/jest/bin/jest.js --config ./test/jest-restoration-db.json --runInBand",

@@ -6,6 +6,27 @@ defect entry.
 
 ## Start here
 
+2026-11-08 PR #265 review correction: the earlier zero-connection canary used
+malformed input and did not prove container-identity enforcement. The corrected
+valid-identity/distinct-port case now reaches target-identity rejection. The
+review also exposed `.env` diagnostic ordering, brittle stderr interpretation,
+cleanup outcome loss, missing SQL readiness and incomplete source-resource
+tracking. [The corrective evidence](SUPABASE_RECOVERY_LAB.md#november-8---pr-265-review-corrections)
+records 34 native checks and five owned workflows passing, including the live
+fifth-resource refusal before target creation. An optional mutation experiment
+timed out and is not passing evidence. These are lab/test-support findings;
+no existing product defect or module acceptance is silently closed.
+
+2026-11-08 recovery-lab implementation findings: the new isolated full-profile
+checker initially contacted its unowned loopback canary twice. It now requires
+owned Docker identities and a connected database nonce; the canary sees zero
+connections and the real wrong-nonce case is rejected. Storage-limit alignment,
+the fixture callback and the Windows V8 heap-budget correction are also recorded
+in [the full rehearsal evidence](SUPABASE_RECOVERY_LAB.md#full-profile-evidence-and-limits).
+These were prepublication lab findings, not observed deployed product defects.
+Final local checks passed; existing defect statuses and module acceptance are
+not promoted by this record. Independent review remains required.
+
 2026-11-08 integration baseline: [recorded failures and allocator repair](./progress-report-backend/API_BASELINE_2026-11-08.md).
 The initial harness hid ten failed observations behind a successful Jest exit.
 Its recorded outcomes now determine success. DEF-042 covers the reproduced

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 'use strict';
 // Synthetic local lab only. Never loads dotenv, Supabase CLI state or app providers.
-const { execFileSync } = require('node:child_process');
+const { docker, isolatedEnvironment } = require('./supabase-lab-docker.cjs');
 const {
   randomUUID,
   randomBytes,
@@ -9,6 +9,11 @@ const {
   createHash,
 } = require('node:crypto');
 const os = require('node:os');
+const {
+  program: bridgeProgram,
+  waitForSqlGateway,
+} = require('./supabase-lab-bridge.cjs');
+const biosphere = require('./supabase-biosphere-profile.cjs');
 const images = require('./supabase-lab-images.json').images;
 const {
   requireAnonymousObjectHidden,
@@ -27,28 +32,7 @@ const {
   saveCheckpoint,
   loadCheckpoint,
 } = require('./supabase-checkpoint-store.cjs');
-const socket =
-  process.platform === 'win32'
-    ? 'npipe:////./pipe/dockerDesktopLinuxEngine'
-    : 'unix:///var/run/docker.sock';
-const env = Object.fromEntries(
-  Object.entries(process.env).filter(([key]) =>
-    [
-      'path',
-      'systemroot',
-      'windir',
-      'comspec',
-      'pathext',
-      'temp',
-      'tmp',
-      'userprofile',
-      'localappdata',
-      'appdata',
-      'programfiles',
-      'programdata',
-    ].includes(key.toLowerCase()),
-  ),
-);
+const env = isolatedEnvironment();
 const owner = randomUUID();
 const label = 'biosphere.supabase-lab.owner';
 const containers = [];
@@ -56,26 +40,10 @@ const networks = [];
 const expected = new Map();
 let probeId;
 let phase = 'arguments';
+let fullProfile = false;
+let outsideNetwork;
 function check(value, code) {
   if (!value) throw Object.assign(new Error(code), { safeCode: code });
-}
-function docker(args, input, binary = false) {
-  try {
-    const result = execFileSync('docker', ['--host', socket, ...args], {
-      env,
-      input,
-      encoding: binary ? undefined : 'utf8',
-      windowsHide: true,
-      timeout: 90000,
-      maxBuffer: binary ? 32 * 1024 * 1024 : 1024 * 1024,
-      stdio: ['pipe', 'pipe', 'pipe'],
-    });
-    return binary ? result : result.trim();
-  } catch {
-    throw Object.assign(new Error('DOCKER_COMMAND_FAILED'), {
-      safeCode: 'DOCKER_COMMAND_FAILED',
-    });
-  }
 }
 function inspect(id, kind = 'container') {
   return JSON.parse(docker([kind, 'inspect', id]))[0];
@@ -186,10 +154,12 @@ function validate(id, running) {
     'CONTAINER_CONTAINMENT_MISMATCH',
   );
   const membership = Object.values(actual.NetworkSettings.Networks);
+  const allowedNetworks = [spec.net, ...(spec.extraNet ? [spec.extraNet] : [])];
   check(
     actual.HostConfig.NetworkMode === spec.net &&
-      membership.length === 1 &&
-      (!running || membership[0].NetworkID === spec.net),
+      membership.length === allowedNetworks.length &&
+      (!running ||
+        membership.every((n) => allowedNetworks.includes(n.NetworkID))),
     'NETWORK_MEMBERSHIP_MISMATCH',
   );
   const bindings = Object.entries(actual.HostConfig.PortBindings ?? {});
@@ -278,6 +248,34 @@ async function containment(inside, outside) {
     'EGRESS_NOT_BLOCKED',
   );
   return { containment: 'PASS', outsideControlHits: 1, blockedAttemptHits: 0 };
+}
+async function labBridge(inside, prefix, kind, password) {
+  const id = create({
+    name: prefix + kind + '-gateway',
+    image: images.storage.image,
+    net: outsideNetwork,
+    port: 8080,
+    entrypoint: 'node',
+    command: ['-e', bridgeProgram(kind, prefix)],
+  });
+  check(
+    inspect(inside, 'network').Internal === true,
+    'BRIDGE_INTERNAL_NETWORK_REQUIRED',
+  );
+  docker(['network', 'connect', inside, id]);
+  expected.get(id).extraNet = inside;
+  validate(id, true);
+  const url = endpoint(id, 8080);
+  if (kind === 'sql')
+    await waitForSqlGateway(url, password, () => validate(id, true));
+  if (kind === 'http') {
+    await wait(url + '/auth/v1/health');
+    check(
+      (await request(url + '/http://example.invalid/')).status === 404,
+      'BRIDGE_FORWARDING_REFUSED',
+    );
+  }
+  return { id, url };
 }
 async function platform(inside, prefix = '') {
   // Private services never publish ports. HTTP crosses their real API boundary
@@ -456,7 +454,9 @@ async function platform(inside, prefix = '') {
       STORAGE_PUBLIC_URL: `http://${prefix}storage:5000`,
       STORAGE_BACKEND: 'file',
       FILE_STORAGE_BACKEND_PATH: '/var/lib/storage',
-      FILE_SIZE_LIMIT: '1048576',
+      // Bucket definitions cannot exceed Storage's global limit. Payloads in
+      // this lab remain tiny; maximum-size capacity is not exercised here.
+      FILE_SIZE_LIMIT: fullProfile ? '52428800' : '1048576',
       TENANT_ID: 'synthetic-lab',
       GLOBAL_S3_BUCKET: 'synthetic-lab',
       REGION: 'local',
@@ -467,7 +467,7 @@ async function platform(inside, prefix = '') {
   const storageUrl = `http://${prefix}storage:5000`;
   await wait(`${storageUrl}/status`, serviceRequest);
   for (const id of [db, auth, rest, storage]) validate(id, true);
-  return {
+  const serviceState = {
     db,
     auth,
     rest,
@@ -481,7 +481,28 @@ async function platform(inside, prefix = '') {
     storageUrl,
     baseline: inventory(sql),
     ids: [db, auth, rest, storage],
+    ...(fullProfile ? { password, prefix } : {}),
   };
+  if (fullProfile) {
+    phase = 'biosphere-migrations';
+    serviceState.gateway = await labBridge(inside, prefix, 'sql', password);
+    serviceState.ids.push(serviceState.gateway.id);
+    serviceState.application = biosphere.initialize(serviceState, env, check);
+    serviceState.identity = {
+      owner,
+      inside,
+      outside: outsideNetwork,
+      databaseId: db,
+      sqlGatewayId: serviceState.gateway.id,
+      marker: randomBytes(32).toString('hex'),
+    };
+    sql(`CREATE SCHEMA biosphere_recovery_lab;
+      REVOKE ALL ON SCHEMA biosphere_recovery_lab FROM PUBLIC;
+      CREATE TABLE biosphere_recovery_lab.identity(owner uuid NOT NULL,container_id text NOT NULL,marker text NOT NULL);
+      INSERT INTO biosphere_recovery_lab.identity VALUES ('${owner}','${db}','${serviceState.identity.marker}');`);
+    serviceState.baseline = inventory(sql, true);
+  }
+  return serviceState;
 }
 async function smoke(inside, recover = false, checkpointPaths) {
   const source = await platform(inside);
@@ -517,23 +538,30 @@ async function smoke(inside, recover = false, checkpointPaths) {
     'AUTH_IDENTITY_MISMATCH',
   );
   phase = 'storage-requests';
-  const bucket = 'synthetic-private';
+  const bucket = fullProfile ? 'specimen-media' : 'synthetic-private';
   const bucketResponse = await serviceRequest(
     `${storageUrl}/bucket`,
-    json({ id: bucket, name: bucket, public: false }, service),
+    json(
+      fullProfile
+        ? biosphere.bucketConfig(bucket)
+        : { id: bucket, name: bucket, public: false },
+      service,
+    ),
   );
-  check(bucketResponse.ok, 'BUCKET_CREATE_FAILED');
-  sql(POLICY_SQL);
-  const bytes = Buffer.from(
-    'BioSphere synthetic private storage probe\n',
-    'utf8',
-  );
+  check(bucketResponse.ok, `BUCKET_CREATE_HTTP_${bucketResponse.status}`);
+  sql(fullProfile ? biosphere.POLICY_SQL : POLICY_SQL);
+  const bytes = fullProfile
+    ? biosphere.PRIMARY_BYTES
+    : Buffer.from('BioSphere synthetic private storage probe\n', 'utf8');
   const headers = { Authorization: `Bearer ${session.access_token}` };
   const uploaded = await serviceRequest(
     `${storageUrl}/object/${bucket}/probe.txt`,
     {
       method: 'POST',
-      headers: { ...headers, 'Content-Type': 'text/plain' },
+      headers: {
+        ...headers,
+        'Content-Type': fullProfile ? 'image/png' : 'text/plain',
+      },
       body: bytes,
     },
   );
@@ -560,6 +588,10 @@ async function smoke(inside, recover = false, checkpointPaths) {
       .update(source.secret)
       .digest('hex'),
   };
+  if (fullProfile) {
+    phase = 'biosphere-seed';
+    await biosphere.seed(source, fixture, check);
+  }
   const ctx = labContext(inside, source, fixture);
   if (checkpointPaths) {
     phase = 'checkpoint-capture';
@@ -575,6 +607,7 @@ async function smoke(inside, recover = false, checkpointPaths) {
     );
     return {
       status: 'CAPTURED_DURABLE',
+      ...(fullProfile ? { profile: 'biosphere-full-v1' } : {}),
       ...saved,
       sourceIds: source.ids,
       capturePid: process.pid,
@@ -630,6 +663,17 @@ function labContext(inside, source, fixture) {
     check,
     platform,
     images,
+    fullProfile,
+    profilePolicy: fullProfile ? biosphere.POLICY_SQL : POLICY_SQL,
+    publicDataHash: biosphere.publicDataHash,
+    verifyApplication: fullProfile
+      ? async (target) => {
+          phase = 'biosphere-application-verification';
+          const gateway = await labBridge(inside, target.prefix, 'http');
+          return biosphere.verifyApplication(target, gateway, fixture, env);
+        }
+      : undefined,
+    verifyBuckets: fullProfile ? biosphere.verifyBuckets : undefined,
     setPhase: (value) => {
       phase = value;
     },
@@ -656,7 +700,7 @@ function checkpointArguments(args) {
   );
   return { checkpointDir: flags['--checkpoints'], keyDir: flags['--keys'] };
 }
-function verificationFixture(proof) {
+function verificationFixture(proof, full = false) {
   check(
     proof &&
       typeof proof === 'object' &&
@@ -668,12 +712,13 @@ function verificationFixture(proof) {
       /^[a-zA-Z0-9_-]{32}$/.test(proof.userPassword) &&
       typeof proof.userId === 'string' &&
       /^[a-f0-9-]{36}$/.test(proof.userId) &&
-      proof.bucket === 'synthetic-private' &&
+      proof.bucket === (full ? 'specimen-media' : 'synthetic-private') &&
       typeof proof.bytes === 'string' &&
       proof.bytes ===
-        Buffer.from('BioSphere synthetic private storage probe\n').toString(
-          'base64',
-        ) &&
+        (full
+          ? biosphere.PRIMARY_BYTES
+          : Buffer.from('BioSphere synthetic private storage probe\n')
+        ).toString('base64') &&
       typeof proof.sourceAccessToken === 'string' &&
       proof.sourceAccessToken.length < 8192 &&
       proof.sourceAccessToken.split('.').length === 3 &&
@@ -716,17 +761,22 @@ async function main() {
       };
       return;
     }
-    const durable = ['checkpoint-capture', 'checkpoint-restore'].includes(mode);
+    fullProfile = ['biosphere-capture', 'biosphere-restore'].includes(mode);
+    const restoring = ['checkpoint-restore', 'biosphere-restore'].includes(
+      mode,
+    );
+    const durable =
+      fullProfile ||
+      ['checkpoint-capture', 'checkpoint-restore'].includes(mode);
     let paths, loaded, fixture;
     if (durable) {
       paths = checkpointArguments(process.argv.slice(3));
       phase = 'checkpoint-files';
-      if (mode === 'checkpoint-capture')
-        assertCaptureAvailable(paths.checkpointDir, paths.keyDir);
+      if (!restoring) assertCaptureAvailable(paths.checkpointDir, paths.keyDir);
       else {
         loaded = loadCheckpoint(paths.checkpointDir, paths.keyDir);
-        validateCapturedPacket(loaded.payload, images, check);
-        fixture = verificationFixture(loaded.verification);
+        validateCapturedPacket(loaded.payload, images, check, fullProfile);
+        fixture = verificationFixture(loaded.verification, fullProfile);
       }
     } else
       check(
@@ -734,14 +784,30 @@ async function main() {
           ['containment', 'smoke', 'recover'].includes(mode),
         'UNSUPPORTED_COMMAND',
       );
+    if (fullProfile) biosphere.preflight(check, loaded?.payload.application);
     phase = 'preflight';
+    if (fullProfile)
+      check(
+        require('node:v8').getHeapStatistics().heap_size_limit <=
+          192 * 1024 ** 2,
+        'LAB_NODE_BUDGET_REQUIRED',
+      );
+    if (fullProfile) biosphere.assertNoEnvironment(check);
     check(
       ['win32', 'linux'].includes(process.platform),
       'UNSUPPORTED_PLATFORM',
     );
     check(
       os.freemem() >=
-        (durable ? 5 : { containment: 3, smoke: 4, recover: 5 }[mode]) *
+        // One platform per full-profile process, two 128 MiB gateways and
+        // bounded migration/application children. Original guards stay intact.
+        // Full-profile budget: 2176 MiB container caps + 768 MiB for
+        // parent/child runtimes + 640 MiB headroom = 3584 MiB (3.5 GiB).
+        (fullProfile
+          ? 3.5
+          : durable
+            ? 5
+            : { containment: 3, smoke: 4, recover: 5 }[mode]) *
           1024 ** 3,
       'INSUFFICIENT_HOST_MEMORY',
     );
@@ -757,11 +823,12 @@ async function main() {
     phase = 'containment';
     const inside = network(true),
       outside = network(false);
+    outsideNetwork = outside;
     evidence = await containment(inside, outside);
-    if (mode === 'checkpoint-restore') {
+    if (restoring) {
       const result = await restorePlatform(
         {
-          ...labContext(inside),
+          ...labContext(inside, undefined, fixture),
           sourceState: 'CAPTURE_RESOURCES_ABSENT',
           assertSourceUnavailable: () =>
             requireSourcesAbsent(loaded.source.ids),
@@ -785,7 +852,7 @@ async function main() {
         ...(await smoke(
           inside,
           mode === 'recover',
-          mode === 'checkpoint-capture' ? paths : undefined,
+          durable ? paths : undefined,
         )),
       };
     if (evidence.lock) process.exitCode = 1;
@@ -796,6 +863,13 @@ async function main() {
       code: error.safeCode ?? 'LAB_CHECK_FAILED',
       resourcesCreated: containers.length,
       ...(error.cleanup ? { fileCleanup: error.cleanup } : {}),
+      ...(error.applicationOutcome
+        ? {
+            applicationOutcome: error.applicationOutcome,
+            applicationCode: error.applicationCode,
+            applicationCleanup: error.applicationCleanup,
+          }
+        : {}),
     };
     process.exitCode = 1;
   } finally {

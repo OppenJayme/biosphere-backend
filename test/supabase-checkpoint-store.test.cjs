@@ -11,6 +11,45 @@ const {
 const {
   loadCheckpoint,
 } = require('../scripts/recovery/supabase-checkpoint-store.cjs');
+
+test('full-profile checkpoints retain the SQL gateway as a fifth source resource', () => {
+  const w = createWorkspace();
+  const source = {
+    owner: '00000000-0000-4000-8000-000000000001',
+    ids: ['a', 'b', 'c', 'd', 'e'].map((c) => c.repeat(64)),
+  };
+  saveCheckpoint(w.checkpointDir, w.keyDir, {
+    payload: {
+      format: 'biosphere-platform-fixture-v3',
+      application: { profile: 'biosphere-full-v1' },
+    },
+    verification: { synthetic: true },
+    source,
+  });
+  assert.deepEqual(
+    loadCheckpoint(w.checkpointDir, w.keyDir).source.ids,
+    source.ids,
+  );
+});
+
+test('full-profile checkpoints reject a source set missing its SQL gateway', () => {
+  const w = createWorkspace();
+  assert.throws(
+    () =>
+      saveCheckpoint(w.checkpointDir, w.keyDir, {
+        payload: {
+          format: 'biosphere-platform-fixture-v3',
+          application: { profile: 'biosphere-full-v1' },
+        },
+        verification: { synthetic: true },
+        source: {
+          owner: '00000000-0000-4000-8000-000000000001',
+          ids: ['a', 'b', 'c', 'd'].map((c) => c.repeat(64)),
+        },
+      }),
+    { code: 'CHECKPOINT_SOURCE_INVALID' },
+  );
+});
 function fixture() {
   const workspace = createWorkspace();
   const data = {
