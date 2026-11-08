@@ -4,8 +4,10 @@
 this document. Use only after setup, rehearsal and applicable approval. This is
 the business-owner companion to the [technical procedure](./BACKUP_RECOVERY_PROCEDURE.md).
 
-**November 8 setup status:** no independent backup destination or continuing
-storage-account owner is confirmed. The current CI recovery job is a synthetic
+**November 8 setup status:** the team selected Backblaze B2 and a tiny encrypted
+synthetic upload/readback/private-access probe passed. Continuing storage-account
+and key custody, retention protection, actual backup capacity and production
+recovery acceptance are not confirmed. The current CI recovery job is a synthetic
 test, not a scheduled museum backup. Use the
 [closeout order and short decision request](./BACKUP_RECOVERY_APPROVAL.md#closeout-order---november-8-2026)
 to finish setup; the ordinary-use steps below remain conditional.

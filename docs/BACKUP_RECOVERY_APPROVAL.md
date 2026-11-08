@@ -38,7 +38,7 @@ below. It groups the decisions without marking any of them approved.
 | Capture schedule | Daily 06:17 Asia/Manila proposed; one run at a time; twice daily only after measurements; extra authorized high-impact-change captures | Pending |
 | Recovery objectives | 24-hour spacing is an unmeasured design target; no total RTO commitment. Eight-hour hands-on benchmark may be measured, with support wait and approvals reported separately | Pending |
 | Write freeze | Short automated lease/drain with safe expiry/abort, tested without an attending operator; 15 minutes is a rehearsal threshold only | Pending |
-| Backup destinations | At least one complete encrypted independent copy with measured $0 capacity, permission and recoverable accounts; second copy only if available, single-copy risk explicit | Pending |
+| Backup destinations | At least one complete encrypted independent copy with measured $0 capacity, permission and recoverable accounts; second copy only if available, single-copy risk explicit | Team selected Backblaze B2, November 8, 2026; tiny synthetic provider probe passed. Institutional permission, actual capacity, continuing custody and production acceptance remain pending. |
 | Retention and privacy | Seven daily checkpoints proposed first; four weekly/30-day turnover checkpoint only if measured capacity allows; approve expiry/deletion reconciliation and holds | Pending |
 | Credentials and encryption | Least necessary source rights, separately scoped restore rights, compatible encryption and recoverable escrow; no institutional vault or personal student key custody assumed | Pending |
 | Failure reporting | Understandable in-system failure/unknown/overdue state plus assessed independent missed-run detection; any outage/delivery gap remains explicit; no operational email/SMS | Pending |
@@ -85,7 +85,55 @@ were not rerun on that integration head. These are synthetic engineering results
 not intended-source recovery or Gate B acceptance. A merged implementation and
 code review do not complete the separate rehearsal acceptance/turnover record.
 
-**Backup destination: none yet confirmed.** Read-only discovery found:
+### B2 selection and bounded provider checkpoint - November 8, 2026
+
+The team selected **Backblaze B2** and reported creating a private test bucket
+in US West, enabling account MFA and saving a short-lived test application key.
+Continuing ownership/recovery custody after graduation is still unconfirmed;
+the account's creation and this test are not institutional deployment approval.
+
+A one-off local probe used the explicitly supplied, Git-ignored credential file.
+Only its setting names and sanitized safety flags were displayed. No key values,
+tokens, provider account/bucket/object identifiers or private receipts are in
+this record. The active checkout initially did not ignore `backblaze.env`;
+an exact ignore rule was added before authorization. It was untracked, not
+committed. The same rule is included in this change for future checkouts.
+
+Observed through the real B2 Native API:
+
+- Key restricted to one bucket, the `synthetic/` prefix, and an expiry within
+  25 hours; required read/write capabilities present.
+- Bucket access is private and lifecycle rules are empty. Region and account
+  MFA are user-reported, not independently verified by this API probe.
+- The console Read/Write preset includes `deleteFiles` and `writeBuckets`.
+  This is a temporary test identity, not a demonstrated least-privilege routine
+  publisher. No settings, deletion or permission changes were attempted.
+- The key cannot read default retention. Its filtered absence is **not** proof
+  that retention is disabled; the unset setting remains user-reported.
+- Exactly one generated **181-byte** AES-256-GCM envelope was uploaded under a
+  unique synthetic name. It contains generated text only, no application data.
+  The encryption key was retained locally and was not uploaded.
+- Download by the returned immutable file-version ID matched the encrypted
+  bytes and SHA-256; authenticated decryption recovered the exact source bytes.
+  Anonymous download of that same version returned an authorization denial.
+  The synthetic object remains stored; no automatic deletion/retry was performed.
+
+Local generated-byte checks also rejected a wrong decryption key and corrupted
+ciphertext. Initial probe stops exposed deliberately strict assumptions about
+the console key preset and readable retention metadata; no upload occurred in
+those preflight attempts. The final probe explicitly records those limitations
+rather than calling them verified permissions/retention protections. This was a
+one-off operator check, not a shipped provider adapter or a reusable backup CLI.
+
+**Still open:** custom routine-publisher permissions and adversarial denial
+tests; Object Lock/retention/expiry behavior; quota/caps and measured full-copy
+capacity; durable independent key retrieval; intended-source capture/restore;
+runner integration, scheduling, reconciliation, missed-run detection and
+institutional/Curator acceptance. No payment setup, retention configuration,
+hosted museum export, source migration, real-data backup or production cutover
+was performed. Do not promote BAK-002 or Gate C/D/E from this small provider test.
+
+**Historical discovery before selection: none yet confirmed.** Read-only discovery found:
 
 - No selected destination, storage-account owner or custody reference in the
   tracked procedure, approval record, recovery scripts or environment example.
@@ -105,12 +153,12 @@ backup destination.
 
 ### Storage and runner candidates - checked November 8, 2026
 
-Preferred candidate: **Backblaze B2**, subject to confirmed museum/project account
+Earlier preferred candidate, now team-selected as recorded above: **Backblaze B2**, subject to confirmed museum/project account
 custody, capacity and an authorized synthetic provider trial. Its Object Lock
 and separately scoped upload/delete capabilities provide a concrete way to
 evaluate protected retention. This is an engineering recommendation, not a
-selected/approved destination or permission to create an account, connect
-credentials or upload museum data. Google Drive and OneDrive remain documented
+institutionally approved destination or permission to upload museum data.
+The later bounded account/test authorization is recorded above. Google Drive and OneDrive remain documented
 alternatives rather than the preferred recommendation.
 
 | Candidate | Current published allowance / capability | Decision still needed |
@@ -140,7 +188,9 @@ retention/restore headroom must fit the measured budget. Assess storage, transfe
 and API use with the provider's [caps and alerts](https://www.backblaze.com/docs/cloud-storage-data-caps-and-alerts),
 including that not every transaction class supports a cap. Free signup is not
 proof of unlimited free operation or a guarantee that an alert prevents charges.
-No account, key, bucket, provider trial, payment method or upload has been created.
+At the original assessment no account, key, bucket, trial, payment method or
+upload had been created. The later synthetic-only checkpoint above supersedes
+that account/test status; payment activation and real-data uploads remain unperformed.
 
 Google's [Drive API limits](https://developers.google.com/workspace/drive/api/guides/limits)
 changed for newer projects in May 2026 and include a daily billing threshold;

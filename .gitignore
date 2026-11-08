@@ -5,6 +5,7 @@ node_modules/
 dist/
 
 # Environment variables
+backblaze.env
 .env
 .env.local
 .env.development
