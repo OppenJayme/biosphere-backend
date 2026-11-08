@@ -129,3 +129,15 @@ application credentials and user Node options. Windows CI invokes the test file
 directly so the inner Node test-runner output is not hidden behind another test
 process, and has a two-minute step limit. The exact hosted cause and new-head
 result must be checked rather than inferred from the local pass.
+
+Run 575 confirmed a 20-second timeout for each child, including plan mode, so
+the prior stdin/profile change was insufficient. The next test-host correction
+defines PATH and PSModulePath using only the Windows system/PowerShell
+directories, retains Windows installation-path variables, and explicitly uses
+RemoteSigned for the isolated child process. No user/machine policy or live
+helper behavior is changed; domain policies still take precedence. See
+[Microsoft's process-policy documentation](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_execution_policies?view=powershell-5.1).
+A before-hook checks native host startup and the mocked read-only plan. Host
+failure stops the suite rather than retrying every case against a broken host;
+it never converts failed coverage into a pass. Hosted verification remains
+required, and these combined changes do not isolate a single original cause.

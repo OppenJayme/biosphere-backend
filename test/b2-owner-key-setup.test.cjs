@@ -1,5 +1,5 @@
 'use strict';
-const { test } = require('node:test');
+const { test, before } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
@@ -10,13 +10,7 @@ const source = path.resolve(
   '../scripts/recovery/b2-owner-key-setup.ps1',
 );
 const quote = (s) => "'" + s.replace(/'/g, "''") + "'";
-function run(args, prelude = '', script = source) {
-  const mode = args.includes('-Create')
-    ? 'create'
-    : args.includes('-Inspect')
-      ? 'inspect'
-      : 'plan';
-  process.stdout.write('# Starting synthetic PowerShell ' + mode + '\n');
+function launch(command) {
   const env = {};
   for (const k of [
     'SystemRoot',
@@ -29,19 +23,32 @@ function run(args, prelude = '', script = source) {
     'APPDATA',
     'LOCALAPPDATA',
     'ProgramData',
+    'ProgramFiles',
+    'ProgramFiles(x86)',
+    'ProgramW6432',
+    'CommonProgramFiles',
+    'CommonProgramFiles(x86)',
+    'CommonProgramW6432',
   ])
     if (process.env[k]) env[k] = process.env[k];
+  const systemDirectory = path.join(process.env.SystemRoot, 'System32');
+  const powershellDirectory = path.join(
+    systemDirectory,
+    'WindowsPowerShell/v1.0',
+  );
+  // Do not inherit the runner's PATH, custom modules, secrets or Node options.
+  env.PATH = systemDirectory + path.delimiter + powershellDirectory;
+  env.PSModulePath = path.join(powershellDirectory, 'Modules');
   const result = spawnSync(
-    path.join(
-      process.env.SystemRoot,
-      'System32/WindowsPowerShell/v1.0/powershell.exe',
-    ),
+    path.join(powershellDirectory, 'powershell.exe'),
     [
       '-NoLogo',
       '-NoProfile',
       '-NonInteractive',
+      '-ExecutionPolicy',
+      'RemoteSigned',
       '-Command',
-      prelude + '; & ' + quote(script) + ' ' + args + '; exit $LASTEXITCODE',
+      command,
     ],
     {
       encoding: 'utf8',
@@ -53,6 +60,35 @@ function run(args, prelude = '', script = source) {
     },
   );
   assert.ifError(result.error);
+  return result;
+}
+if (process.platform === 'win32')
+  before(() => {
+    process.stdout.write('# Checking isolated PowerShell host startup\n');
+    const host = launch(
+      "[Console]::Out.WriteLine('B2_OWNER_TEST_HOST_READY'); exit 0",
+    );
+    assert.equal(host.status, 0);
+    assert.equal(host.stderr, '');
+    assert.equal(host.stdout.trim(), 'B2_OWNER_TEST_HOST_READY');
+    process.stdout.write('# Checking isolated helper plan startup\n');
+    const plan = run(
+      '-BucketName synthetic-test-bucket',
+      'function Read-Host { throw "NO_PROMPT" }; function Invoke-RestMethod { throw "NO_NETWORK" }',
+    );
+    assert.equal(plan.status, 0);
+    assert.equal(plan.output.code, 'B2_OWNER_SETUP_PLAN');
+  });
+function run(args, prelude = '', script = source) {
+  const mode = args.includes('-Create')
+    ? 'create'
+    : args.includes('-Inspect')
+      ? 'inspect'
+      : 'plan';
+  process.stdout.write('# Starting synthetic PowerShell ' + mode + '\n');
+  const result = launch(
+    prelude + '; & ' + quote(script) + ' ' + args + '; exit $LASTEXITCODE',
+  );
   process.stdout.write(
     '# Synthetic PowerShell completed with exit ' + result.status + '\n',
   );
