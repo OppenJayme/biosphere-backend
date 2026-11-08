@@ -6,6 +6,11 @@ or export museum data. The team's initial encrypted-byte probe is recorded in
 [PR #273](https://github.com/OppenJayme/biosphere-backend/pull/273); that probe
 did not establish retention protection or least-privilege operation.
 
+The [bounded synthetic runner](./B2_RETENTION_RUNNER.md) now implements the
+one-day Governance experiment with isolated PowerShell/HTTP checks. It requires
+the separately reviewed owner-key setup and explicit live-run authorization.
+Its preparation does not establish live B2 retention or close the gates below.
+
 ## Accounts and identities
 
 The account owner keeps administrative credentials outside application/runner
