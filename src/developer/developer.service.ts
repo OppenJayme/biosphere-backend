@@ -42,9 +42,17 @@ import {
   AR_ASSET_STORAGE_BUCKET,
   MAX_AR_ASSET_SIZE_BYTES,
 } from './developer.constants';
-import { glbFileError } from './glb-validation';
+import { inspectGlb, type GlbMetadata } from './glb-validation';
 
 type AuditStatus = 'SUCCESS' | 'FAILED' | 'DENIED';
+
+// What the compatibility check found in a model (REQ-4.2-05). Recorded in
+// the audit entry of each upload, replacement and activation, since ar_asset
+// has no metadata column.
+type ArModelReport = {
+  metadata: GlbMetadata | { sizeBytes: number };
+  warnings: string[];
+};
 
 export const HAND_OVER_CURATOR_ACTION = 'HAND_OVER_CURATOR';
 
@@ -483,7 +491,7 @@ export class DeveloperService {
     dto: CreateArAssetDto,
     actingDeveloperId: string,
   ): Promise<ArAssetEntity> {
-    const storagePath = await this.auditRejection(
+    const { storagePath, model } = await this.auditRejection(
       actingDeveloperId,
       {
         action: 'CREATE_AR_ASSET',
@@ -497,14 +505,15 @@ export class DeveloperService {
       async () => {
         this.requireAuthorization(dto.authorizationReference, 'upload');
         await this.assertExhibitDeployable(dto.exhibitId);
-        this.validateArAssetFile(file, dto.modelFormat);
+        const model = this.validateArAssetFile(file, dto.modelFormat);
 
-        return this.storageService.upload(
+        const storagePath = await this.storageService.upload(
           AR_ASSET_STORAGE_BUCKET,
           dto.exhibitId,
           file.buffer,
           file.mimetype,
         );
+        return { storagePath, model };
       },
     );
 
@@ -551,6 +560,7 @@ export class DeveloperService {
         modelFormat: dto.modelFormat,
         isEnabled: dto.isEnabled ?? false,
         authorizationReference: dto.authorizationReference,
+        model,
       },
     });
 
@@ -563,7 +573,7 @@ export class DeveloperService {
     dto: UpdateArAssetDto,
     actingDeveloperId: string,
   ): Promise<ArAssetEntity> {
-    const { existing, updateData, previousStoragePath } =
+    const { existing, updateData, previousStoragePath, model } =
       await this.auditRejection(
         actingDeveloperId,
         {
@@ -599,8 +609,9 @@ export class DeveloperService {
             );
           }
 
+          let model: ArModelReport | undefined;
           if (dto.isEnabled && !file) {
-            await this.assertStoredModelValid(existing);
+            model = await this.assertStoredModelValid(existing);
           }
 
           const updateData: Prisma.ar_assetUncheckedUpdateInput = {};
@@ -609,7 +620,7 @@ export class DeveloperService {
           if (file) {
             const targetFormat: ArModelFormat =
               dto.modelFormat ?? (existing.model_format as ArModelFormat);
-            this.validateArAssetFile(file, targetFormat);
+            model = this.validateArAssetFile(file, targetFormat);
 
             const exhibitId = dto.exhibitId ?? existing.exhibit_id;
             const storagePath = await this.storageService.upload(
@@ -636,7 +647,7 @@ export class DeveloperService {
             updateData.is_enabled = dto.isEnabled;
           }
 
-          return { existing, updateData, previousStoragePath };
+          return { existing, updateData, previousStoragePath, model };
         },
       );
 
@@ -689,6 +700,7 @@ export class DeveloperService {
         isEnabled: dto.isEnabled,
         fileReplaced: previousStoragePath !== null,
         authorizationReference: dto.authorizationReference,
+        ...(model ? { model } : {}),
       },
     });
 
@@ -706,7 +718,7 @@ export class DeveloperService {
       ? { authorizationReference: this.reference(authorizationReference) }
       : {};
 
-    await this.auditRejection(
+    const model = await this.auditRejection(
       actingDeveloperId,
       {
         action: isEnabled ? 'ACTIVATE_AR_ASSET' : 'DEACTIVATE_AR_ASSET',
@@ -720,10 +732,9 @@ export class DeveloperService {
 
         const existing = await this.findArAssetOrThrow(id);
 
-        if (isEnabled) {
-          await this.assertCurrentExhibitDeployable(existing, 'activated');
-          await this.assertStoredModelValid(existing);
-        }
+        if (!isEnabled) return undefined;
+        await this.assertCurrentExhibitDeployable(existing, 'activated');
+        return this.assertStoredModelValid(existing);
       },
     );
 
@@ -754,7 +765,14 @@ export class DeveloperService {
       affectedRecordId: id,
       affectedRecordType: 'ar_asset',
       status: 'SUCCESS',
-      ...(isEnabled ? { details: authorizationDetails } : {}),
+      ...(isEnabled
+        ? {
+            details: {
+              ...authorizationDetails,
+              ...(model ? { model } : {}),
+            },
+          }
+        : {}),
     });
 
     return this.toArAssetEntity(updated);
@@ -926,16 +944,22 @@ export class DeveloperService {
 
   // Activation re-reads the stored model, because assets uploaded before the
   // backend checked GLB structure may still reference external files.
-  private async assertStoredModelValid(asset: ar_asset): Promise<void> {
-    if (asset.model_format !== 'glb') return;
+  // Re-checking also applies compatibility rules added after an upload.
+  private async assertStoredModelValid(
+    asset: ar_asset,
+  ): Promise<ArModelReport | undefined> {
+    if (asset.model_format !== 'glb') return undefined;
 
-    const message = glbFileError(
+    const result = inspectGlb(
       await this.storageService.download(
         AR_ASSET_STORAGE_BUCKET,
         asset.storage_path,
       ),
     );
-    if (message) throw new BadRequestException(message);
+    if (result.error !== undefined) {
+      throw new BadRequestException(result.error);
+    }
+    return { metadata: result.metadata, warnings: result.warnings };
   }
 
   // Mirrors DEPLOYABLE_EXHIBIT for an exhibit that is already loaded.
@@ -960,7 +984,7 @@ export class DeveloperService {
   private validateArAssetFile(
     file: Express.Multer.File | undefined,
     modelFormat: ArModelFormat,
-  ): void {
+  ): ArModelReport {
     if (!file) {
       throw new BadRequestException('An AR asset file is required.');
     }
@@ -981,10 +1005,16 @@ export class DeveloperService {
       );
     }
 
-    if (modelFormat === 'glb') {
-      const message = glbFileError(file.buffer);
-      if (message) throw new BadRequestException(message);
+    if (modelFormat !== 'glb') {
+      return { metadata: { sizeBytes: file.size }, warnings: [] };
     }
+
+    // Size, structure and Android Scene Viewer compatibility (REQ-4.2-05).
+    const result = inspectGlb(file.buffer);
+    if (result.error !== undefined) {
+      throw new BadRequestException(result.error);
+    }
+    return { metadata: result.metadata, warnings: result.warnings };
   }
 
   /**
