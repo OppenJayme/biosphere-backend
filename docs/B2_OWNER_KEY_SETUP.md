@@ -141,3 +141,12 @@ A before-hook checks native host startup and the mocked read-only plan. Host
 failure stops the suite rather than retrying every case against a broken host;
 it never converts failed coverage into a pass. Hosted verification remains
 required, and these combined changes do not isolate a single original cause.
+
+Run 578 narrowed the hosted failure: the native Console startup command passed,
+but the helper plan invoked through `-Command` timed out. The harness now uses
+an owned UTF-8 wrapper file and the same `-File` entry point as the owner command,
+with separate native JSON-command and file-entry controls before the helper.
+Wrappers contain synthetic fixtures only and are individually removed after
+verifying their owned temporary parent. All 15 local checks still pass. This
+entry-point change awaits hosted confirmation; it does not relax any helper
+scope, permission, credential or retention requirement.
