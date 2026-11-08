@@ -16,17 +16,32 @@ briefly in process memory to authorize HTTPS requests; this is not a guarantee
 against a compromised local user/process. Use a trusted local session, not a
 remote terminal whose contents are being captured or shared.
 
-Run the preview first, from this checkout:
+Choose the owner runtime explicitly. **PowerShell 7 (`pwsh.exe`) is the primary
+documented host because hosted CI verifies it.** Before live creation, run the
+credential-free synthetic suite and preview on the owner's actual machine using
+that same host. Require every check to pass, with zero skipped:
 
 ```powershell
-powershell.exe -NoProfile -File scripts/recovery/b2-owner-key-setup.ps1
+node test/b2-owner-key-setup.test.cjs --powershell7
+pwsh.exe -NoProfile -File scripts/recovery/b2-owner-key-setup.ps1
 ```
+
+If PowerShell 7 is not installed, Windows PowerShell 5.1 is an explicitly
+**locally tested alternative, not hosted 5.1 coverage**. No installation is
+required by this helper. Immediately before `-Create`, run
+`node test/b2-owner-key-setup.test.cjs` (without `--powershell7`) and the preview
+with `powershell.exe -NoProfile -File scripts/recovery/b2-owner-key-setup.ps1`.
+Proceed only after both pass on the owner's machine. Record date, helper commit,
+host and test counts without secrets. Use `powershell.exe` consistently for the
+creation and inspection commands below if that is the verified alternative;
+do not silently switch hosts between preflight and live use. An earlier local
+result or a PowerShell 7 CI pass is not this immediate owner-machine preflight.
 
 The preview neither prompts for credentials nor contacts B2. Live creation is a
 separate owner action, after review, using the exact bucket name from the console:
 
 ```powershell
-powershell.exe -NoProfile -File scripts/recovery/b2-owner-key-setup.ps1 -Create -BucketName "YOUR-EXACT-PRIVATE-TEST-BUCKET"
+pwsh.exe -NoProfile -File scripts/recovery/b2-owner-key-setup.ps1 -Create -BucketName "YOUR-EXACT-PRIVATE-TEST-BUCKET"
 ```
 
 This requires typing `CREATE THREE TEST KEYS`, then entering the administrative
@@ -48,7 +63,7 @@ to that bucket and a new `synthetic/retention-<run-id>/` prefix:
 | Role | Exact capabilities | Purpose |
 | --- | --- | --- |
 | `publisher` | `listBuckets`, `readBucketRetentions`, `readFileRetentions`, `readFiles`, `writeFiles` | Probe upload/readback and ordinary-key denial. No deletion or retention-changing power. |
-| `fixtureWriter` | Publisher capabilities plus `writeFileRetentions` | Apply one-day retention only to a newly generated synthetic fixture in this fresh prefix. This is exceptional test authority, not the routine publisher. |
+| `fixtureWriter` | Publisher capabilities plus `writeFileRetentions` | Future consuming code must hard-cap requests to **Governance mode and at most one day (24 hours)** on a newly generated synthetic fixture in this fresh prefix. Refuse Compliance, Legal Hold or a longer/invalid retain-until before sending a request. This is exceptional test authority, not the routine publisher. |
 | `deletionProbe` | `listBuckets`, `readBucketRetentions`, `readFileRetentions`, `readFiles`, `deleteFiles` | Test real lock enforcement despite delete permission, without retention changes or governance bypass. |
 
 No generated key gets `writeKeys`, bucket administration, governance bypass or
@@ -56,6 +71,14 @@ legal-hold modification. Every returned receipt is checked for the requested
 scope, name, capabilities, secret shape and expiry before storing it. This is a
 bounded operator setup, not proof that the provider enforces each permission.
 See the official [key-creation API](https://www.backblaze.com/apidocs/b2-create-key).
+
+Those mode/duration limits are requirements for the future fixture writer,
+not constraints expressible by this key's capability list. This setup creates
+keys only and does not implement that consumer or apply a lock. The retention
+test must not run until its actual consumer enforces and tests those bounds.
+A compromised `fixtureWriter` key can exercise its granted retention capability
+inside the prefix during its six-hour lifetime; this is why it is temporary,
+separate from the routine publisher and limited to generated test objects.
 
 ## Local storage and failure handling
 
@@ -85,7 +108,7 @@ an account-side key requiring owner inspection.
 To verify local packet decryption without contacting B2 or displaying secrets:
 
 ```powershell
-powershell.exe -NoProfile -File scripts/recovery/b2-owner-key-setup.ps1 -Inspect -RunId "RUN-ID-FROM-THE-RESULT"
+pwsh.exe -NoProfile -File scripts/recovery/b2-owner-key-setup.ps1 -Inspect -RunId "RUN-ID-FROM-THE-RESULT"
 ```
 
 Metadata inspection does not reauthorize or prove that the keys are still valid,
@@ -102,7 +125,10 @@ CI runs the suite explicitly; Linux would skip this Windows-only tool, so a
 Linux pass is not this test's evidence.
 
 ```powershell
-node --test test/b2-owner-key-setup.test.cjs
+# Hosted-CI runtime, if installed locally:
+node test/b2-owner-key-setup.test.cjs --powershell7
+# Windows PowerShell 5.1 owner-machine alternative:
+node test/b2-owner-key-setup.test.cjs
 ```
 
 The default plan and three-role creation flow were observed failing before
@@ -177,3 +203,13 @@ type was not supplied by System.Security. Encryption remains DPAPI CurrentUser,
 with no plaintext fallback. Test children import fixed built-in module manifests
 and use child-only cache/policy settings; they do not change the owner's global
 module path, cache or policy. Approval and actual owner execution remain separate.
+
+November 9 review follow-up: the primary commands now name PowerShell 7, with an
+explicit, immediately-before-creation 5.1 preflight for an owner without 7.
+The fixture-writer role documents a mandatory Governance/24-hour request bound
+in the future consumer, without claiming that B2 capabilities enforce that bound.
+Mock authorization/bucket responses now use `PSCustomObject` at every nested
+object level, matching `Invoke-RestMethod` property behavior. A missing nested
+retention mode must stop before creation. This characterization already failed
+closed with the earlier fixture locally; no production defect is inferred from
+the fidelity correction. Updated local/CI counts are recorded in the PR.

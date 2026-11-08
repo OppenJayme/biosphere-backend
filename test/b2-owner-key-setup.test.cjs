@@ -200,10 +200,10 @@ function Read-Host {
 function Invoke-RestMethod {
  param($Uri,$Method,$Headers,$Body,$TimeoutSec,$MaximumRedirection,$ErrorAction)
  if($Uri -eq 'https://api.backblazeb2.com/b2api/v4/b2_authorize_account') {
-  return [pscustomobject]@{accountId='synthetic-account';authorizationToken='synthetic-admin-token';apiInfo=@{storageApi=@{apiUrl='https://api001.backblazeb2.com';allowed=@{capabilities=@('writeKeys','listBuckets','readBucketRetentions')}}}}
+  return [pscustomobject]@{accountId='synthetic-account';authorizationToken='synthetic-admin-token';apiInfo=[pscustomobject]@{storageApi=[pscustomobject]@{apiUrl='https://api001.backblazeb2.com';allowed=[pscustomobject]@{capabilities=@('writeKeys','listBuckets','readBucketRetentions')}}}}
  }
  if($Uri -eq 'https://api001.backblazeb2.com/b2api/v4/b2_list_buckets') {
-  return [pscustomobject]@{buckets=@(@{accountId='synthetic-account';bucketName='synthetic-test-bucket';bucketId='0123456789abcdef01234567';bucketType='allPrivate';lifecycleRules=@();fileLockConfiguration=@{isClientAuthorizedToRead=$true;value=@{isFileLockEnabled=$true;defaultRetention=@{mode=$null}}}})}
+  return [pscustomobject]@{buckets=@([pscustomobject]@{accountId='synthetic-account';bucketName='synthetic-test-bucket';bucketId='0123456789abcdef01234567';bucketType='allPrivate';lifecycleRules=@();fileLockConfiguration=[pscustomobject]@{isClientAuthorizedToRead=$true;value=[pscustomobject]@{isFileLockEnabled=$true;defaultRetention=[pscustomobject]@{mode=$null}}}})}
  }
  if($Uri -eq 'https://api001.backblazeb2.com/b2api/v4/b2_create_key') {
   $request=$Body|ConvertFrom-Json;$global:syntheticProviderCreated++
@@ -408,5 +408,21 @@ test(
     assert.equal(r.status, 1, r.raw);
     assert.equal(r.output.createdCount, 0);
     assert.equal(r.output.creationOutcomeUnknown, false);
+  },
+);
+test(
+  'a missing nested retention mode is unknown, not an unset default',
+  { skip: process.platform !== 'win32' },
+  (t) => {
+    const owned = ownedCopy(t);
+    const r = run(
+      '-Create -BucketName synthetic-test-bucket',
+      provider.replace('mode=$null', ''),
+      owned.script,
+    );
+    assert.equal(r.status, 1, r.raw);
+    assert.equal(r.output.createdCount, 0);
+    assert.equal(r.output.creationOutcomeUnknown, false);
+    assert.equal(r.output.stage, 'TARGET_CHECK');
   },
 );
