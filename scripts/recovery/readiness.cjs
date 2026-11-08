@@ -105,8 +105,12 @@ function readRecord(file) {
   let fd;
   try {
     const target = path.resolve(file);
-    const before = fs.lstatSync(target);
-    if (!before.isFile() || before.isSymbolicLink() || before.size > MAX_BYTES)
+    const before = fs.lstatSync(target, { bigint: true });
+    if (
+      !before.isFile() ||
+      before.isSymbolicLink() ||
+      before.size > BigInt(MAX_BYTES)
+    )
       fail('READINESS_INPUT_UNSAFE');
     fd = fs.openSync(
       target,
@@ -114,12 +118,16 @@ function readRecord(file) {
         (fs.constants.O_NOFOLLOW ?? 0) |
         (fs.constants.O_NONBLOCK ?? 0),
     );
-    const opened = fs.fstatSync(fd);
+    const opened = fs.fstatSync(fd, { bigint: true });
+    // Older Windows Node versions report an unknown path device as zero.
+    // Compare known devices only; retain exact inode identity on every platform.
+    const differentKnownDevice =
+      before.dev !== 0n && opened.dev !== 0n && before.dev !== opened.dev;
     if (
       !opened.isFile() ||
-      opened.dev !== before.dev ||
+      differentKnownDevice ||
       opened.ino !== before.ino ||
-      opened.size > MAX_BYTES
+      opened.size > BigInt(MAX_BYTES)
     )
       fail('READINESS_INPUT_UNSAFE');
     const bytes = Buffer.alloc(MAX_BYTES + 1);
