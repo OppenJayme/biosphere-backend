@@ -22,6 +22,10 @@ it; it is not needed merely to download a known file ID. The final production
 identity must be derived from its actual operations, not copied unexamined from
 this temporary test profile.
 
+**Current owner report, November 8:** Object Lock is disabled on the test bucket.
+It remains unchanged by this work. The initial test key cannot read retention
+metadata, so this report is not relabelled an independent API observation.
+
 Restrict the temporary key to one explicitly selected private test bucket and
 the `synthetic/` prefix, with a short expiry. Keep a separate read-only recovery
 identity and a separately authorized retention-cleanup identity. Neither a
@@ -106,8 +110,58 @@ receipts in ignored private material. Retain evidence for ambiguous outcomes;
 do not delete it merely to make a rerun clean. Do not log response headers or
 raw provider errors, which can expose request metadata.
 
-An isolated local checker, if implemented, will assess supplied sanitized
-metadata only. Its tests can establish rejection behavior, not actual B2
-enforcement. This plan leaves museum-source access, intended-source restore,
+## Isolated metadata checker
+
+The dependency-free checker reads **only JSON from standard input** (maximum
+16 KiB). It has no credential-file, environment, provider SDK, network, upload,
+key-creation or enable/apply operation. Its exact record shape is illustrated in
+the deliberately blocked [pending example](./examples/b2-retention-preflight.pending.json).
+
+PowerShell:
+
+```powershell
+Get-Content -Raw docs/examples/b2-retention-preflight.pending.json | node scripts/recovery/b2-retention-preflight.cjs check
+node --test test/b2-retention-preflight.test.cjs
+```
+
+The pending example intentionally has an expired synthetic date, no capabilities,
+unrestricted/unknown bucket scope and disabled/unknown privacy/retention flags.
+It must exit 1, not succeed. Do not fill it with actual secrets or change its
+defaults to manufacture a pass. For a private review record, use opaque bucket
+references; `authorization.bucketRefs` preserves the complete scope (null means
+unrestricted/unknown). Do not collapse several provider buckets to one selected
+reference. The separate `bucket.bucketRef` is the intended test bucket.
+
+UTC key expiry must be a real ISO timestamp, later than the current clock and
+within 24 hours. Capabilities must be unique strings; exactly the proposed five
+are required, with `listFiles` optionally allowed. Retention must be readable,
+Object Lock enabled, a private bucket declared, a Governance or Compliance mode
+declared and the one-day synthetic duration matched. An unrecognized capability
+is rejected, including any newly introduced provider capability until reviewed.
+Malformed input, unknown fields and unsupported commands return only static
+sanitized errors; input values/references are never echoed.
+
+| Exit | Meaning |
+| --- | --- |
+| 0 | `B2_METADATA_CONSISTENT_FOR_MANUAL_REVIEW`: supplied metadata is internally consistent with this bounded synthetic plan. |
+| 1 | `B2_PREFLIGHT_BLOCKED`: well-formed metadata contains one or more static safety blockers. |
+| 2 | `B2_METADATA_INVALID`: malformed/oversized input, invalid shape/date or unsupported command. |
+
+Every result includes `providerVerified: false` and `deploymentAuthorized: false`.
+The checker cannot authenticate supplied metadata, inspect the account or prove
+the operator copied every restriction faithfully. It does not decide whether
+Governance or Compliance is approved, or authorize irreversible settings. Tests
+exercise this real CLI with synthetic stdin/OS-only child environments, not B2
+or the user's key. Both Linux and Windows CI include the suite.
+
+November 8 local verification: 24 CLI checks passed with zero skipped on Windows
+Node 24.7.0 and 22.14.0. Disabled-lock, broad-capability, unsafe-proposal,
+malformed-input and all/multiple-bucket cases were observed failing before their
+respective implementation, then passing after correction. The pending example
+returns exit 1 with deployment/provider verification false. Scoped recommended
+CJS lint, source formatting, workflow parsing, document-target and diff checks
+passed. Pushed-head CI and independent review are separate from these results.
+
+This plan leaves museum-source access, intended-source restore,
 institutional approval, continuing custody, runner deployment, schedule,
 production retention and BAK-002 open.

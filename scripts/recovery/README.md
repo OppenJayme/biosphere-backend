@@ -1,5 +1,9 @@
 # Synthetic manual recovery CLI
 
+For the next provider-permission/retention slice, use the
+[B2 verification checklist and offline metadata checker](../../docs/B2_PERMISSION_RETENTION_CHECKLIST.md).
+That command makes no provider requests and cannot authorize bucket changes.
+
 ## Local deployment-planning readiness check
 
 Before provisioning an intended-source runner, a technical implementer can
