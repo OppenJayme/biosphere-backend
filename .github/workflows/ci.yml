@@ -24,6 +24,9 @@ jobs:
       - name: Verify dependency-free readiness CLI on Windows
         run: node --test test/recovery-readiness.test.cjs
 
+      - name: Verify owner-run B2 setup with synthetic prompts and mocked HTTP
+        run: node --test test/b2-owner-key-setup.test.cjs
+
   build-and-test:
     runs-on: ubuntu-latest
     steps:
