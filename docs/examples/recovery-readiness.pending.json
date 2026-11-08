@@ -1,0 +1,60 @@
+{
+  "format": "biosphere-recovery-readiness-v1",
+  "release": { "backendCommit": null, "frontendCommit": null },
+  "approval": {
+    "recordRef": null,
+    "approverRef": null,
+    "confirmedOn": null,
+    "reviewBy": null,
+    "backendCommit": null,
+    "frontendCommit": null
+  },
+  "ownership": {
+    "sourceIdentityRef": null,
+    "sourceOwnerRef": null,
+    "accountCustodyRef": null,
+    "keyCustodyRef": null,
+    "recoveryAccessRef": null,
+    "supportRouteRef": null
+  },
+  "destination": {
+    "identityRef": null,
+    "ownerRef": null,
+    "independenceEvidenceRef": null,
+    "readbackEvidenceRef": null,
+    "keySeparationEvidenceRef": null
+  },
+  "runner": {
+    "identityRef": null,
+    "ownerRef": null,
+    "leastPrivilegeEvidenceRef": null
+  },
+  "policy": {
+    "captureIntervalHours": null,
+    "recoveryPointObjectiveHours": null,
+    "retainedCheckpoints": null,
+    "policyEvidenceRef": null
+  },
+  "capacity": {
+    "measuredOn": null,
+    "reviewBy": null,
+    "checkpointBytes": null,
+    "destinationAvailableBytes": null,
+    "destinationReserveBytes": null,
+    "stagingRequiredBytes": null,
+    "stagingAvailableBytes": null,
+    "transferRequiredBytes": null,
+    "transferAvailableBytes": null,
+    "runnerRequiredSeconds": null,
+    "runnerAvailableSeconds": null
+  },
+  "verification": {
+    "syntheticReviewRef": null,
+    "intendedSourceRestoreRef": null,
+    "writeCoordinationRef": null,
+    "retentionSafetyRef": null,
+    "missedRunDetectionRef": null,
+    "historyReconciliationRef": null,
+    "curatorHandoverRef": null
+  }
+}

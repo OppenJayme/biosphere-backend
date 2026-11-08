@@ -431,6 +431,9 @@ automatically erased or retried into the same directories. Inspect only owned
 lab material; initialize a new pair for a new capture. A lock-release failure
 returns nonzero while preserving whether the receipt was already committed.
 Do not delete a lock unless the owning process has been confirmed stopped.
+If capture returns `CHECKPOINT_ALREADY_EXISTS` and restore returns
+`CHECKPOINT_NOT_COMMITTED`, retain that partial pair for diagnosis and run
+`checkpoint-init` to obtain a new pair. Do not overwrite or repair the receipt.
 
 ### Evidence and remaining limits
 
@@ -455,6 +458,9 @@ power-loss durability, directory fsync, interrupted-write recovery or crash
 recovery. Key-buffer clearing is not complete JavaScript memory erasure.
 Checkpoints are bounded in memory, not a large-backup streaming implementation.
 The threat model excludes a hostile host administrator or Docker daemon.
+Files are flushed, but directory entries are not. A crash can lose or reorder
+those entries; receipt-last describes normal process ordering, not ordering
+or durability across power loss.
 
 The original three service cases also passed after the shared capture/restore
 adapter refactor: containment and source smoke passed together; the original
@@ -468,3 +474,177 @@ Full BioSphere public tables, all five buckets,
 application-level restoration, institutional custody, intended-source recovery
 and deployed scheduling remain separate open gates. This extension alone does
 not close BAK-002 or authorize any hosted export or operating rollout.
+
+## Full BioSphere schema and five-bucket rehearsal
+
+This subsequent profile extends the synthetic recipe to the repository's
+BioSphere migration schema, representative linked public records and every
+configured storage bucket. It uses the real Prisma migration command, local
+Supabase Auth/Storage APIs and compiled Nest `AppModule`. It does not read
+application `.env` files, accept supplied service destinations, export hosted
+data or replace an existing server.
+
+Build in a dedicated checkout with no `.env`: install the locked dependencies,
+generate its Prisma client and run `npm run build`. Do not replace dependencies
+or compile in a workspace serving an existing application. The lab verifies
+the source/runtime build stamp before starting its full profile.
+
+```text
+npm run test:recovery:supabase:application-guards
+npm run test:recovery:supabase:biosphere
+```
+
+The first command needs a fresh build but no Docker services. The second is an
+opt-in owned Docker workflow. It initializes a new checkpoint/key pair, runs
+capture to completion, then restores in a different process after all source
+containers have been removed. Manual invocation uses the same owned paths:
+
+```text
+node scripts/recovery/supabase-lab.cjs checkpoint-init
+node --max-old-space-size=128 --max-semi-space-size=16 scripts/recovery/supabase-lab.cjs biosphere-capture --checkpoints <checkpointDir> --keys <keyDir>
+node --max-old-space-size=128 --max-semi-space-size=16 scripts/recovery/supabase-lab.cjs biosphere-restore --checkpoints <checkpointDir> --keys <keyDir>
+```
+
+The original commands remain the smaller Auth/Storage profile. Cross-profile
+checkpoints are rejected. Full-profile manifests bind migration-file checksums,
+bucket rules, compiled application/source identity, the settings/recipe and a
+public-data fingerprint. Incompatible release metadata is refused before
+Docker work. This is a strict same-recipe/build lab, not a general migration
+between releases or a proved cross-platform recovery format.
+
+On each fresh owned database only, the initializer applies the baseline SQL,
+records it through Prisma's baseline command and deploys subsequent migrations.
+It verifies every applied name/checksum and rejects unfinished history. During
+restore the destination's freshly verified migration ledger is retained rather
+than copying source ledger UUIDs/timestamps. All public business tables are
+captured, including empty tables. A representative fixture links the Curator
+account, collection, specimen, taxonomy, provenance, lot/transaction, location,
+tags, revisions, media, exhibit/AR, inquiry, FAQ and audit/backup metadata.
+This setup never baselines or migrates the configured hosted project.
+
+The full schema fingerprint includes grants and RLS definitions. Public
+business-row contents are fingerprinted before API verification; foreign keys
+stay enabled throughout restore. Source login sessions are excluded and target
+signing credentials are regenerated. The private identity marker is a new lab
+guard outside the captured application schemas, not museum or backup data.
+
+The five buckets are `user-avatars`, `specimen-media`, `exhibit-media`,
+`inquiry-attachments` and `ar-assets`. Each holds a distinct tiny PNG/GLB payload
+with a corresponding application reference; the original primary probe is
+also retained. Verification checks each bucket's privacy, size/MIME settings,
+exact file bytes and pinned anonymous-denial response. Storage's global limit
+matches the 50 MiB application maximum, but the fixture uses only tiny files.
+The capped temporary storage does not prove maximum-size uploads, large-data
+capacity, streaming, pagination or measured production RPO/RTO.
+
+Only generated loopback gateways connect the host-side migration and application
+checks to the owned services. HTTP destinations and path prefixes are fixed;
+there is no caller-selected upstream or CONNECT tunnel. The checker verifies
+full Docker IDs, owner labels, images, network membership, gateway commands and
+loopback bindings before use. It also checks a private nonce through the real
+connected Prisma client before API requests and after verification. A real
+wrong-marker attempt must fail; unowned loopback configuration must make zero
+connections to its synthetic canary. This is containment against accidental
+mis-targeting, not proof against a hostile host or active malicious rebinding.
+
+The full profile uses one platform per process: container caps total 2176 MiB
+at the target phase, plus a 768 MiB host-runtime budget and 640 MiB headroom.
+Its fixed launch guard is therefore 3.5 GiB, with the parent V8 heap checked and
+migration/application children bounded. The original workflow guards remain
+unchanged. The test waits at most 60 seconds for capacity before each process;
+it does not automatically retry a failed restore. These are conservative lab
+budgets, not hard process-RSS guarantees or approval to stop other services.
+
+### Full-profile evidence and limits
+
+The initial 26-check checkpoint below predates review of `24b1cc5`. Its
+zero-connection canary supplied malformed configuration, so it did not establish
+container-identity protection. Use the corrected review verification below for
+that claim. The original source manifest also omitted the SQL gateway.
+
+November 8 local result: **26 native checks and 1 complete owned workflow
+passed, zero skipped**. The workflow took approximately 126 seconds, including
+separate source/restore processes, full migration-history readback, public-row
+fingerprints, schema/ACL/RLS comparison, distinct file bytes in all five
+buckets, wrong connected-marker rejection and successful protected API checks.
+Source-container absence, old-token rejection and complete owned cleanup were
+also verified. A separate fresh-process resume of an earlier owned checkpoint
+passed while correcting the application-fixture handoff; it is supporting
+diagnostic evidence, not another final-head test count.
+
+Recorded prepublication findings: the subset lab's 1 MiB Storage ceiling could
+not accept BioSphere bucket definitions; it now uses the existing application
+maximum. The new app-check callback initially lacked its fixture; that handoff
+was corrected. An unowned-loopback canary initially received two connections;
+after identity enforcement it receives zero. Finally, old-generation limits
+alone did not produce the intended V8 heap budget on this Windows host; the
+parent now bounds both generations and verifies its actual heap limit before
+Docker work. Capacity refusals were excluded from passing evidence. None of
+these findings was observed on a hosted or existing application service.
+
+Recommended CJS lint, Node syntax, fresh isolated runtime build, source/test
+formatting, workflow YAML and local document/diff checks are recorded separately
+at publication. Normal CI includes the five new service-free application/profile
+guards; the real Supabase workflow remains opt-in and Windows-verified only.
+The original smaller real-service suites were not rerun in this final batch;
+their earlier dated evidence is retained. Shared capture/restore code is
+exercised by the expanded workflow and existing 21 native checks.
+
+The protected application checks cover missing-token denial, fresh login,
+restored specimen/collection, lot/location, audit and FAQ reads, plus signed
+media download through the real APIs. The test uses a recreated pinned lab
+configuration with email disabled. It does not capture arbitrary hosted
+provider settings, restore every external integration, exercise every module's
+business operation, verify frontend/browser/PWA recovery, establish independent
+custody or perform incident cutover. Keep the matching code/runtime available
+separately; a fingerprint is not an archived application build.
+
+This is the next engineering input to Gate B. Independent technical acceptance,
+institutional operating decisions, intended-source authorization, custody,
+independent copies, retention, scheduled operation and cutover remain governed
+by [the approval record](BACKUP_RECOVERY_APPROVAL.md). Do not mark the entire
+backup module or BAK-002 complete from this scoped synthetic result.
+
+### November 8 - PR 265 review corrections
+
+The corrected canary supplies a syntactically valid seven-field configuration,
+valid UUID/hex identity values and two distinct owned listener ports. It must
+fail at **target identity**, with zero connections, rather than at configuration
+parsing. The real full-profile workflow separately verifies rejection of a wrong
+connected-database nonce. A supplementary owned mutation experiment timed out;
+it is excluded from passing evidence and is not claimed as mutation coverage.
+
+Guard checks now run against an owned copy containing only a synthetic `.env`.
+Release and heap checks return their own diagnostics before the environment-file
+guard; actual service startup still refuses that file before Docker work. The
+user's workspace `.env` is neither copied nor edited.
+
+The application checker publishes a versioned JSON result only after all cleanup
+attempts. Verification, primary failure and cleanup disposition remain separate.
+Warning text is diagnostic only; the parent validates structured output and exit
+status. A verified run with failed cleanup remains a failed overall operation,
+with its known verification outcome preserved. App close has a deadline and
+cannot suppress scratch cleanup. Recursive removal requires an owned direct
+child of Temp, a non-linked root and a matching per-run ownership marker.
+
+SQL gateways must complete a real `SELECT 1` through the published gateway before
+Prisma starts. Resetting TCP listeners are not accepted as readiness. Full-profile
+encrypted manifests now require **five** unique source IDs, including the SQL
+gateway. An owned alive-fifth-resource control must reject restore before any
+target is created. Earlier unmerged four-ID full-profile artifacts are retained
+for diagnosis but rejected; make a fresh capture. Four-ID subset compatibility
+is unchanged. The redundant profile assertion was removed; the packet validator
+owns the canonical cross-profile rejection.
+
+Both the runner and checker now share one Docker adapter with a fresh minimal
+OS environment on every call, including inspections after application credentials
+are assigned. Database/provider credentials, proxy settings and Node options are
+not forwarded. The optional broader profile-descriptor refactor remains deferred.
+
+Final local review run: **34 native checks and 5 owned service workflows passed,
+zero skipped**. This includes the corrected `.env`/identity guards, cleanup and
+warning controls, strict five-ID codec, SQL reset/readiness control, full-profile
+recovery with alive-gateway rejection (about 115 seconds), all three original
+service cases (about 68 seconds combined) and subset durable recovery (about
+41 seconds). Static checks and new-head CI/reviewer confirmation are recorded
+separately. These results do not close the institutional or production gates.
