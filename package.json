@@ -5,6 +5,7 @@
   "private": true,
   "license": "UNLICENSED",
   "scripts": {
+    "test:progress-api:db": "cross-env RUN_PROGRESS_API_LIVE=true node --experimental-vm-modules node_modules/jest/bin/jest.js --config ./test/jest-progress-api-live.json --runInBand",
     "recovery:synthetic": "node scripts/recovery/cli.cjs",
     "recovery:synthetic:worker": "node scripts/recovery/worker.cjs",
     "test:recovery:supabase": "cross-env RUN_SUPABASE_LAB=true node --test test/supabase-lab.test.cjs",
@@ -18,6 +19,7 @@
     "test:restoration:db": "cross-env RUN_RESTORATION_DISPOSABLE_DB=true node --experimental-vm-modules node_modules/jest/bin/jest.js --config ./test/jest-restoration-db.json --runInBand",
     "test:lot-history:db": "cross-env RUN_LOT_HISTORY_DISPOSABLE_DB=true node --experimental-vm-modules node_modules/jest/bin/jest.js --config ./test/jest-lot-history-db.json --runInBand",
     "test:duplicates:db": "cross-env RUN_DUPLICATE_ARCHIVE_DISPOSABLE_DB=true node --experimental-vm-modules node_modules/jest/bin/jest.js --config ./test/jest-duplicate-archive-db.json --runInBand",
+    "test:accession-allocation:db": "cross-env RUN_ACCESSION_ALLOCATION_DISPOSABLE_DB=true node --experimental-vm-modules node_modules/jest/bin/jest.js --config ./test/jest-accession-allocation-db.json --runInBand",
     "test:archive-reads:db": "cross-env RUN_ARCHIVE_READS_DISPOSABLE_DB=true node --experimental-vm-modules node_modules/jest/bin/jest.js --config ./test/jest-archive-reads-db.json --runInBand",
     "test:notifications:db": "cross-env RUN_NOTIFICATIONS_DISPOSABLE_DB=true node --experimental-vm-modules node_modules/jest/bin/jest.js --config ./test/jest-notifications-db.json --runInBand",
     "postinstall": "prisma generate",

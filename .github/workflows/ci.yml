@@ -88,6 +88,9 @@ jobs:
       - name: Real recorder, notification isolation and slow retry checks
         run: npm run test:recovery-history:db
 
+      - name: Real Prisma accession allocation regression
+        run: npm run test:accession-allocation:db
+
       - name: Real engine, recorder and same-ID reconciliation checks
         run: npm run test:recovery-recording:db
 
