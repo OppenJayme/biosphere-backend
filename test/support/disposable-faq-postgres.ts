@@ -57,6 +57,10 @@ const DATABASE_PROFILES = {
     database: 'biosphere_archive_reads_disposable',
     optIn: 'RUN_ARCHIVE_READS_DISPOSABLE_DB',
   },
+  'accession-allocation': {
+    database: 'biosphere_accession_allocation_disposable',
+    optIn: 'RUN_ACCESSION_ALLOCATION_DISPOSABLE_DB',
+  },
 } as const;
 type DatabaseScope = keyof typeof DATABASE_PROFILES;
 
@@ -110,11 +114,15 @@ export class DisposableFaqPostgres {
 
   static async start(scope: DatabaseScope = 'faq-review') {
     const profile = DATABASE_PROFILES[scope];
-    // Linux CI is enabled only for the two explicitly owned recovery profiles.
+    // Linux CI is enabled only for explicitly owned recovery/allocation profiles.
     const supported =
       process.platform === 'win32' ||
       (process.platform === 'linux' &&
-        ['recovery-history', 'recovery-recording'].includes(scope));
+        [
+          'recovery-history',
+          'recovery-recording',
+          'accession-allocation',
+        ].includes(scope));
     if (!supported || !profile || process.env[profile.optIn] !== 'true')
       throw new Error(
         'Use an explicitly supported local-Docker database test command. No external connection is accepted.',

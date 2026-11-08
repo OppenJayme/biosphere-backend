@@ -7,7 +7,7 @@
  * SUPABASE_URL; Brevo email is captured; every other outbound host is blocked.
  * Nothing reaches the team's hosted database or sends real email.
  *
- * Run: RUN_PROGRESS_API_LIVE=true npx jest --config ./test/jest-progress-api-live.json --runInBand
+ * Run: npm run test:progress-api:db
  * Results: docs/progress-report-backend/api-test-results.json
  */
 import { INestApplication, ValidationPipe } from '@nestjs/common';
@@ -362,6 +362,12 @@ afterAll(async () => {
     await db?.close();
     outbound?.restore();
   }
+  const failures = results.filter((result) => !result.pass);
+  if (results.length === 0 || failures.length > 0) {
+    throw new Error(
+      `Progress API observations: ${results.length} recorded, ${failures.length} failed. ${failures.map((result) => result.id).join(', ')}`,
+    );
+  }
 });
 
 /** Protected inquiry/visit routes also evidence REQ-4.8-10 / REQ-4.9-15 (no personal data to unauthorized actors). */
@@ -637,6 +643,7 @@ describe('Authentication and accounts (§4.1, §4.2)', () => {
 
     res = await api('POST', '/auth/onboarding/complete', {
       token: tokens.pendingCurator,
+      body: { password: 'Fixture-First-Password-2026!' },
     });
     const meta = await one(
       `SELECT raw_app_meta_data m FROM auth.users WHERE id=$1`,
@@ -660,7 +667,9 @@ describe('Authentication and accounts (§4.1, §4.2)', () => {
         !!audit,
       db: `app_metadata after: ${JSON.stringify(meta?.m)}`,
     });
-    res = await api('POST', '/auth/onboarding/complete');
+    res = await api('POST', '/auth/onboarding/complete', {
+      body: { password: 'Fixture-First-Password-2026!' },
+    });
     record({
       id: 'AUTH-ONBOARD-NOJWT',
       module: 'auth',
@@ -758,7 +767,7 @@ describe('Authentication and accounts (§4.1, §4.2)', () => {
       res: null,
       expect: 200,
       check: curatorStatusRoute,
-      note: 'No curator-side route to activate/deactivate or hand over an account exists (only /developer/curators/:id/status).',
+      note: 'Not executed: reconcile the legacy Curator activation requirement with the Nov 7 Developer-owned status/handover decision and its owner-accepted HTTP evidence.',
     });
     const passwordRoute = ROUTES.some((r) => /password/i.test(r.path));
     record({
@@ -771,7 +780,7 @@ describe('Authentication and accounts (§4.1, §4.2)', () => {
       res: null,
       expect: 200,
       check: passwordRoute,
-      note: 'No backend change-password or confirmation-email route; password changes would happen directly in Supabase with no BioSphere audit (REQ-4.1-11).',
+      note: 'Not executed here: backend password change/recovery/reset routes exist; their current HTTP and audit behavior still needs executed evidence in this progress harness.',
     });
   });
 
@@ -1253,8 +1262,12 @@ describe('Specimens, cataloging, lots (§4.4, §4.5, §4.6)', () => {
     }
   });
 
-  it('creates specimens as Uncataloged with system IDs and optional accession numbers', async () => {
+  it('creates specimens as Uncataloged with unique generated or supplied accession numbers', async () => {
     const C = tokens.curatorA;
+    const year = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Manila',
+      year: 'numeric',
+    }).format(new Date());
     let res = await api('POST', '/specimens', {
       token: C,
       body: {
@@ -1287,11 +1300,28 @@ describe('Specimens, cataloging, lots (§4.4, §4.5, §4.6)', () => {
       expect: 201,
       check:
         row?.status === 'UNCATALOGED' &&
-        row?.accession_number === null &&
+        row?.accession_number === `USC-BM-${year}-0001` &&
         row?.created_by === accounts.curatorA.accountId &&
         row?.public_display_allowed === false,
       db: JSON.stringify(row),
     });
+    const next = await api('POST', '/specimens', {
+      token: C,
+      body: { commonName: 'Synthetic consecutive accession check' },
+    });
+    record({
+      id: 'SPC-CREATE-NEXT-ACCESSION',
+      module: 'specimens',
+      srs: ['REQ-4.4-03', 'REQ-4.4-04'],
+      method: 'POST',
+      path: '/specimens',
+      kind: 'happy',
+      res: next,
+      expect: 201,
+      check: next.body.accessionNumber === `USC-BM-${year}-0002`,
+    });
+    expect(next.status).toBe(201);
+    expect(next.body.accessionNumber).toBe(`USC-BM-${year}-0002`);
     res = await api('POST', '/specimens', {
       token: C,
       body: { commonName: 'x', gender: 'ROBOT' },
@@ -3728,18 +3758,6 @@ describe('Inquiries, visit requests, notifications, dashboard (§4.3, §4.8, §4
       res,
       expect: 400,
     });
-    record({
-      id: 'NOTIF-SYNC-FAILED',
-      module: 'notifications',
-      srs: ['REQ-4.3-05', 'REQ-4.3-10'],
-      method: 'GET',
-      path: '/notifications',
-      kind: 'happy',
-      res: null,
-      expect: 200,
-      check: false,
-      note: 'CuratorNotificationType has only NEW_INQUIRY, NEW_VISIT_REQUEST, SUBMISSION_EMAIL_FAILED; no sync-failure, backup, report, QR/AR or other operational notification exists.',
-    });
 
     res = await api('GET', '/dashboard/summary', { token: C });
     const counts = await one(
@@ -4408,8 +4426,177 @@ describe('Reports, FAQ, offline sync, audit, backups (§4.7, §4.11, §4.14, §4
       res: null,
       expect: 200,
       check: backupWrite,
-      note: 'No backup, restore, failure-alert or verification mechanism exists in the backend; backup_history is read-only.',
+      note: 'Not executed: standalone synthetic recovery and history recording exist; intended-source recovery and deployed scheduling/retention/custody acceptance remain separate gates. No public restore POST is required.',
     });
+  });
+
+  it('isolates a rejected draft alert to its curator and clears it after successful sync', async () => {
+    const draftId = randomUUID();
+    const accessionNumber = `TEST-SYNC-ALERT-${draftId}`;
+    const matchesDraft = (response: ApiResponse): boolean => {
+      const items: unknown = response.body?.items;
+      if (!Array.isArray(items)) return false;
+      return items.some((item: unknown) => {
+        if (typeof item !== 'object' || item === null) return false;
+        const value = item as {
+          type?: unknown;
+          recordType?: unknown;
+          recordId?: unknown;
+        };
+        return (
+          value.type === 'SYNC_FAILED' &&
+          value.recordType === 'offline_draft' &&
+          value.recordId === draftId
+        );
+      });
+    };
+    const observation = (
+      id: string,
+      method: string,
+      path: string,
+      res: ApiResponse,
+      expected: number,
+      check: boolean,
+    ) => {
+      const passed = record({
+        id,
+        module: 'notifications',
+        srs: ['REQ-4.3-05', 'REQ-4.3-10'],
+        method,
+        path,
+        kind: expected >= 400 ? 'invalid-input' : 'happy',
+        res,
+        expect: expected,
+        check,
+      });
+      expect(passed).toBe(true);
+    };
+    let res = await api('POST', '/specimens', {
+      token: tokens.curatorA,
+      body: { accessionNumber, commonName: 'Synthetic sync-alert holder' },
+    });
+    observation(
+      'NOTIF-SYNC-FIXTURE',
+      'POST',
+      '/specimens',
+      res,
+      201,
+      !!idOf(res),
+    );
+
+    res = await api('GET', '/notifications', {
+      token: tokens.curatorB,
+      query: { limit: 100 },
+    });
+    const otherCuratorCount = res.body?.operationalAlerts;
+    observation(
+      'NOTIF-SYNC-OTHER-BASELINE',
+      'GET',
+      '/notifications',
+      res,
+      200,
+      Number.isInteger(otherCuratorCount) && Array.isArray(res.body?.items),
+    );
+    const draft = {
+      accessionNumber,
+      commonName: 'Synthetic rejected offline draft',
+    };
+    res = await api('POST', '/offline-sync/specimen-drafts', {
+      token: tokens.curatorA,
+      body: { clientDraftId: draftId, draft },
+    });
+    observation(
+      'NOTIF-SYNC-REJECTED',
+      'POST',
+      '/offline-sync/specimen-drafts',
+      res,
+      409,
+      res.body?.code === 'ACCESSION_NUMBER_TAKEN',
+    );
+    res = await api('GET', '/notifications', {
+      token: tokens.curatorA,
+      query: { limit: 100 },
+    });
+    const ownerFailureCount = res.body?.operationalAlerts;
+    observation(
+      'NOTIF-SYNC-FAILED',
+      'GET',
+      '/notifications',
+      res,
+      200,
+      matchesDraft(res) &&
+        Number.isInteger(ownerFailureCount) &&
+        ownerFailureCount > 0,
+    );
+    res = await api('GET', '/notifications', {
+      token: tokens.curatorB,
+      query: { limit: 100 },
+    });
+    observation(
+      'NOTIF-SYNC-OTHER-ISOLATED',
+      'GET',
+      '/notifications',
+      res,
+      200,
+      Array.isArray(res.body?.items) &&
+        !matchesDraft(res) &&
+        res.body?.operationalAlerts === otherCuratorCount,
+    );
+    res = await api('POST', '/offline-sync/specimen-drafts', {
+      token: tokens.curatorA,
+      body: {
+        clientDraftId: draftId,
+        draft: { ...draft, accessionNumber: `TEST-SYNC-RECOVER-${draftId}` },
+      },
+    });
+    observation(
+      'NOTIF-SYNC-RECOVERED',
+      'POST',
+      '/offline-sync/specimen-drafts',
+      res,
+      200,
+      res.body?.alreadySynchronized === false &&
+        res.body?.specimen?.status === 'UNCATALOGED' &&
+        res.body?.specimen?.publicDisplay === false,
+    );
+    res = await api('GET', '/notifications', {
+      token: tokens.curatorA,
+      query: { limit: 100 },
+    });
+    observation(
+      'NOTIF-SYNC-CLEARED',
+      'GET',
+      '/notifications',
+      res,
+      200,
+      Array.isArray(res.body?.items) &&
+        !matchesDraft(res) &&
+        res.body?.operationalAlerts === ownerFailureCount - 1,
+    );
+  });
+
+  // Keep this after the initial login cases: the real per-route five/minute
+  // throttle stays enabled while the paced full suite exercises other modules.
+  it('signs in with the password chosen during onboarding', async () => {
+    const firstLogin = await api('POST', '/auth/login', {
+      body: {
+        email: accounts.pendingCurator.email,
+        password: 'Fixture-First-Password-2026!',
+      },
+    });
+    record({
+      id: 'AUTH-ONBOARD-FIRST-LOGIN',
+      module: 'auth',
+      srs: ['REQ-4.1-07', 'REQ-4.1-11'],
+      method: 'POST',
+      path: '/auth/login',
+      kind: 'happy',
+      res: firstLogin,
+      expect: 201,
+      check:
+        firstLogin.body?.user?.accountId === accounts.pendingCurator.accountId,
+    });
+    expect(firstLogin.status).toBe(201);
   });
 
   it('serves the root status route', async () => {

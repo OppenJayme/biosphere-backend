@@ -6,6 +6,12 @@ defect entry.
 
 ## Start here
 
+2026-11-08 integration baseline: [recorded failures and allocator repair](./progress-report-backend/API_BASELINE_2026-11-08.md).
+The initial harness hid ten failed observations behind a successful Jest exit.
+Its recorded outcomes now determine success. DEF-042 covers the reproduced
+automatic-accession collision; other fixture, coverage and operational gaps are
+listed separately and are not silently promoted to passes.
+
 2026-10-30 Audit form/pagination follow-up: [nine read-only assertions](./AUDIT_LOG_GUIDE.md#live-toolbar-actor-search-and-pagination-follow-up---2026-10-30)
 pass for real form submission, actor-name search, populated Next/Previous and
 filter reset using existing logs. The avatar/name selector and insufficient
@@ -107,6 +113,7 @@ system is not a reason to postpone all fixes until the end.
 
 | ID      | Date       | Module                     | Summary                                                                 | Severity    | Priority | Status | Owner                   |
 | ------- | ---------- | -------------------------- | ----------------------------------------------------------------------- | ----------- | -------- | ------ | ----------------------- |
+| [DEF-042](#def-042---automatic-accession-allocation-reissues-the-first-number) | 2026-11-08 | Cataloging / Offline sync | Second omitted-accession creation conflicts with the first generated accession | S2 Major | P1 | Ready for retest | Kyer / Ivan |
 | [DEF-041](#def-041---supabase-rehearsal-reuses-source-authentication-authority) | 2026-11-07 | Recovery / Supabase fixture | Restored target accepts source authentication; restore bypasses FK triggers and denial checks accept unrelated errors | S3 Moderate | P2 | Ready for retest | Kyer / Ivan; MarQtie #252/#253 review |
 | [DEF-040](#def-040---worker-runtime-and-connected-history-identity-are-not-verified) | 2026-11-07 | Recovery / Standalone worker | Stale compiled code and a reachable database with an incorrect/missing identity marker are accepted; expired manifests have a misleading error | S3 Moderate | P2 | Ready for retest | Kyer / Ivan; MarQtie review |
 | [DEF-039](#def-039---recovery-feed-fixture-omits-current-incomplete-record-scope) | 2026-11-07 | Recovery / Notification test fixture | Current real notification feed queries specimen data absent from the older recovery fixture | S4 Minor | P2 | Ready for retest | Kyer / Ivan; CI finding |
@@ -150,6 +157,37 @@ system is not a reason to postpone all fixes until the end.
 | [DEF-015](#def-015---audit-http-fixture-omits-the-security-audit-create-method) | 2026-10-19 | Audit / HTTP test fixture | Missing security-audit create mock logs an error despite green denial test | S3 Moderate | P2 | Ready for retest | Audit tests / coordinate with Auth |
 
 ## 3. Defect details
+
+### DEF-042 - Automatic accession allocation reissues the first number
+
+**Observed:** November 8, 2026, real Nest HTTP/Prisma/PostgreSQL integration
+baseline on develop `ec22858`, using an owned disposable database.
+**Disposition:** Ready for retest; local regression verified, independent
+review and deployed-build acceptance remain.
+**Owner:** Kyer / Ivan (Cataloging and offline integration).
+
+Create a specimen without an accession number, then create another without one.
+Expected: distinct generated accession numbers. Actual: the first succeeds with
+`USC-BM-2026-0001`; the second returns 409. Offline synchronization without an
+accession also collides, and repeating the request creates no record.
+
+The parameterized substring position could resolve to PostgreSQL's regex
+overload, producing null suffixes. An explicit integer cast selects numerical
+position extraction. The public HTTP regression failed with 409 before the
+change and passed with consecutive `0001`/`0002` afterward. The existing
+allocator unit suite also passed 11 checks. The full-harness result and remaining
+unrelated findings are in the [dated baseline](./progress-report-backend/API_BASELINE_2026-11-08.md).
+
+**Review follow-up, November 8:** the approved public allocator/real-Prisma
+PostgreSQL regression reproduces `0001` on the second allocation when the cast is
+removed, then passes with `0002` after restoration. It is wired into the existing
+Linux Docker CI job; current-head CI remains separate from the local Windows
+pass. [Post-deployment retry/retest instructions](./ACCESSION_NUMBER_GUIDE.md#post-deployment-retest-and-offline-recovery)
+are prepared, not executed. This does not promote DEF-042 to closed.
+
+No shared migration, hosted-data correction, historical accession rewrite or
+existing-server restart was performed. Do not close this from synthetic local
+evidence alone.
 
 ### DEF-041 - Supabase rehearsal reuses source authentication authority
 
