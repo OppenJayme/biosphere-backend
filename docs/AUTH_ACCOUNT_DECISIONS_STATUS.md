@@ -22,7 +22,7 @@ remain.
 | Curator handover | REQ-4.1-09, REQ-4.1-11 | Developer handover action built, with one audit entry per attempt | Museum acceptance test; the curator was not asked about orientation |
 | Inactivity timeout | REQ-4.1-05 | Built and enforced by the frontend, including an offline lock; the curator confirmed 30 minutes on 2026-11-07, and the team decided not to raise the frontend-only limitation with him | Nothing |
 | Public signup | REQ-4.1-03 | Turned off and retested on hosted; all four retest steps passed | Nothing |
-| Invite and reset expiry | REQ-4.1-19 | Single use proven; hosted value is 3600 seconds, not an approved period | Approved period |
+| Invite and reset expiry | REQ-4.1-19 | Single use and expiry proven on a local Auth stack (see [Link expiry test](#link-expiry-test-2026-11-08)); hosted value is 3600 seconds, not an approved period | Approved period |
 | Real email delivery | REQ-4.1-07, REQ-4.1-10 | Invite, recovery and password-change emails each reached a USC inbox through Brevo; production deliverability not accepted | USC IT decision on the sender |
 
 ## Confirmed requirements
@@ -65,7 +65,7 @@ are current values, not approved targets. No secret is recorded here.
 
 | Setting | Current value | Note |
 | --- | --- | --- |
-| Email OTP expiration | 3600 seconds (1 hour) | One setting for email links and codes, so invitations and password resets appear to share it. Confirm with a test once a controlled inbox exists. |
+| Email OTP expiration | 3600 seconds (1 hour) | One setting for email links and codes. The 2026-11-08 local test confirmed invitations and password resets both follow it. |
 | Email OTP length | 8 digits | Matches the code entry on the reset screen. |
 | Custom SMTP | On | Auth email goes through Brevo. |
 | SMTP host and port | `smtp-relay.brevo.com`, 587 | |
@@ -97,7 +97,28 @@ test is assumed to have used the same setup, because the deployed site was not y
 branch. Repeat the invite and recovery checks on the deployed site after merging.
 
 These are three delivered messages, not evidence of production deliverability. Invite and reset link
-expiry was not tested.
+expiry was not tested on the hosted project; see the local test below.
+
+### Link expiry test (2026-11-08)
+
+`npm run test:auth:link-expiry` (`test/auth-link-expiry.lab.test.cjs`, opt-in, needs Docker). It
+starts a throwaway Auth stack and removes it afterwards; it never contacts the hosted project:
+Auth `gotrue:v2.197.0` (the hosted version), `supabase/postgres`, and Mailpit as the controlled
+inbox. Signup is off and reset codes are 8 digits, as on the hosted project. The email link and
+code lifetime is shortened to 20 seconds so the test can wait it out.
+
+| Check | Result |
+| --- | --- |
+| Fresh invite link, opened the way `/login/accept-invite` receives it | Passed: session issued |
+| Same invite link opened again | Passed: rejected, no session |
+| Fresh 8-digit reset code, checked with `verifyOtp` type `recovery` as the frontend does | Passed: session issued |
+| Same reset code used again | Passed: rejected |
+| Invite link opened after the lifetime | Passed: rejected with `otp_expired` |
+| Reset code used after the lifetime | Passed: HTTP 403 `otp_expired` |
+
+This proves Auth enforces whichever lifetime is configured, for both invitations and resets, and that
+each link or code works once. It does not prove the hosted value: that stays 3600 seconds until a
+period is approved, then it is one dashboard setting. The hosted email templates were not used.
 
 ## Team decisions (2026-11-05)
 

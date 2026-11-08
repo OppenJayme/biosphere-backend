@@ -7,6 +7,7 @@
   "scripts": {
     "recovery:synthetic": "node scripts/recovery/cli.cjs",
     "recovery:synthetic:worker": "node scripts/recovery/worker.cjs",
+    "test:auth:link-expiry": "cross-env RUN_AUTH_EXPIRY_LAB=true node --test test/auth-link-expiry.lab.test.cjs",
     "test:recovery:supabase": "cross-env RUN_SUPABASE_LAB=true node --test test/supabase-lab.test.cjs",
     "test:recovery:supabase:contracts": "node --test test/supabase-storage-contract.test.cjs",
     "test:recovery:supabase:files": "node --test test/supabase-checkpoint-store.test.cjs test/supabase-durable-guards.test.cjs",
