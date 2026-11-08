@@ -103,6 +103,38 @@ receipt until expiry/cleanup are reconciled. Cleanup and new credentials after
 the six-hour keys expire are separate owner actions; there is no automatic
 cleanup, scheduling, key revocation or retention change in this script.
 
+## Operator sequence and evidence
+
+This is the finite execution order after review, not authorization to execute it.
+Use the same reviewed checkout, Windows account and explicitly chosen PowerShell
+host throughout. Keep account/object identifiers and private receipts out of PRs.
+
+| Order | Action | Required observation / stop condition |
+| --- | --- | --- |
+| 1 | Finish review/merge of #275, then #276; pull the integrated revision. | Record the exact source commit and successful CI. A stale local checkout or approval of an earlier head is not the execution baseline. |
+| 2 | Record owner authorization for three temporary keys and one synthetic file in the exact private test bucket. Check quota/caps in the owner console. | No museum export, default-retention change, paid activation, scheduler or pre-existing-object deletion is included. If the selected bucket/settings differ, stop. |
+| 3 | Run both synthetic suites using the chosen host on the operator's machine. Preview both scripts with no create/run flags. | Every check passes with zero skipped. Both previews report no live changes. Use the commands in #275's owner guide and this guide; do not copy credentials between environments. |
+| 4 | Owner runs the reviewed key-setup helper locally, entering the administrative credential only in its hidden prompts. | Require `B2_TEST_KEYS_CREATED`, `createdCount: 3`, and `bucketSettingsChanged: false`. Preserve the protected packet and run UUID locally. On partial/unknown creation, stop and reconcile through the owner's App Keys console; do not create a second set to hide uncertainty. |
+| 5 | Owner inspects the setup packet locally with the helper's `-Inspect -RunId` command. | Require `B2_TEST_KEYS_METADATA` for three expected roles, capability sets and future expiry. This output does not expose the bucket/prefix; the runner validates that scope against actual authorization in the next step. Packet inspection is not provider enforcement. |
+| 6 | Run the retention script once with that UUID, exact bucket name and trusted Node executable; confirm its one-day synthetic lock. | Require exit 0 and `B2_RETENTION_VERIFIED`, `deleteDenials: 2`, `versionReads: 3`, `receiptRetained: true`. Any other result stops the sequence. |
+| 7 | Inspect the retention receipt locally and preserve the sanitized result. | Require `B2_RETENTION_RECEIPT` with `state: verified`. This does not repeat the API checks. Retain uncertain/partial receipts too; do not remove an attempt marker or start another run to manufacture a pass. |
+| 8 | Record the next owner action and review the limited result. | Expiry/cleanup needs a separately reviewed fresh scoped identity after the lock ends. Anonymous/hiding checks, independent custody, production backup and institutional acceptance remain distinct. |
+
+For native Windows PowerShell 5.1 use `node test/b2-owner-key-setup.test.cjs`
+and `node test/b2-retention-runner.test.cjs`. For PowerShell 7 append
+`--powershell7` to each test command. Run the previews and subsequent owner
+commands with the same verified host (`powershell.exe` or `pwsh.exe`). The setup
+helper lives in #275; if it is absent from the integrated checkout, stop rather
+than copying an unreviewed script or packet from another worktree.
+
+The shared evidence record should contain only the execution date/time and
+timezone, source commit, host/Node versions, operator/reviewer names, synthetic
+test counts, sanitized result codes/counters, and an opaque reference to the
+privately held receipts. Record each planned but unexecuted observation as
+pending. For a failed run, include its sanitized stage and whether an upload may
+exist; never paste raw provider errors, keys, tokens, file IDs or the packet.
+No live result is entered by preparing this sequence.
+
 ## Isolated verification and limits
 
 ```powershell
@@ -133,7 +165,12 @@ PowerShell 5.1 on both Node 22.14.0 and 24.7.0. The tests exposed and
 corrected Windows null-string binding during atomic replacement, and a retry
 report that incorrectly said no upload could exist. Scoped CJS lint, formatting,
 PowerShell syntax, workflow YAML and diff checks passed. PowerShell 7 is not
-installed locally; its Windows CI result must be checked on the pushed head.
+installed locally. At code head `4f0d1fb`,
+[CI run 582](https://github.com/OppenJayme/biosphere-backend/actions/runs/42508389148)
+passed all three jobs, including 24/24 retention checks and 51/51 existing
+readiness/preflight checks on Windows PowerShell 7, with zero skipped.
+Subsequent documentation-only revisions need their own pushed-head CI status;
+this dated result is not silently reassigned to a later commit.
 No live B2 retention is established here.
 
 Museum-source export, intended-source restore, institutional decisions,

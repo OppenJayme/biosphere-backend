@@ -27,9 +27,12 @@ it; it is not needed merely to download a known file ID. The final production
 identity must be derived from its actual operations, not copied unexamined from
 this temporary test profile.
 
-**Current owner report, November 8:** Object Lock is disabled on the test bucket.
-It remains unchanged by this work. The initial test key cannot read retention
-metadata, so this report is not relabelled an independent API observation.
+**Historical report, November 8:** Object Lock was initially disabled. The owner
+subsequently reported enabling it, with default retention still unset. These
+are owner reports, not independent API observations: the initial test key could
+not read retention metadata. The reviewed setup/runner must check the current
+flags before making their respective changes; do not repeat the enablement or
+configure bucket-wide default retention to satisfy this older checklist.
 
 Restrict the temporary key to one explicitly selected private test bucket and
 the `synthetic/` prefix, with a short expiry. Keep a separate read-only recovery
@@ -55,10 +58,11 @@ describes both Governance and Compliance.
 
 Enabling Object Lock on a bucket cannot be undone. In Compliance mode even an
 administrator cannot remove the active protection before expiry. Therefore,
-prepare an explicit owner-reviewed test setting first. A one-day synthetic
-retention window is proposed, not applied. Use only tiny generated objects;
-leave Legal Hold unset. Do not change default retention on a bucket containing
-museum data or enable an indefinite hold as a test.
+prepare an explicit owner-reviewed test setting first. The bounded runner uses
+per-object Governance retention for exactly 24 hours on one new synthetic file;
+it requires bucket-wide default retention to remain unset. This window has not
+been applied by the isolated tests. Leave Legal Hold unset. No bucket-wide
+default-retention change or indefinite hold is part of this experiment.
 
 Enabling Object Lock alone does not lock uploads. Default retention applies to
 new uploads after it is configured; it does not retroactively protect the
@@ -70,9 +74,10 @@ retention-tested. Locked versions consume quota until they can be removed.
 1. Read authorization metadata. Verify the exact bucket restriction, prefix,
    expiry, required capabilities and absence of extra capabilities. Reject
    wildcard/all-bucket access, unknown shapes and broadened privileges.
-2. Read the bucket metadata. Require a private bucket, enabled Object Lock and
-   a readable default mode/duration matching the approved test setting. A
-   filtered/unreadable retention field is an unknown, never a pass.
+2. Read the bucket metadata. For this runner, require a private bucket, enabled
+   Object Lock, readable/unset default retention and no lifecycle rules. The
+   one-day Governance setting belongs to the new object, not the bucket default.
+   A filtered/unreadable required field is an unknown, never a pass.
 3. Generate one encrypted fixture under 1 KiB using a unique synthetic name;
    keep its key separately. Upload once, retain its immutable file ID and verify
    returned retention metadata/expiry, authenticated bytes/hash/decryption and
@@ -91,14 +96,23 @@ retention-tested. Locked versions consume quota until they can be removed.
    not a recovery strategy. Preserve the receipt; do not hide an existing object.
 7. After expiry, reauthorize the narrowly scoped cleanup and verify removal of
    the exact synthetic version only. This is a later observation, not something
-   a same-day suite can claim. A 24-hour test key may expire first; do not extend
-   or replace it silently. Production cleanup must additionally preserve the
-   last verified usable checkpoint and approved legal holds.
+   a same-day suite can claim. The new scoped keys expire after six hours,
+   before the one-day lock; the older probe key had a different lifetime. Do not
+   extend or replace any identity silently. Production cleanup must additionally
+   preserve the last verified usable checkpoint and approved legal holds.
 
 Permission rejection, lock enforcement, expiry and final recovery are distinct
 claims. Do not mark the whole plan passed from a single denied request. A
 wrong-bucket operation must be denied before any write; do not create or probe
 another person's bucket to manufacture that control.
+
+The prepared runner covers the initial authorization/bucket checks and the
+same-version encryption/retention readback plus the two distinct deletion
+denials. It does not implement anonymous denial, hiding or post-expiry cleanup.
+The initial probe's anonymous denial involved a different object/identity and
+does not fill those missing observations for this run. Follow the
+[operator sequence](./B2_RETENTION_RUNNER.md#operator-sequence-and-evidence)
+and leave unexecuted cases explicitly pending.
 
 ## Cost, reporting and scope
 

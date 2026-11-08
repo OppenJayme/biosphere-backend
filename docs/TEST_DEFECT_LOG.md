@@ -14,6 +14,12 @@ material, the real encryption helper and mocked HTTP only. No real key was read,
 no B2 upload/deletion was performed, and provider retention, BAK-002 and module
 acceptance remain unproven by these checks.
 
+The November 9 operator-guidance follow-up also corrects stale disabled-lock and
+bucket-default-retention instructions. It records the later owner report and
+the runner's per-object policy, without claiming provider verification. The
+linked guide now has one execution/evidence sequence; no runtime behavior or
+acceptance status changed in that documentation correction.
+
 2026-11-08 PR #265 review correction: the earlier zero-connection canary used
 malformed input and did not prove container-identity enforcement. The corrected
 valid-identity/distinct-port case now reaches target-identity rejection. The
