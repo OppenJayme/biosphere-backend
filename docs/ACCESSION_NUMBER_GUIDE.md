@@ -142,6 +142,53 @@ curator; the blocking rule above is separate.
 
 ## Live verification
 
+### CI regression for automatic allocation (DEF-042)
+
+```text
+npm run test:accession-allocation:db
+```
+
+This opt-in command creates an owned disposable PostgreSQL container with
+generated credentials, a minimal specimen table and the repository's real
+accession uniqueness SQL. It invokes the public allocator through the actual
+`PrismaService` / `@prisma/adapter-pg` transaction boundary, with no mocked query
+results, AppModule, application `.env`, supplied connection URL or provider.
+After committing a specimen holding `USC-BM-2026-0001`, the next allocation
+must return `USC-BM-2026-0002` at a fixed acceptance date. It runs in the existing
+Linux `synthetic-recovery` CI job and supports the same owned Windows Docker
+setup locally. Other disposable-database profiles retain their existing gates.
+
+November 8 review follow-up: temporarily removing the integer-position cast in
+the isolated checkout made this test fail with `0001` instead of `0002`;
+restoring the cast made it pass. This demonstrates detection of the specific
+SQL-overload regression, not complete mutation or concurrency coverage. The
+existing 11 mocked unit tests and full HTTP baseline remain separate evidence.
+
+### Post-deployment retest and offline recovery
+
+Deployment itself is not performed by this PR. The environment owner should:
+
+1. Confirm the served backend release includes the reviewed fix; rebuild/restart
+   through the approved release process. Do not infer a deployed defect or fix
+   solely from the branch name. No migration/data rewrite is required for this fix.
+2. In an approved acceptance target, create two authorized test specimens without
+   supplied accession numbers. Confirm distinct generated numbers and persisted
+   Uncataloged/private records. An existing database need not start at `0001`.
+3. Ask each affected curator to inspect their own device/account's offline queue
+   for 409 failures. Distinguish omitted-accession allocation failures from real
+   collisions involving manually entered numbers; the latter remain rejected.
+4. Retry an affected draft through the normal sync workflow with its original
+   client draft ID. Confirm one persisted specimen and synchronized state. Where
+   the supported workflow permits a same-ID retry, confirm no duplicate record.
+   Do not manufacture a new draft ID, clear local storage or blindly resubmit all
+   409s, and do not automatically rewrite accession numbers.
+5. Record the release/target, sanitized test references, result/date and reviewer.
+   Retain any failure for diagnosis. DEF-042 stays Ready for retest until the
+   required independent/deployed acceptance is actually recorded; do not delete
+   shared records or claim all devices were inspected from this test.
+
+### Existing availability/index verification
+
 The unit specs mock Prisma, so they can only check the SQL's shape. To
 prove the pre-check and the real index agree, run this against a
 **disposable** database that has the migration applied:

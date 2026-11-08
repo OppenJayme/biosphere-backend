@@ -131,8 +131,10 @@ export class SpecimenAccessionService {
     );
     const pattern = `^${ACCESSION_PREFIX}-${year}-[0-9]+$`;
     const prefixLength = `${ACCESSION_PREFIX}-${year}-`.length;
+    // Select substring's numeric-position overload. An untyped PostgreSQL
+    // parameter can resolve to its regex overload and leave every suffix null.
     const rows = await client.$queryRaw<{ last: number | null }[]>(Prisma.sql`
-      SELECT max(substring(btrim(s.accession_number) FROM ${prefixLength + 1})::int) AS last
+      SELECT max(substring(btrim(s.accession_number) FROM ${prefixLength + 1}::int)::int) AS last
       FROM specimen s
       WHERE ${INDEXED_ACCESSION}
         AND upper(btrim(s.accession_number)) ~ ${pattern}`);

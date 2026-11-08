@@ -246,3 +246,19 @@ database. They cover:
 - read/dismiss on a new key
 - overdue detection that skips recent and archived records
 - resolution on cataloging, and a fresh key after a reopen
+
+## Owned sync-alert HTTP checkpoint - November 8, 2026
+
+The progress API harness now replaces its unexecuted `NOTIF-SYNC-FAILED`
+placeholder with seven real HTTP/PostgreSQL observations. A conflicting
+synthetic offline draft produces the acting curator's alert; the other
+curator's feed and operational count remain unchanged. Correcting and
+synchronizing the same draft ID removes that alert and decreases the owner's
+operational count by one, preserving other alerts. The focused run passed all
+seven observations and owned-container cleanup was independently checked.
+
+See the [dated baseline and limits](./progress-report-backend/API_BASELINE_2026-11-08.md).
+Auth/provider services are synthetic; no browser, hosted account, shared record,
+Inventory rule or notification business logic was changed. The initial stopped
+Docker setup ran no API cases and is excluded from passing evidence. This is
+owner-run integration evidence, not independent module acceptance.
