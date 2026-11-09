@@ -51,6 +51,9 @@ Native upload-URL forms are validated without following redirects or changing
 the returned URL. The upload response and later metadata must identify the
 same bucket/name/version/length/SHA-1/retention. Readback uses only the captured
 file ID and checks the complete encrypted SHA-256, not a latest-name lookup.
+Before marking publication verified, the loader rechecks the committed local
+checkpoint and its separate recovery material. A key/proof change during HTTP
+cannot turn a byte-identical upload into a successful recovery claim.
 
 Immediately before upload, an exclusive create reserves
 `b2-transfer.private.json` in the separate key directory. It records intent,
@@ -126,7 +129,7 @@ separate. No Gate C/D/E or BAK-002 status is promoted by these tests.
 node --test test/b2-checkpoint-transfer.test.cjs
 ```
 
-November 9: 26 checks passed with zero skipped on Windows Node 24.7.0 and
+November 9: 29 checks passed with zero skipped on Windows Node 24.7.0 and
 22.14.0. They use synthetic files, the real checkpoint encryption/loader and
 mocked HTTP. Cases cover source-file loss, exact-version recovery, read-only
 recovery, separate material, unknown uploads, explicit pre-upload retry,
@@ -140,6 +143,6 @@ file readers now tolerate that unknown-device comparison only on Windows,
 retaining exact BigInt inode/size/link-count checks. A one-inode change was
 also lost by Number rounding before correction; both public interfaces now
 reject it. Different known device IDs still fail on every platform. The combined
-transfer/store suite passed 37/37 on both runtimes. Pushed-head Linux/Windows CI
+transfer/store suite passed 40/40 on both runtimes. Pushed-head Linux/Windows CI
 is recorded separately in the PR. No real B2 key, hosted record, database
 service or running application is used by this suite.

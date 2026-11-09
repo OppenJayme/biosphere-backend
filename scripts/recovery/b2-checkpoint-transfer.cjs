@@ -529,6 +529,14 @@ async function publishCheckpoint(options) {
     record.state = 'uploaded';
     saveReceipt(keyDir, record);
     await download(context, record);
+    // HTTP awaits allow local recovery material to change. Revalidate the
+    // committed package before declaring this publication verified.
+    const confirmed = loadCheckpoint(checkpointDir, keyDir);
+    check(
+      confirmed.sha256 === record.checkpoint.sha256 &&
+        confirmed.artifactId === record.checkpoint.artifactId,
+      'B2_TRANSFER_RECOVERY_INVALID',
+    );
     record.state = 'verified';
     saveReceipt(keyDir, record);
     return {

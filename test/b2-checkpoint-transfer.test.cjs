@@ -680,3 +680,54 @@ test('two known but different device IDs are rejected on every platform', async 
       assert.equal(f.requests.length, 0);
     });
 });
+
+test('publication cannot report verified after its recovery material changes during HTTP', async (t) => {
+  for (const material of ['key', 'proof'])
+    await t.test(material, async (t) => {
+      const f = fixture(t),
+        options = {
+          checkpointDir: f.checkpointDir,
+          keyDir: f.keyDir,
+          target: f.target,
+          session: f.session,
+        };
+      await assert.rejects(
+        transfer.publishCheckpoint({
+          ...options,
+          request: async (req) => {
+            const r = await f.request(req);
+            if (req.method === 'GET') {
+              if (material === 'key')
+                fs.writeFileSync(
+                  path.join(f.keyDir, 'recovery.key'),
+                  crypto.randomBytes(32),
+                );
+              else
+                fs.writeFileSync(
+                  path.join(f.keyDir, 'recovery-verification.private.json'),
+                  '{"changed":true}',
+                );
+            }
+            return r;
+          },
+        }),
+        {
+          code:
+            material === 'key'
+              ? 'CHECKPOINT_AUTHENTICATION_FAILED'
+              : 'CHECKPOINT_VERIFICATION_CHANGED',
+          uploadMayExist: true,
+        },
+      );
+      assert.equal(
+        JSON.parse(
+          fs.readFileSync(path.join(f.keyDir, 'b2-transfer.private.json')),
+        ).state,
+        'uploaded',
+      );
+      assert.equal(
+        f.requests.filter((r) => r.url.includes('/b2_upload_file')).length,
+        1,
+      );
+    });
+});
