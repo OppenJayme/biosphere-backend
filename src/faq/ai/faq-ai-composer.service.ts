@@ -215,7 +215,13 @@ export class FaqAiComposerService {
         error instanceof AiProviderError ? error.retryAfterMs : undefined,
       );
       // Only the failure category is logged: never the question or the key.
-      this.logger.warn(`FAQ AI fallback (${this.provider.label}): ${kind}`);
+      const status =
+        error instanceof AiProviderError && error.httpStatus
+          ? ` (HTTP ${error.httpStatus})`
+          : '';
+      this.logger.warn(
+        `FAQ AI fallback (${this.provider.label}): ${kind}${status}`,
+      );
       return { kind: 'none' };
     }
     return this.validate(raw, input.sources);

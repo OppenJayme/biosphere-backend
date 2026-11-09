@@ -2,7 +2,9 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AiJsonRequest, AiProvider, AiProviderError } from './ai-provider';
 
-export const DEFAULT_GEMINI_MODEL = 'gemini-2.5-flash-lite';
+// gemini-2.5-flash-lite returns 404 for API keys created after its retirement
+// to new users (seen 2026-11-09), so new projects default to 3.5 Flash-Lite.
+export const DEFAULT_GEMINI_MODEL = 'gemini-3.5-flash-lite';
 const GEMINI_ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta';
 const MODEL_PATTERN = /^[a-z0-9][a-z0-9.-]{2,63}$/;
 
@@ -71,7 +73,7 @@ export class GeminiProvider implements AiProvider {
     if (!response.ok) {
       // 400/403 usually mean a bad key, disabled API or unknown model: treat
       // as unavailable so the assistant keeps answering from curated FAQs.
-      throw new AiProviderError('unavailable');
+      throw new AiProviderError('unavailable', undefined, response.status);
     }
 
     const body = (await response.json().catch(() => null)) as {
