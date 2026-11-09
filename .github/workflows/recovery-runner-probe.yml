@@ -1,0 +1,85 @@
+name: Manual synthetic recovery runner probe
+
+# No cron, push or pull-request trigger, provider secrets or live backup command.
+on:
+  workflow_dispatch:
+    inputs:
+      acknowledge_synthetic_only:
+        description: Run owned synthetic fixtures only; this consumes Actions usage.
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: recovery-runner-probe
+  cancel-in-progress: false
+
+jobs:
+  synthetic-worker:
+    if: ${{ inputs.acknowledge_synthetic_only && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      # Prisma code generation only; never a hosted application connection.
+      DIRECT_URL: postgresql://synthetic:synthetic@127.0.0.1:1/synthetic
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Begin bounded resource measurement
+        run: |
+          set -euo pipefail
+          printf 'PROBE_STARTED_AT=%s\n' "$(date +%s)" >> "$GITHUB_ENV"
+          printf 'PROBE_DISK_BEFORE_KIB=%s\n' "$(df -Pk "$GITHUB_WORKSPACE" | awk 'NR==2 {print $4}')" >> "$GITHUB_ENV"
+          printf 'PROBE_MEMORY_BEFORE_KIB=%s\n' "$(awk '/MemAvailable:/ {print $2}' /proc/meminfo)" >> "$GITHUB_ENV"
+
+      - name: Checkout the manually selected default-branch revision
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "22"
+
+      - name: Pull the existing reviewed fixture image
+        run: docker pull postgres@sha256:eee6c6e1b0894fa4fe0075eb054af9fd1cf39a35321c2d4110626cfe506411fb
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Build the synthetic worker runtime
+        run: npm run build
+
+      - name: Run existing owned worker and protected history checks
+        run: npm run test:recovery-worker:db
+
+      - name: Report measured scope and limits
+        if: ${{ always() }}
+        env:
+          PROBE_JOB_STATUS: ${{ job.status }}
+        run: |
+          set -euo pipefail
+          ended_at=$(date +%s)
+          disk_after_kib=$(df -Pk "$GITHUB_WORKSPACE" | awk 'NR==2 {print $4}')
+          memory_after_kib=$(awk '/MemAvailable:/ {print $2}' /proc/meminfo)
+          {
+            printf '## Synthetic recovery runner probe\n\n'
+            printf -- '- Result before summary: `%s`\n' "$PROBE_JOB_STATUS"
+            printf -- '- Tested revision: `%s`\n' "$GITHUB_SHA"
+            if [[ "${PROBE_STARTED_AT:-}" =~ ^[0-9]+$ ]]; then
+              printf -- '- Elapsed seconds since resource measurement: %s\n' "$((ended_at - PROBE_STARTED_AT))"
+            else
+              printf -- '- Elapsed time: unavailable; measurement step did not complete.\n'
+            fi
+            printf -- '- Disk available before/after (KiB): %s / %s\n' "${PROBE_DISK_BEFORE_KIB:-unavailable}" "$disk_after_kib"
+            printf -- '- Memory available before/after (KiB): %s / %s\n' "${PROBE_MEMORY_BEFORE_KIB:-unavailable}" "$memory_after_kib"
+            printf '\nThese are samples, not peak resource usage or billed compute.\n'
+            printf '\nScope: existing synthetic child-process worker, owned disposable PostgreSQL and protected history HTTP fixture checks.\n'
+            printf '\nNot tested: hosted source export, full Auth/Storage workload, live B2, production credentials, retention, scheduled delivery, real-data restore or budget sufficiency.\n'
+            printf '\nNo backup schedule or live deployment is enabled by this probe.\n'
+          } >> "$GITHUB_STEP_SUMMARY"
