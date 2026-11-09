@@ -125,6 +125,11 @@ buffer sizes afterward; it does not itself cancel a hung adapter or provide a
 streaming download cap. The adapter must not log tokens, bodies or private IDs.
 No external adapter code is loaded from a path or environment variable here.
 
+The separate [native HTTPS adapter](./B2_NATIVE_TRANSPORT.md) now supplies a
+prepared implementation of these limits. It has its own mocked-stream evidence
+and requires explicit caller wiring; it is not an automatically enabled transport
+or a demonstrated live provider connection.
+
 Still required before live use: a reviewed native HTTP adapter and credential
 bridge, explicit destination/cost authorization, live permission/retention
 evidence, measured capacity, independent recovery-package retrieval and a
