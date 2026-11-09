@@ -6,6 +6,13 @@ defect entry.
 
 ## Start here
 
+2026-11-09 owner-only bridge checks use a real local CurrentUser DPAPI packet
+and PowerShell child with synthetic credentials and mocked HTTPS. The
+[bridge evidence](./B2_OWNER_TRANSFER.md#verification) covers checkpoint recovery,
+invalid/expired scope rejection and sanitized output. A diagnostic-runtime
+rejection was observed failing before its guard was added. No live B2 request,
+real credential access, shared service or BAK-002 acceptance status changed.
+
 2026-11-09 native transport work exercises the real checkpoint workflow with
 mocked Node HTTPS and actual streams. The
 [transport evidence](./B2_NATIVE_TRANSPORT.md#verification-boundary) records

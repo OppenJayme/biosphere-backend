@@ -58,6 +58,11 @@ function prepare(input) {
     /^f[0-9]+\.backblazeb2\.com$/.test(url.hostname) &&
     url.pathname === '/b2api/v4/b2_download_file_by_id' &&
     /^\?fileId=[A-Za-z0-9_-]{1,256}$/.test(url.search);
+  const authorize =
+    url.hostname === 'api.backblazeb2.com' &&
+    url.pathname === '/b2api/v4/b2_authorize_account' &&
+    !url.search;
+  const noBody = download || authorize;
   const upload =
     /^pod-[0-9]+(?:-[0-9]+)*\.(backblaze|backblazeb2)\.com$/.test(
       url.hostname,
@@ -75,7 +80,7 @@ function prepare(input) {
         url.searchParams.getAll('bucket').length === 1 &&
         url.searchParams.getAll('cvt').length === 1));
   check(
-    (download && input.method === 'GET') ||
+    (noBody && input.method === 'GET') ||
       ((metadata || upload) && input.method === 'POST'),
   );
   check(download || upload || input.maxResponseBytes <= 65536);
@@ -91,7 +96,7 @@ function prepare(input) {
         : null;
   check(
     body !== null &&
-      (download
+      (noBody
         ? body === undefined
         : Buffer.isBuffer(body) &&
           body.length > 0 &&
@@ -130,10 +135,12 @@ function prepare(input) {
   check(typeof headers.Authorization === 'string');
   const allowed = upload
     ? Object.values(canonical)
-    : download
+    : noBody
       ? ['Authorization']
       : ['Authorization', 'Content-Type', 'Content-Length'];
   check(Object.keys(headers).every((name) => allowed.includes(name)));
+  if (authorize)
+    check(/^Basic [A-Za-z0-9+/]+={0,2}$/.test(headers.Authorization));
   if (body) {
     check(
       headers['Content-Length'] === undefined ||
