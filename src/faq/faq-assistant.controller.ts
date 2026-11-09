@@ -1,4 +1,12 @@
-import { Body, Controller, Get, HttpCode, Post, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  Ip,
+  Post,
+  Query,
+} from '@nestjs/common';
 import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { Public } from '../auth/decorators/public.decorator';
@@ -36,7 +44,11 @@ export class FaqAssistantController {
       'Match a visitor question against active curator-approved FAQ knowledge (public)',
   })
   @ApiOkResponse({ type: FaqAssistantResponse })
-  ask(@Body() dto: AskFaqAssistantDto): Promise<FaqAssistantResponse> {
-    return this.service.ask(dto);
+  ask(
+    @Body() dto: AskFaqAssistantDto,
+    @Ip() ip: string,
+  ): Promise<FaqAssistantResponse> {
+    // The IP only keys the in-memory AI quota; it is never stored or logged.
+    return this.service.ask(dto, ip || 'anonymous');
   }
 }

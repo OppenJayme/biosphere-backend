@@ -13,6 +13,9 @@ import { MailService } from '../../src/mail/mail.service';
 import { GLOBAL_RATE_LIMIT } from '../../src/config/rate-limit.config';
 import { FaqAssistantController } from '../../src/faq/faq-assistant.controller';
 import { FaqAssistantService } from '../../src/faq/faq-assistant.service';
+import { FAQ_AI_PROVIDER } from '../../src/faq/ai/ai-provider';
+import { FaqAiComposerService } from '../../src/faq/ai/faq-ai-composer.service';
+import { GeminiProvider } from '../../src/faq/ai/gemini.provider';
 import { PrismaService } from '../../src/prisma/prisma.service';
 import { SUPABASE_CLIENT } from '../../src/supabase/supabase.constants';
 import type { SyntheticFaq } from '../fixtures/faq-quality-knowledge';
@@ -23,6 +26,10 @@ export async function createFaqQualityApp(entries: SyntheticFaq[]) {
     controllers: [FaqAssistantController],
     providers: [
       FaqAssistantService,
+      // Real AI wiring with no key or flag: evaluations measure the AI-free path.
+      GeminiProvider,
+      { provide: FAQ_AI_PROVIDER, useExisting: GeminiProvider },
+      FaqAiComposerService,
       AuthService,
       SecurityAuditService,
       MailService,
