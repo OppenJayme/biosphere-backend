@@ -23,6 +23,25 @@ The full-schema/five-bucket synthetic recovery implementation (#265) is now
 merged and has passing CI. That does not establish a scheduled backup of the
 museum's actual data or complete the separate rehearsal acceptance and turnover.
 
+## Operating answers - November 10, 2026
+
+The team proposes continuing with the BioSphere project mailbox and reports
+John Mark's willingness to help operate backups. His acceptance, an alternate,
+the current account custodian and the person taking over remain to be named.
+See the [dated operating record](./BACKUP_RECOVERY_APPROVAL.md#team-operating-answers---november-10-2026)
+for each answer, its limits and the next work.
+
+- Keep encryption keys and account recovery material out of repository Kanban
+  boards, issues, comments and committed files. The protected custody method and
+  separate recovery copy are still pending.
+- B2 stores the backups; a separate cloud runner must execute the backup job.
+  No schedule or runner is enabled by the team answers.
+- Recommend including required uploaded files/images as well as database and
+  account-recovery data. Final scope and measured capacity remain pending.
+- One working day is a desired recovery target, not a measured guarantee.
+- Production restore and real-data rehearsal authority must be recorded
+  separately from the technical operator's willingness.
+
 ## During ordinary use
 
 1. At first use on a museum working day, check the backup status and last
