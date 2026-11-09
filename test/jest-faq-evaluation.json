@@ -2,6 +2,7 @@
   "moduleFileExtensions": ["js", "json", "ts"],
   "rootDir": ".",
   "testEnvironment": "node",
+  "setupFiles": ["<rootDir>/support/disable-live-ai.ts"],
   "testRegex": "faq-answer-quality\\.evaluation\\.ts$",
   "transform": { "^.+\\.(t|j)s$": "ts-jest" },
   "transformIgnorePatterns": ["node_modules/(?!(@nestjs/config)/)"],

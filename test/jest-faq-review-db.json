@@ -2,6 +2,7 @@
   "moduleFileExtensions": ["js", "json", "ts"],
   "rootDir": ".",
   "testEnvironment": "node",
+  "setupFiles": ["<rootDir>/support/disable-live-ai.ts"],
   "testRegex": "faq-review\\.db-spec\\.ts$",
   "testTimeout": 60000,
   "transform": { "^.+\\.(t|j)s$": "ts-jest" },
