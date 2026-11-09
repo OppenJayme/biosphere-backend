@@ -20,6 +20,14 @@ the runner's per-object policy, without claiming provider verification. The
 linked guide now has one execution/evidence sequence; no runtime behavior or
 acceptance status changed in that documentation correction.
 
+The subsequent #276 code review identified the upload-URL format rejection and
+premature attempt reservation described in the
+[runner review corrections](./B2_RETENTION_RUNNER.md#november-9-review-corrections-for-276).
+Both were reproduced with mocked B2 HTTP before repair. New cases also cover
+durable unexpected-deletion reporting, filename separators and version-header
+cardinality. These are pre-live runner defects; no provider retention test or
+BAK-002 acceptance is claimed by their correction.
+
 2026-11-08 PR #265 review correction: the earlier zero-connection canary used
 malformed input and did not prove container-identity enforcement. The corrected
 valid-identity/distinct-port case now reaches target-identity rejection. The

@@ -25,6 +25,7 @@ $receipt=$null
 $receiptPath=$null
 $denials=0
 $reads=0
+$failureCode='B2_RETENTION_STOPPED'
 function Assert-Safe([bool]$Condition) { if (-not $Condition) { throw 'BOUNDARY_REJECTED' } }
 function Assert-Regular([string]$Path,[long]$Maximum) {
   $item=Get-Item -LiteralPath $Path -Force -ErrorAction Stop
@@ -83,6 +84,30 @@ function Assert-Capabilities($Actual,$Expected) {
   Assert-Safe (@($Actual).Count -eq @($Expected).Count)
   foreach($cap in $Expected){Assert-Safe (@($Actual) -ccontains $cap)}
 }
+function Assert-UploadUrl($Value) {
+  Assert-Safe ($Value -is [string] -and $Value.Length -le 2048 -and $Value -notmatch '[\s\\]')
+  $target=$null
+  Assert-Safe ([Uri]::TryCreate($Value,[UriKind]::Absolute,[ref]$target))
+  Assert-Safe ($target.Scheme -ceq 'https' -and $target.IsDefaultPort -and $target.UserInfo.Length -eq 0 -and $target.Fragment.Length -eq 0)
+  Assert-Safe ($target.DnsSafeHost -cmatch '^pod-[0-9]+(?:-[0-9]+)*\.(?:backblaze|backblazeb2)\.com$')
+  $basePath='/b2api/v4/b2_upload_file'
+  if($target.AbsolutePath -ceq $basePath) {
+    # Native API documents this query form as well as the path form. Require
+    # exactly one bucket and one destination; do not reconstruct the signed URL.
+    Assert-Safe ($target.Query.Length -gt 1)
+    $parameters=@{}
+    foreach($pair in $target.Query.Substring(1).Split('&')) {
+      Assert-Safe ($pair -cmatch '^(bucket|cvt)=([A-Za-z0-9_-]{1,256})$')
+      $name=$Matches[1];$value=$Matches[2]
+      Assert-Safe (-not $parameters.ContainsKey($name))
+      $parameters[$name]=$value
+    }
+    Assert-Safe ($parameters.Count -eq 2 -and $parameters['bucket'] -ceq $packet.bucketId)
+  }else{
+    Assert-Safe ($target.Query.Length -eq 0 -and $target.AbsolutePath -cmatch '^/b2api/v4/b2_upload_file/([A-Za-z0-9_-]{1,128})/([A-Za-z0-9_-]{1,256})$')
+    Assert-Safe ($Matches[1] -ceq $packet.bucketId)
+  }
+}
 function Assert-File($File) {
   Assert-Safe ($File.accountId -ceq $packet.accountId -and $File.bucketId -ceq $packet.bucketId -and $File.fileName -ceq $receipt.fileName -and $File.action -ceq 'upload')
   Assert-Safe ($File.fileId -is [string] -and $File.fileId -cmatch '^[A-Za-z0-9_-]{1,256}$')
@@ -96,7 +121,8 @@ function Read-Version {
   $meta=Invoke-B2 ($auth.api+'/b2api/v4/b2_get_file_info') 'POST' $auth.headers (@{fileId=$receipt.fileId}|ConvertTo-Json -Compress)
   Assert-File $meta
   $response=Invoke-WebRequest -Uri ($auth.download+'/b2api/v4/b2_download_file_by_id?fileId='+[Uri]::EscapeDataString($receipt.fileId)) -Method Get -Headers $auth.headers -UseBasicParsing -TimeoutSec 20 -MaximumRedirection 0 -ErrorAction Stop
-  Assert-Safe ([int]$response.StatusCode -eq 200 -and $response.Headers['X-Bz-File-Id'] -ceq $receipt.fileId)
+  $returnedIds=@($response.Headers['X-Bz-File-Id'])
+  Assert-Safe ([int]$response.StatusCode -eq 200 -and $returnedIds.Count -eq 1 -and [string]$returnedIds[0] -ceq $receipt.fileId)
   Assert-Safe ($response.RawContentStream.Length -eq $bytes.Length -and $response.RawContentStream.Length -le 1024)
   $copy=[IO.MemoryStream]::new()
   try {
@@ -109,7 +135,7 @@ function Read-Version {
 function Test-DeleteDenial([string]$Role,[string]$ExpectedCode) {
   $auth=$sessions[$Role]; $denied=$false
   try {
-    $null=Invoke-B2 ($auth.api+'/b2api/v4/b2_delete_file_version') 'POST' $auth.headers (@{fileName=$receipt.fileName;fileId=$receipt.fileId}|ConvertTo-Json -Compress)
+    $response=Invoke-WebRequest -Uri ($auth.api+'/b2api/v4/b2_delete_file_version') -Method Post -Headers $auth.headers -Body (@{fileName=$receipt.fileName;fileId=$receipt.fileId}|ConvertTo-Json -Compress) -ContentType 'application/json' -UseBasicParsing -TimeoutSec 20 -MaximumRedirection 0 -ErrorAction Stop
   }catch{
     # Only the documented status/code pair counts. Expired tokens, 404s,
     # timeouts, malformed errors and service failures cannot prove protection.
@@ -118,6 +144,14 @@ function Test-DeleteDenial([string]$Role,[string]$ExpectedCode) {
     $errorBody=$_.ErrorDetails.Message|ConvertFrom-Json -ErrorAction Stop
     Assert-Safe ([int]$_.Exception.Response.StatusCode -eq 401 -and $errorBody.status -eq 401 -and $errorBody.code -ceq $ExpectedCode)
     $denied=$true
+  }
+  if(-not $denied -and [int]$response.StatusCode -ge 200 -and [int]$response.StatusCode -lt 300){
+    # Preserve the most important negative result even if the success body is
+    # malformed. The request targeted only the newly created fixture version.
+    $script:failureCode='B2_RETENTION_DELETE_SUCCEEDED'
+    $script:receipt.state='delete-succeeded';$script:receipt.deleteRole=$Role
+    Write-Receipt
+    throw 'DELETE_SUCCEEDED'
   }
   Assert-Safe $denied
   $script:denials++
@@ -141,8 +175,13 @@ try {
   $receiptPath=Join-Path $folder 'retention-attempt.dpapi'
   if($Inspect){
     $saved=Read-Protected $receiptPath
-    Assert-Safe ($saved.format -ceq 'biosphere-b2-retention-attempt-v1' -and $saved.runId -ceq $RunId -and @('intent','uploaded','verified') -ccontains $saved.state)
-    @{code='B2_RETENTION_RECEIPT';state=$saved.state;uploadMayExist=$true;receiptRetained=$true;deploymentAuthorized=$false}|ConvertTo-Json -Compress
+    Assert-Safe ($saved.format -ceq 'biosphere-b2-retention-attempt-v1' -and $saved.runId -ceq $RunId -and @('intent','uploaded','verified','delete-succeeded') -ccontains $saved.state)
+    $summary=@{code='B2_RETENTION_RECEIPT';state=$saved.state;uploadMayExist=$true;receiptRetained=$true;deploymentAuthorized=$false;unexpectedDeleteSucceeded=($saved.state -ceq 'delete-succeeded')}
+    if($saved.state -ceq 'delete-succeeded'){
+      Assert-Safe (@('publisher','deletionProbe') -ccontains $saved.deleteRole)
+      $summary.deleteRole=$saved.deleteRole
+    }
+    $summary|ConvertTo-Json -Compress
     exit 0
   }
   # Any existing attempt is a hard stop, including damaged or incomplete files.
@@ -188,12 +227,18 @@ try {
   $sha=[Security.Cryptography.SHA1]::Create()
   try{$sha1Hex=([BitConverter]::ToString($sha.ComputeHash($bytes))).Replace('-','').ToLowerInvariant()}finally{$sha.Dispose()}
   $receipt=@{format='biosphere-b2-retention-attempt-v1';runId=$RunId;state='intent';fileName=$packet.namePrefix+'probe.enc';fileId=$null;bucketId=$packet.bucketId;key=$fixture.key;sha256=$fixture.sha256;retainUntil=[DateTimeOffset]::UtcNow.AddHours(24).ToUnixTimeMilliseconds()}
+  $stage='UPLOAD_URL'
+  $url=Invoke-B2 ($writer.api+'/b2api/v4/b2_get_upload_url') 'POST' $writer.headers (@{bucketId=$packet.bucketId}|ConvertTo-Json -Compress)
+  Assert-Safe ($url.bucketId -ceq $packet.bucketId)
+  Assert-UploadUrl $url.uploadUrl
+  Assert-Safe ($url.authorizationToken -is [string] -and $url.authorizationToken.Length -gt 0 -and $url.authorizationToken.Length -le 8192 -and $url.authorizationToken -notmatch '[\r\n]')
+  $receipt.retainUntil=[DateTimeOffset]::UtcNow.AddHours(24).ToUnixTimeMilliseconds()
+  $encodedName=($receipt.fileName.Split('/')|ForEach-Object {[Uri]::EscapeDataString($_)}) -join '/'
+  $headers=@{Authorization=$url.authorizationToken;'X-Bz-File-Name'=$encodedName;'X-Bz-Content-Sha1'=$sha1Hex;'X-Bz-File-Retention-Mode'='governance';'X-Bz-File-Retention-Retain-Until-Timestamp'=[string]$receipt.retainUntil}
+  # Reserve only after the read-only upload-URL lookup and validation succeed.
+  # Exclusive creation still prevents two processes from sending the upload.
   $stage='RECEIPT';Write-Receipt -Create
   $stage='UPLOAD'
-  $url=Invoke-B2 ($writer.api+'/b2api/v4/b2_get_upload_url') 'POST' $writer.headers (@{bucketId=$packet.bucketId}|ConvertTo-Json -Compress)
-  Assert-Safe ($url.bucketId -ceq $packet.bucketId -and $url.uploadUrl -is [string] -and $url.uploadUrl -cmatch '^https://[a-z0-9-]+\.(backblazeb2|backblaze)\.com/b2api/v4/b2_upload_file/[A-Za-z0-9_/-]+$')
-  Assert-Safe ($url.authorizationToken -is [string] -and $url.authorizationToken.Length -gt 0 -and $url.authorizationToken.Length -le 8192 -and $url.authorizationToken -notmatch '[\r\n]')
-  $headers=@{Authorization=$url.authorizationToken;'X-Bz-File-Name'=[Uri]::EscapeDataString($receipt.fileName);'X-Bz-Content-Sha1'=$sha1Hex;'X-Bz-File-Retention-Mode'='governance';'X-Bz-File-Retention-Retain-Until-Timestamp'=[string]$receipt.retainUntil}
   $uploadMayExist=$true
   $response=Invoke-WebRequest -Uri $url.uploadUrl -Method Post -Headers $headers -Body $bytes -ContentType 'application/octet-stream' -UseBasicParsing -TimeoutSec 20 -MaximumRedirection 0 -ErrorAction Stop
   Assert-Safe ([int]$response.StatusCode -eq 200 -and $response.Content.Length -le 65536)
@@ -208,7 +253,7 @@ try {
   exit 0
 } catch {
   $retained=($null -ne $receiptPath -and [IO.File]::Exists($receiptPath))
-  @{code='B2_RETENTION_STOPPED';stage=$stage;uploadMayExist=($uploadMayExist -or $retained);receiptRetained=$retained;deleteDenials=$denials;versionReads=$reads;failureLine=$_.InvocationInfo.ScriptLineNumber;deploymentAuthorized=$false} | ConvertTo-Json -Compress
+  @{code=$failureCode;stage=$stage;uploadMayExist=($uploadMayExist -or $retained);receiptRetained=$retained;deleteDenials=$denials;versionReads=$reads;failureLine=$_.InvocationInfo.ScriptLineNumber;deploymentAuthorized=$false} | ConvertTo-Json -Compress
   exit 1
 } finally {
   $packet=$null;$sessions=$null;$key=$null;$basic=$null;$auth=$null;$fixture=$null;$receipt=$null;$headers=$null
