@@ -6,6 +6,14 @@ defect entry.
 
 ## Start here
 
+2026-11-09 native transport work exercises the real checkpoint workflow with
+mocked Node HTTPS and actual streams. The
+[transport evidence](./B2_NATIVE_TRANSPORT.md#verification-boundary) records
+oversized/incomplete response rejection, explicit deadlines, premature close
+handling and frozen caller budgets. Initial red cases were implementation
+findings in the new adapter, not observed live B2 incidents. No credentials,
+network service or existing acceptance status changed.
+
 2026-11-09 isolated checkpoint-transfer work reproduced a Windows Node 22
 checkpoint-reader compatibility failure and a Number-rounded inode comparison.
 The [component evidence](./B2_CHECKPOINT_TRANSFER.md#tests-and-observed-compatibility-correction)
