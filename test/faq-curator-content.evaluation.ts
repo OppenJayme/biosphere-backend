@@ -212,11 +212,13 @@ describe('Curator-supplied draft FAQ content through the public HTTP API', () =>
     expect(item.outcomes).toContain(body.outcome);
     expect(Object.keys(body).sort()).toEqual([
       'answer',
+      'assisted',
       'message',
       'notice',
       'outcome',
       'redirect',
       'related',
+      'sources',
     ]);
     expect(body.related.length).toBeLessThanOrEqual(3);
     if (body.outcome === FaqAssistantOutcome.ANSWERED) {

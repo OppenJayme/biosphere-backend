@@ -603,3 +603,140 @@ curator FAQ evaluation 36/36 and synthetic evaluation 25/25; backend lint:ci
 privacy line was run in this slice; isolated widget/browser and independent
 acceptance remain pending. Deploy backend first: the old backend treats
 `And on ...` as a standalone question, which is safe but unhelpful.
+
+## Conversational assistant with optional AI wording - 2026-11-09
+
+The SRS FAQ section is being revised, and the full zero-cost conversational
+brief, including a free AI model, was implemented in the 2026-11-09
+conversational-assistant PRs (backend #281-#286, frontend #131-#132). John
+Gerozaga approved merging them on 2026-11-09 with `CHATBOT_AI_ENABLED=false`.
+This replaces the 2026-11-08 decision to skip AI in code only. The optional AI
+wording is currently in conflict with REQ-4.11-04/-05 and BR-18 ("rule-based",
+stored answers only); that conflict is resolved only if the revised SRS is
+approved. Until then, this design does not satisfy those requirements and AI
+must stay off.
+
+### How a visitor message is handled
+
+1. **Small talk.** A message that is only a greeting, thanks, goodbye or
+   "what can you do" (English, plus common Filipino/Cebuano openers) gets a
+   fixed reply (`SMALL_TALK`). It states no museum facts and reads no data.
+   A leading greeting is stripped, so "Hello, where is the museum?" is matched
+   as a question.
+2. **Direct match.** The existing deterministic matcher runs unchanged. A
+   direct or clarified match returns the curator's exact stored answer and
+   never calls the AI.
+3. **AI wording (optional, off by default).** Only when there is no direct
+   match, up to five ACTIVE entries are chosen by IDF-weighted retrieval
+   (`retrieveFaqCandidates`), under the same scope rule as direct matching
+   (DEF-024). Their question and answer text, the visitor's question, up to
+   four earlier questions from the open chat and the last answered topic are
+   sent as delimited JSON data. The model must answer with
+   `{status, answer, sourceIds}`.
+4. **Server-side checks.** An answer is shown only if every cited id was one
+   of the excerpts sent, and every digit run, day, month, number word,
+   "free", currency symbol, email and link in it appears in the cited
+   excerpts. Any claim to have booked, approved or confirmed something is
+   rejected. Answers over 700 characters, partial or blocked output, refusals
+   (`NO_ANSWER`), timeouts, rate limits and outages all fall back to the
+   curated no-match response. These checks cannot detect every unsupported
+   paraphrase (for example a dropped "not"), so AI answers are labelled and
+   always link to the approved FAQs they cite.
+5. **Fallback.** No answer: the General Inquiry referral, plus up to three
+   approved questions the visitor may have meant ("Museum where" offers
+   "Where is the museum located?"). Visit transactions still go to the Visit
+   Request form; "Book us for tomorrow" is now recognized as one.
+
+The response adds `assisted` (true only for AI wording) and `sources` (the
+cited FAQ questions). The widget labels such answers "AI-assisted wording
+from approved FAQs" and shows the sources as chips that open the exact
+approved answer. The ask DTO accepts `history`: at most four non-empty
+strings of up to 500 characters. History is kept only in the open widget,
+cleared by New chat and never stored by the backend.
+
+### Configuration (server only)
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `CHATBOT_AI_ENABLED` | `false` | Master switch. AI runs only when `true` **and** a key is set. |
+| `GEMINI_API_KEY` | empty | Google AI Studio key. Server-side only; sent in a header, never logged or returned. Never use `NEXT_PUBLIC_*`. |
+| `GEMINI_MODEL` | `gemini-2.5-flash-lite` | Model id; an unsafe value falls back to the default. |
+| `CHATBOT_AI_MAX_PER_CLIENT_PER_HOUR` | `10` | AI-assisted messages per client IP per hour. |
+| `CHATBOT_AI_DAILY_LIMIT` | `200` | AI-assisted messages per server process per day. |
+| `CHATBOT_AI_TIMEOUT_MS` | `8000` | Per-request timeout (1000-20000). |
+
+Quotas are in memory, per process, and reset on restart; this is a cost
+guard, not security. Behind a proxy without `trust proxy`, all visitors share
+one IP and therefore one hourly quota. After a 429, timeout or outage the AI
+pauses 1 minute, doubling per consecutive failure up to 15 minutes, honouring
+`Retry-After`; there are no automatic retries and no paid fallback. Change
+providers by binding another `AiProvider` to `FAQ_AI_PROVIDER` in
+`faq.module.ts`. The provider calls the REST API with Node's `fetch`; no
+`@google/genai` dependency was added (its newest release was three days old).
+
+### Provider findings (checked 2026-11-09, not legal advice)
+
+From Google's current documentation:
+
+- Gemini 2.5 Flash-Lite lists a free tier with no charge for input and output.
+  Per-model free limits were not stated in the search results; a forum post
+  quoted 15 requests/minute and 1,000/day, which may be outdated. Check the
+  project's AI Studio limits page before any capacity claim.
+- The model page recommends newer models for new projects;
+  `gemini-3.5-flash-lite` is listed as stable. Its free-tier status was not
+  confirmed, so it is not the default.
+- Once a billing account is linked, all usage is charged. Keep the project
+  without billing to stay at PHP 0.
+- **Terms:** users must be 18 or older, and the API must not be used in an
+  app "directed towards or likely to be accessed by individuals under 18".
+  It is meant for professional or business use, not consumer use. A public
+  museum website is likely to be visited by minors.
+- **Data use:** unpaid usage lets Google use submitted content and responses
+  to improve its products. Separately, prompts are retained 55 days for abuse
+  monitoring.
+
+**Status: not approved for public use.** Keep `CHATBOT_AI_ENABLED=false` on
+any public deployment until the revised SRS, a written provider-terms
+assessment (especially the under-18 clause), the free-tier data-use
+disposition and USC privacy/IT approval are recorded here. A checkbox
+asking visitors their age does not resolve the under-18 clause. Local
+development testing with a team member's own key is acceptable.
+
+### Verification - 2026-11-09 (local Windows)
+
+Backend `feat/faq-conversational-assistant-20261109`: FAQ unit 86/86; full
+unit 886/886; E2E 454 passed with 17 existing skips, including DEF-024 answer
+scope 15/15; curator evaluation 36/36 and synthetic evaluation 25/25
+(AI disabled); `lint:ci` 0 errors (6 existing warnings); non-emitting build
+type-check passed. `npm run build` was not run because a watch-mode dev
+server was using `dist/`.
+
+AI-path tests mock the provider: the evidence check (9 rejection cases), citation,
+refusal, timeout, 429 back-off, per-client and daily caps, the request shape
+(key only in a header) and failure mapping. **No live Gemini request was
+made**; no key was available. Live AI accuracy, latency and the 0-unsupported
+claims target are therefore unmeasured.
+
+Live local API with AI off, against the shared ACTIVE FAQ set: "Hello" ->
+small talk; "Museum where" -> no match with "Where is the museum located?"
+suggested first; "Hello, where is the museum located?" and "how much to get
+in" -> curated answers; "Book us for tomorrow" -> Visit Request referral.
+
+Frontend `feat/faq-conversational-assistant-20261109`: vitest 588/588, eslint
+and source type-check passed. No browser walkthrough was recorded.
+
+Not covered: Cebuano/Filipino questions beyond greetings, concurrent-load
+behavior, accessibility audit, mobile walkthrough and a curator-approved AI
+evaluation set. Deploy the backend first: the old widget rejects the
+`SMALL_TALK` outcome as an unexpected response.
+
+### Curator and turnover notes
+
+- Curators keep editing FAQs as before. AI wording uses the current ACTIVE
+  text on every message; nothing is trained or cached.
+- Adding alternative wordings and keywords still improves exact answers and
+  suggestions with AI off, and reduces how often the AI is needed.
+- To turn AI off immediately, set `CHATBOT_AI_ENABLED=false` and restart. The
+  assistant keeps answering from approved FAQs.
+- Rotate the key in Google AI Studio if it is exposed. It must belong to a
+  project-controlled account, not a personal student account, before turnover.

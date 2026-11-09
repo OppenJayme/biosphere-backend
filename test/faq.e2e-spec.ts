@@ -767,21 +767,36 @@ describe('FAQ knowledge management (e2e)', () => {
         );
     });
 
-    it('rejects malformed context identifiers and submitted conversation history', async () => {
+    it('rejects malformed context identifiers and malformed or oversized history', async () => {
       for (const contextFaqId of ['', null, 'invalid', 17, [entryId]]) {
         await request(app.getHttpServer())
           .post('/faq/assistant/ask')
           .send({ question: 'How about weekends?', contextFaqId })
           .expect(400);
       }
+      for (const history of [
+        'not a list',
+        [17],
+        ['   '],
+        ['x'.repeat(501)],
+        ['one', 'two', 'three', 'four', 'five'],
+        [{ role: 'assistant', text: 'Approved answer' }],
+      ]) {
+        await request(app.getHttpServer())
+          .post('/faq/assistant/ask')
+          .send({ question: 'How about weekends?', history })
+          .expect(400);
+      }
+      // Up to four earlier visitor questions are accepted as interpretation
+      // context only; they never add facts and are not stored.
       await request(app.getHttpServer())
         .post('/faq/assistant/ask')
         .send({
           question: 'How about weekends?',
           contextFaqId: entryId,
-          history: ['private chat'],
+          history: ['When is the museum open?'],
         })
-        .expect(400);
+        .expect(200);
       expect(faqCreate).not.toHaveBeenCalled();
       expect(faqUpdate).not.toHaveBeenCalled();
       expect(auditCreate).not.toHaveBeenCalled();
@@ -825,6 +840,8 @@ describe('FAQ knowledge management (e2e)', () => {
             message:
               'More than one approved question matches. Which one did you mean?',
             redirect: null,
+            assisted: false,
+            sources: [],
             notice:
               'Answers are limited to curator-approved museum information. The assistant cannot approve visits or process campus entry.',
           });
