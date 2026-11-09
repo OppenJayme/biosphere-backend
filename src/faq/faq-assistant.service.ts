@@ -19,6 +19,7 @@ import {
 } from './entities/faq-assistant.entity';
 import {
   FAQ_MATCHING_RULES,
+  hasApprovedScope,
   isVisitRequestChange,
   isVisitRequestTransaction,
   matchFaqEntries,
@@ -39,8 +40,14 @@ const PUBLIC_QUESTION_SELECT = {
   category: true,
 } as const;
 
-/** Approved excerpts sent to the optional AI layer per visitor message. */
+/**
+ * Approved excerpts sent to the optional AI layer per visitor message. A small
+ * knowledge base is sent whole (most relevant first) so the model can connect
+ * paraphrases like "pay to get in" to admission; a larger one sends the top
+ * five. Every entry is public, ACTIVE, curator-approved FAQ text.
+ */
 const AI_SOURCE_LIMIT = 5;
+const AI_WHOLE_KNOWLEDGE_LIMIT = 25;
 /** Short questions borrow the previous visitor question for retrieval only. */
 const SHORT_QUESTION_TOKENS = 4;
 
@@ -229,11 +236,23 @@ export class FaqAssistantService {
       question,
     );
 
+    const aiEntries =
+      candidates.length <= AI_WHOLE_KNOWLEDGE_LIMIT
+        ? [
+            ...hits.map(({ entry }) => entry),
+            ...candidates.filter(
+              (entry) =>
+                !hits.some((hit) => hit.entry.id === entry.id) &&
+                hasApprovedScope(question, entry),
+            ),
+          ]
+        : hits.map(({ entry }) => entry);
+
     const ai = await this.ai.compose({
       question,
       history,
       previousTopic: context?.question,
-      sources: hits.map(({ entry }) => ({
+      sources: aiEntries.map((entry) => ({
         id: entry.id,
         question: entry.question,
         answer: entry.answer,
@@ -241,8 +260,8 @@ export class FaqAssistantService {
       clientKey,
     });
     if (ai.kind === 'answer') {
-      const cited = ai.sourceIds.map(
-        (id) => hits.find(({ entry }) => entry.id === id)!.entry,
+      const cited = ai.sourceIds.map((id) =>
+        aiEntries.find((entry) => entry.id === id)!,
       );
       return {
         outcome: FaqAssistantOutcome.ANSWERED,

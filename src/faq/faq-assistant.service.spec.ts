@@ -339,8 +339,11 @@ describe('FaqAssistantService', () => {
         history: string[];
         clientKey: string;
       };
+      // A small knowledge base is sent whole, most relevant entry first.
       expect(call.sources[0].id).toBe(LOCATION.id);
-      expect(call.sources.length).toBeLessThanOrEqual(5);
+      expect(call.sources.map((s) => s.id).sort()).toEqual(
+        LIVE_SET.map((e) => e.id).sort(),
+      );
       expect(call.history).toEqual(['Hi']);
       expect(call.clientKey).toBe('203.0.113.5');
 

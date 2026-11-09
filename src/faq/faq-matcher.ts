@@ -288,7 +288,7 @@ function inclusionScope(normalized: string) {
 }
 
 /** Bounded English scope checks, not a general intent/negation interpreter. */
-function hasApprovedScope(
+export function hasApprovedScope(
   query: string,
   candidate: FaqMatchCandidate,
 ): boolean {
