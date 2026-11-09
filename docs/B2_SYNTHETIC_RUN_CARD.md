@@ -1,6 +1,8 @@
 # B2 synthetic rehearsal run card
 
-Prepared November 9, 2026. **Preparation only: all live rows below are pending.**
+Prepared November 9, 2026. This is the execution procedure, not a status checklist.
+The [November 9 observed trial](./B2_LIVE_SYNTHETIC_TRIAL_20261109.md) records the
+completed day-one synthetic scope and the still-pending expiry/operating gates.
 This card joins the existing procedures into one finite run. It does not
 authorize provider access, museum exports, deployed backups or BAK-002 closure.
 

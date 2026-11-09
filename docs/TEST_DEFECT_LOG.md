@@ -6,6 +6,17 @@ defect entry.
 
 ## Start here
 
+2026-11-09 live B2 synthetic trial: the reviewed retention probe passed both
+expected deletion denials and all three version readbacks. The 73,845-byte
+checkpoint was published, recovered by its exact version and used for a fresh
+owned application/Auth/five-bucket restore with complete cleanup. The
+[observed results and preserved failures](./B2_LIVE_SYNTHETIC_TRIAL_20261109.md)
+retain the initial guard timeout and unsuccessful authorization attempt without
+claiming their causes are established. Post-expiry cleanup, independent
+acceptance, real-source recovery and scheduled operation remain open; BAK-002
+is not promoted by this day-one engineering result. No keys or private provider
+references are in this shared evidence.
+
 2026-11-09 owner-only bridge checks use a real local CurrentUser DPAPI packet
 and PowerShell child with synthetic credentials and mocked HTTPS. The
 [bridge evidence](./B2_OWNER_TRANSFER.md#verification) covers checkpoint recovery,
