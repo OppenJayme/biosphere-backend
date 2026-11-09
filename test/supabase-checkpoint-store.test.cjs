@@ -2,18 +2,49 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const path = require('node:path');
 const fs = require('node:fs');
+const os = require('node:os');
 const { createHash } = require('node:crypto');
 const { spawnSync } = require('node:child_process');
 const {
-  createWorkspace,
+  createWorkspace: createStoreWorkspace,
   saveCheckpoint,
 } = require('../scripts/recovery/supabase-checkpoint-store.cjs');
 const {
   loadCheckpoint,
 } = require('../scripts/recovery/supabase-checkpoint-store.cjs');
 
-test('full-profile checkpoints retain the SQL gateway as a fifth source resource', () => {
-  const w = createWorkspace();
+function ownedWorkspace(t) {
+  const workspace = createStoreWorkspace();
+  const base = fs.realpathSync(os.tmpdir());
+  t.after(() => {
+    for (const [root, prefix, kind] of [
+      [
+        workspace.checkpointDir,
+        'biosphere-platform-checkpoints-',
+        'checkpoint',
+      ],
+      [workspace.keyDir, 'biosphere-platform-keys-', 'key'],
+    ]) {
+      const stat = fs.lstatSync(root);
+      assert.ok(stat.isDirectory() && !stat.isSymbolicLink());
+      const real = fs.realpathSync(root);
+      assert.equal(path.dirname(real), base);
+      assert.ok(path.basename(real).startsWith(prefix));
+      const owner = JSON.parse(
+        fs.readFileSync(path.join(real, '.owner.json'), 'utf8'),
+      );
+      assert.equal(owner.format, 'biosphere-private-platform-lab-v1');
+      assert.equal(owner.owner, workspace.owner);
+      assert.equal(owner.kind, kind);
+      fs.rmSync(real, { recursive: true, force: true });
+      assert.equal(fs.existsSync(real), false);
+    }
+  });
+  return workspace;
+}
+
+test('full-profile checkpoints retain the SQL gateway as a fifth source resource', (t) => {
+  const w = ownedWorkspace(t);
   const source = {
     owner: '00000000-0000-4000-8000-000000000001',
     ids: ['a', 'b', 'c', 'd', 'e'].map((c) => c.repeat(64)),
@@ -32,8 +63,8 @@ test('full-profile checkpoints retain the SQL gateway as a fifth source resource
   );
 });
 
-test('full-profile checkpoints reject a source set missing its SQL gateway', () => {
-  const w = createWorkspace();
+test('full-profile checkpoints reject a source set missing its SQL gateway', (t) => {
+  const w = ownedWorkspace(t);
   assert.throws(
     () =>
       saveCheckpoint(w.checkpointDir, w.keyDir, {
@@ -50,8 +81,8 @@ test('full-profile checkpoints reject a source set missing its SQL gateway', () 
     { code: 'CHECKPOINT_SOURCE_INVALID' },
   );
 });
-function fixture() {
-  const workspace = createWorkspace();
+function fixture(t) {
+  const workspace = ownedWorkspace(t);
   const data = {
     payload: { sample: 'synthetic persistent payload' },
     verification: { sample: 'synthetic expected result' },
@@ -70,8 +101,8 @@ function fixture() {
   };
 }
 
-test('source ownership must be a primitive UUID rather than a coercible array', () => {
-  const workspace = createWorkspace();
+test('source ownership must be a primitive UUID rather than a coercible array', (t) => {
+  const workspace = ownedWorkspace(t);
   assert.throws(
     () =>
       saveCheckpoint(workspace.checkpointDir, workspace.keyDir, {
@@ -86,8 +117,8 @@ test('source ownership must be a primitive UUID rather than a coercible array', 
   );
 });
 
-test('a fresh process reads an encrypted disk checkpoint using a separately stored key', () => {
-  const workspace = createWorkspace();
+test('a fresh process reads an encrypted disk checkpoint using a separately stored key', (t) => {
+  const workspace = ownedWorkspace(t);
   assert.notEqual(workspace.checkpointDir, workspace.keyDir);
   const saved = saveCheckpoint(workspace.checkpointDir, workspace.keyDir, {
     payload: { sample: 'synthetic checkpoint content' },
@@ -118,8 +149,8 @@ test('a fresh process reads an encrypted disk checkpoint using a separately stor
   assert.match(saved.sha256, /^[a-f0-9]{64}$/);
 });
 
-test('missing keys refuse recovery without consuming or changing the checkpoint', () => {
-  const f = fixture(),
+test('missing keys refuse recovery without consuming or changing the checkpoint', (t) => {
+  const f = fixture(t),
     bytes = fs.readFileSync(f.file);
   fs.unlinkSync(f.key);
   assert.throws(() => loadCheckpoint(f.checkpointDir, f.keyDir), {
@@ -127,15 +158,15 @@ test('missing keys refuse recovery without consuming or changing the checkpoint'
   });
   assert.deepEqual(fs.readFileSync(f.file), bytes);
 });
-test('a wrong same-length key fails authenticated decryption', () => {
-  const f = fixture();
+test('a wrong same-length key fails authenticated decryption', (t) => {
+  const f = fixture(t);
   fs.writeFileSync(f.key, Buffer.alloc(32, 7));
   assert.throws(() => loadCheckpoint(f.checkpointDir, f.keyDir), {
     code: 'CHECKPOINT_AUTHENTICATION_FAILED',
   });
 });
-test('ciphertext changes fail the committed checksum check', () => {
-  const f = fixture(),
+test('ciphertext changes fail the committed checksum check', (t) => {
+  const f = fixture(t),
     bytes = fs.readFileSync(f.file);
   bytes[bytes.length - 1] ^= 1;
   fs.writeFileSync(f.file, bytes);
@@ -143,8 +174,8 @@ test('ciphertext changes fail the committed checksum check', () => {
     code: 'CHECKPOINT_HASH_MISMATCH',
   });
 });
-test('a rewritten checksum cannot authenticate corrupted ciphertext', () => {
-  const f = fixture(),
+test('a rewritten checksum cannot authenticate corrupted ciphertext', (t) => {
+  const f = fixture(t),
     bytes = fs.readFileSync(f.file);
   bytes[bytes.length - 1] ^= 1;
   fs.writeFileSync(f.file, bytes);
@@ -155,8 +186,8 @@ test('a rewritten checksum cannot authenticate corrupted ciphertext', () => {
     code: 'CHECKPOINT_AUTHENTICATION_FAILED',
   });
 });
-test('verification data is bound to the encrypted checkpoint', () => {
-  const f = fixture();
+test('verification data is bound to the encrypted checkpoint', (t) => {
+  const f = fixture(t);
   fs.writeFileSync(
     path.join(f.keyDir, 'recovery-verification.private.json'),
     JSON.stringify({ sample: 'different' }),
@@ -165,8 +196,8 @@ test('verification data is bound to the encrypted checkpoint', () => {
     code: 'CHECKPOINT_VERIFICATION_CHANGED',
   });
 });
-test('a completed capture cannot overwrite its checkpoint or key', () => {
-  const f = fixture(),
+test('a completed capture cannot overwrite its checkpoint or key', (t) => {
+  const f = fixture(t),
     bytes = fs.readFileSync(f.file),
     key = fs.readFileSync(f.key);
   assert.throws(() => saveCheckpoint(f.checkpointDir, f.keyDir, f.data), {
@@ -175,8 +206,8 @@ test('a completed capture cannot overwrite its checkpoint or key', () => {
   assert.deepEqual(fs.readFileSync(f.file), bytes);
   assert.deepEqual(fs.readFileSync(f.key), key);
 });
-test('files without final commit metadata are not a usable checkpoint', () => {
-  const f = fixture();
+test('files without final commit metadata are not a usable checkpoint', (t) => {
+  const f = fixture(t);
   fs.unlinkSync(f.receipt);
   assert.throws(() => loadCheckpoint(f.checkpointDir, f.keyDir), {
     code: 'CHECKPOINT_NOT_COMMITTED',

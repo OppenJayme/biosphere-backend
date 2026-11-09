@@ -15,6 +15,24 @@ that integration; an earlier branch's success is not integration evidence.
 No key creation is needed while waiting for reviews. The temporary keys last
 six hours, so finish local preparation before starting their lifetime.
 
+**Live timing gate:** stages 6–8 (retention probe, publication and recovery)
+must all finish while every required temporary identity has **more than ten
+minutes left** of its six-hour lifetime. The window begins at key creation,
+not at stage 6. Allow for operator pauses and all readbacks; do not begin if
+the remaining time is insufficient. Expiry requires a stop and a separately
+authorized reconciliation/credential plan, not automatic key recreation.
+
+**Upload feasibility gate before stage 7:** record the actual encrypted byte
+count and conservative measured upstream speed on the intended connection.
+The body-only estimate is `bytes * 8 / bitsPerSecond`; it must fit comfortably
+inside the adapter's 20-second total deadline, leaving room for connection
+setup, request handling and response. A 64 MiB body needs about 26.8 Mbit/s
+even without overhead, so the size ceiling alone is not evidence of feasibility.
+Use an existing trusted measurement with no backup/credential payload; never
+benchmark by attempting the live publication. If throughput is unknown or the
+margin is inadequate, stop or prepare a smaller owned synthetic checkpoint
+before creating keys. Do not relax timeouts or clear an uncertain-upload receipt.
+
 ### Account handover decision received November 9
 
 The user reports that the team currently controls the Gmail account associated
