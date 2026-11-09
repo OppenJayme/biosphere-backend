@@ -6,6 +6,14 @@ backend `77a8b54`; Supabase Free and no recurring infrastructure budget confirme
 by Kyer. No hosted credentials, artifacts or project settings were
 inspected. No backup, restore, migration, scheduler or notification was executed.
 
+**Later checkpoints:** the dated sections below record the November 6–8
+synthetic implementation. On November 9 a
+[live synthetic B2 trial](./B2_LIVE_SYNTHETIC_TRIAL_20261109.md) added
+Governance retention, exact-version checkpoint recovery and a full application
+restore from the downloaded copy, using synthetic data only. The procedure is
+still not approved, scheduled or run against museum data, and recovery after
+retention expiry is unverified.
+
 ### Implementation checkpoint - 2026-11-06
 
 The user authorized the first isolated engineering slice after reviewing this

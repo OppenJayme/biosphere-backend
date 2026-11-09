@@ -12,6 +12,13 @@ test, not a scheduled museum backup. Use the
 [closeout order and short decision request](./BACKUP_RECOVERY_APPROVAL.md#closeout-order---november-8-2026)
 to finish setup; the ordinary-use steps below remain conditional.
 
+**November 9 update:** a [live synthetic B2 trial](./B2_LIVE_SYNTHETIC_TRIAL_20261109.md)
+showed that a test file locked for one day could not be deleted, and that an
+encrypted synthetic backup could be uploaded to B2, downloaded again and used to
+restore the whole test system. It used no museum data. Account and key custody,
+backup capacity, a schedule, recovery after the lock ends, and recovery of the
+museum's real data are still not confirmed.
+
 The full-schema/five-bucket synthetic recovery implementation (#265) is now
 merged and has passing CI. That does not establish a scheduled backup of the
 museum's actual data or complete the separate rehearsal acceptance and turnover.
