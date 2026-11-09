@@ -24,6 +24,10 @@ jobs:
       - name: Verify dependency-free readiness and B2 preflight CLIs on Windows
         run: node --test test/recovery-readiness.test.cjs test/b2-retention-preflight.test.cjs
 
+      - name: Verify owner-run B2 setup on PowerShell 7 with synthetic prompts and mocked HTTP
+        timeout-minutes: 2
+        run: node test/b2-owner-key-setup.test.cjs --powershell7
+
   build-and-test:
     runs-on: ubuntu-latest
     steps:
