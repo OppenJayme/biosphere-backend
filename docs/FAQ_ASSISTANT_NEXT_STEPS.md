@@ -4,6 +4,25 @@ Source review checkpoint, not feature acceptance or approval to publish test
 answers. Backend reviewed at `a3961d1`; frontend at `9ea97c7`. No chatbot code
 or active knowledge was changed and no public ask request was made here.
 
+## Conversational assistant update - 2026-11-09
+
+The SRS FAQ section is being revised, and the full zero-cost conversational
+brief was implemented in backend #281-#286 and frontend #131-#132. John
+Gerozaga approved merging them on 2026-11-09 with AI off. Implemented:
+- small talk and greeting stripping;
+- "did you mean" suggestions;
+- chat history of up to four questions;
+- an optional Gemini wording layer, off by default, with server-side evidence checks.
+
+The 2026-11-08 decision below to skip AI is superseded in code; the AI wording
+still conflicts with the current SRS until the revision is approved. See
+[the design and approval status](./FAQ_KNOWLEDGE_GUIDE.md#conversational-assistant-with-optional-ai-wording---2026-11-09).
+Next steps:
+1. Approve the revised SRS wording.
+2. Record a written assessment of Google's under-18 and free-tier data-use
+   terms, plus USC privacy approval, before any public use of AI.
+3. Run a live, curator-approved AI evaluation with a project-owned key.
+
 ## Conversational brief reconciliation - 2026-11-08
 
 An external zero-cost chatbot brief was audited against this module. Its
