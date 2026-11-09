@@ -46,4 +46,5 @@ Thumbs.db
 **/recovery-history.private.json
 **/recovery-verification.private.json
 **/recovery-readiness.private.json
+**/b2-transfer.private.json
 *.bsp

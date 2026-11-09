@@ -26,29 +26,35 @@ function readFile(root, name, max, missing) {
   const file = path.join(root, name);
   let fd;
   try {
-    const before = fs.lstatSync(file);
+    const before = fs.lstatSync(file, { bigint: true });
     check(
       before.isFile() &&
         !before.isSymbolicLink() &&
-        before.nlink === 1 &&
-        before.size <= max,
+        before.nlink === 1n &&
+        before.size <= BigInt(max),
       'CHECKPOINT_UNSAFE_FILE',
     );
     if (process.platform !== 'win32')
-      check((before.mode & 0o077) === 0, 'CHECKPOINT_UNSAFE_PERMISSIONS');
+      check((before.mode & 0o077n) === 0n, 'CHECKPOINT_UNSAFE_PERMISSIONS');
     fd = fs.openSync(
       file,
       fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW ?? 0),
     );
-    const stat = fs.fstatSync(fd);
+    const stat = fs.fstatSync(fd, { bigint: true });
+    // Windows Node 22 may report an unknown path device as zero. Only that
+    // platform may omit this comparison; exact BigInt inode identity remains.
+    const differentDevice =
+      stat.dev !== before.dev &&
+      (process.platform !== 'win32' || (stat.dev !== 0n && before.dev !== 0n));
     check(
       stat.isFile() &&
-        stat.dev === before.dev &&
+        !differentDevice &&
+        stat.nlink === 1n &&
         stat.ino === before.ino &&
         stat.size === before.size,
       'CHECKPOINT_FILE_CHANGED',
     );
-    const bytes = Buffer.alloc(stat.size + 1);
+    const bytes = Buffer.alloc(Number(stat.size) + 1);
     let used = 0,
       count;
     while (
@@ -57,7 +63,8 @@ function readFile(root, name, max, missing) {
     )
       used += count;
     check(
-      used === stat.size && fs.fstatSync(fd).size === stat.size,
+      BigInt(used) === stat.size &&
+        fs.fstatSync(fd, { bigint: true }).size === stat.size,
       'CHECKPOINT_FILE_CHANGED',
     );
     return bytes.subarray(0, used);

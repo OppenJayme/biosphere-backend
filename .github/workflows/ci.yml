@@ -23,6 +23,8 @@ jobs:
           node-version: '22.14.0'
       - name: Verify dependency-free readiness and B2 preflight CLIs on Windows
         run: node --test test/recovery-readiness.test.cjs test/b2-retention-preflight.test.cjs
+      - name: Verify isolated checkpoint transfer and existing store on Windows
+        run: node --test test/b2-checkpoint-transfer.test.cjs test/supabase-checkpoint-store.test.cjs
       - name: Verify synthetic B2 retention runner with PowerShell 7 (no provider access)
         timeout-minutes: 2
         run: node test/b2-retention-runner.test.cjs --powershell7
@@ -66,6 +68,8 @@ jobs:
 
       - name: Verify durable checkpoint files and pre-target rejection
         run: npm run test:recovery:supabase:files
+      - name: Verify synthetic checkpoint transfer with mocked B2 HTTP
+        run: node --test test/b2-checkpoint-transfer.test.cjs
 
       - name: Verify owned synthetic application target guards
         run: npm run test:recovery:supabase:application-guards
