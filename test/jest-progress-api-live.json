@@ -2,6 +2,7 @@
   "moduleFileExtensions": ["js", "json", "ts"],
   "rootDir": ".",
   "testEnvironment": "node",
+  "setupFiles": ["<rootDir>/support/disable-live-ai.ts"],
   "testRegex": "progress-api\\.live-spec\\.ts$",
   "transform": {
     "^.+\\.(t|j)s$": "ts-jest"
