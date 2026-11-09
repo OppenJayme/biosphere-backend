@@ -1,6 +1,6 @@
 # Auth and curator account decisions: status
 
-Last updated 2026-11-07. This page separates what the SRS requires, what is configured today, what
+Last updated 2026-11-09. This page separates what the SRS requires, what is configured today, what
 the team recommends, and what the curator has decided. A recommendation here is not an approved
 policy and must not be cited as an SRS requirement.
 
@@ -190,6 +190,14 @@ Development team decisions, recorded in the team chat. They are not museum appro
    requires a recorded reason and is in the Audit Log, where curators can review it and respond.
    The team accepted this during the 2026-11-07 handover test.
 
+### Developer role after the team leaves (recorded 2026-11-09)
+
+Handover and curator status changes are Developer actions, so someone has to hold the Developer
+role once the development team leaves. As recorded on 2026-11-09:
+
+- The **Department of Library** directs the records.
+- **DCISM turnover** is the University's decision. The team does not name a successor Developer.
+
 ### SRS revision for REQ-4.1-08
 
 The SRS is kept in the repos only as `docs/BioSphere-SRS.pdf` (v0.10), so the revision has to be
@@ -265,6 +273,7 @@ The outgoing account is deactivated and kept, not deleted, so historical attribu
 | Re-export the SRS with the REQ-4.1-08 revision above | Voltaire | Closing REQ-4.1-08 |
 | Production sender model | USC IT, requested or endorsed by Sir Fidel or the museum | Accepting production email deliverability |
 | Invitation and reset expiry periods, including whether 1 hour suits invitations | Curator or client | Closing REQ-4.1-19 |
+| Who holds the Developer account after DCISM turnover | The University | Curator handover and status changes after the team leaves |
 
 ## Pending team action
 
@@ -280,6 +289,10 @@ The outgoing account is deactivated and kept, not deleted, so historical attribu
 - Prepare the technical requirements for the USC IT request.
 - Check what the Unsubscribe option on Auth email does in Brevo before production.
 
-**Deployment.** Set `NEXT_PUBLIC_SESSION_IDLE_MINUTES` in each frontend deployment before building it.
+**Deployment.** Not deployed as of 2026-11-09. The target is the DCISM web server: the frontend at
+`biosphere.dcism.org` and the backend at `biosphere-api.dcism.org`. Deployment is on hold until
+black-box testing is done. Frontend CI already sets the value to 30.
+
+Set `NEXT_PUBLIC_SESSION_IDLE_MINUTES` in each frontend deployment before building it.
 If merges deploy automatically, deploy the backend before the frontend: the new invite flow needs
 the backend to set the chosen password.

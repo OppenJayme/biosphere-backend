@@ -113,7 +113,7 @@ The sources compared are the Backend Progress report (PR, 3–4 Nov, claims 93%)
   - §4.2 was claimed at 97%, but the report's own gap list and the tests support 83%.
   - §4.1 was claimed at 85%, but with REQ-4.1-03 corrected the same scoring gives 80%.
 - **Requirement rows (192).** Aligned 167, Overstated 1 (4.1-03), Understated 1 (4.1-09), Not in report 23.
-  - **4.1-03:** counted Done for the backend, but hosted Supabase still allows public sign-up (see the review correction above).
+  - **4.1-03:** counted Done for the backend, but hosted Supabase allowed public sign-up at the baseline (see the review correction above). Since 2026-11-05 sign-up is disabled on hosted (see the later verification above).
   - **4.1-09:** the successor-invite path existed since 7 Oct, before the report.
   - **The 23 "Not in report" rows:** frontend-only or provider-managed requirements whose backend applicability the report never itemized.
 - **Modules (15).** Aligned 13, Overstated 2 (§4.1, §4.2), Understated 0, Not in report 0. A module is Aligned when its status matches and today's statuses, scored the last report's way, are within 3 points of its claim.
@@ -121,14 +121,14 @@ The sources compared are the Backend Progress report (PR, 3–4 Nov, claims 93%)
 
 ## Blockers
 
-- Public sign-up must be disabled in the hosted Supabase project and verified before REQ-4.1-03 can be Done (deployment/auth owner).
+- ~~Public sign-up must be disabled in the hosted Supabase project and verified before REQ-4.1-03 can be Done (deployment/auth owner).~~ Resolved 2026-11-05: `disable_signup=true` and a signup attempt returned 422 `signup_disabled` (see `docs/AUTH_ACCOUNT_DECISIONS_STATUS.md`).
 - Backup/restore procedure and a disposable restore target (4.15) have not been approved.
 - A decision is needed on curator vs Developer account control (4.1-08/09).
 - The shared-DB content cleanup (FAQ placeholder, exhibit content, test records) and a permanent `PUBLIC_SITE_URL`/`FRONTEND_URL` are owed by the deployment and content owners.
 
 ## Work remaining
 
-1. Disable public sign-up in the hosted Supabase Auth settings and verify it (REQ-4.1-03).
+1. ~~Disable public sign-up in the hosted Supabase Auth settings and verify it (REQ-4.1-03).~~ Done 2026-11-05.
 2. Gate Developer-onboarded invitees, and expose invite state on `/developer/curators`.
 3. Build curator activation/handover, or record the scope decision.
 4. Add operational notifications (sync failure and the rest of 4.3-10).
