@@ -8,6 +8,10 @@ prints a plan without accessing files, decrypting credentials or using HTTP:
 node scripts/recovery/b2-owner-transfer.cjs
 ```
 
+For the complete finite sequence and stop conditions, use the
+[synthetic rehearsal run card](./B2_SYNTHETIC_RUN_CARD.md). Preparing that card
+does not record a live result.
+
 ## Reviewed operating boundary
 
 The Windows owner must first have the complete three-role DPAPI packet produced
