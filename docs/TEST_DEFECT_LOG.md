@@ -6,6 +6,13 @@ defect entry.
 
 ## Start here
 
+2026-11-09 isolated checkpoint-transfer work reproduced a Windows Node 22
+checkpoint-reader compatibility failure and a Number-rounded inode comparison.
+The [component evidence](./B2_CHECKPOINT_TRANSFER.md#tests-and-observed-compatibility-correction)
+records the BigInt/unknown-device repair, source-file-loss round trip and
+uncertain-upload checks. These use synthetic files and mocked HTTP; they do not
+establish live B2 storage, deployed recovery or BAK-002 acceptance.
+
 2026-11-09 B2 retention-runner preparation: the
 [synthetic runner evidence](./B2_RETENTION_RUNNER.md#isolated-verification-and-limits)
 records Windows atomic-replacement binding and uncertain-retry reporting issues
