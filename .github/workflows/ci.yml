@@ -23,6 +23,9 @@ jobs:
           node-version: '22.14.0'
       - name: Verify dependency-free readiness and B2 preflight CLIs on Windows
         run: node --test test/recovery-readiness.test.cjs test/b2-retention-preflight.test.cjs
+      - name: Verify synthetic B2 retention runner with PowerShell 7 (no provider access)
+        timeout-minutes: 2
+        run: node test/b2-retention-runner.test.cjs --powershell7
 
       - name: Verify owner-run B2 setup on PowerShell 7 with synthetic prompts and mocked HTTP
         timeout-minutes: 2
