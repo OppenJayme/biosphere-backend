@@ -289,8 +289,9 @@ The outgoing account is deactivated and kept, not deleted, so historical attribu
 - Prepare the technical requirements for the USC IT request.
 - Check what the Unsubscribe option on Auth email does in Brevo before production.
 
-**Deployment.** Not deployed as of 2026-11-09. The team has not yet chosen where BioSphere will be
-hosted, so this stays open until it has. Frontend CI already sets the value to 30.
+**Deployment.** Not deployed as of 2026-11-09. The target is the DCISM web server: the frontend at
+`biosphere.dcism.org` and the backend at `biosphere-api.dcism.org`. Deployment is on hold until
+black-box testing is done. Frontend CI already sets the value to 30.
 
 Set `NEXT_PUBLIC_SESSION_IDLE_MINUTES` in each frontend deployment before building it.
 If merges deploy automatically, deploy the backend before the frontend: the new invite flow needs
