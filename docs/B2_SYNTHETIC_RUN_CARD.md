@@ -15,6 +15,22 @@ that integration; an earlier branch's success is not integration evidence.
 No key creation is needed while waiting for reviews. The temporary keys last
 six hours, so finish local preparation before starting their lifetime.
 
+### Account handover decision received November 9
+
+The user reports that the team currently controls the Gmail account associated
+with B2 and plans to transfer it to the curators. This is a planned handover,
+not completed transfer or demonstrated institutional custody. No named receiving
+curator, handover date, recovery-access verification or removal of former team
+access has been confirmed. Do not record credentials or recovery codes here.
+
+The user deferred the remaining operational decisions: primary/alternate backup
+operator, encryption-key custody and separate recovery copy, restore authority,
+backup scope, acceptable data loss/frequency, runner location, retention/budget,
+recovery-time target and authorization/access/disposal for a real-data rehearsal.
+Keep these pending; do not infer agreement from the account-transfer plan.
+They do not prevent an independently authorized synthetic demonstration, but
+the existing procedure, intended-source and scheduled-operation gates remain open.
+
 | Stage                                       | Action and evidence                                                                                                                                                                                                                                                                                  | Stop condition                                                                                                                                                                                                       |
 | ------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 1. Local baseline                           | Record source commit, Node version, chosen PowerShell executable/version, operator and independent reviewer. Check that the setup, retention, transfer and lab scripts and their guides exist in this checkout.                                                                                      | Missing dependency, unresolved review, failing CI or an untrusted host. Do not copy scripts or credential packets between worktrees to bypass it.                                                                    |
