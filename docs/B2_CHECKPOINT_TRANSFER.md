@@ -106,6 +106,15 @@ the recovered application passed acceptance. Success results always have
 `deploymentAuthorized: false`. Errors expose static codes and, for publication,
 whether an upload may exist; raw adapter/provider errors are suppressed.
 
+Recovery after the one-day retention deadline is a **pending live observation**.
+The current engine conservatively requires the recorded Governance retention
+metadata to match exactly, including during recovery. If B2 clears or changes
+that metadata after expiry, the engine will reject the version even if its bytes
+remain intact. Do not claim post-expiry recoverability or weaken this check
+without a separately reviewed provider observation and regression. The current
+owner bridge's six-hour keys cannot establish next-day recovery; a later trial
+needs separately authorized credentials scoped to that original version/prefix.
+
 ## Adapter obligations and remaining live work
 
 The trusted `request` function accepts URL/method/headers/body plus
@@ -146,3 +155,8 @@ reject it. Different known device IDs still fail on every platform. The combined
 transfer/store suite passed 40/40 on both runtimes. Pushed-head Linux/Windows CI
 is recorded separately in the PR. No real B2 key, hosted record, database
 service or running application is used by this suite.
+
+Review follow-up: every store test now registers cleanup for its own synthetic
+checkpoint/key pair, including failed assertions. Before recursive removal it
+checks the canonical OS-temp parent, expected directory prefix, directory type
+and matching ownership marker. It does not scan or remove older test folders.
