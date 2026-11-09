@@ -22,7 +22,9 @@ const { requestB2 } = require('./b2-native-request.cjs');
 // await publishCheckpoint({ ...approvedOptions, request: requestB2 });
 ```
 
-The owner credential bridge remains unimplemented. No administrative credential,
+The separately reviewed [owner bridge](./B2_OWNER_TRANSFER.md) supplies a temporary
+synthetic-session credential through a captured local pipe. This adapter itself
+does not discover credentials. No administrative credential,
 application key, encryption key or environment secret is discovered by this
 adapter. Its authorization header comes only from the engine's explicit request.
 Do not put keys in command arguments, logs or the example above.

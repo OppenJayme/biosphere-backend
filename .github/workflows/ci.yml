@@ -25,6 +25,9 @@ jobs:
         run: node --test test/recovery-readiness.test.cjs test/b2-retention-preflight.test.cjs
       - name: Verify isolated checkpoint transfer and existing store on Windows
         run: node --test test/b2-checkpoint-transfer.test.cjs test/supabase-checkpoint-store.test.cjs test/b2-native-transfer.test.cjs
+      - name: Verify owner DPAPI bridge with synthetic keys and mocked HTTPS
+        timeout-minutes: 2
+        run: node test/b2-owner-bridge.test.cjs --powershell7
       - name: Verify synthetic B2 retention runner with PowerShell 7 (no provider access)
         timeout-minutes: 2
         run: node test/b2-retention-runner.test.cjs --powershell7
