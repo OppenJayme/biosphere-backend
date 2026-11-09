@@ -7,6 +7,14 @@
 
 ## Start here
 
+2026-11-09 [live synthetic B2 trial](./B2_LIVE_SYNTHETIC_TRIAL_20261109.md):
+with owner-authorized temporary keys and synthetic data only, a Governance-locked
+probe resisted both deletion attempts, and one encrypted checkpoint was
+published, recovered by exact version and restored as a full application in a
+fresh process. Post-expiry recovery and cleanup, independent acceptance,
+custody, scheduling and real-source recovery remain open. BAK-002 stays
+Deferred.
+
 2026-11-08 [local recovery-readiness planning CLI](../scripts/recovery/README.md#local-deployment-planning-readiness-check):
 27 isolated synthetic CLI checks passed, including missing/expired decisions,
 release mismatches, capacity budgets and invalid-input/output handling. The
@@ -1087,7 +1095,7 @@ approval is inferred. Earlier dated evidence remains historical.
 | AUD-001 | Filter audit logs by actor, module, action, result, record, and date | Results are protected, stable, bounded, and accurate | In progress; prior role/denial evidence retained. [Live existing-event filters](./AUDIT_LOG_GUIDE.md#live-existing-event-filter-checkpoint---2026-10-30) pass 11 assertions; [toolbar/actor-name/pagination follow-up](./AUDIT_LOG_GUIDE.md#live-toolbar-actor-search-and-pagination-follow-up---2026-10-30) passes 9 more using existing logs. Exact actor-ID/timestamp boundaries, concurrent-pagination/request-ID/access/failure limits and sign-off remain separate. |
 | AUD-002 | Trace Cataloging actions to revision and audit entries               | Actor, affected record, action, outcome, and timestamp match                                                           | In progress; prior evidence plus [five live lifecycle transitions and matching history/audits](./AUDIT_LOG_GUIDE.md#aud-002-approved-lifecycle-traceability-batch---2026-10-23) pass; OBS-001 disposition and independent sign-off pending |
 | BAK-001 | Search and filter backup-history records                             | History loads with correct status/type/creator/date filters                                                            | In progress; empty-history UI plus [16 populated disposable PostgreSQL/HTTP checks including the DEF-025 extension](./BACKUP_HISTORY_GUIDE.md#populated-disposable-postgresql-checkpoint---2026-10-27) pass owner-side and independently reported 16/16; earlier existing HTTP 13/13 also reported; populated browser/provider and full acceptance pending |
-| BAK-002 | Execute and restore a real backup                                    | Approved deployment procedure restores database, required Auth/assets/config and verifies before reporting success | Deferred; [November 5 $0 automation/on-demand-support proposal](./BACKUP_RECOVERY_PROCEDURE.md), [approval gates](./BACKUP_RECOVERY_APPROVAL.md), [Curator checklist](./BACKUP_RECOVERY_CURATOR_CHECKLIST.md) and [blank rehearsal record](./BACKUP_RECOVERY_REHEARSAL_TEMPLATE.md) prepared. No runner/scheduler enabled or backup/restore executed; free-capacity/account/destination feasibility, implementation, institutional approval before deployment and reviewed full recovery before turnover remain. No guaranteed RPO/RTO or permanently staffed support claimed. |
+| BAK-002 | Execute and restore a real backup                                    | Approved deployment procedure restores database, required Auth/assets/config and verifies before reporting success | Deferred; [November 5 $0 automation/on-demand-support proposal](./BACKUP_RECOVERY_PROCEDURE.md), [approval gates](./BACKUP_RECOVERY_APPROVAL.md), [Curator checklist](./BACKUP_RECOVERY_CURATOR_CHECKLIST.md) and [blank rehearsal record](./BACKUP_RECOVERY_REHEARSAL_TEMPLATE.md) prepared. No runner/scheduler enabled and no real-data backup/restore executed. A [November 9 live synthetic B2 trial](./B2_LIVE_SYNTHETIC_TRIAL_20261109.md) passed for its bounded scope only; free-capacity/account/custody feasibility, recovery after retention expiry, implementation, institutional approval before deployment and reviewed full recovery before turnover remain. No guaranteed RPO/RTO or permanently staffed support claimed. |
 
 The [2026-10-23 lifecycle batch](./AUDIT_LOG_GUIDE.md#aud-002-approved-lifecycle-traceability-batch---2026-10-23)
 supersedes the older pending-completion/reopening/public-eligibility statements
