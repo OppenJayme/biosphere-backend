@@ -6,14 +6,16 @@ or active knowledge was changed and no public ask request was made here.
 
 ## Conversational assistant update - 2026-11-09
 
-The SRS FAQ section is being revised, and the user asked for the full
-zero-cost conversational brief. Implemented:
+The SRS FAQ section is being revised, and the full zero-cost conversational
+brief was implemented in backend #281-#286 and frontend #131-#132. John
+Gerozaga approved merging them on 2026-11-09 with AI off. Implemented:
 - small talk and greeting stripping;
 - "did you mean" suggestions;
 - chat history of up to four questions;
 - an optional Gemini wording layer, off by default, with server-side evidence checks.
 
-The 2026-11-08 decision below to skip AI is superseded. See
+The 2026-11-08 decision below to skip AI is superseded in code; the AI wording
+still conflicts with the current SRS until the revision is approved. See
 [the design and approval status](./FAQ_KNOWLEDGE_GUIDE.md#conversational-assistant-with-optional-ai-wording---2026-11-09).
 Next steps:
 1. Approve the revised SRS wording.

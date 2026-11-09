@@ -606,11 +606,15 @@ acceptance remain pending. Deploy backend first: the old backend treats
 
 ## Conversational assistant with optional AI wording - 2026-11-09
 
-The user reported that the SRS FAQ section is being revised and asked for the
-full zero-cost conversational brief, including a free AI model. This replaces
-the 2026-11-08 decision to skip AI. Until the revised SRS is approved, record
-REQ-4.11-04/-05 and BR-18 ("rule-based", stored answers only) as superseded by
-that pending revision, not as satisfied by this design.
+The SRS FAQ section is being revised, and the full zero-cost conversational
+brief, including a free AI model, was implemented in the 2026-11-09
+conversational-assistant PRs (backend #281-#286, frontend #131-#132). John
+Gerozaga approved merging them on 2026-11-09 with `CHATBOT_AI_ENABLED=false`.
+This replaces the 2026-11-08 decision to skip AI in code only. The optional AI
+wording is currently in conflict with REQ-4.11-04/-05 and BR-18 ("rule-based",
+stored answers only); that conflict is resolved only if the revised SRS is
+approved. Until then, this design does not satisfy those requirements and AI
+must stay off.
 
 ### How a visitor message is handled
 
