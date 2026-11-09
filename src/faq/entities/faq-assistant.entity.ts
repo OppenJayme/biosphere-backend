@@ -3,6 +3,9 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 export const FAQ_ASSISTANT_NOTICE =
   'Answers are limited to curator-approved museum information. The assistant cannot approve visits or process campus entry.';
 
+export const FAQ_AI_NOTICE =
+  'Some answers are reworded by AI from approved museum FAQs; check the linked FAQ for the exact wording.';
+
 export const FAQ_NO_MATCH_MESSAGE =
   'No approved answer is available for that question. Please send it through the General Inquiry form so a curator can respond.';
 
@@ -20,6 +23,7 @@ export enum FaqAssistantOutcome {
   CLARIFICATION_NEEDED = 'CLARIFICATION_NEEDED',
   NO_MATCH = 'NO_MATCH',
   VISIT_REQUEST_REDIRECT = 'VISIT_REQUEST_REDIRECT',
+  SMALL_TALK = 'SMALL_TALK',
 }
 
 export enum FaqAssistantRedirect {
@@ -60,6 +64,18 @@ export class FaqAssistantResponse {
 
   @ApiPropertyOptional({ enum: FaqAssistantRedirect, nullable: true })
   redirect!: FaqAssistantRedirect | null;
+
+  @ApiProperty({
+    description:
+      'True when the answer text was reworded by the optional AI layer from the listed approved sources.',
+  })
+  assisted!: boolean;
+
+  @ApiProperty({
+    type: [PublicFaqQuestion],
+    description: 'Approved FAQ entries an AI-assisted answer was based on.',
+  })
+  sources!: PublicFaqQuestion[];
 
   @ApiProperty({ example: FAQ_ASSISTANT_NOTICE })
   notice!: string;

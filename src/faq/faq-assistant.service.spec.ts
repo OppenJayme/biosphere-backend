@@ -1,6 +1,8 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { PrismaService } from '../prisma/prisma.service';
+import { FaqAiComposerService } from './ai/faq-ai-composer.service';
 import {
+  FAQ_AI_NOTICE,
   FAQ_ASSISTANT_NOTICE,
   FAQ_NO_MATCH_MESSAGE,
   FAQ_VISIT_REQUEST_MESSAGE,
@@ -11,6 +13,7 @@ import { FaqAssistantService } from './faq-assistant.service';
 
 const faqDelegate = { findMany: jest.fn() };
 const prismaMock = { faq_entry: faqDelegate };
+const aiMock = { isEnabled: jest.fn(), compose: jest.fn() };
 
 const HOURS = {
   id: '11111111-1111-4111-8111-111111111111',
@@ -34,10 +37,13 @@ describe('FaqAssistantService', () => {
 
   beforeEach(async () => {
     jest.resetAllMocks();
+    aiMock.isEnabled.mockReturnValue(false);
+    aiMock.compose.mockResolvedValue({ kind: 'none' });
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         FaqAssistantService,
         { provide: PrismaService, useValue: prismaMock },
+        { provide: FaqAiComposerService, useValue: aiMock },
       ],
     }).compile();
     service = module.get(FaqAssistantService);
@@ -64,6 +70,8 @@ describe('FaqAssistantService', () => {
       related: [],
       message: null,
       redirect: null,
+      assisted: false,
+      sources: [],
       notice: FAQ_ASSISTANT_NOTICE,
     });
   });
@@ -177,6 +185,8 @@ describe('FaqAssistantService', () => {
       related: [],
       message: FAQ_NO_MATCH_MESSAGE,
       redirect: FaqAssistantRedirect.GENERAL_INQUIRY,
+      assisted: false,
+      sources: [],
       notice: FAQ_ASSISTANT_NOTICE,
     });
     expect(faqDelegate.findMany).toHaveBeenCalledTimes(1);
@@ -218,6 +228,155 @@ describe('FaqAssistantService', () => {
     expect(result).toEqual({
       items: [{ id: HOURS.id, question: HOURS.question, category: 'Visit' }],
       notice: FAQ_ASSISTANT_NOTICE,
+    });
+  });
+  describe('conversational handling', () => {
+    // Shaped like the live public FAQ set (questions from the 9 Nov widget).
+    const entry = (n: number, question: string, answer: string) => ({
+      id: `aaaaaaaa-aaaa-4aaa-8aaa-${String(n).padStart(12, '0')}`,
+      question,
+      answer,
+      alternative_wording: [] as string[],
+      keywords: [] as string[],
+      category: 'Visit',
+    });
+    const LOCATION = entry(
+      1,
+      'Where is the museum located?',
+      'The museum is on the USC Talamban Campus.',
+    );
+    const LIVE_SET = [
+      LOCATION,
+      entry(2, 'How much is admission?', 'Approved admission answer.'),
+      entry(3, 'Are photographs and videos allowed?', 'Approved photo answer.'),
+      entry(4, 'May I touch specimens or displays?', 'Approved touch answer.'),
+      entry(
+        5,
+        'When is an appointment required?',
+        'Approved appointment answer.',
+      ),
+      entry(
+        6,
+        'What is the maximum tour batch size?',
+        'Approved batch answer.',
+      ),
+    ];
+
+    it('greets without reading knowledge or calling AI', async () => {
+      const result = await service.ask({ question: 'Hello' });
+      expect(result).toMatchObject({
+        outcome: FaqAssistantOutcome.SMALL_TALK,
+        answer: null,
+        redirect: null,
+        assisted: false,
+      });
+      expect(result.message).toContain('Hello!');
+      expect(faqDelegate.findMany).not.toHaveBeenCalled();
+      expect(aiMock.compose).not.toHaveBeenCalled();
+    });
+
+    it('answers a question that follows a greeting', async () => {
+      faqDelegate.findMany.mockResolvedValue(LIVE_SET);
+      const result = await service.ask({
+        question: 'Hello! Where is the museum located?',
+      });
+      expect(result.outcome).toBe(FaqAssistantOutcome.ANSWERED);
+      expect(result.answer?.id).toBe(LOCATION.id);
+      expect(aiMock.compose).not.toHaveBeenCalled();
+    });
+
+    it('suggests the approved question for terse phrasing when AI is off', async () => {
+      faqDelegate.findMany.mockResolvedValue(LIVE_SET);
+      const result = await service.ask({ question: 'Museum where' });
+      expect(result.outcome).toBe(FaqAssistantOutcome.NO_MATCH);
+      expect(result.answer).toBeNull();
+      expect(result.related[0]?.id).toBe(LOCATION.id);
+    });
+
+    it('routes "Book us for tomorrow" to the Visit Request form', async () => {
+      faqDelegate.findMany.mockResolvedValue(LIVE_SET);
+      const result = await service.ask({ question: 'Book us for tomorrow' });
+      expect(result).toMatchObject({
+        outcome: FaqAssistantOutcome.VISIT_REQUEST_REDIRECT,
+        redirect: FaqAssistantRedirect.VISIT_REQUEST,
+        message: FAQ_VISIT_REQUEST_MESSAGE,
+      });
+    });
+
+    it('uses a validated AI answer only when there is no direct match', async () => {
+      faqDelegate.findMany.mockResolvedValue(LIVE_SET);
+      aiMock.isEnabled.mockReturnValue(true);
+      aiMock.compose.mockResolvedValue({
+        kind: 'answer',
+        text: 'It is on the USC Talamban Campus.',
+        sourceIds: [LOCATION.id],
+      });
+
+      const result = await service.ask(
+        { question: 'Museum where', history: ['Hi'] },
+        '203.0.113.5',
+      );
+
+      expect(result).toEqual({
+        outcome: FaqAssistantOutcome.ANSWERED,
+        answer: {
+          id: LOCATION.id,
+          question: LOCATION.question,
+          category: 'Visit',
+          answer: 'It is on the USC Talamban Campus.',
+        },
+        related: [],
+        message: null,
+        redirect: null,
+        assisted: true,
+        sources: [
+          { id: LOCATION.id, question: LOCATION.question, category: 'Visit' },
+        ],
+        notice: `${FAQ_ASSISTANT_NOTICE} ${FAQ_AI_NOTICE}`,
+      });
+      const call = aiMock.compose.mock.calls[0][0] as {
+        sources: Array<{ id: string }>;
+        history: string[];
+        clientKey: string;
+      };
+      expect(call.sources[0].id).toBe(LOCATION.id);
+      expect(call.sources.length).toBeLessThanOrEqual(5);
+      expect(call.history).toEqual(['Hi']);
+      expect(call.clientKey).toBe('203.0.113.5');
+
+      // A direct match keeps the curator's exact wording.
+      aiMock.compose.mockClear();
+      const direct = await service.ask({
+        question: 'Where is the museum located?',
+      });
+      expect(direct.answer?.answer).toBe(LOCATION.answer);
+      expect(direct.assisted).toBe(false);
+      expect(aiMock.compose).not.toHaveBeenCalled();
+    });
+
+    it('falls back to General Inquiry with suggestions when AI declines', async () => {
+      faqDelegate.findMany.mockResolvedValue(LIVE_SET);
+      aiMock.isEnabled.mockReturnValue(true);
+      const result = await service.ask({ question: 'Museum where' });
+      expect(result).toMatchObject({
+        outcome: FaqAssistantOutcome.NO_MATCH,
+        answer: null,
+        assisted: false,
+        redirect: FaqAssistantRedirect.GENERAL_INQUIRY,
+      });
+      expect(result.related[0]?.id).toBe(LOCATION.id);
+    });
+
+    it('never sends a stale explicit choice to AI', async () => {
+      faqDelegate.findMany.mockResolvedValue(LIVE_SET);
+      aiMock.isEnabled.mockReturnValue(true);
+      const result = await service.ask({
+        question: 'Where is the museum located?',
+        selectedFaqId: '99999999-9999-4999-8999-999999999999',
+      });
+      expect(result.outcome).toBe(FaqAssistantOutcome.NO_MATCH);
+      expect(result.related).toEqual([]);
+      expect(aiMock.compose).not.toHaveBeenCalled();
     });
   });
 });

@@ -265,11 +265,13 @@ describe('Synthetic FAQ answer-quality evaluation through public HTTP', () => {
     expect(item.outcomes).toContain(body.outcome);
     expect(Object.keys(body).sort()).toEqual([
       'answer',
+      'assisted',
       'message',
       'notice',
       'outcome',
       'redirect',
       'related',
+      'sources',
     ]);
     expect(body.notice).toContain('curator-approved museum information');
     expect(body.related.length).toBeLessThanOrEqual(3);
