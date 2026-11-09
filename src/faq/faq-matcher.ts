@@ -365,7 +365,11 @@ export function matchFaqEntries<T extends FaqMatchCandidate>(
  * this to point the visitor at the Visit Request form (SRS 4.11.2).
  */
 export function isVisitRequestTransaction(query: string): boolean {
-  const tokens = normalizeFaqText(query).split(' ').map(stem);
+  const normalized = normalizeFaqText(query);
+  // "Book us for tomorrow": booking a party, with no visit word.
+  if (/\b(?:book|reserve) (?:us|me|our|my|a slot|a tour)\b/.test(normalized))
+    return true;
+  const tokens = normalized.split(' ').map(stem);
   return (
     tokens.some((token) => VISIT_TRANSACTION_TERMS.has(token)) &&
     tokens.some((token) => VISIT_SUBJECT_TERMS.has(token))
@@ -379,4 +383,108 @@ export function isVisitRequestChange(query: string): boolean {
     isVisitRequestTransaction(query) &&
     tokens.some((token) => VISIT_CHANGE_TERMS.has(token))
   );
+}
+
+// Retrieval keeps question words ("where", "how", "much") and domain words
+// ("museum"): inverse document frequency already discounts words that appear
+// in most entries, and question words are what separate "where" from "when".
+const RETRIEVAL_STOPWORDS = new Set([
+  'a',
+  'an',
+  'and',
+  'are',
+  'at',
+  'be',
+  'can',
+  'do',
+  'does',
+  'for',
+  'i',
+  'in',
+  'is',
+  'it',
+  'me',
+  'my',
+  'of',
+  'on',
+  'or',
+  'our',
+  'please',
+  'the',
+  'to',
+  'us',
+  'we',
+  'you',
+  'your',
+]);
+
+function retrievalTokens(text: string): string[] {
+  const normalized = normalizeFaqText(text);
+  if (!normalized) return [];
+  return normalized
+    .split(' ')
+    .filter((token) => !RETRIEVAL_STOPWORDS.has(token))
+    .map(stem);
+}
+
+export interface FaqRetrievalCandidate extends FaqMatchCandidate {
+  answer: string;
+}
+
+/**
+ * Ranks ACTIVE entries by inverse-document-frequency weighted token overlap.
+ * Curator questions, alternative wording and keywords count double; the
+ * answer text counts once. This only chooses which approved entries to offer
+ * as suggestions or as AI source excerpts; it never decides an answer itself.
+ * A token found in more than half of the entries is ignored as uninformative.
+ * The same scope rule as direct matching applies to `scopeQuery` (the
+ * visitor's own words), so "not asking about fees" never offers fee entries.
+ */
+export function retrieveFaqCandidates<T extends FaqRetrievalCandidate>(
+  query: string,
+  candidates: T[],
+  limit: number,
+  scopeQuery: string = query,
+): Array<{ entry: T; score: number }> {
+  const queryTokens = [...new Set(retrievalTokens(query))];
+  if (queryTokens.length === 0 || candidates.length === 0) return [];
+  const documents = candidates.map((entry) => {
+    const primary = new Set(
+      [entry.question, ...entry.alternativeWording, ...entry.keywords].flatMap(
+        retrievalTokens,
+      ),
+    );
+    const secondary = new Set(retrievalTokens(entry.answer));
+    return { entry, primary, secondary };
+  });
+  const total = documents.length;
+  const idf = new Map<string, number>();
+  for (const token of queryTokens) {
+    const df = documents.filter(
+      (doc) => doc.primary.has(token) || doc.secondary.has(token),
+    ).length;
+    if (df > 0 && df / total <= 0.5) {
+      idf.set(token, Math.log(1 + total / df));
+    }
+  }
+  return documents
+    .map(({ entry, primary, secondary }) => ({
+      entry,
+      score: queryTokens.reduce((sum, token) => {
+        const weight = idf.get(token) ?? 0;
+        if (primary.has(token)) return sum + 2 * weight;
+        if (secondary.has(token)) return sum + weight;
+        return sum;
+      }, 0),
+    }))
+    .filter(
+      ({ entry, score }) => score > 0 && hasApprovedScope(scopeQuery, entry),
+    )
+    .sort(
+      (left, right) =>
+        right.score - left.score ||
+        left.entry.question.localeCompare(right.entry.question) ||
+        left.entry.id.localeCompare(right.entry.id),
+    )
+    .slice(0, limit);
 }

@@ -5,6 +5,7 @@ import {
   matchFaqEntries,
   normalizeFaqText,
   parseFaqFollowup,
+  retrieveFaqCandidates,
   scoreFaqCandidate,
   tokenizeFaqText,
 } from './faq-matcher';
@@ -154,5 +155,48 @@ describe('parseFaqFollowup', () => {
     expect(parseFaqFollowup('Android app?')).toBeNull();
     expect(parseFaqFollowup('Tell me about the museum')).toBeNull();
     expect(parseFaqFollowup('What time does the museum open?')).toBeNull();
+  });
+});
+
+describe('retrieveFaqCandidates', () => {
+  const doc = (id: string, question: string) => ({
+    id,
+    question,
+    answer: 'Approved answer.',
+    alternativeWording: [] as string[],
+    keywords: [] as string[],
+  });
+  const docs = [
+    doc('loc', 'Where is the museum located?'),
+    doc('fee', 'How much is admission?'),
+    doc('photo', 'Are photographs and videos allowed at the museum?'),
+    doc('touch', 'May I touch specimens or displays in the museum?'),
+  ];
+
+  it('ranks by rare words, keeping question words like "where"', () => {
+    expect(retrieveFaqCandidates('Museum where', docs, 3)[0].entry.id).toBe(
+      'loc',
+    );
+    expect(
+      retrieveFaqCandidates('how much to get in', docs, 3)[0].entry.id,
+    ).toBe('fee');
+  });
+
+  it('ignores words that most entries share and caps the result', () => {
+    expect(retrieveFaqCandidates('museum', docs, 3)).toEqual([]);
+    expect(retrieveFaqCandidates('', docs, 3)).toEqual([]);
+    expect(
+      retrieveFaqCandidates('where much photographs touch', docs, 2),
+    ).toHaveLength(2);
+  });
+});
+
+describe('isVisitRequestTransaction booking phrasing', () => {
+  it('treats "book us" as a booking request but not a mention of books', () => {
+    expect(isVisitRequestTransaction('Book us for tomorrow')).toBe(true);
+    expect(isVisitRequestTransaction('Can you reserve a slot?')).toBe(true);
+    expect(isVisitRequestTransaction('Do you sell books about birds?')).toBe(
+      false,
+    );
   });
 });
