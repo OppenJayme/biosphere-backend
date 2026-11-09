@@ -75,6 +75,17 @@ The byte cap includes payload buffering, not a measured whole-process RAM or
 CPU guarantee. Source encryption, checkpoint loading, TLS and the caller have
 additional memory costs. Capacity and runner-budget approval remain pending.
 
+The 64 MiB ceiling is not a promise that an upload fits the 20-second deadline.
+Before an authorized live publication, measure the actual ciphertext size and
+conservative available upstream throughput on the intended connection. At
+64 MiB, body transfer alone needs approximately 26.8 Mbit/s over 20 seconds,
+leaving no time for connection setup or response/readback. Use a smaller
+synthetic checkpoint and a comfortable time margin; if feasibility is unknown,
+stop before publication. Do not use a live upload to benchmark the link. An
+upload timeout may follow a remote commit and retains `uploadMayExist: true`;
+never discard that receipt or retry publication automatically. The deadline
+remains bounded rather than silently changing for a larger payload.
+
 ## Verification boundary
 
 ```powershell
