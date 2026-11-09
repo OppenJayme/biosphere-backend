@@ -79,14 +79,14 @@ describe('GeminiProvider', () => {
     fetchMock.mockImplementation(() => Promise.resolve(reply(candidate('{}'))));
     await provider({
       GEMINI_API_KEY: 'k',
-      GEMINI_MODEL: 'gemini-3.5-flash-lite',
+      GEMINI_MODEL: 'gemini-3.1-flash-lite',
     }).generateJson(REQUEST);
     await provider({
       GEMINI_API_KEY: 'k',
       GEMINI_MODEL: '../../evil?x=1',
     }).generateJson(REQUEST);
     expect(fetchMock.mock.calls[0][0]).toContain(
-      '/models/gemini-3.5-flash-lite:',
+      '/models/gemini-3.1-flash-lite:',
     );
     expect(fetchMock.mock.calls[1][0]).toContain(
       `/models/${DEFAULT_GEMINI_MODEL}:`,
@@ -108,6 +108,14 @@ describe('GeminiProvider', () => {
       .catch((e: unknown) => e)) as AiProviderError;
     expect(error).toBeInstanceOf(AiProviderError);
     expect(error.kind).toBe(kind);
+  });
+
+  it('keeps the HTTP status of a failed request for diagnostics', async () => {
+    fetchMock.mockResolvedValue(reply({ error: {} }, 404));
+    const error = (await provider({ GEMINI_API_KEY: 'k' })
+      .generateJson(REQUEST)
+      .catch((e: unknown) => e)) as AiProviderError;
+    expect(error).toMatchObject({ kind: 'unavailable', httpStatus: 404 });
   });
 
   it('reports Retry-After and timeouts', async () => {

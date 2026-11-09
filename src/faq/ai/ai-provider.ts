@@ -38,6 +38,8 @@ export class AiProviderError extends Error {
   constructor(
     readonly kind: AiProviderErrorKind,
     readonly retryAfterMs?: number,
+    /** Provider HTTP status, for diagnostics only (e.g. 404 retired model). */
+    readonly httpStatus?: number,
   ) {
     super(`AI provider error: ${kind}`);
     this.name = 'AiProviderError';
