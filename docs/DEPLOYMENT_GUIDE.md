@@ -53,6 +53,7 @@ results. Set the file mode to 600.
 | `PORT` | `20312` (pm2 also sets it) |
 | `HOST` | `127.0.0.1` (pm2 also sets it) |
 | `TRUST_PROXY` | `loopback` (the default; see `docs/RATE_LIMITING_GUIDE.md`) |
+| `SWAGGER_ENABLED` | Leave unset. pm2 sets `NODE_ENV=production`, so `/docs` is off and the route list is not published. Set `true` only for a deliberate, temporary check. |
 | `DATABASE_URL`, `DIRECT_URL` | The Supabase pooler URLs |
 | `FRONTEND_URL` | `https://biosphere.dcism.org` |
 | `PUBLIC_SITE_URL` | `https://biosphere.dcism.org`. QR labels encode this, so set it before printing any label. |
@@ -144,6 +145,19 @@ it. Then repeat the smoke checks.
 
 ## 6. Rolling back
 
-Check out the previous commit in the affected checkout, rebuild it and restart
-it with pm2. A migration that was already applied is not rolled back this way.
-Ask the migration's author before changing the database by hand.
+In the affected checkout, check out the previous commit, then run `npm ci`
+before rebuilding, because `package-lock.json` may differ between the two
+commits. Restart it with pm2 and repeat the smoke checks.
+
+```bash
+cd ~/apps/biosphere-backend      # or ~/apps/biosphere-frontend
+git checkout <previous-commit>
+npm ci && npm run build
+pm2 restart biosphere-api        # or biosphere-web
+```
+
+The checkout is now detached from `develop`, so section 5's `git pull` will
+fail. Run `git checkout develop` once the fix is merged, then update as usual.
+
+A migration that was already applied is not rolled back this way. Ask the
+migration's author before changing the database by hand.

@@ -18,7 +18,8 @@ Inspect the relevant controller, DTO, service and tests before changing a flow.
 - `src/prisma/prisma.service.ts` uses the pg adapter with `DATABASE_URL`.
   `prisma.config.ts` uses `DIRECT_URL` for CLI operations and declares Supabase
   Auth objects external. The existing database has already been baselined.
-- `src/main.ts` configures global validation, CORS and Swagger at `/docs`.
+- `src/main.ts` configures global validation, CORS and Swagger at `/docs`
+  (off when `NODE_ENV=production` unless `SWAGGER_ENABLED=true`).
   It listens on `PORT`, defaulting to 3000; `.env.example` uses 3001 to leave
   3000 for the frontend. Never copy real environment values into docs.
 - Global throttling, Supabase authentication and role guards are registered in

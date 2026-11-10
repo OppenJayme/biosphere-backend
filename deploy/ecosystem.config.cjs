@@ -29,7 +29,7 @@ module.exports = {
       name: 'biosphere-web',
       cwd: frontendDir,
       script: 'node_modules/next/dist/bin/next',
-      // Bind to loopback: only Apache should reach the app directly.
+      // Bind to loopback: not reachable from outside except through Apache.
       args: 'start -p 20311 -H 127.0.0.1',
       env: { NODE_ENV: 'production' },
       max_memory_restart: '700M',

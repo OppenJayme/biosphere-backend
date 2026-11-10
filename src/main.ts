@@ -5,6 +5,7 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import { resolveCorsOrigins } from './config/cors.config';
 import { resolveTrustProxy } from './config/proxy.config';
+import { resolveSwaggerEnabled } from './config/swagger.config';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
@@ -24,18 +25,22 @@ async function bootstrap() {
 
   app.enableCors({ origin: resolveCorsOrigins(process.env) });
 
-  const swaggerConfig = new DocumentBuilder()
-    .setTitle('BioSphere API')
-    .setDescription(
-      'REST API for the BioSphere biological museum management system',
-    )
-    .setVersion('0.1')
-    .build();
-  const swaggerDocument = SwaggerModule.createDocument(app, swaggerConfig);
-  SwaggerModule.setup('docs', app, swaggerDocument);
+  // Off by default in production (see swagger.config.ts).
+  if (resolveSwaggerEnabled(process.env)) {
+    const swaggerConfig = new DocumentBuilder()
+      .setTitle('BioSphere API')
+      .setDescription(
+        'REST API for the BioSphere biological museum management system',
+      )
+      .setVersion('0.1')
+      .build();
+    const swaggerDocument = SwaggerModule.createDocument(app, swaggerConfig);
+    SwaggerModule.setup('docs', app, swaggerDocument);
+  }
 
-  // HOST is optional; the DCISM server binds to 127.0.0.1 so only Apache can
-  // reach the API.
+  // HOST is optional. The DCISM server binds to 127.0.0.1, so the API is not
+  // reachable from outside except through Apache. Other processes and accounts
+  // on the same server can still connect directly (see RATE_LIMITING_GUIDE.md).
   const host = process.env.HOST?.trim();
   const port = process.env.PORT ?? 3000;
   await (host ? app.listen(port, host) : app.listen(port));
