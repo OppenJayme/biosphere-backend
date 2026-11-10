@@ -1,0 +1,10 @@
+{
+  "moduleFileExtensions": ["js", "json", "ts"],
+  "rootDir": ".",
+  "testEnvironment": "node",
+  "testRegex": "faq-review\\.db-spec\\.ts$",
+  "testTimeout": 60000,
+  "transform": { "^.+\\.(t|j)s$": "ts-jest" },
+  "transformIgnorePatterns": ["node_modules/(?!(@nestjs/config)/)"],
+  "moduleDirectories": ["node_modules", "<rootDir>/.."]
+}

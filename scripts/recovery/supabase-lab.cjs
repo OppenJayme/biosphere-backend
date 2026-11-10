@@ -1,0 +1,882 @@
+#!/usr/bin/env node
+'use strict';
+// Synthetic local lab only. Never loads dotenv, Supabase CLI state or app providers.
+const { docker, isolatedEnvironment } = require('./supabase-lab-docker.cjs');
+const {
+  randomUUID,
+  randomBytes,
+  createHmac,
+  createHash,
+} = require('node:crypto');
+const os = require('node:os');
+const {
+  program: bridgeProgram,
+  waitForSqlGateway,
+} = require('./supabase-lab-bridge.cjs');
+const biosphere = require('./supabase-biosphere-profile.cjs');
+const images = require('./supabase-lab-images.json').images;
+const {
+  requireAnonymousObjectHidden,
+} = require('./supabase-storage-contract.cjs');
+const {
+  POLICY_SQL,
+  inventory,
+  recoverPlatform,
+  capturePlatform,
+  restorePlatform,
+  validateCapturedPacket,
+} = require('./supabase-platform-recovery.cjs');
+const {
+  createWorkspace,
+  assertCaptureAvailable,
+  saveCheckpoint,
+  loadCheckpoint,
+} = require('./supabase-checkpoint-store.cjs');
+const env = isolatedEnvironment();
+const owner = randomUUID();
+const label = 'biosphere.supabase-lab.owner';
+const containers = [];
+const networks = [];
+const expected = new Map();
+let probeId;
+let phase = 'arguments';
+let fullProfile = false;
+let outsideNetwork;
+function check(value, code) {
+  if (!value) throw Object.assign(new Error(code), { safeCode: code });
+}
+function inspect(id, kind = 'container') {
+  return JSON.parse(docker([kind, 'inspect', id]))[0];
+}
+function network(internal) {
+  const id = docker([
+    'network',
+    'create',
+    '--driver',
+    'bridge',
+    '--label',
+    `${label}=${owner}`,
+    ...(internal ? ['--internal'] : []),
+    `biosphere-lab-${owner}-${internal ? 'inside' : 'counter'}`,
+  ]);
+  networks.push(id);
+  check(inspect(id, 'network').Internal === internal, 'NETWORK_MODE_MISMATCH');
+  return id;
+}
+function create({
+  name,
+  image,
+  net,
+  port,
+  memory = '128m',
+  tmpfs = [],
+  vars = {},
+  entrypoint,
+  command = [],
+}) {
+  const args = [
+    'create',
+    '--name',
+    `biosphere-lab-${owner}-${name}`,
+    '--label',
+    `${label}=${owner}`,
+    '--network',
+    net,
+    '--network-alias',
+    name,
+    '--memory',
+    memory,
+    '--memory-swap',
+    memory,
+    '--cpus',
+    '1',
+    '--pids-limit',
+    '256',
+    '--log-driver',
+    'none',
+    '--security-opt',
+    'no-new-privileges',
+    ...tmpfs.flatMap((value) => ['--tmpfs', value]),
+    ...Object.entries(vars).flatMap(([key, value]) => [
+      '--env',
+      `${key}=${value}`,
+    ]),
+    // Docker CLI may otherwise inject configured proxy URLs/credentials.
+    ...[
+      'HTTP_PROXY',
+      'HTTPS_PROXY',
+      'ALL_PROXY',
+      'NO_PROXY',
+      'http_proxy',
+      'https_proxy',
+      'all_proxy',
+      'no_proxy',
+    ].flatMap((key) => ['--env', `${key}=`]),
+    ...(port ? ['--publish', `127.0.0.1::${port}`] : []),
+    ...(entrypoint ? ['--entrypoint', entrypoint] : []),
+    image,
+    ...command,
+  ];
+  const id = docker(args);
+  check(/^[0-9a-f]{64}$/.test(id), 'INVALID_CONTAINER_ID');
+  containers.push(id);
+  expected.set(id, {
+    net,
+    port,
+    image: inspect(image, 'image').Id,
+    memory: Number.parseInt(memory, 10) * 1024 ** 2,
+  });
+  validate(id, false);
+  docker(['start', id]);
+  validate(id, true);
+  return id;
+}
+function validate(id, running) {
+  const actual = inspect(id);
+  const spec = expected.get(id);
+  check(
+    actual.Id === id &&
+      actual.Config.Labels[label] === owner &&
+      actual.Image === spec.image &&
+      actual.State.Running === running &&
+      actual.HostConfig.LogConfig.Type === 'none' &&
+      actual.HostConfig.Privileged === false &&
+      !actual.HostConfig.Binds?.length &&
+      actual.HostConfig.Memory === spec.memory &&
+      actual.HostConfig.MemorySwap === spec.memory &&
+      actual.HostConfig.NanoCpus === 1000000000 &&
+      actual.HostConfig.PidsLimit === 256 &&
+      actual.HostConfig.PublishAllPorts === false &&
+      actual.Config.Env.filter((value) =>
+        /^(https?|all|no)_proxy=/i.test(value),
+      ).every((value) => value.endsWith('=')) &&
+      actual.Mounts.every((mount) => mount.Type === 'tmpfs'),
+    'CONTAINER_CONTAINMENT_MISMATCH',
+  );
+  const membership = Object.values(actual.NetworkSettings.Networks);
+  const allowedNetworks = [spec.net, ...(spec.extraNet ? [spec.extraNet] : [])];
+  check(
+    actual.HostConfig.NetworkMode === spec.net &&
+      membership.length === allowedNetworks.length &&
+      (!running ||
+        membership.every((n) => allowedNetworks.includes(n.NetworkID))),
+    'NETWORK_MEMBERSHIP_MISMATCH',
+  );
+  const bindings = Object.entries(actual.HostConfig.PortBindings ?? {});
+  check(
+    spec.port
+      ? bindings.length === 1 &&
+          bindings[0][0] === `${spec.port}/tcp` &&
+          bindings[0][1].length === 1 &&
+          bindings[0][1][0].HostIp === '127.0.0.1'
+      : bindings.length === 0,
+    'PORT_BINDING_MISMATCH',
+  );
+}
+function endpoint(id, port) {
+  const binding = inspect(id).NetworkSettings.Ports[`${port}/tcp`];
+  check(
+    binding?.length === 1 &&
+      binding[0].HostIp === '127.0.0.1' &&
+      /^\d+$/.test(binding[0].HostPort),
+    'UNSAFE_ENDPOINT',
+  );
+  return `http://127.0.0.1:${binding[0].HostPort}`;
+}
+async function request(url, options = {}) {
+  const parsed = new URL(url);
+  check(
+    parsed.hostname === '127.0.0.1' && parsed.protocol === 'http:',
+    'NON_LOOPBACK_REQUEST',
+  );
+  return fetch(url, {
+    ...options,
+    redirect: 'error',
+    signal: AbortSignal.timeout(3000),
+  });
+}
+async function wait(url, transport = request) {
+  const deadline = Date.now() + 30000;
+  while (Date.now() < deadline) {
+    try {
+      const result = await transport(url);
+      if (result.ok) return;
+    } catch {
+      /* bounded readiness polling */
+    }
+    await new Promise((resolve) => setTimeout(resolve, 500));
+  }
+  check(false, 'SERVICE_NOT_READY');
+}
+async function containment(inside, outside) {
+  const counterScript = `let hits=0; require('http').createServer((q,s)=>{if(q.url==='/hit')hits++;s.end(String(hits))}).listen(8080,'0.0.0.0')`;
+  const counter = create({
+    name: 'counter',
+    image: images.storage.image,
+    net: outside,
+    port: 8080,
+    entrypoint: 'node',
+    command: ['-e', counterScript],
+  });
+  const probe = create({
+    name: 'probe',
+    image: images.storage.image,
+    net: inside,
+    entrypoint: 'node',
+    command: ['-e', 'setInterval(()=>{},10000)'],
+  });
+  probeId = probe;
+  const counterUrl = endpoint(counter, 8080);
+  await wait(`${counterUrl}/count`);
+  check(
+    (await (await request(`${counterUrl}/hit`)).text()) === '1',
+    'COUNTER_CONTROL_FAILED',
+  );
+  const counterIp = Object.values(inspect(counter).NetworkSettings.Networks)[0]
+    .IPAddress;
+  check(/^\d+\.\d+\.\d+\.\d+$/.test(counterIp), 'INVALID_COUNTER_ADDRESS');
+  const probeResult = docker([
+    'exec',
+    probe,
+    'node',
+    '-e',
+    `fetch('http://${counterIp}:8080/hit',{signal:AbortSignal.timeout(1500),redirect:'error'}).then(()=>{console.log('REACHED');process.exitCode=1}).catch(()=>console.log('BLOCKED'))`,
+  ]);
+  check(
+    probeResult === 'BLOCKED' &&
+      (await (await request(`${counterUrl}/count`)).text()) === '1',
+    'EGRESS_NOT_BLOCKED',
+  );
+  return { containment: 'PASS', outsideControlHits: 1, blockedAttemptHits: 0 };
+}
+async function labBridge(inside, prefix, kind, password) {
+  const id = create({
+    name: prefix + kind + '-gateway',
+    image: images.storage.image,
+    net: outsideNetwork,
+    port: 8080,
+    entrypoint: 'node',
+    command: ['-e', bridgeProgram(kind, prefix)],
+  });
+  check(
+    inspect(inside, 'network').Internal === true,
+    'BRIDGE_INTERNAL_NETWORK_REQUIRED',
+  );
+  docker(['network', 'connect', inside, id]);
+  expected.get(id).extraNet = inside;
+  validate(id, true);
+  const url = endpoint(id, 8080);
+  if (kind === 'sql')
+    await waitForSqlGateway(url, password, () => validate(id, true));
+  if (kind === 'http') {
+    await wait(url + '/auth/v1/health');
+    check(
+      (await request(url + '/http://example.invalid/')).status === 404,
+      'BRIDGE_FORWARDING_REFUSED',
+    );
+  }
+  return { id, url };
+}
+async function platform(inside, prefix = '') {
+  // Private services never publish ports. HTTP crosses their real API boundary
+  // from the single-network owned probe; HTTP request payloads use stdin.
+  // Synthetic DB passwords/JWT config also use Docker argv/environment and
+  // remain visible to local process/Docker inspection. Never use real secrets.
+  const serviceRequest = async (url, options = {}) => {
+    check(
+      new RegExp(
+        '^http://(' + prefix + 'auth:9999|' + prefix + 'storage:5000)/',
+      ).test(url),
+      'UNSAFE_SERVICE_URL',
+    );
+    const payload = {
+      url,
+      options: {
+        ...options,
+        ...(Buffer.isBuffer(options.body)
+          ? { body: { base64: options.body.toString('base64') } }
+          : {}),
+      },
+    };
+    const script = `const fs=require('fs');const q=JSON.parse(fs.readFileSync(0,'utf8'));
+      if(q.options.body?.base64)q.options.body=Buffer.from(q.options.body.base64,'base64');
+      fetch(q.url,{...q.options,redirect:'error',signal:AbortSignal.timeout(3000)})
+      .then(async r=>console.log(JSON.stringify({status:r.status,body:Buffer.from(await r.arrayBuffer()).toString('base64')})))
+      .catch(()=>process.exitCode=1);`;
+    const result = JSON.parse(
+      docker(
+        ['exec', '-i', probeId, 'node', '-e', script],
+        JSON.stringify(payload),
+      ),
+    );
+    return new Response(Buffer.from(result.body, 'base64'), {
+      status: result.status,
+    });
+  };
+  const password = randomBytes(24).toString('hex');
+  const secret = randomBytes(32).toString('hex');
+  const make = (options) => create({ ...options, name: prefix + options.name });
+  const token = (role) => {
+    const header = Buffer.from(
+      JSON.stringify({ alg: 'HS256', typ: 'JWT' }),
+    ).toString('base64url');
+    const payload = Buffer.from(
+      JSON.stringify({
+        role,
+        iss: 'supabase',
+        aud: 'authenticated',
+        exp: Math.floor(Date.now() / 1000) + 3600,
+      }),
+    ).toString('base64url');
+    const value = `${header}.${payload}`;
+    return `${value}.${createHmac('sha256', secret).update(value).digest('base64url')}`;
+  };
+  phase = 'database-start';
+  const db = make({
+    name: 'database',
+    image: images.database.image,
+    net: inside,
+    memory: '768m',
+    tmpfs: ['/var/lib/postgresql/data:rw,size=512m'],
+    vars: {
+      POSTGRES_PASSWORD: password,
+      POSTGRES_DB: 'postgres',
+      JWT_EXP: '3600',
+    },
+    command: [
+      'postgres',
+      '-c',
+      'config_file=/etc/postgresql/postgresql.conf',
+      '-c',
+      'log_min_messages=fatal',
+    ],
+  });
+  const sql = (statement) =>
+    docker(
+      [
+        'exec',
+        '-i',
+        '--env',
+        `PGPASSWORD=${password}`,
+        db,
+        'psql',
+        '-X',
+        '-qAt',
+        '-v',
+        'ON_ERROR_STOP=1',
+        '-h',
+        '127.0.0.1',
+        '-U',
+        'supabase_admin',
+        '-d',
+        'postgres',
+      ],
+      statement,
+    );
+  let ready = false;
+  const deadline = Date.now() + 60000;
+  while (Date.now() < deadline) {
+    check(inspect(db).State.Running, 'DATABASE_EXITED');
+    try {
+      ready = sql('SELECT 1;') === '1';
+      if (ready) break;
+    } catch {
+      /* owned database startup */
+    }
+    await new Promise((resolve) => setTimeout(resolve, 500));
+  }
+  check(ready, 'DATABASE_NOT_READY');
+  phase = 'database-roles';
+  // Equivalent to the selected release's roles.sql; generated hexadecimal input only.
+  sql(`ALTER USER authenticator WITH PASSWORD '${password}';
+    ALTER USER supabase_auth_admin WITH PASSWORD '${password}';
+    ALTER USER supabase_storage_admin WITH PASSWORD '${password}';`);
+  phase = 'auth-start';
+  const auth = make({
+    name: 'auth',
+    image: images.auth.image,
+    net: inside,
+    memory: '256m',
+    entrypoint: '/bin/sh',
+    command: ['-c', 'exec auth > /tmp/lab-startup.log 2>&1'],
+    vars: {
+      GOTRUE_API_HOST: '0.0.0.0',
+      GOTRUE_API_PORT: '9999',
+      API_EXTERNAL_URL: `http://${prefix}auth:9999`,
+      GOTRUE_SITE_URL: 'http://127.0.0.1',
+      GOTRUE_DB_DRIVER: 'postgres',
+      GOTRUE_DB_DATABASE_URL: `postgres://supabase_auth_admin:${password}@${prefix}database:5432/postgres`,
+      GOTRUE_JWT_SECRET: secret,
+      GOTRUE_JWT_EXP: '3600',
+      GOTRUE_JWT_AUD: 'authenticated',
+      GOTRUE_JWT_ADMIN_ROLES: 'service_role',
+      GOTRUE_JWT_DEFAULT_GROUP_NAME: 'authenticated',
+      GOTRUE_DISABLE_SIGNUP: 'true',
+      GOTRUE_EXTERNAL_EMAIL_ENABLED: 'true',
+      GOTRUE_EXTERNAL_PHONE_ENABLED: 'false',
+      GOTRUE_MAILER_AUTOCONFIRM: 'true',
+      GOTRUE_SMTP_HOST: '127.0.0.1',
+      GOTRUE_SMTP_PORT: '1',
+      GOTRUE_SMTP_ADMIN_EMAIL: 'lab@example.invalid',
+      GOTRUE_SMTP_LOGGING_ENABLED: 'false',
+    },
+  });
+  validate(auth, true);
+  const authUrl = `http://${prefix}auth:9999`;
+  await wait(`${authUrl}/health`, serviceRequest);
+  phase = 'storage-start';
+  const rest = make({
+    name: 'rest',
+    image: images.rest.image,
+    net: inside,
+    memory: '128m',
+    vars: {
+      PGRST_DB_URI: `postgres://authenticator:${password}@${prefix}database:5432/postgres`,
+      PGRST_DB_SCHEMAS: 'public,storage',
+      PGRST_DB_ANON_ROLE: 'anon',
+      PGRST_JWT_SECRET: secret,
+    },
+  });
+  const service = token('service_role');
+  const anon = token('anon');
+  const storage = make({
+    name: 'storage',
+    image: images.storage.image,
+    net: inside,
+    memory: '512m',
+    tmpfs: ['/var/lib/storage:rw,size=32m,mode=1777'],
+    vars: {
+      ANON_KEY: anon,
+      SERVICE_KEY: service,
+      AUTH_JWT_SECRET: secret,
+      POSTGREST_URL: `http://${prefix}rest:3000`,
+      DATABASE_URL: `postgres://supabase_storage_admin:${password}@${prefix}database:5432/postgres`,
+      STORAGE_PUBLIC_URL: `http://${prefix}storage:5000`,
+      STORAGE_BACKEND: 'file',
+      FILE_STORAGE_BACKEND_PATH: '/var/lib/storage',
+      // Bucket definitions cannot exceed Storage's global limit. Payloads in
+      // this lab remain tiny; maximum-size capacity is not exercised here.
+      FILE_SIZE_LIMIT: fullProfile ? '52428800' : '1048576',
+      TENANT_ID: 'synthetic-lab',
+      GLOBAL_S3_BUCKET: 'synthetic-lab',
+      REGION: 'local',
+      ENABLE_IMAGE_TRANSFORMATION: 'false',
+    },
+  });
+  validate(storage, true);
+  const storageUrl = `http://${prefix}storage:5000`;
+  await wait(`${storageUrl}/status`, serviceRequest);
+  for (const id of [db, auth, rest, storage]) validate(id, true);
+  const serviceState = {
+    db,
+    auth,
+    rest,
+    storage,
+    sql,
+    serviceRequest,
+    secret,
+    service,
+    anon,
+    authUrl,
+    storageUrl,
+    baseline: inventory(sql),
+    ids: [db, auth, rest, storage],
+    ...(fullProfile ? { password, prefix } : {}),
+  };
+  if (fullProfile) {
+    phase = 'biosphere-migrations';
+    serviceState.gateway = await labBridge(inside, prefix, 'sql', password);
+    serviceState.ids.push(serviceState.gateway.id);
+    serviceState.application = biosphere.initialize(serviceState, env, check);
+    serviceState.identity = {
+      owner,
+      inside,
+      outside: outsideNetwork,
+      databaseId: db,
+      sqlGatewayId: serviceState.gateway.id,
+      marker: randomBytes(32).toString('hex'),
+    };
+    sql(`CREATE SCHEMA biosphere_recovery_lab;
+      REVOKE ALL ON SCHEMA biosphere_recovery_lab FROM PUBLIC;
+      CREATE TABLE biosphere_recovery_lab.identity(owner uuid NOT NULL,container_id text NOT NULL,marker text NOT NULL);
+      INSERT INTO biosphere_recovery_lab.identity VALUES ('${owner}','${db}','${serviceState.identity.marker}');`);
+    serviceState.baseline = inventory(sql, true);
+  }
+  return serviceState;
+}
+async function smoke(inside, recover = false, checkpointPaths) {
+  const source = await platform(inside);
+  const { sql, serviceRequest, service, anon, authUrl, storageUrl } = source;
+  phase = 'auth-requests';
+  const email = `lab-${owner}@example.invalid`;
+  const userPassword = randomBytes(24).toString('base64url');
+  const json = (value, jwt) => ({
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(jwt ? { Authorization: `Bearer ${jwt}` } : {}),
+    },
+    body: JSON.stringify(value),
+  });
+  const createdResponse = await serviceRequest(
+    `${authUrl}/admin/users`,
+    json({ email, password: userPassword, email_confirm: true }, service),
+  );
+  check(createdResponse.ok, 'AUTH_CREATE_FAILED');
+  const user = await createdResponse.json();
+  const signIn = await serviceRequest(
+    `${authUrl}/token?grant_type=password`,
+    json({ email, password: userPassword }),
+  );
+  check(signIn.ok, 'AUTH_PASSWORD_FAILED');
+  const session = await signIn.json();
+  const identity = await serviceRequest(`${authUrl}/user`, {
+    headers: { Authorization: `Bearer ${session.access_token}` },
+  });
+  check(
+    identity.ok && (await identity.json()).id === user.id,
+    'AUTH_IDENTITY_MISMATCH',
+  );
+  phase = 'storage-requests';
+  const bucket = fullProfile ? 'specimen-media' : 'synthetic-private';
+  const bucketResponse = await serviceRequest(
+    `${storageUrl}/bucket`,
+    json(
+      fullProfile
+        ? biosphere.bucketConfig(bucket)
+        : { id: bucket, name: bucket, public: false },
+      service,
+    ),
+  );
+  check(bucketResponse.ok, `BUCKET_CREATE_HTTP_${bucketResponse.status}`);
+  sql(fullProfile ? biosphere.POLICY_SQL : POLICY_SQL);
+  const bytes = fullProfile
+    ? biosphere.PRIMARY_BYTES
+    : Buffer.from('BioSphere synthetic private storage probe\n', 'utf8');
+  const headers = { Authorization: `Bearer ${session.access_token}` };
+  const uploaded = await serviceRequest(
+    `${storageUrl}/object/${bucket}/probe.txt`,
+    {
+      method: 'POST',
+      headers: {
+        ...headers,
+        'Content-Type': fullProfile ? 'image/png' : 'text/plain',
+      },
+      body: bytes,
+    },
+  );
+  check(uploaded.ok, 'STORAGE_UPLOAD_FAILED');
+  const objectUrl = `${storageUrl}/object/authenticated/${bucket}/probe.txt`;
+  const downloaded = await serviceRequest(objectUrl, { headers });
+  check(
+    downloaded.ok && Buffer.from(await downloaded.arrayBuffer()).equals(bytes),
+    'STORAGE_BYTES_MISMATCH',
+  );
+  const denied = await serviceRequest(objectUrl, {
+    headers: { Authorization: `Bearer ${anon}` },
+  });
+  const anonymousDenial = await requireAnonymousObjectHidden(denied);
+  const fixture = {
+    email,
+    userPassword,
+    userId: user.id,
+    bucket,
+    bytes,
+    sourceAccessToken: session.access_token,
+    sourceRefreshToken: session.refresh_token,
+    sourceSigningKeyHash: createHash('sha256')
+      .update(source.secret)
+      .digest('hex'),
+  };
+  if (fullProfile) {
+    phase = 'biosphere-seed';
+    await biosphere.seed(source, fixture, check);
+  }
+  const ctx = labContext(inside, source, fixture);
+  if (checkpointPaths) {
+    phase = 'checkpoint-capture';
+    const payload = capturePlatform(ctx);
+    const saved = saveCheckpoint(
+      checkpointPaths.checkpointDir,
+      checkpointPaths.keyDir,
+      {
+        payload,
+        verification: { ...fixture, bytes: bytes.toString('base64') },
+        source: { owner, ids: source.ids },
+      },
+    );
+    return {
+      status: 'CAPTURED_DURABLE',
+      ...(fullProfile ? { profile: 'biosphere-full-v1' } : {}),
+      ...saved,
+      sourceIds: source.ids,
+      capturePid: process.pid,
+    };
+  }
+  if (recover) return recoverPlatform(ctx);
+  return {
+    auth: 'PASSWORD_AND_IDENTITY_VERIFIED',
+    storage: 'PRIVATE_BYTES_VERIFIED',
+    anonymous: 'DENIED',
+    anonymousStatus: denied.status,
+    anonymousDenial,
+  };
+}
+function cleanup() {
+  let complete = true;
+  for (const id of [...containers].reverse()) {
+    try {
+      const actual = inspect(id);
+      check(
+        actual.Id === id && actual.Config.Labels[label] === owner,
+        'CLEANUP_OWNER_MISMATCH',
+      );
+      docker(['rm', '--force', id]);
+    } catch {
+      complete = false;
+    }
+  }
+  for (const id of [...networks].reverse()) {
+    try {
+      const actual = inspect(id, 'network');
+      check(
+        actual.Id === id &&
+          actual.Labels[label] === owner &&
+          Object.keys(actual.Containers ?? {}).length === 0,
+        'CLEANUP_OWNER_MISMATCH',
+      );
+      docker(['network', 'rm', id]);
+    } catch {
+      complete = false;
+    }
+  }
+  return complete ? 'COMPLETE' : 'INCOMPLETE';
+}
+function labContext(inside, source, fixture) {
+  return {
+    inside,
+    source,
+    fixture,
+    docker,
+    inspect,
+    validate,
+    check,
+    platform,
+    images,
+    fullProfile,
+    profilePolicy: fullProfile ? biosphere.POLICY_SQL : POLICY_SQL,
+    publicDataHash: biosphere.publicDataHash,
+    verifyApplication: fullProfile
+      ? async (target) => {
+          phase = 'biosphere-application-verification';
+          const gateway = await labBridge(inside, target.prefix, 'http');
+          return biosphere.verifyApplication(target, gateway, fixture, env);
+        }
+      : undefined,
+    verifyBuckets: fullProfile ? biosphere.verifyBuckets : undefined,
+    setPhase: (value) => {
+      phase = value;
+    },
+  };
+}
+function checkpointArguments(args) {
+  check(args.length === 4, 'CHECKPOINT_INVALID_ARGUMENTS');
+  const flags = {};
+  for (let i = 0; i < args.length; i += 2) {
+    check(
+      ['--checkpoints', '--keys'].includes(args[i]) &&
+        typeof args[i + 1] === 'string' &&
+        args[i + 1].length > 0 &&
+        args[i + 1].length < 2048 &&
+        !args[i + 1].startsWith('--') &&
+        !Object.hasOwn(flags, args[i]),
+      'CHECKPOINT_INVALID_ARGUMENTS',
+    );
+    flags[args[i]] = args[i + 1];
+  }
+  check(
+    flags['--checkpoints'] && flags['--keys'],
+    'CHECKPOINT_INVALID_ARGUMENTS',
+  );
+  return { checkpointDir: flags['--checkpoints'], keyDir: flags['--keys'] };
+}
+function verificationFixture(proof, full = false) {
+  check(
+    proof &&
+      typeof proof === 'object' &&
+      !Array.isArray(proof) &&
+      Object.keys(proof).length === 8 &&
+      typeof proof.email === 'string' &&
+      /^lab-[a-f0-9-]{36}@example\.invalid$/.test(proof.email) &&
+      typeof proof.userPassword === 'string' &&
+      /^[a-zA-Z0-9_-]{32}$/.test(proof.userPassword) &&
+      typeof proof.userId === 'string' &&
+      /^[a-f0-9-]{36}$/.test(proof.userId) &&
+      proof.bucket === (full ? 'specimen-media' : 'synthetic-private') &&
+      typeof proof.bytes === 'string' &&
+      proof.bytes ===
+        (full
+          ? biosphere.PRIMARY_BYTES
+          : Buffer.from('BioSphere synthetic private storage probe\n')
+        ).toString('base64') &&
+      typeof proof.sourceAccessToken === 'string' &&
+      proof.sourceAccessToken.length < 8192 &&
+      proof.sourceAccessToken.split('.').length === 3 &&
+      typeof proof.sourceRefreshToken === 'string' &&
+      proof.sourceRefreshToken.length > 0 &&
+      proof.sourceRefreshToken.length < 512 &&
+      typeof proof.sourceSigningKeyHash === 'string' &&
+      /^[a-f0-9]{64}$/.test(proof.sourceSigningKeyHash),
+    'CHECKPOINT_VERIFICATION_INVALID',
+  );
+  return { ...proof, bytes: Buffer.from(proof.bytes, 'base64') };
+}
+function requireSourcesAbsent(ids) {
+  for (const id of ids)
+    check(
+      docker([
+        'container',
+        'ls',
+        '--all',
+        '--no-trunc',
+        '--filter',
+        `id=${id}`,
+        '--format',
+        '{{.ID}}',
+      ]) === '',
+      'CAPTURE_SOURCE_STILL_PRESENT',
+    );
+}
+async function main() {
+  let evidence;
+  try {
+    const mode = process.argv[2];
+    if (mode === 'checkpoint-init') {
+      check(process.argv.length === 3, 'CHECKPOINT_INVALID_ARGUMENTS');
+      phase = 'checkpoint-init';
+      evidence = {
+        status: 'INITIALIZED',
+        scope: 'synthetic-only',
+        ...createWorkspace(),
+      };
+      return;
+    }
+    fullProfile = ['biosphere-capture', 'biosphere-restore'].includes(mode);
+    const restoring = ['checkpoint-restore', 'biosphere-restore'].includes(
+      mode,
+    );
+    const durable =
+      fullProfile ||
+      ['checkpoint-capture', 'checkpoint-restore'].includes(mode);
+    let paths, loaded, fixture;
+    if (durable) {
+      paths = checkpointArguments(process.argv.slice(3));
+      phase = 'checkpoint-files';
+      if (!restoring) assertCaptureAvailable(paths.checkpointDir, paths.keyDir);
+      else {
+        loaded = loadCheckpoint(paths.checkpointDir, paths.keyDir);
+        validateCapturedPacket(loaded.payload, images, check, fullProfile);
+        fixture = verificationFixture(loaded.verification, fullProfile);
+      }
+    } else
+      check(
+        process.argv.length === 3 &&
+          ['containment', 'smoke', 'recover'].includes(mode),
+        'UNSUPPORTED_COMMAND',
+      );
+    if (fullProfile) biosphere.preflight(check, loaded?.payload.application);
+    phase = 'preflight';
+    if (fullProfile)
+      check(
+        require('node:v8').getHeapStatistics().heap_size_limit <=
+          192 * 1024 ** 2,
+        'LAB_NODE_BUDGET_REQUIRED',
+      );
+    if (fullProfile) biosphere.assertNoEnvironment(check);
+    check(
+      ['win32', 'linux'].includes(process.platform),
+      'UNSUPPORTED_PLATFORM',
+    );
+    check(
+      os.freemem() >=
+        // One platform per full-profile process, two 128 MiB gateways and
+        // bounded migration/application children. Original guards stay intact.
+        // Full-profile budget: 2176 MiB container caps + 768 MiB for
+        // parent/child runtimes + 640 MiB headroom = 3584 MiB (3.5 GiB).
+        (fullProfile
+          ? 3.5
+          : durable
+            ? 5
+            : { containment: 3, smoke: 4, recover: 5 }[mode]) *
+          1024 ** 3,
+      'INSUFFICIENT_HOST_MEMORY',
+    );
+    const info = JSON.parse(docker(['info', '--format', '{{json .}}']));
+    check(
+      info.OSType === 'linux' &&
+        info.Architecture === 'x86_64' &&
+        info.MemTotal >= 4 * 1024 ** 3,
+      'ENGINE_CAPACITY_MISMATCH',
+    );
+    for (const spec of Object.values(images)) inspect(spec.image, 'image');
+    if (loaded) requireSourcesAbsent(loaded.source.ids);
+    phase = 'containment';
+    const inside = network(true),
+      outside = network(false);
+    outsideNetwork = outside;
+    evidence = await containment(inside, outside);
+    if (restoring) {
+      const result = await restorePlatform(
+        {
+          ...labContext(inside, undefined, fixture),
+          sourceState: 'CAPTURE_RESOURCES_ABSENT',
+          assertSourceUnavailable: () =>
+            requireSourcesAbsent(loaded.source.ids),
+        },
+        loaded.payload,
+        fixture,
+      );
+      evidence = {
+        ...evidence,
+        ...result,
+        status: 'RESTORED_DURABLE',
+        integrity: 'AUTHENTICATED_BEFORE_TARGET',
+        artifactId: loaded.artifactId,
+        sha256: loaded.sha256,
+        checkpointBytes: loaded.bytes,
+        restorePid: process.pid,
+      };
+    } else if (mode !== 'containment')
+      evidence = {
+        ...evidence,
+        ...(await smoke(
+          inside,
+          mode === 'recover',
+          durable ? paths : undefined,
+        )),
+      };
+    if (evidence.lock) process.exitCode = 1;
+  } catch (error) {
+    evidence = {
+      result: 'FAILED',
+      phase,
+      code: error.safeCode ?? 'LAB_CHECK_FAILED',
+      resourcesCreated: containers.length,
+      ...(error.cleanup ? { fileCleanup: error.cleanup } : {}),
+      ...(error.applicationOutcome
+        ? {
+            applicationOutcome: error.applicationOutcome,
+            applicationCode: error.applicationCode,
+            applicationCleanup: error.applicationCleanup,
+          }
+        : {}),
+    };
+    process.exitCode = 1;
+  } finally {
+    const result = cleanup();
+    evidence = { ...evidence, cleanup: result };
+    if (result !== 'COMPLETE') process.exitCode = 1;
+    process.stdout.write(JSON.stringify(evidence) + '\n');
+  }
+}
+if (require.main === module) void main();

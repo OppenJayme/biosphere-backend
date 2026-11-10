@@ -1,113 +1,160 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
+  ArrayMinSize,
+  Equals,
   IsArray,
   IsBoolean,
-  IsDateString,
   IsEmail,
   IsInt,
   IsNotEmpty,
+  IsObject,
   IsOptional,
   IsString,
+  Matches,
+  Max,
+  MaxLength,
   Min,
+  ValidateIf,
   ValidateNested,
 } from 'class-validator';
+import { trimString } from '../../common/transforms/trim-string.transform';
+import { PreferredScheduleDto } from './preferred-schedule.dto';
+import { VehicleDto } from './vehicle.dto';
 import { VisitorDto } from './visitor.dto';
 
+export const MAX_PREFERRED_SCHEDULES = 5;
+export const MAX_VISITOR_COUNT = 200;
+export const MAX_VEHICLES = 10;
+
+// Public Request-a-Visit form (SRS REQ-4.9-01 to 06). Limits follow the
+// visit_request and child-table column sizes.
 export class CreateVisitRequestDto {
-  @ApiProperty({ example: 'Juan Dela Cruz' })
+  @ApiProperty({ example: 'Juan Dela Cruz', maxLength: 100 })
+  @Transform(trimString)
   @IsString()
   @IsNotEmpty()
+  @MaxLength(100)
   name!: string;
 
-  @ApiProperty({ example: 'name@school.edu.ph' })
+  @ApiProperty({ example: 'name@school.edu.ph', maxLength: 100 })
+  @Transform(trimString)
   @IsEmail()
+  @MaxLength(100)
   email!: string;
 
-  @ApiPropertyOptional({ example: '09XX XXX XXXX' })
-  @IsOptional()
+  @ApiProperty({ example: '0917 123 4567', maxLength: 20 })
+  @Transform(trimString)
   @IsString()
-  phone?: string;
+  @Matches(/^[0-9+()\-\s]{7,20}$/, {
+    message: 'phone must be 7-20 digits, spaces, or + ( ) - characters',
+  })
+  phone!: string;
 
-  @ApiPropertyOptional({ example: 'University of San Carlos' })
-  @IsOptional()
-  @IsString()
-  organization?: string;
-
-  @ApiProperty({ example: 'Field trip, research, class requirement, etc.' })
+  @ApiProperty({ example: 'University of San Carlos', maxLength: 255 })
+  @Transform(trimString)
   @IsString()
   @IsNotEmpty()
+  @MaxLength(255)
+  organization!: string;
+
+  @ApiPropertyOptional({ example: 'Talamban, Cebu City', maxLength: 255 })
+  @IsOptional()
+  @Transform(trimString)
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(255)
+  address?: string;
+
+  @ApiProperty({ example: 'Class field trip', maxLength: 1000 })
+  @Transform(trimString)
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(1000)
   purpose!: string;
 
   @ApiProperty({
-    example: '2026-09-15',
-    description: 'Preferred visit date (ISO 8601)',
+    type: [PreferredScheduleDto],
+    minItems: 1,
+    maxItems: MAX_PREFERRED_SCHEDULES,
+    description: 'Preferred options in order of preference',
   })
-  @IsDateString()
-  preferredDate!: string;
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(MAX_PREFERRED_SCHEDULES)
+  @IsObject({ each: true })
+  @ValidateNested({ each: true })
+  @Type(() => PreferredScheduleDto)
+  preferredSchedules!: PreferredScheduleDto[];
 
-  @ApiProperty({ example: '09:00', description: '24-hour HH:MM' })
-  @IsString()
-  @IsNotEmpty()
-  startTime!: string;
-
-  @ApiProperty({ example: '11:00', description: '24-hour HH:MM' })
-  @IsString()
-  @IsNotEmpty()
-  endTime!: string;
-
-  @ApiProperty({ example: 4 })
+  @ApiProperty({ example: 20, minimum: 1, maximum: MAX_VISITOR_COUNT })
   @Type(() => Number)
   @IsInt()
   @Min(1)
+  @Max(MAX_VISITOR_COUNT)
   visitorCount!: number;
 
   @ApiPropertyOptional({
     type: [VisitorDto],
-    description:
-      'Named visitors, when the group is small enough to list individually.',
+    description: 'Named visitors; at most visitorCount entries',
   })
   @IsOptional()
   @IsArray()
+  @ArrayMaxSize(MAX_VISITOR_COUNT)
+  @IsObject({ each: true })
   @ValidateNested({ each: true })
   @Type(() => VisitorDto)
   visitors?: VisitorDto[];
-
-  @ApiPropertyOptional({
-    description:
-      'URL of an uploaded visitor list, once StorageModule (Supabase Storage) is wired up.',
-  })
-  @IsOptional()
-  @IsString()
-  visitorListUrl?: string;
 
   @ApiPropertyOptional({ default: false })
   @IsOptional()
   @IsBoolean()
   bringingVehicle?: boolean;
 
-  @ApiPropertyOptional({ example: 'ABC 1234' })
-  @IsOptional()
-  @IsString()
-  plateNumber?: string;
+  @ApiPropertyOptional({
+    type: [VehicleDto],
+    minItems: 1,
+    maxItems: MAX_VEHICLES,
+    description: 'Required when bringingVehicle is true',
+  })
+  @ValidateIf(
+    (dto: CreateVisitRequestDto) =>
+      dto.bringingVehicle === true || dto.vehicles !== undefined,
+  )
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(MAX_VEHICLES)
+  @IsObject({ each: true })
+  @ValidateNested({ each: true })
+  @Type(() => VehicleDto)
+  vehicles?: VehicleDto[];
 
-  @ApiPropertyOptional({ example: 'Toyota' })
+  @ApiPropertyOptional({
+    example: 'Cameras, notebooks, recording gear',
+    maxLength: 500,
+  })
   @IsOptional()
+  @Transform(trimString)
   @IsString()
-  carBrand?: string;
-
-  @ApiPropertyOptional({ example: 'Van, Sedan, School Bus' })
-  @IsOptional()
-  @IsString()
-  carType?: string;
-
-  @ApiPropertyOptional({ example: 'Cameras, notebooks, recording gear' })
-  @IsOptional()
-  @IsString()
+  @MaxLength(500)
   equipment?: string;
 
-  @ApiPropertyOptional({ example: 'Anything else we should know' })
+  @ApiPropertyOptional({
+    example: 'Anything else we should know',
+    maxLength: 1000,
+  })
   @IsOptional()
+  @Transform(trimString)
   @IsString()
+  @MaxLength(1000)
   notes?: string;
+
+  @ApiProperty({
+    example: true,
+    description: 'Visitor accepted the approved privacy notice (must be true)',
+  })
+  @IsBoolean()
+  @Equals(true, { message: 'The privacy notice must be accepted.' })
+  consentAccepted!: boolean;
 }

@@ -1,0 +1,226 @@
+# BioSphere Storage Locations Guide
+
+## Read-only release closeout - 2026-10-29
+
+Owner-assisted Curator browser checks reused archived TEST CABINET A
+(`4fa17866-6e90-4020-a909-63f8163f33bc`) on frontend checkout
+`06d929e8a23133bbb4db954a6b52bfd9aa40b1be`, production build
+`5goHqxvW38dPzuTeCRyHt`. This is a bounded current-build checkpoint, not a
+new claim that the earlier archive-display repair had been untested.
+
+1. Default `/storage` had Show archived locations unchecked; searching for the
+   archived fixture returned the no-matching-locations state.
+2. A legacy direct selection link without an archive query revealed the
+   existing archived cabinet, checked the archive toggle and displayed the
+   read-only notice. The Archive location button was absent.
+3. Reload preserved the selected historical record and read-only notice.
+4. Focusing the toggle and pressing Space produced `archived=0`, the active-only
+   notice and an active fallback rather than retaining the archived selection.
+
+The fresh manually authenticated session had a context guard rejecting browser
+non-GET/HEAD/OPTIONS requests. Across this storage batch and its preceding
+media check, zero non-read attempts and zero page errors were observed. No
+location, lot, quantity, account or audit record was intentionally mutated;
+no credentials/auth state were exported and no server was restarted. The guard
+does not establish independent full-stack containment or backend authorization.
+The backend served revision was not independently pinned by these checks.
+
+DEF-010 and STO-004 statuses remain unchanged. Independent module acceptance,
+Inventory-owned placement/lot evidence and backend write/concurrency criteria
+remain separate. Do not queue the same owner display checks again absent a
+relevant change or a specific release/independent-review need.
+
+This document records the backend contract for museum storage locations. The
+implementation uses the existing `public.storage_unit` and
+`public.storage_movement_history` tables through Prisma; it does not introduce
+new database structures.
+
+## Field contract
+
+| API field        | PostgreSQL / Prisma field | Meaning                                   |
+| ---------------- | ------------------------- | ----------------------------------------- |
+| `id`             | `id`                      | Storage unit UUID                         |
+| `parentId`       | `parent_id`               | Parent UUID, or `null` for a root unit    |
+| `unitType`       | `unit_type`               | Curator-managed structural classification |
+| `label`          | `label`                   | Museum-facing storage unit label          |
+| `size`           | `size`                    | Optional curator-managed size description |
+| `storageType`    | `storage_type`            | Curator-managed storage classification    |
+| `holdsSpecimens` | `holds_specimens`         | Whether the unit is intended to hold lots |
+| `capacity`       | `capacity`                | Optional positive number of specimens held directly in the unit (provisional; see `SPECIMEN_LOTS_GUIDE.md`) |
+| `archivedAt`     | `archived_at`             | Archive timestamp, or `null` while active |
+| `createdAt`      | `created_at`              | Creation timestamp                        |
+| `updatedAt`      | `updated_at`              | Last application-managed update timestamp |
+
+`unitType` and `storageType` remain text values. Do not convert them to a
+PostgreSQL or TypeScript enum until the museum confirms a permanent controlled
+list. This follows `DATABASE_CONVENTIONS.md` and allows curators to extend the
+classifications later.
+
+Incoming text values are trimmed before validation. Required fields reject
+`null`, empty strings, and whitespace-only strings. The nullable `size` and
+`capacity` fields may be explicitly set to `null` during an update when a
+curator needs to clear them.
+
+## Hierarchy and movement rules
+
+- A parent must exist and must not be archived.
+- A unit cannot be its own parent.
+- A unit cannot be moved underneath one of its descendants.
+- Moving a unit to `null` makes it a root unit.
+- Parent changes are accepted only by `PATCH /storage-locations/:id/move`.
+- The unit update and its `storage_movement_history` row are written in one
+  Prisma transaction.
+- `moved_by` receives `AuthenticatedUser.accountId`, never the Supabase Auth
+  UUID.
+- Moving to the current parent is rejected because it is not a real movement
+  and violates the movement-history different-parent constraint.
+
+### Arrangement rules
+
+Per client proposal §6 (2026-10-22), a team decision the Curator left unchanged on 2026-11-07, `src/storage-locations/storage-arrangement.policy.ts`
+assigns recognised unit types to tiers and rejects impossible arrangements on
+create, move, and unit-type update (`400` naming both units):
+
+| Tier | Name              | Unit types                                         |
+| ---- | ----------------- | -------------------------------------------------- |
+| 1    | Space             | BUILDING, ROOM, GALLERY, STOREROOM, LABORATORY     |
+| 2    | Furniture         | CABINET, SHELVING_UNIT, RACK, COMPACTOR, FREEZER, TANK |
+| 3    | Compartment       | SHELF, DRAWER, TRAY                                |
+| 4    | Container         | BOX, JAR, BOTTLE, CONTAINER, BAG                   |
+| 5    | Primary container | VIAL, TUBE, SLIDE, ENVELOPE                        |
+
+A unit may sit inside any parent of a higher tier (tiers may be skipped, so a
+box directly in a cabinet is valid); containers (tier 4) may also nest in each
+other. Types are compared case-insensitively with spaces and hyphens treated as
+underscores. A type that is not listed stays unrestricted, so curator-added
+types keep working, and existing data is never rewritten. A retyped unit must
+still fit its parent and its active children. `GET
+/storage-locations/arrangement-rules` returns the table for display. The table
+is for museum review; edit the policy file to change it. Capacity remains
+optional and quantities are still tracked from lots.
+
+## Archive rules
+
+Archiving is used instead of deletion. A unit cannot be archived while it has
+non-archived direct children or active specimen lots. Repeating archive on an
+already archived unit is safe and returns its existing state. Archived units
+cannot be edited, moved, or selected as a new parent.
+
+A unit with active specimen lots cannot have `holdsSpecimens` changed from
+`true` to `false`; the lots must first be moved or deactivated. This preserves
+the same assignment rule enforced by the specimen-lot service.
+
+## Audit and concurrency rules
+
+- Successful create, update, move, and archive operations write a central
+  `audit_log` entry with the authenticated curator's BioSphere account ID.
+- The action names are `CREATE_STORAGE_UNIT`, `UPDATE_STORAGE_UNIT`,
+  `MOVE_STORAGE_UNIT`, and `ARCHIVE_STORAGE_UNIT`; the module is always
+  `storage_locations` and the affected record type is `storage_unit`.
+- Movement also writes the domain-specific `storage_movement_history` entry.
+  The movement record describes the location change, while `audit_log` makes
+  the curator action visible in the system-wide audit trail.
+- The business mutation and its successful audit entry commit atomically in a
+  serializable transaction. PostgreSQL serialization conflicts are retried up
+  to three times and then returned as a conflict response that tells the client
+  to reload and try again.
+- Empty or identical updates are rejected and do not create misleading audit
+  entries. Repeating archive for an already archived unit is idempotent and
+  does not create another audit entry.
+- This module records successful storage-location actions. Cross-cutting logs
+  for failed authentication and denied authorization belong in the shared auth
+  and audit infrastructure rather than in individual storage handlers.
+
+## Endpoints
+
+- `POST /storage-locations`
+- `GET /storage-locations`
+- `GET /storage-locations/search?page=1&limit=25`
+- `GET /storage-locations/:id`
+- `GET /storage-locations/:id/path`
+- `GET /storage-locations/:id/capacity-check?additionalQuantity=0`
+- `GET /storage-locations/:id/children`
+- `GET /storage-locations/:id/movements`
+- `GET /storage-locations/:id/inventory?page=1&limit=50`
+- `GET /storage-locations/:id/lot-movements?page=1&limit=50&transactionType=MOVEMENT`
+- `PATCH /storage-locations/:id`
+- `PATCH /storage-locations/:id/move`
+- `PATCH /storage-locations/:id/archive`
+
+All endpoints require an active BioSphere account with the `CURATOR` role.
+
+`capacity-check` returns the unit's current active lot quantity, the projected
+quantity after adding `additionalQuantity`, and `exceedsCapacity`. It lets the
+curator be warned before assigning or moving specimens (REQ-4.6-11); lot
+operations themselves also return a `capacityWarning` (see the specimen lot
+guide).
+
+## Search and selection
+
+`GET /storage-locations/search` is the bounded endpoint for curator search and
+selection screens. It supports a partial, case-insensitive `search` against the
+label plus exact, case-insensitive `unitType` and `storageType` filters. The
+optional `holdsSpecimens` filter accepts only `true` or `false`.
+
+The `lifecycle` filter accepts `ACTIVE`, `ARCHIVED`, or `ALL` and defaults to
+`ACTIVE`. Results are ordered by label and then UUID for stable pagination.
+Pages default to 25 records and are capped at 100. The existing unpaginated
+`GET /storage-locations` contract remains unchanged for compatibility; new UI
+lists should use the search endpoint.
+
+Search does not recursively include descendants, calculate capacity usage, or
+freeze the curator-extensible storage classifications into enums.
+
+## Derived hierarchy path
+
+`GET /storage-locations/:id/path` derives the selected unit's location from
+the stored parent relationships and returns the complete path in root-to-unit
+order. A drawer inside a cabinet inside a room therefore returns the room,
+cabinet, and drawer without duplicating room/gallery fields on the drawer or
+its specimen lots. This implements REQ-4.6-08 while keeping storage unit types
+curator-extensible.
+
+The path is read using a repeatable-read transaction so one response cannot
+mix hierarchy states from concurrent container moves. The service safely
+rejects a missing selected unit and reports a conflict if legacy or manually
+modified data contains a parent cycle or missing ancestor.
+
+The same derivation is embedded as `storageLocation` in
+`GET /specimens/:id/details` (one per active lot) and
+`GET /storage-locations/:id/inventory` (for the selected unit), so clients do
+not need one `/path` call per lot:
+
+```json
+{
+  "path": [
+    { "id": "…", "label": "Zoology Room", "unitType": "ROOM" },
+    { "id": "…", "label": "Cabinet A", "unitType": "CABINET" }
+  ],
+  "rootUnit": { "id": "…", "label": "Zoology Room", "unitType": "ROOM" },
+  "pathLabel": "Zoology Room › Cabinet A",
+  "isComplete": true
+}
+```
+
+`src/storage-locations/storage-location-paths.ts` loads one hierarchy level per
+query for all requested units together. Unlike `/path`, it does not fail on a
+missing ancestor or a parent cycle; it returns the part of the path it could
+walk, ending at the assigned unit, sets `isComplete` to `false`, and logs a
+warning naming the unit. When `isComplete` is `false`, `rootUnit` is only the
+highest unit that could be resolved, not necessarily a room or gallery.
+
+## Direct inventory view
+
+The inventory endpoint returns active specimen lots assigned directly to the
+selected storage unit together with each lot's specimen core record. Results
+are ordered consistently and paginated with a maximum page size of 100. The
+response also includes the total active-lot count and total quantity across the
+entire selected unit, not only the current page.
+
+Child storage units are not included automatically. A curator can navigate the
+existing hierarchy and request each relevant child explicitly. This avoids
+assuming whether a room, cabinet, shelf, or other curator-extensible unit type
+should recursively aggregate its descendants.
+
+The endpoint is read-only. It does not change quantities, move lots, calculate
+capacity utilization, or infer whether a specimen is ready to be Cataloged.

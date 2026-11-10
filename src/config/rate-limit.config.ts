@@ -1,0 +1,31 @@
+export const RATE_LIMIT_WINDOW_MS = 60_000;
+
+export const GLOBAL_RATE_LIMIT = {
+  ttl: RATE_LIMIT_WINDOW_MS,
+  limit: 300,
+} as const;
+
+export const LOGIN_RATE_LIMIT = {
+  ttl: RATE_LIMIT_WINDOW_MS,
+  limit: 5,
+} as const;
+
+export const PUBLIC_FORM_RATE_LIMIT = {
+  ttl: RATE_LIMIT_WINDOW_MS,
+  limit: 10,
+} as const;
+
+// Report generation runs many aggregate queries and renders a file, so a
+// curator gets a tighter ceiling than ordinary reads.
+export const REPORT_GENERATION_RATE_LIMIT = {
+  ttl: RATE_LIMIT_WINDOW_MS,
+  limit: 20,
+} as const;
+
+// The public FAQ Assistant is read-only, but each question scans the active
+// knowledge set, so visitors get a ceiling above the form limit but well
+// below the general API ceiling.
+export const FAQ_ASSISTANT_RATE_LIMIT = {
+  ttl: RATE_LIMIT_WINDOW_MS,
+  limit: 30,
+} as const;

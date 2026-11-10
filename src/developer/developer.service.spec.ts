@@ -1,0 +1,2072 @@
+import { Test, TestingModule } from '@nestjs/testing';
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  InternalServerErrorException,
+  NotFoundException,
+} from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { Prisma } from '../generated/prisma/client';
+import { DeveloperService } from './developer.service';
+import { PrismaService } from '../prisma/prisma.service';
+import { SUPABASE_CLIENT } from '../supabase/supabase.constants';
+import { StorageService } from '../supabase/storage.service';
+import { glbBytes } from '../../test/fixtures/glb';
+import { EXTERNAL_GLB_REFERENCES } from './glb-validation';
+
+// ---------------------------------------------------------------------------
+// Mocks
+// ---------------------------------------------------------------------------
+
+const prismaMock = {
+  users: {
+    findFirst: jest.fn(),
+    findMany: jest.fn(),
+    findUnique: jest.fn(),
+  },
+  user_account: {
+    findMany: jest.fn(),
+    create: jest.fn(),
+    findUnique: jest.fn(),
+    update: jest.fn(),
+  },
+  ar_asset: {
+    create: jest.fn(),
+    update: jest.fn(),
+    delete: jest.fn(),
+    findUnique: jest.fn(),
+  },
+  exhibit: {
+    findUnique: jest.fn(),
+    findMany: jest.fn(),
+  },
+  audit_log: {
+    create: jest.fn(),
+  },
+  // Runs the callback against this same mock, as a transaction client.
+  $transaction: jest.fn(),
+};
+
+const supabaseMock = {
+  auth: {
+    admin: {
+      inviteUserByEmail: jest.fn(),
+      updateUserById: jest.fn(),
+      deleteUser: jest.fn(),
+    },
+  },
+};
+
+const storageServiceMock = {
+  upload: jest.fn(),
+  remove: jest.fn(),
+  download: jest.fn(),
+};
+
+const FRONTEND_URL = 'https://app.biosphere.test';
+const configServiceMock = {
+  getOrThrow: jest.fn((key: string) => {
+    if (key === 'FRONTEND_URL') return FRONTEND_URL;
+    throw new Error(`Unexpected config key requested in test: ${key}`);
+  }),
+};
+
+// A valid-looking .glb "file" for AR asset tests.
+function fakeFile(
+  overrides: Partial<Express.Multer.File> = {},
+): Express.Multer.File {
+  return {
+    fieldname: 'file',
+    originalname: 'model.glb',
+    encoding: '7bit',
+    mimetype: 'model/gltf-binary',
+    size: 1024,
+    buffer: glbBytes(),
+    destination: '',
+    filename: '',
+    path: '',
+    stream: undefined as never,
+    ...overrides,
+  };
+}
+
+// An exhibit row as the deploy checks select it: deployable (marked for AR
+// by the curator, exhibit and specimen active, specimen Cataloged and
+// approved for public display) by default.
+const AR_SELECTED_AT = new Date('2026-10-20T00:00:00Z');
+
+function approvedExhibit(
+  overrides: {
+    ar_selected_at?: Date | null;
+    archived_at?: Date | null;
+    specimen?: {
+      status?: string;
+      public_display_allowed?: boolean;
+      archived_at?: Date | null;
+    };
+  } = {},
+) {
+  return {
+    ar_selected_at:
+      overrides.ar_selected_at === undefined
+        ? AR_SELECTED_AT
+        : overrides.ar_selected_at,
+    archived_at: overrides.archived_at ?? null,
+    specimen: {
+      status: 'CATALOGED',
+      public_display_allowed: true,
+      archived_at: null,
+      ...overrides.specimen,
+    },
+  };
+}
+
+const ACTING_DEVELOPER_AUTH_ID = 'auth-dev-uuid-1';
+const AUTH_REF = 'Curator AR approval memo 2026-07';
+const ACTING_DEVELOPER_ACCOUNT_ID = 'account-dev-uuid-1';
+
+describe('DeveloperService', () => {
+  let service: DeveloperService;
+
+  beforeEach(async () => {
+    jest.clearAllMocks();
+    prismaMock.audit_log.create.mockResolvedValue({});
+    prismaMock.$transaction.mockImplementation(
+      (operation: (tx: typeof prismaMock) => unknown) => operation(prismaMock),
+    );
+    supabaseMock.auth.admin.updateUserById.mockResolvedValue({
+      data: {},
+      error: null,
+    });
+    storageServiceMock.remove.mockResolvedValue(undefined);
+    storageServiceMock.download.mockResolvedValue(glbBytes());
+    prismaMock.users.findFirst.mockResolvedValue(null);
+    prismaMock.users.findMany.mockResolvedValue([]);
+    supabaseMock.auth.admin.deleteUser.mockResolvedValue({
+      data: {},
+      error: null,
+    });
+    prismaMock.exhibit.findUnique.mockResolvedValue(approvedExhibit());
+
+    prismaMock.user_account.findUnique.mockResolvedValue({
+      id: ACTING_DEVELOPER_ACCOUNT_ID,
+    });
+
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        DeveloperService,
+        { provide: PrismaService, useValue: prismaMock },
+        { provide: SUPABASE_CLIENT, useValue: supabaseMock },
+        { provide: StorageService, useValue: storageServiceMock },
+        { provide: ConfigService, useValue: configServiceMock },
+      ],
+    }).compile();
+
+    service = module.get<DeveloperService>(DeveloperService);
+  });
+
+  it('should be defined', () => {
+    expect(service).toBeDefined();
+  });
+
+  // ===========================================================
+  // listCuratorAccounts
+  // ===========================================================
+  describe('listCuratorAccounts', () => {
+    it('queries only CURATOR-role accounts, newest first, and maps to camelCase entities', async () => {
+      const row = {
+        id: 'a',
+        auth_user_id: 'auth-a',
+        full_name: 'Curator A',
+        role: 'CURATOR',
+        status: 'ACTIVE',
+        avatar_path: null,
+        created_at: new Date('2026-01-01'),
+        updated_at: new Date('2026-01-01'),
+      };
+
+      prismaMock.user_account.findMany.mockResolvedValue([row]);
+      prismaMock.users.findMany.mockResolvedValue([
+        { id: 'auth-a', raw_app_meta_data: { role: 'CURATOR' } },
+      ]);
+
+      const result = await service.listCuratorAccounts();
+
+      expect(prismaMock.user_account.findMany).toHaveBeenCalledWith({
+        where: { role: 'CURATOR' },
+        orderBy: { created_at: 'desc' },
+      });
+      expect(result).toEqual([
+        {
+          id: 'a',
+          authUserId: 'auth-a',
+          fullName: 'Curator A',
+          role: 'CURATOR',
+          status: 'ACTIVE',
+          inviteAccepted: true,
+          avatarPath: null,
+          createdAt: row.created_at,
+          updatedAt: row.updated_at,
+        },
+      ]);
+    });
+
+    it.each([
+      ['has no password', []],
+      [
+        'has the pending flag, even with a stored hash',
+        [
+          {
+            id: 'auth-a',
+            raw_app_meta_data: { onboarding_pending: true },
+          },
+        ],
+      ],
+    ])('reports a curator who %s as not accepted', async (_name, users) => {
+      prismaMock.user_account.findMany.mockResolvedValue([
+        { id: 'a', auth_user_id: 'auth-a', status: 'ACTIVE' },
+      ]);
+      prismaMock.users.findMany.mockResolvedValue(users);
+
+      const [curator] = await service.listCuratorAccounts();
+
+      expect(curator.status).toBe('ACTIVE');
+      expect(curator.inviteAccepted).toBe(false);
+    });
+  });
+
+  // ===========================================================
+  // onboardInitialCurator — REQ-4.2-02
+  // ===========================================================
+  describe('onboardInitialCurator', () => {
+    const dto = { email: 'new.curator@example.com', fullName: 'New Curator' };
+
+    it('invites, creates the user_account row, and records a SUCCESS audit entry', async () => {
+      supabaseMock.auth.admin.inviteUserByEmail.mockResolvedValue({
+        data: { user: { id: 'auth-user-1' } },
+        error: null,
+      });
+      const createdRow = {
+        id: 'account-1',
+        auth_user_id: 'auth-user-1',
+        full_name: dto.fullName,
+        role: 'CURATOR',
+        status: 'ACTIVE',
+        avatar_path: null,
+        created_at: new Date('2026-01-01'),
+        updated_at: new Date('2026-01-01'),
+      };
+      prismaMock.user_account.create.mockResolvedValue(createdRow);
+
+      const result = await service.onboardInitialCurator(
+        dto,
+        ACTING_DEVELOPER_AUTH_ID,
+      );
+
+      expect(supabaseMock.auth.admin.inviteUserByEmail).toHaveBeenCalledWith(
+        dto.email,
+        {
+          data: { role: 'CURATOR' },
+          redirectTo: `${FRONTEND_URL}/login/accept-invite`,
+        },
+      );
+      expect(supabaseMock.auth.admin.updateUserById).toHaveBeenCalledWith(
+        'auth-user-1',
+        { app_metadata: { role: 'CURATOR', onboarding_pending: true } },
+      );
+      expect(prismaMock.user_account.create).toHaveBeenCalledWith({
+        data: {
+          auth_user_id: 'auth-user-1',
+          full_name: dto.fullName,
+          role: 'CURATOR',
+          status: 'ACTIVE',
+        },
+      });
+      expect(result).toEqual({
+        id: 'account-1',
+        authUserId: 'auth-user-1',
+        fullName: dto.fullName,
+        role: 'CURATOR',
+        status: 'ACTIVE',
+        inviteAccepted: false,
+        avatarPath: null,
+        createdAt: createdRow.created_at,
+        updatedAt: createdRow.updated_at,
+      });
+      expect(prismaMock.audit_log.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            action: 'ONBOARD_CURATOR',
+            status: 'SUCCESS',
+            affected_record_id: 'account-1',
+            user_id: ACTING_DEVELOPER_ACCOUNT_ID,
+          }),
+        }),
+      );
+    });
+
+    it('refuses an email that already has an auth user, without re-inviting', async () => {
+      prismaMock.users.findFirst.mockResolvedValue({ id: 'auth-pending' });
+
+      await expect(
+        service.onboardInitialCurator(
+          { ...dto, email: 'NEW.Curator@example.com' },
+          ACTING_DEVELOPER_AUTH_ID,
+        ),
+      ).rejects.toThrow(ConflictException);
+
+      expect(prismaMock.users.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            email: { equals: 'NEW.Curator@example.com', mode: 'insensitive' },
+          },
+        }),
+      );
+      expect(supabaseMock.auth.admin.inviteUserByEmail).not.toHaveBeenCalled();
+      expect(prismaMock.user_account.create).not.toHaveBeenCalled();
+      expect(prismaMock.audit_log.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            action: 'ONBOARD_CURATOR',
+            status: 'FAILED',
+          }),
+        }),
+      );
+    });
+
+    it('removes the invite when the pending flag cannot be stored', async () => {
+      supabaseMock.auth.admin.inviteUserByEmail.mockResolvedValue({
+        data: { user: { id: 'auth-user-3' } },
+        error: null,
+      });
+      supabaseMock.auth.admin.updateUserById.mockResolvedValue({
+        data: {},
+        error: { message: 'provider down' },
+      });
+
+      await expect(
+        service.onboardInitialCurator(dto, ACTING_DEVELOPER_AUTH_ID),
+      ).rejects.toThrow(InternalServerErrorException);
+
+      expect(supabaseMock.auth.admin.deleteUser).toHaveBeenCalledWith(
+        'auth-user-3',
+      );
+      expect(prismaMock.user_account.create).not.toHaveBeenCalled();
+    });
+
+    it('keeps the auth user when the account row already exists', async () => {
+      supabaseMock.auth.admin.inviteUserByEmail.mockResolvedValue({
+        data: { user: { id: 'auth-user-4' } },
+        error: null,
+      });
+      prismaMock.user_account.create.mockRejectedValue(
+        new Prisma.PrismaClientKnownRequestError('duplicate', {
+          code: 'P2002',
+          clientVersion: 'test',
+        }),
+      );
+
+      await expect(
+        service.onboardInitialCurator(dto, ACTING_DEVELOPER_AUTH_ID),
+      ).rejects.toThrow(ConflictException);
+
+      expect(supabaseMock.auth.admin.deleteUser).not.toHaveBeenCalled();
+    });
+
+    it('throws ConflictException and audits FAILED when the invite errors', async () => {
+      supabaseMock.auth.admin.inviteUserByEmail.mockResolvedValue({
+        data: null,
+        error: { message: 'User already registered' },
+      });
+
+      await expect(
+        service.onboardInitialCurator(dto, ACTING_DEVELOPER_AUTH_ID),
+      ).rejects.toThrow(ConflictException);
+
+      expect(prismaMock.user_account.create).not.toHaveBeenCalled();
+      expect(prismaMock.audit_log.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            action: 'ONBOARD_CURATOR',
+            status: 'FAILED',
+          }),
+        }),
+      );
+    });
+
+    it('throws InternalServerErrorException and audits FAILED when the account row cannot be created', async () => {
+      supabaseMock.auth.admin.inviteUserByEmail.mockResolvedValue({
+        data: { user: { id: 'auth-user-2' } },
+        error: null,
+      });
+      prismaMock.user_account.create.mockRejectedValue(
+        new Error('unique constraint'),
+      );
+
+      await expect(
+        service.onboardInitialCurator(dto, ACTING_DEVELOPER_AUTH_ID),
+      ).rejects.toThrow(InternalServerErrorException);
+
+      expect(supabaseMock.auth.admin.deleteUser).toHaveBeenCalledWith(
+        'auth-user-2',
+      );
+      expect(prismaMock.audit_log.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            action: 'ONBOARD_CURATOR',
+            status: 'FAILED',
+          }),
+        }),
+      );
+    });
+  });
+
+  // ===========================================================
+  // GLB structure — REQ-4.2-05
+  // ===========================================================
+  describe('GLB structure checks', () => {
+    const externalModel = glbBytes({ buffers: [{ uri: 'model.bin' }] });
+    const storedAsset = {
+      id: 'asset-1',
+      exhibit_id: 'exhibit-1',
+      storage_path: 'exhibit-1/old.glb',
+      model_format: 'glb',
+      is_enabled: false,
+    };
+
+    it('refuses an upload with external references before storing it', async () => {
+      await expect(
+        service.createArAsset(
+          fakeFile({ buffer: externalModel }),
+          {
+            exhibitId: 'exhibit-1',
+            modelFormat: 'glb',
+            authorizationReference: AUTH_REF,
+          },
+          ACTING_DEVELOPER_AUTH_ID,
+        ),
+      ).rejects.toThrow(EXTERNAL_GLB_REFERENCES);
+
+      expect(storageServiceMock.upload).not.toHaveBeenCalled();
+      expect(prismaMock.audit_log.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            action: 'CREATE_AR_ASSET',
+            status: 'FAILED',
+          }),
+        }),
+      );
+    });
+
+    it('does not parse a usdz model as glTF', async () => {
+      prismaMock.ar_asset.findUnique.mockResolvedValue({
+        ...storedAsset,
+        model_format: 'usdz',
+      });
+      prismaMock.ar_asset.update.mockResolvedValue({
+        ...storedAsset,
+        model_format: 'usdz',
+        is_enabled: true,
+      });
+
+      await service.setArAssetEnabled(
+        'asset-1',
+        true,
+        ACTING_DEVELOPER_AUTH_ID,
+        AUTH_REF,
+      );
+
+      expect(storageServiceMock.download).not.toHaveBeenCalled();
+    });
+
+    it('refuses to activate a stored model with external references', async () => {
+      prismaMock.ar_asset.findUnique.mockResolvedValue(storedAsset);
+      storageServiceMock.download.mockResolvedValue(externalModel);
+
+      await expect(
+        service.setArAssetEnabled(
+          'asset-1',
+          true,
+          ACTING_DEVELOPER_AUTH_ID,
+          AUTH_REF,
+        ),
+      ).rejects.toThrow(EXTERNAL_GLB_REFERENCES);
+
+      expect(storageServiceMock.download).toHaveBeenCalledWith(
+        'ar-assets',
+        'exhibit-1/old.glb',
+      );
+      expect(prismaMock.ar_asset.update).not.toHaveBeenCalled();
+    });
+
+    it('refuses to enable a stored model through a metadata update', async () => {
+      prismaMock.ar_asset.findUnique.mockResolvedValue(storedAsset);
+      storageServiceMock.download.mockResolvedValue(externalModel);
+
+      await expect(
+        service.updateArAsset(
+          'asset-1',
+          undefined,
+          { isEnabled: true, authorizationReference: AUTH_REF },
+          ACTING_DEVELOPER_AUTH_ID,
+        ),
+      ).rejects.toThrow(EXTERNAL_GLB_REFERENCES);
+
+      expect(prismaMock.ar_asset.update).not.toHaveBeenCalled();
+    });
+
+    it('does not re-read the stored model when deactivating', async () => {
+      prismaMock.ar_asset.findUnique.mockResolvedValue(storedAsset);
+      prismaMock.ar_asset.update.mockResolvedValue(storedAsset);
+
+      await service.setArAssetEnabled(
+        'asset-1',
+        false,
+        ACTING_DEVELOPER_AUTH_ID,
+      );
+
+      expect(storageServiceMock.download).not.toHaveBeenCalled();
+    });
+  });
+
+  // ===========================================================
+  // updateCuratorStatus — REQ-4.2-03
+  // ===========================================================
+  describe('updateCuratorStatus', () => {
+    const dto = {
+      status: 'INACTIVE' as const,
+      authorizationReason: 'formally authorized',
+    };
+
+    it('throws NotFoundException when the account does not exist', async () => {
+      prismaMock.user_account.findUnique.mockImplementation(({ where }) =>
+        where?.auth_user_id
+          ? Promise.resolve({ id: ACTING_DEVELOPER_ACCOUNT_ID })
+          : Promise.resolve(null),
+      );
+
+      await expect(
+        service.updateCuratorStatus(
+          'missing-id',
+          dto,
+          ACTING_DEVELOPER_AUTH_ID,
+        ),
+      ).rejects.toThrow(NotFoundException);
+      expect(prismaMock.user_account.update).not.toHaveBeenCalled();
+    });
+
+    it('throws ForbiddenException and audits DENIED when the target is a Developer account', async () => {
+      prismaMock.user_account.findUnique.mockImplementation(({ where }) =>
+        where?.auth_user_id
+          ? Promise.resolve({ id: ACTING_DEVELOPER_ACCOUNT_ID })
+          : Promise.resolve({ id: 'dev-2', role: 'DEVELOPER' }),
+      );
+
+      await expect(
+        service.updateCuratorStatus('dev-2', dto, ACTING_DEVELOPER_AUTH_ID),
+      ).rejects.toThrow(ForbiddenException);
+
+      expect(prismaMock.user_account.update).not.toHaveBeenCalled();
+      expect(prismaMock.audit_log.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            action: 'UPDATE_CURATOR_STATUS',
+            status: 'DENIED',
+          }),
+        }),
+      );
+    });
+
+    it('updates status and audits SUCCESS for a valid curator account', async () => {
+      prismaMock.user_account.findUnique.mockImplementation(({ where }) =>
+        where?.auth_user_id
+          ? Promise.resolve({ id: ACTING_DEVELOPER_ACCOUNT_ID })
+          : Promise.resolve({ id: 'cur-1', role: 'CURATOR' }),
+      );
+      const updatedRow = {
+        id: 'cur-1',
+        auth_user_id: 'auth-cur-1',
+        full_name: 'Curator One',
+        role: 'CURATOR',
+        status: 'INACTIVE',
+        avatar_path: null,
+        created_at: new Date('2026-01-01'),
+        updated_at: new Date('2026-01-02'),
+      };
+
+      prismaMock.user_account.update.mockResolvedValue(updatedRow);
+
+      const result = await service.updateCuratorStatus(
+        'cur-1',
+        dto,
+        ACTING_DEVELOPER_AUTH_ID,
+      );
+
+      expect(prismaMock.user_account.update).toHaveBeenCalledWith({
+        where: { id: 'cur-1' },
+        data: { status: 'INACTIVE' },
+      });
+      expect(result).toEqual({
+        id: 'cur-1',
+        authUserId: 'auth-cur-1',
+        fullName: 'Curator One',
+        role: 'CURATOR',
+        status: 'INACTIVE',
+        inviteAccepted: false,
+        avatarPath: null,
+        createdAt: updatedRow.created_at,
+        updatedAt: updatedRow.updated_at,
+      });
+      expect(prismaMock.audit_log.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            action: 'UPDATE_CURATOR_STATUS',
+            status: 'SUCCESS',
+            details: expect.objectContaining({
+              authorizationReason: dto.authorizationReason,
+            }),
+          }),
+        }),
+      );
+    });
+
+    it('throws InternalServerErrorException and audits FAILED when the update fails', async () => {
+      prismaMock.user_account.findUnique.mockImplementation(({ where }) =>
+        where?.auth_user_id
+          ? Promise.resolve({ id: ACTING_DEVELOPER_ACCOUNT_ID })
+          : Promise.resolve({ id: 'cur-1', role: 'CURATOR' }),
+      );
+      prismaMock.user_account.update.mockRejectedValue(new Error('db down'));
+
+      await expect(
+        service.updateCuratorStatus('cur-1', dto, ACTING_DEVELOPER_AUTH_ID),
+      ).rejects.toThrow(InternalServerErrorException);
+
+      expect(prismaMock.audit_log.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            action: 'UPDATE_CURATOR_STATUS',
+            status: 'FAILED',
+          }),
+        }),
+      );
+    });
+  });
+
+  // ===========================================================
+  // handOverCurator — REQ-4.1-09 / REQ-4.1-11
+  // ===========================================================
+  describe('handOverCurator', () => {
+    const OUTGOING = '11111111-1111-4111-8111-111111111111';
+    const SUCCESSOR = '22222222-2222-4222-8222-222222222222';
+    const dto = {
+      outgoingCuratorId: OUTGOING,
+      successorCuratorId: SUCCESSOR,
+      authorizationReason: 'Curator retired; museum memo 2027-01',
+    };
+
+    function curatorRow(id: string, overrides: Record<string, unknown> = {}) {
+      return {
+        id,
+        auth_user_id: `auth-${id}`,
+        full_name: `Curator ${id.slice(0, 2)}`,
+        role: 'CURATOR',
+        status: 'ACTIVE',
+        avatar_path: null,
+        created_at: new Date('2026-01-01'),
+        updated_at: new Date('2026-01-02'),
+        ...overrides,
+      };
+    }
+
+    // Accounts by ID; the acting developer is looked up by auth user ID.
+    function given({
+      outgoing = curatorRow(OUTGOING),
+      successor = curatorRow(SUCCESSOR),
+      successorAccepted = true,
+      successorSignedIn = true,
+    }: {
+      outgoing?: Record<string, unknown> | null;
+      successor?: Record<string, unknown> | null;
+      successorAccepted?: boolean;
+      successorSignedIn?: boolean;
+    } = {}) {
+      prismaMock.user_account.findUnique.mockImplementation(({ where }) => {
+        if (where?.auth_user_id) {
+          return Promise.resolve({ id: ACTING_DEVELOPER_ACCOUNT_ID });
+        }
+        if (where?.id === OUTGOING) return Promise.resolve(outgoing);
+        if (where?.id === SUCCESSOR) return Promise.resolve(successor);
+        return Promise.resolve(null);
+      });
+      prismaMock.users.findMany.mockImplementation(({ where }) =>
+        Promise.resolve(
+          (where.id.in as string[])
+            .filter((id) => successorAccepted || id !== `auth-${SUCCESSOR}`)
+            .map((id) => ({ id, raw_app_meta_data: {} })),
+        ),
+      );
+      prismaMock.users.findUnique.mockResolvedValue({
+        last_sign_in_at: successorSignedIn ? new Date('2026-11-07') : null,
+      });
+      prismaMock.user_account.update.mockResolvedValue(
+        curatorRow(OUTGOING, { status: 'INACTIVE' }),
+      );
+    }
+
+    function auditCalls() {
+      return (
+        prismaMock.audit_log.create.mock.calls as [
+          { data: Record<string, unknown> },
+        ][]
+      ).map(([args]) => args.data);
+    }
+
+    it('deactivates the outgoing curator and audits the handover in one transaction', async () => {
+      given();
+
+      const result = await service.handOverCurator(
+        dto,
+        ACTING_DEVELOPER_AUTH_ID,
+      );
+
+      expect(prismaMock.$transaction).toHaveBeenCalledWith(
+        expect.any(Function),
+        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+      );
+      expect(prismaMock.user_account.update).toHaveBeenCalledTimes(1);
+      expect(prismaMock.user_account.update).toHaveBeenCalledWith({
+        where: { id: OUTGOING },
+        data: { status: 'INACTIVE' },
+      });
+      expect(auditCalls()).toEqual([
+        {
+          user_id: ACTING_DEVELOPER_ACCOUNT_ID,
+          affected_record_id: OUTGOING,
+          affected_record_type: 'user_account',
+          action: 'HAND_OVER_CURATOR',
+          module: 'developer',
+          status: 'SUCCESS',
+          details: {
+            successorAccountId: SUCCESSOR,
+            previousStatus: 'ACTIVE',
+            newStatus: 'INACTIVE',
+            authorizationReason: dto.authorizationReason,
+          },
+        },
+      ]);
+      expect(result.outgoing).toMatchObject({
+        id: OUTGOING,
+        status: 'INACTIVE',
+        inviteAccepted: true,
+      });
+      expect(result.successor).toMatchObject({
+        id: SUCCESSOR,
+        status: 'ACTIVE',
+        inviteAccepted: true,
+      });
+    });
+
+    it('keeps the outgoing account instead of deleting anything', async () => {
+      given();
+
+      await service.handOverCurator(dto, ACTING_DEVELOPER_AUTH_ID);
+
+      expect(supabaseMock.auth.admin.deleteUser).not.toHaveBeenCalled();
+      expect(supabaseMock.auth.admin.updateUserById).not.toHaveBeenCalled();
+    });
+
+    it('refuses a handover to the same account and audits DENIED', async () => {
+      given();
+
+      await expect(
+        service.handOverCurator(
+          { ...dto, successorCuratorId: OUTGOING },
+          ACTING_DEVELOPER_AUTH_ID,
+        ),
+      ).rejects.toThrow(BadRequestException);
+
+      expect(prismaMock.$transaction).not.toHaveBeenCalled();
+      expect(prismaMock.user_account.update).not.toHaveBeenCalled();
+      expect(auditCalls()).toEqual([
+        expect.objectContaining({
+          action: 'HAND_OVER_CURATOR',
+          status: 'DENIED',
+          affected_record_id: OUTGOING,
+        }),
+      ]);
+    });
+
+    it.each([
+      ['the outgoing account is missing', { outgoing: null }],
+      [
+        'the outgoing account is a Developer',
+        { outgoing: curatorRow(OUTGOING, { role: 'DEVELOPER' }) },
+      ],
+      ['the successor account is missing', { successor: null }],
+      [
+        'the successor account is a Developer',
+        { successor: curatorRow(SUCCESSOR, { role: 'DEVELOPER' }) },
+      ],
+    ])('returns 404 when %s', async (_case, setup) => {
+      given(setup);
+
+      await expect(
+        service.handOverCurator(dto, ACTING_DEVELOPER_AUTH_ID),
+      ).rejects.toThrow(NotFoundException);
+      expect(prismaMock.user_account.update).not.toHaveBeenCalled();
+      expect(auditCalls()).toEqual([
+        expect.objectContaining({ status: 'DENIED' }),
+      ]);
+    });
+
+    it.each([
+      [
+        'the outgoing account is already inactive',
+        { outgoing: curatorRow(OUTGOING, { status: 'INACTIVE' }) },
+      ],
+      [
+        'the successor account is inactive',
+        { successor: curatorRow(SUCCESSOR, { status: 'INACTIVE' }) },
+      ],
+      [
+        'the successor has not accepted the invitation',
+        { successorAccepted: false },
+      ],
+      ['the successor has never signed in', { successorSignedIn: false }],
+    ])('returns 409 when %s', async (_case, setup) => {
+      given(setup);
+
+      await expect(
+        service.handOverCurator(dto, ACTING_DEVELOPER_AUTH_ID),
+      ).rejects.toThrow(ConflictException);
+      expect(prismaMock.user_account.update).not.toHaveBeenCalled();
+      expect(auditCalls()).toEqual([
+        expect.objectContaining({
+          status: 'DENIED',
+          details: expect.objectContaining({
+            successorAccountId: SUCCESSOR,
+            authorizationReason: dto.authorizationReason,
+          }),
+        }),
+      ]);
+    });
+
+    it('retries a write conflict and then reports 409 without a change', async () => {
+      given();
+      prismaMock.$transaction.mockRejectedValue(
+        new Prisma.PrismaClientKnownRequestError('conflict', {
+          code: 'P2034',
+          clientVersion: 'test',
+        }),
+      );
+
+      await expect(
+        service.handOverCurator(dto, ACTING_DEVELOPER_AUTH_ID),
+      ).rejects.toThrow(ConflictException);
+      expect(prismaMock.$transaction).toHaveBeenCalledTimes(3);
+    });
+
+    it('hides an unexpected failure and audits FAILED', async () => {
+      given();
+      prismaMock.user_account.update.mockRejectedValue(new Error('db down'));
+
+      await expect(
+        service.handOverCurator(dto, ACTING_DEVELOPER_AUTH_ID),
+      ).rejects.toThrow(InternalServerErrorException);
+      expect(auditCalls()).toEqual([
+        expect.objectContaining({
+          status: 'FAILED',
+          details: expect.objectContaining({ failure: 'db down' }),
+        }),
+      ]);
+    });
+  });
+
+  // ===========================================================
+  // createArAsset — REQ-4.2-04 / REQ-4.2-05
+  // ===========================================================
+  describe('createArAsset', () => {
+    const dto = {
+      exhibitId: 'exhibit-1',
+      modelFormat: 'glb' as const,
+      isEnabled: false,
+      authorizationReference: AUTH_REF,
+    };
+
+    it('throws NotFoundException when the exhibit does not exist', async () => {
+      prismaMock.exhibit.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.createArAsset(fakeFile(), dto, ACTING_DEVELOPER_AUTH_ID),
+      ).rejects.toThrow(NotFoundException);
+      expect(storageServiceMock.upload).not.toHaveBeenCalled();
+    });
+
+    it('throws BadRequestException when the exhibit is archived', async () => {
+      prismaMock.exhibit.findUnique.mockResolvedValue(
+        approvedExhibit({ archived_at: new Date() }),
+      );
+
+      await expect(
+        service.createArAsset(fakeFile(), dto, ACTING_DEVELOPER_AUTH_ID),
+      ).rejects.toThrow(BadRequestException);
+      expect(storageServiceMock.upload).not.toHaveBeenCalled();
+    });
+
+    it('throws BadRequestException when the curator has not marked the exhibit for AR', async () => {
+      prismaMock.exhibit.findUnique.mockResolvedValue(
+        approvedExhibit({ ar_selected_at: null }),
+      );
+
+      await expect(
+        service.createArAsset(fakeFile(), dto, ACTING_DEVELOPER_AUTH_ID),
+      ).rejects.toThrow(/marked for AR preparation/);
+      expect(storageServiceMock.upload).not.toHaveBeenCalled();
+      expect(prismaMock.ar_asset.create).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ['not approved for public display', 'CATALOGED', false],
+      ['not Cataloged', 'UNCATALOGED', true],
+    ])(
+      'throws BadRequestException when the specimen is %s',
+      async (_label, status, publicDisplayAllowed) => {
+        prismaMock.exhibit.findUnique.mockResolvedValue(
+          approvedExhibit({
+            specimen: { status, public_display_allowed: publicDisplayAllowed },
+          }),
+        );
+
+        await expect(
+          service.createArAsset(fakeFile(), dto, ACTING_DEVELOPER_AUTH_ID),
+        ).rejects.toThrow(BadRequestException);
+        expect(storageServiceMock.upload).not.toHaveBeenCalled();
+        expect(prismaMock.ar_asset.create).not.toHaveBeenCalled();
+      },
+    );
+
+    it('throws BadRequestException when the specimen is archived', async () => {
+      prismaMock.exhibit.findUnique.mockResolvedValue(
+        approvedExhibit({ specimen: { archived_at: new Date() } }),
+      );
+
+      await expect(
+        service.createArAsset(fakeFile(), dto, ACTING_DEVELOPER_AUTH_ID),
+      ).rejects.toThrow(BadRequestException);
+      expect(storageServiceMock.upload).not.toHaveBeenCalled();
+      expect(prismaMock.ar_asset.create).not.toHaveBeenCalled();
+    });
+
+    it('throws BadRequestException when no file is provided', async () => {
+      prismaMock.exhibit.findUnique.mockResolvedValue(approvedExhibit());
+
+      await expect(
+        service.createArAsset(
+          undefined as never,
+          dto,
+          ACTING_DEVELOPER_AUTH_ID,
+        ),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('throws BadRequestException when the file exceeds the size limit', async () => {
+      prismaMock.exhibit.findUnique.mockResolvedValue(approvedExhibit());
+      const oversized = fakeFile({ size: 100 * 1024 * 1024 });
+
+      await expect(
+        service.createArAsset(oversized, dto, ACTING_DEVELOPER_AUTH_ID),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('throws BadRequestException when the file extension does not match modelFormat', async () => {
+      prismaMock.exhibit.findUnique.mockResolvedValue(approvedExhibit());
+      const wrongExt = fakeFile({ originalname: 'model.gltf' });
+
+      await expect(
+        service.createArAsset(wrongExt, dto, ACTING_DEVELOPER_AUTH_ID),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('uploads then creates the row on success, and audits SUCCESS', async () => {
+      prismaMock.exhibit.findUnique.mockResolvedValue(approvedExhibit());
+      storageServiceMock.upload.mockResolvedValue('exhibit-1/some-path.glb');
+      const createdRow = {
+        id: 'asset-1',
+        exhibit_id: 'exhibit-1',
+        storage_path: 'exhibit-1/some-path.glb',
+        model_format: 'glb',
+        is_enabled: false,
+      };
+      prismaMock.ar_asset.create.mockResolvedValue(createdRow);
+
+      const result = await service.createArAsset(
+        fakeFile(),
+        dto,
+        ACTING_DEVELOPER_AUTH_ID,
+      );
+
+      expect(storageServiceMock.upload).toHaveBeenCalledWith(
+        'ar-assets',
+        'exhibit-1',
+        expect.any(Buffer),
+        'model/gltf-binary',
+      );
+      expect(result).toEqual({
+        id: 'asset-1',
+        exhibitId: 'exhibit-1',
+        modelUrl: 'exhibit-1/some-path.glb',
+        modelFormat: 'glb',
+        isEnabled: false,
+      });
+      expect(prismaMock.audit_log.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            action: 'CREATE_AR_ASSET',
+            status: 'SUCCESS',
+            details: expect.objectContaining({
+              authorizationReference: AUTH_REF,
+            }),
+          }),
+        }),
+      );
+    });
+
+    it('cleans up the uploaded file and audits FAILED when the DB insert fails', async () => {
+      prismaMock.exhibit.findUnique.mockResolvedValue(approvedExhibit());
+      storageServiceMock.upload.mockResolvedValue('exhibit-1/some-path.glb');
+      prismaMock.ar_asset.create.mockRejectedValue(new Error('insert failed'));
+
+      await expect(
+        service.createArAsset(fakeFile(), dto, ACTING_DEVELOPER_AUTH_ID),
+      ).rejects.toThrow(InternalServerErrorException);
+
+      expect(storageServiceMock.remove).toHaveBeenCalledWith(
+        'ar-assets',
+        expect.stringMatching(/^exhibit-1\/.+\.glb$/),
+      );
+      expect(prismaMock.audit_log.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            action: 'CREATE_AR_ASSET',
+            status: 'FAILED',
+          }),
+        }),
+      );
+    });
+  });
+
+  // ===========================================================
+  // updateArAsset — REQ-4.2-04
+  // ===========================================================
+  describe('updateArAsset', () => {
+    const existingRow = {
+      id: 'asset-1',
+      exhibit_id: 'exhibit-1',
+      storage_path: 'exhibit-1/old-path.glb',
+      model_format: 'glb',
+      is_enabled: false,
+    };
+
+    it('throws NotFoundException when the asset does not exist', async () => {
+      prismaMock.ar_asset.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.updateArAsset(
+          'missing',
+          undefined,
+          {},
+          ACTING_DEVELOPER_AUTH_ID,
+        ),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('returns the existing asset unchanged when no file and no fields are given', async () => {
+      prismaMock.ar_asset.findUnique.mockResolvedValue(existingRow);
+
+      const result = await service.updateArAsset(
+        'asset-1',
+        undefined,
+        {},
+        ACTING_DEVELOPER_AUTH_ID,
+      );
+
+      expect(result).toEqual({
+        id: 'asset-1',
+        exhibitId: 'exhibit-1',
+        modelUrl: 'exhibit-1/old-path.glb',
+        modelFormat: 'glb',
+        isEnabled: false,
+      });
+      expect(prismaMock.ar_asset.update).not.toHaveBeenCalled();
+    });
+
+    // REQ-4.2-05: documented authorization before anything new reaches visitors.
+    it.each([
+      ['replacing the file', fakeFile(), {}],
+      ['moving the asset', undefined, { exhibitId: 'exhibit-2' }],
+      ['activating the asset', undefined, { isEnabled: true }],
+    ])(
+      'rejects %s without an authorizationReference, before any upload',
+      async (_label, file, dto) => {
+        prismaMock.ar_asset.findUnique.mockResolvedValue(existingRow);
+
+        await expect(
+          service.updateArAsset('asset-1', file, dto, ACTING_DEVELOPER_AUTH_ID),
+        ).rejects.toThrow(/authorizationReference is required/);
+        expect(storageServiceMock.upload).not.toHaveBeenCalled();
+        expect(prismaMock.ar_asset.update).not.toHaveBeenCalled();
+      },
+    );
+
+    it('records the authorizationReference in the UPDATE_AR_ASSET audit entry', async () => {
+      prismaMock.ar_asset.findUnique.mockResolvedValue(existingRow);
+      storageServiceMock.upload.mockResolvedValue('exhibit-1/new-path.glb');
+      prismaMock.ar_asset.update.mockResolvedValue({
+        ...existingRow,
+        storage_path: 'exhibit-1/new-path.glb',
+      });
+
+      await service.updateArAsset(
+        'asset-1',
+        fakeFile(),
+        { authorizationReference: AUTH_REF },
+        ACTING_DEVELOPER_AUTH_ID,
+      );
+
+      expect(prismaMock.audit_log.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            action: 'UPDATE_AR_ASSET',
+            status: 'SUCCESS',
+            details: expect.objectContaining({
+              fileReplaced: true,
+              authorizationReference: AUTH_REF,
+            }),
+          }),
+        }),
+      );
+    });
+
+    it('toggles isEnabled only, without touching storage', async () => {
+      prismaMock.ar_asset.findUnique.mockResolvedValue(existingRow);
+      prismaMock.ar_asset.update.mockResolvedValue({
+        ...existingRow,
+        is_enabled: true,
+      });
+
+      const result = await service.updateArAsset(
+        'asset-1',
+        undefined,
+        { isEnabled: true, authorizationReference: AUTH_REF },
+        ACTING_DEVELOPER_AUTH_ID,
+      );
+
+      expect(prismaMock.ar_asset.update).toHaveBeenCalledWith({
+        where: { id: 'asset-1' },
+        data: { is_enabled: true },
+      });
+      expect(storageServiceMock.upload).not.toHaveBeenCalled();
+      expect(result.isEnabled).toBe(true);
+    });
+
+    it('replaces the file, updates model_url/model_format, and removes the old file', async () => {
+      prismaMock.ar_asset.findUnique.mockResolvedValue(existingRow);
+      storageServiceMock.upload.mockResolvedValue('exhibit-1/new-path.glb');
+      const updatedRow = {
+        ...existingRow,
+        storage_path: 'exhibit-1/new-path.glb',
+      };
+      prismaMock.ar_asset.update.mockResolvedValue(updatedRow);
+
+      const result = await service.updateArAsset(
+        'asset-1',
+        fakeFile(),
+        { authorizationReference: AUTH_REF },
+        ACTING_DEVELOPER_AUTH_ID,
+      );
+
+      expect(storageServiceMock.upload).toHaveBeenCalled();
+      expect(result).toEqual({
+        id: 'asset-1',
+        exhibitId: 'exhibit-1',
+        modelUrl: 'exhibit-1/new-path.glb',
+        modelFormat: 'glb',
+        isEnabled: false,
+      });
+      expect(storageServiceMock.remove).toHaveBeenCalledWith(
+        'ar-assets',
+        'exhibit-1/old-path.glb',
+      );
+    });
+
+    it('removes the new file but preserves the old file if the DB update fails', async () => {
+      prismaMock.ar_asset.findUnique.mockResolvedValue(existingRow);
+      storageServiceMock.upload.mockResolvedValue('exhibit-1/new-path.glb');
+      prismaMock.ar_asset.update.mockRejectedValue(new Error('update failed'));
+
+      await expect(
+        service.updateArAsset(
+          'asset-1',
+          fakeFile(),
+          { authorizationReference: AUTH_REF },
+          ACTING_DEVELOPER_AUTH_ID,
+        ),
+      ).rejects.toThrow(InternalServerErrorException);
+
+      expect(storageServiceMock.remove).toHaveBeenCalledWith(
+        'ar-assets',
+        'exhibit-1/new-path.glb',
+      );
+      expect(storageServiceMock.remove).not.toHaveBeenCalledWith(
+        'ar-assets',
+        'exhibit-1/old-path.glb',
+      );
+    });
+
+    it('throws NotFoundException when reassigned to a non-existent exhibit', async () => {
+      prismaMock.ar_asset.findUnique.mockResolvedValue(existingRow);
+      prismaMock.exhibit.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.updateArAsset(
+          'asset-1',
+          undefined,
+          {
+            exhibitId: 'nonexistent-exhibit',
+            authorizationReference: AUTH_REF,
+          },
+          ACTING_DEVELOPER_AUTH_ID,
+        ),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('throws BadRequestException when moved to an exhibit that is not curator-approved', async () => {
+      prismaMock.ar_asset.findUnique.mockResolvedValue(existingRow);
+      prismaMock.exhibit.findUnique.mockResolvedValue(
+        approvedExhibit({
+          specimen: { status: 'CATALOGED', public_display_allowed: false },
+        }),
+      );
+
+      await expect(
+        service.updateArAsset(
+          'asset-1',
+          undefined,
+          { exhibitId: 'exhibit-2', authorizationReference: AUTH_REF },
+          ACTING_DEVELOPER_AUTH_ID,
+        ),
+      ).rejects.toThrow(BadRequestException);
+      expect(prismaMock.ar_asset.update).not.toHaveBeenCalled();
+    });
+
+    it('throws BadRequestException when moved to an archived exhibit', async () => {
+      prismaMock.ar_asset.findUnique.mockResolvedValue(existingRow);
+      prismaMock.exhibit.findUnique.mockResolvedValue(
+        approvedExhibit({ archived_at: new Date() }),
+      );
+
+      await expect(
+        service.updateArAsset(
+          'asset-1',
+          undefined,
+          { exhibitId: 'exhibit-2', authorizationReference: AUTH_REF },
+          ACTING_DEVELOPER_AUTH_ID,
+        ),
+      ).rejects.toThrow(BadRequestException);
+      expect(prismaMock.ar_asset.update).not.toHaveBeenCalled();
+    });
+
+    describe('on an exhibit that is no longer deployable', () => {
+      it.each([
+        ['archived', approvedExhibit({ archived_at: new Date() })],
+        [
+          'withdrawn from public display',
+          approvedExhibit({ specimen: { public_display_allowed: false } }),
+        ],
+        [
+          'backed by an archived specimen',
+          approvedExhibit({ specimen: { archived_at: new Date() } }),
+        ],
+      ])(
+        'rejects activating the asset in place when the exhibit is %s',
+        async (_label, exhibit) => {
+          prismaMock.ar_asset.findUnique.mockResolvedValue(existingRow);
+          prismaMock.exhibit.findUnique.mockResolvedValue(exhibit);
+
+          await expect(
+            service.updateArAsset(
+              'asset-1',
+              undefined,
+              { isEnabled: true, authorizationReference: AUTH_REF },
+              ACTING_DEVELOPER_AUTH_ID,
+            ),
+          ).rejects.toThrow(BadRequestException);
+          expect(prismaMock.exhibit.findUnique).toHaveBeenCalledWith(
+            expect.objectContaining({ where: { id: 'exhibit-1' } }),
+          );
+          expect(prismaMock.ar_asset.update).not.toHaveBeenCalled();
+        },
+      );
+
+      it('rejects replacing the file in place, before anything is uploaded', async () => {
+        prismaMock.ar_asset.findUnique.mockResolvedValue(existingRow);
+        prismaMock.exhibit.findUnique.mockResolvedValue(
+          approvedExhibit({ archived_at: new Date() }),
+        );
+
+        await expect(
+          service.updateArAsset(
+            'asset-1',
+            fakeFile(),
+            { authorizationReference: AUTH_REF },
+            ACTING_DEVELOPER_AUTH_ID,
+          ),
+        ).rejects.toThrow(BadRequestException);
+        expect(storageServiceMock.upload).not.toHaveBeenCalled();
+        expect(prismaMock.ar_asset.update).not.toHaveBeenCalled();
+      });
+
+      it('still allows deactivating the asset', async () => {
+        prismaMock.ar_asset.findUnique.mockResolvedValue({
+          ...existingRow,
+          is_enabled: true,
+        });
+        prismaMock.exhibit.findUnique.mockResolvedValue(
+          approvedExhibit({ archived_at: new Date() }),
+        );
+        prismaMock.ar_asset.update.mockResolvedValue(existingRow);
+
+        await service.updateArAsset(
+          'asset-1',
+          undefined,
+          { isEnabled: false },
+          ACTING_DEVELOPER_AUTH_ID,
+        );
+
+        expect(prismaMock.ar_asset.update).toHaveBeenCalledWith({
+          where: { id: 'asset-1' },
+          data: { is_enabled: false },
+        });
+      });
+
+      it('allows moving the asset to a deployable exhibit and activating it there', async () => {
+        prismaMock.ar_asset.findUnique.mockResolvedValue(existingRow);
+        prismaMock.exhibit.findUnique.mockImplementation(
+          ({ where }: { where: { id: string } }) =>
+            Promise.resolve(
+              where.id === 'exhibit-1'
+                ? approvedExhibit({ archived_at: new Date() })
+                : approvedExhibit(),
+            ),
+        );
+        prismaMock.ar_asset.update.mockResolvedValue({
+          ...existingRow,
+          exhibit_id: 'exhibit-2',
+          is_enabled: true,
+        });
+
+        await service.updateArAsset(
+          'asset-1',
+          undefined,
+          {
+            exhibitId: 'exhibit-2',
+            isEnabled: true,
+            authorizationReference: AUTH_REF,
+          },
+          ACTING_DEVELOPER_AUTH_ID,
+        );
+
+        expect(prismaMock.exhibit.findUnique).toHaveBeenCalledTimes(1);
+        expect(prismaMock.exhibit.findUnique).toHaveBeenCalledWith(
+          expect.objectContaining({ where: { id: 'exhibit-2' } }),
+        );
+        expect(prismaMock.ar_asset.update).toHaveBeenCalledWith({
+          where: { id: 'asset-1' },
+          data: { exhibit_id: 'exhibit-2', is_enabled: true },
+        });
+      });
+    });
+  });
+
+  // ===========================================================
+  // listArExhibits — REQ-4.13-03 (curator-approved exhibits only)
+  // ===========================================================
+  describe('listArExhibits', () => {
+    const asset = {
+      id: 'asset-1',
+      exhibit_id: 'exhibit-2',
+      storage_path: 'exhibit-2/model.glb',
+      model_format: 'glb',
+      is_enabled: true,
+    };
+
+    it('queries only curator-approved exhibits, plus any exhibit that still holds assets', async () => {
+      prismaMock.exhibit.findMany.mockResolvedValue([]);
+
+      await service.listArExhibits();
+
+      expect(prismaMock.exhibit.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            OR: [
+              {
+                ar_selected_at: { not: null },
+                archived_at: null,
+                specimen: {
+                  status: 'CATALOGED',
+                  public_display_allowed: true,
+                  archived_at: null,
+                },
+              },
+              { ar_asset: { some: {} } },
+            ],
+          },
+        }),
+      );
+    });
+
+    it('marks approved exhibits deployable and cleanup-only exhibits not deployable', async () => {
+      prismaMock.exhibit.findMany.mockResolvedValue([
+        {
+          id: 'exhibit-1',
+          public_slug: 'giant-beetle',
+          status: 'PUBLISHED',
+          archived_at: null,
+          ar_selected_at: AR_SELECTED_AT,
+          ar_selection_note: 'Endemic; used in school tours',
+          specimen: {
+            common_name: 'Giant Beetle',
+            scientific_name: 'Titanus giganteus',
+            status: 'CATALOGED',
+            public_display_allowed: true,
+            archived_at: null,
+          },
+          ar_asset: [],
+        },
+        {
+          id: 'exhibit-2',
+          public_slug: 'old-moth',
+          status: 'DISABLED',
+          archived_at: new Date(),
+          ar_selected_at: AR_SELECTED_AT,
+          ar_selection_note: null,
+          specimen: {
+            common_name: 'Old Moth',
+            scientific_name: 'Actias luna',
+            status: 'CATALOGED',
+            public_display_allowed: true,
+            archived_at: null,
+          },
+          ar_asset: [asset],
+        },
+        {
+          id: 'exhibit-3',
+          public_slug: 'withdrawn-frog',
+          status: 'UNPUBLISHED',
+          archived_at: null,
+          ar_selected_at: AR_SELECTED_AT,
+          ar_selection_note: null,
+          specimen: {
+            common_name: 'Withdrawn Frog',
+            scientific_name: 'Rana temporaria',
+            status: 'CATALOGED',
+            public_display_allowed: false,
+            archived_at: null,
+          },
+          ar_asset: [{ ...asset, id: 'asset-3', exhibit_id: 'exhibit-3' }],
+        },
+        {
+          id: 'exhibit-4',
+          public_slug: 'unselected-owl',
+          status: 'PUBLISHED',
+          archived_at: null,
+          ar_selected_at: null,
+          ar_selection_note: null,
+          specimen: {
+            common_name: 'Unselected Owl',
+            scientific_name: 'Bubo bubo',
+            status: 'CATALOGED',
+            public_display_allowed: true,
+            archived_at: null,
+          },
+          ar_asset: [{ ...asset, id: 'asset-4', exhibit_id: 'exhibit-4' }],
+        },
+      ]);
+
+      await expect(service.listArExhibits()).resolves.toEqual([
+        {
+          id: 'exhibit-1',
+          publicSlug: 'giant-beetle',
+          status: 'PUBLISHED',
+          archived: false,
+          deployable: true,
+          arSelected: true,
+          arSelectionNote: 'Endemic; used in school tours',
+          commonName: 'Giant Beetle',
+          scientificName: 'Titanus giganteus',
+          assets: [],
+        },
+        expect.objectContaining({
+          id: 'exhibit-2',
+          archived: true,
+          deployable: false,
+          assets: [expect.objectContaining({ id: 'asset-1', isEnabled: true })],
+        }),
+        expect.objectContaining({
+          id: 'exhibit-3',
+          archived: false,
+          deployable: false,
+          assets: [expect.objectContaining({ id: 'asset-3' })],
+        }),
+        // AR selection withdrawn by the curator: cleanup-only.
+        expect.objectContaining({
+          id: 'exhibit-4',
+          deployable: false,
+          arSelected: false,
+          assets: [expect.objectContaining({ id: 'asset-4' })],
+        }),
+      ]);
+    });
+  });
+
+  // ===========================================================
+  // setArAssetEnabled — REQ-4.2-04 (activate/deactivate)
+  // ===========================================================
+  describe('setArAssetEnabled', () => {
+    it('throws NotFoundException for an unknown asset', async () => {
+      prismaMock.ar_asset.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.setArAssetEnabled(
+          'missing',
+          true,
+          ACTING_DEVELOPER_AUTH_ID,
+          AUTH_REF,
+        ),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('activates and audits ACTIVATE_AR_ASSET', async () => {
+      prismaMock.ar_asset.findUnique.mockResolvedValue({ id: 'asset-1' });
+      prismaMock.ar_asset.update.mockResolvedValue({
+        id: 'asset-1',
+        is_enabled: true,
+      });
+
+      const result = await service.setArAssetEnabled(
+        'asset-1',
+        true,
+        ACTING_DEVELOPER_AUTH_ID,
+        AUTH_REF,
+      );
+
+      expect(prismaMock.ar_asset.update).toHaveBeenCalledWith({
+        where: { id: 'asset-1' },
+        data: { is_enabled: true },
+      });
+      expect(result.isEnabled).toBe(true);
+      expect(prismaMock.audit_log.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            action: 'ACTIVATE_AR_ASSET',
+            status: 'SUCCESS',
+            details: { authorizationReference: AUTH_REF },
+          }),
+        }),
+      );
+    });
+
+    it.each([undefined, '', '   '])(
+      'rejects activation with authorizationReference %p, before any lookup',
+      async (reference) => {
+        await expect(
+          service.setArAssetEnabled(
+            'asset-1',
+            true,
+            ACTING_DEVELOPER_AUTH_ID,
+            reference,
+          ),
+        ).rejects.toThrow(BadRequestException);
+        expect(prismaMock.ar_asset.findUnique).not.toHaveBeenCalled();
+        expect(prismaMock.ar_asset.update).not.toHaveBeenCalled();
+      },
+    );
+
+    it('deactivates and audits DEACTIVATE_AR_ASSET', async () => {
+      prismaMock.ar_asset.findUnique.mockResolvedValue({ id: 'asset-1' });
+      prismaMock.ar_asset.update.mockResolvedValue({
+        id: 'asset-1',
+        isEnabled: false,
+      });
+
+      await service.setArAssetEnabled(
+        'asset-1',
+        false,
+        ACTING_DEVELOPER_AUTH_ID,
+      );
+
+      expect(prismaMock.audit_log.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            action: 'DEACTIVATE_AR_ASSET',
+            status: 'SUCCESS',
+          }),
+        }),
+      );
+    });
+
+    it.each([
+      ['archived', approvedExhibit({ archived_at: new Date() })],
+      [
+        'backed by an archived specimen',
+        approvedExhibit({ specimen: { archived_at: new Date() } }),
+      ],
+    ])(
+      'rejects activating an asset whose exhibit is %s',
+      async (_label, exhibit) => {
+        prismaMock.ar_asset.findUnique.mockResolvedValue({
+          id: 'asset-1',
+          exhibit_id: 'exhibit-1',
+        });
+        prismaMock.exhibit.findUnique.mockResolvedValue(exhibit);
+
+        await expect(
+          service.setArAssetEnabled(
+            'asset-1',
+            true,
+            ACTING_DEVELOPER_AUTH_ID,
+            AUTH_REF,
+          ),
+        ).rejects.toThrow(BadRequestException);
+        expect(prismaMock.exhibit.findUnique).toHaveBeenCalledWith(
+          expect.objectContaining({ where: { id: 'exhibit-1' } }),
+        );
+        expect(prismaMock.ar_asset.update).not.toHaveBeenCalled();
+      },
+    );
+
+    it('still deactivates an asset whose exhibit is no longer deployable', async () => {
+      prismaMock.ar_asset.findUnique.mockResolvedValue({
+        id: 'asset-1',
+        exhibit_id: 'exhibit-1',
+      });
+      prismaMock.exhibit.findUnique.mockResolvedValue(
+        approvedExhibit({ archived_at: new Date() }),
+      );
+      prismaMock.ar_asset.update.mockResolvedValue({
+        id: 'asset-1',
+        is_enabled: false,
+      });
+
+      await service.setArAssetEnabled(
+        'asset-1',
+        false,
+        ACTING_DEVELOPER_AUTH_ID,
+      );
+
+      expect(prismaMock.ar_asset.update).toHaveBeenCalledWith({
+        where: { id: 'asset-1' },
+        data: { is_enabled: false },
+      });
+    });
+
+    it('throws InternalServerErrorException and audits FAILED when the update fails', async () => {
+      prismaMock.ar_asset.findUnique.mockResolvedValue({ id: 'asset-1' });
+      prismaMock.ar_asset.update.mockRejectedValue(new Error('db error'));
+
+      await expect(
+        service.setArAssetEnabled(
+          'asset-1',
+          true,
+          ACTING_DEVELOPER_AUTH_ID,
+          AUTH_REF,
+        ),
+      ).rejects.toThrow(InternalServerErrorException);
+
+      expect(prismaMock.audit_log.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            action: 'ACTIVATE_AR_ASSET',
+            status: 'FAILED',
+          }),
+        }),
+      );
+    });
+  });
+
+  // ===========================================================
+  // removeArAsset — REQ-4.2-04
+  // ===========================================================
+  describe('removeArAsset', () => {
+    it('throws NotFoundException for an unknown asset', async () => {
+      prismaMock.ar_asset.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.removeArAsset('missing', ACTING_DEVELOPER_AUTH_ID),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('deletes the row, removes the storage object, and audits SUCCESS', async () => {
+      prismaMock.ar_asset.findUnique.mockResolvedValue({
+        id: 'asset-1',
+        storage_path: 'exhibit-1/some-path.glb',
+      });
+      prismaMock.ar_asset.delete.mockResolvedValue({});
+
+      const result = await service.removeArAsset(
+        'asset-1',
+        ACTING_DEVELOPER_AUTH_ID,
+      );
+
+      expect(prismaMock.ar_asset.delete).toHaveBeenCalledWith({
+        where: { id: 'asset-1' },
+      });
+      expect(storageServiceMock.remove).toHaveBeenCalledWith(
+        'ar-assets',
+        'exhibit-1/some-path.glb',
+      );
+      expect(result).toEqual({ id: 'asset-1', removed: true });
+    });
+
+    it('does not touch storage and audits FAILED when the delete fails', async () => {
+      prismaMock.ar_asset.findUnique.mockResolvedValue({
+        id: 'asset-1',
+        modelUrl: 'exhibit-1/some-path.glb',
+      });
+      prismaMock.ar_asset.delete.mockRejectedValue(new Error('fk violation'));
+
+      await expect(
+        service.removeArAsset('asset-1', ACTING_DEVELOPER_AUTH_ID),
+      ).rejects.toThrow(InternalServerErrorException);
+
+      expect(storageServiceMock.remove).not.toHaveBeenCalled();
+      expect(prismaMock.audit_log.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            action: 'REMOVE_AR_ASSET',
+            status: 'FAILED',
+          }),
+        }),
+      );
+    });
+  });
+
+  // ===========================================================
+  // Audit logging resilience — REQ-4.2-09
+  // ===========================================================
+  describe('rejected AR deployment attempts are audited as FAILED (REQ-4.2-09)', () => {
+    const existingRow = {
+      id: 'asset-1',
+      exhibit_id: 'exhibit-1',
+      storage_path: 'exhibit-1/old-path.glb',
+      model_format: 'glb',
+      is_enabled: false,
+    };
+
+    function expectFailedAudit(
+      action: string,
+      details: Record<string, unknown>,
+      affectedRecordId?: string,
+    ) {
+      expect(prismaMock.audit_log.create).toHaveBeenCalledTimes(1);
+      expect(prismaMock.audit_log.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          user_id: ACTING_DEVELOPER_ACCOUNT_ID,
+          action,
+          module: 'developer',
+          affected_record_type: 'ar_asset',
+          affected_record_id: affectedRecordId,
+          status: 'FAILED',
+          details: expect.objectContaining(details),
+        }),
+      });
+    }
+
+    describe('upload', () => {
+      const dto = {
+        exhibitId: 'exhibit-1',
+        modelFormat: 'glb' as const,
+        isEnabled: false,
+        authorizationReference: AUTH_REF,
+      };
+
+      it.each([undefined, '', '   '])(
+        'audits an upload with authorizationReference %p',
+        async (authorizationReference) => {
+          await expect(
+            service.createArAsset(
+              fakeFile(),
+              { ...dto, authorizationReference },
+              ACTING_DEVELOPER_AUTH_ID,
+            ),
+          ).rejects.toThrow(BadRequestException);
+
+          expectFailedAudit('CREATE_AR_ASSET', {
+            exhibitId: 'exhibit-1',
+            reason:
+              'An authorizationReference is required to upload an AR asset.',
+          });
+          expect(storageServiceMock.upload).not.toHaveBeenCalled();
+        },
+      );
+
+      it('audits an upload to a non-deployable exhibit', async () => {
+        prismaMock.exhibit.findUnique.mockResolvedValue(
+          approvedExhibit({ specimen: { public_display_allowed: false } }),
+        );
+
+        await expect(
+          service.createArAsset(fakeFile(), dto, ACTING_DEVELOPER_AUTH_ID),
+        ).rejects.toThrow(BadRequestException);
+
+        expectFailedAudit('CREATE_AR_ASSET', {
+          exhibitId: 'exhibit-1',
+          authorizationReference: AUTH_REF,
+          reason: expect.stringMatching(/approved for public display/),
+        });
+      });
+
+      it('audits an upload to a missing exhibit', async () => {
+        prismaMock.exhibit.findUnique.mockResolvedValue(null);
+
+        await expect(
+          service.createArAsset(fakeFile(), dto, ACTING_DEVELOPER_AUTH_ID),
+        ).rejects.toThrow(NotFoundException);
+
+        expectFailedAudit('CREATE_AR_ASSET', {
+          reason: 'No exhibit found with id "exhibit-1".',
+        });
+      });
+
+      it('audits an invalid file', async () => {
+        await expect(
+          service.createArAsset(
+            fakeFile({ originalname: 'model.usdz' }),
+            dto,
+            ACTING_DEVELOPER_AUTH_ID,
+          ),
+        ).rejects.toThrow(BadRequestException);
+
+        expectFailedAudit('CREATE_AR_ASSET', {
+          modelFormat: 'glb',
+          reason: expect.stringMatching(
+            /does not match the declared model format/,
+          ),
+        });
+      });
+
+      it('audits a storage upload failure with a safe reason', async () => {
+        storageServiceMock.upload.mockRejectedValue(
+          new BadRequestException('Unsupported file type for ar-assets'),
+        );
+
+        await expect(
+          service.createArAsset(fakeFile(), dto, ACTING_DEVELOPER_AUTH_ID),
+        ).rejects.toThrow(BadRequestException);
+
+        expectFailedAudit('CREATE_AR_ASSET', {
+          reason: 'Unsupported file type for ar-assets',
+        });
+        expect(prismaMock.ar_asset.create).not.toHaveBeenCalled();
+      });
+
+      it('never writes raw internal error text to the audit log', async () => {
+        storageServiceMock.upload.mockRejectedValue(
+          new Error('connect ECONNREFUSED 10.0.0.5:443 (service key abc)'),
+        );
+
+        await expect(
+          service.createArAsset(fakeFile(), dto, ACTING_DEVELOPER_AUTH_ID),
+        ).rejects.toThrow('ECONNREFUSED');
+
+        expectFailedAudit('CREATE_AR_ASSET', {
+          reason: 'Unexpected error before the change was saved.',
+        });
+      });
+
+      it('audits a failed DB insert exactly once', async () => {
+        storageServiceMock.upload.mockResolvedValue('exhibit-1/some-path.glb');
+        prismaMock.ar_asset.create.mockRejectedValue(
+          new Error('insert failed'),
+        );
+
+        await expect(
+          service.createArAsset(fakeFile(), dto, ACTING_DEVELOPER_AUTH_ID),
+        ).rejects.toThrow(InternalServerErrorException);
+
+        expect(prismaMock.audit_log.create).toHaveBeenCalledTimes(1);
+      });
+    });
+
+    describe('update', () => {
+      it('audits a replacement without an authorizationReference against the asset', async () => {
+        prismaMock.ar_asset.findUnique.mockResolvedValue(existingRow);
+
+        await expect(
+          service.updateArAsset(
+            'asset-1',
+            fakeFile(),
+            {},
+            ACTING_DEVELOPER_AUTH_ID,
+          ),
+        ).rejects.toThrow(BadRequestException);
+
+        expectFailedAudit(
+          'UPDATE_AR_ASSET',
+          {
+            fileProvided: true,
+            reason: expect.stringMatching(/authorizationReference is required/),
+          },
+          'asset-1',
+        );
+      });
+
+      it('audits an update of an unknown asset', async () => {
+        prismaMock.ar_asset.findUnique.mockResolvedValue(null);
+
+        await expect(
+          service.updateArAsset(
+            'missing',
+            undefined,
+            { isEnabled: false },
+            ACTING_DEVELOPER_AUTH_ID,
+          ),
+        ).rejects.toThrow(NotFoundException);
+
+        expectFailedAudit(
+          'UPDATE_AR_ASSET',
+          { reason: 'No AR asset found with id "missing".' },
+          'missing',
+        );
+      });
+    });
+
+    describe('activation', () => {
+      it.each([undefined, '', '   '])(
+        'audits an activation with authorizationReference %p',
+        async (authorizationReference) => {
+          await expect(
+            service.setArAssetEnabled(
+              'asset-1',
+              true,
+              ACTING_DEVELOPER_AUTH_ID,
+              authorizationReference,
+            ),
+          ).rejects.toThrow(BadRequestException);
+
+          expectFailedAudit(
+            'ACTIVATE_AR_ASSET',
+            {
+              reason:
+                'An authorizationReference is required to activate an AR asset.',
+            },
+            'asset-1',
+          );
+          expect(prismaMock.ar_asset.update).not.toHaveBeenCalled();
+        },
+      );
+
+      it('audits an activation on a non-deployable exhibit, with the reference', async () => {
+        prismaMock.ar_asset.findUnique.mockResolvedValue(existingRow);
+        prismaMock.exhibit.findUnique.mockResolvedValue(
+          approvedExhibit({ archived_at: new Date() }),
+        );
+
+        await expect(
+          service.setArAssetEnabled(
+            'asset-1',
+            true,
+            ACTING_DEVELOPER_AUTH_ID,
+            AUTH_REF,
+          ),
+        ).rejects.toThrow(BadRequestException);
+
+        expectFailedAudit(
+          'ACTIVATE_AR_ASSET',
+          {
+            authorizationReference: AUTH_REF,
+            reason: expect.stringMatching(/no longer deployable/),
+          },
+          'asset-1',
+        );
+      });
+    });
+
+    it('audits deactivating an unknown asset', async () => {
+      prismaMock.ar_asset.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.setArAssetEnabled('missing', false, ACTING_DEVELOPER_AUTH_ID),
+      ).rejects.toThrow(NotFoundException);
+
+      expectFailedAudit(
+        'DEACTIVATE_AR_ASSET',
+        { reason: 'No AR asset found with id "missing".' },
+        'missing',
+      );
+    });
+
+    it('audits removing an unknown asset', async () => {
+      prismaMock.ar_asset.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.removeArAsset('missing', ACTING_DEVELOPER_AUTH_ID),
+      ).rejects.toThrow(NotFoundException);
+
+      expectFailedAudit(
+        'REMOVE_AR_ASSET',
+        { reason: 'No AR asset found with id "missing".' },
+        'missing',
+      );
+    });
+  });
+
+  describe('audit logging failures never mask the primary result', () => {
+    it('still returns the updated asset even if audit_log insert fails', async () => {
+      prismaMock.ar_asset.findUnique.mockResolvedValue({ id: 'asset-1' });
+      prismaMock.ar_asset.update.mockResolvedValue({
+        id: 'asset-1',
+        is_enabled: true,
+      });
+      prismaMock.audit_log.create.mockRejectedValue(
+        new Error('audit table unreachable'),
+      );
+
+      const result = await service.setArAssetEnabled(
+        'asset-1',
+        true,
+        ACTING_DEVELOPER_AUTH_ID,
+        AUTH_REF,
+      );
+
+      expect(result).toEqual({
+        id: 'asset-1',
+        exhibitId: undefined,
+        modelUrl: undefined,
+        modelFormat: undefined,
+        isEnabled: true,
+      });
+    });
+
+    it('does not throw, and skips the audit write, when the acting user has no matching user_account', async () => {
+      prismaMock.user_account.findUnique.mockResolvedValue(null);
+      prismaMock.ar_asset.findUnique.mockResolvedValue({ id: 'asset-1' });
+      prismaMock.ar_asset.update.mockResolvedValue({
+        id: 'asset-1',
+        is_enabled: true,
+      });
+
+      const result = await service.setArAssetEnabled(
+        'asset-1',
+        true,
+        ACTING_DEVELOPER_AUTH_ID,
+        AUTH_REF,
+      );
+
+      expect(prismaMock.audit_log.create).not.toHaveBeenCalled();
+      expect(result.isEnabled).toBe(true);
+    });
+  });
+});

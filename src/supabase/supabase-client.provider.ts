@@ -1,15 +1,29 @@
-import { createClient, SupabaseClient } from "@supabase/supabase-js";
-import { ConfigService } from "@nestjs/config";
+import { ConfigService } from '@nestjs/config';
+import { createClient } from '@supabase/supabase-js';
 
-export const SUPABASE_CLIENT = 'SUPABASE_CLIENT';
+import { SUPABASE_CLIENT } from './supabase.constants';
+export { SUPABASE_CLIENT };
 
 export const SupabaseClientProvider = {
-    provide: SUPABASE_CLIENT,
-    useFactory: (configService: ConfigService): SupabaseClient => {
-        return createClient(
-            configService.getOrThrow<string>('SUPABASE_URL'),
-            configService.getOrThrow<string>('SUPABASE_SERVICE_ROLE_KEY'),
-        );
-    },
-    inject: [ConfigService],
+  provide: SUPABASE_CLIENT,
+
+  useFactory: (configService: ConfigService) => {
+    return createClient(
+      configService.getOrThrow<string>('SUPABASE_URL'),
+      configService.getOrThrow<string>('SUPABASE_SECRET_KEY'),
+      {
+        // This client is shared across all requests on the server, so it
+        // must never retain or auto-refresh an individual user's session —
+        // every call is authorized per-request via an explicit access token
+        // (see AuthService.authenticateAccessToken).
+        auth: {
+          autoRefreshToken: false,
+          persistSession: false,
+          detectSessionInUrl: false,
+        },
+      },
+    );
+  },
+
+  inject: [ConfigService],
 };

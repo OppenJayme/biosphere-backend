@@ -1,0 +1,46 @@
+{
+  "source": "ec228587c9154f4ed13568b18b4d7ed7cab66a68",
+  "matrixSource": "06545c0 (route-table header)",
+  "currentRoutes": 145,
+  "listedRoutes": 140,
+  "unlistedCurrentRoutes": [
+    {
+      "method": "POST",
+      "path": "/auth/password/change",
+      "access": "ANY_AUTHENTICATED",
+      "controller": "src/auth/auth.controller.ts",
+      "handler": "changePassword"
+    },
+    {
+      "method": "POST",
+      "path": "/auth/password/recovery",
+      "access": "PUBLIC",
+      "controller": "src/auth/auth.controller.ts",
+      "handler": "requestPasswordRecovery"
+    },
+    {
+      "method": "POST",
+      "path": "/auth/password/reset",
+      "access": "PUBLIC",
+      "controller": "src/auth/auth.controller.ts",
+      "handler": "resetPassword"
+    },
+    {
+      "method": "POST",
+      "path": "/developer/curators/handover",
+      "access": "DEVELOPER",
+      "controller": "src/developer/developer.controller.ts",
+      "handler": "handOverCurator"
+    },
+    {
+      "method": "GET",
+      "path": "/storage-locations/arrangement-rules",
+      "access": "CURATOR",
+      "controller": "src/storage-locations/storage-locations.controller.ts",
+      "handler": "getArrangementRules"
+    }
+  ],
+  "staleListedRoutes": [],
+  "accessDifferences": [],
+  "unresolved": []
+}

@@ -5,11 +5,13 @@ node_modules/
 dist/
 
 # Environment variables
+backblaze.env
 .env
 .env.local
 .env.development
 .env.production
 .env.test
+.env.bak*
 
 # Logs
 logs/
@@ -36,3 +38,13 @@ Thumbs.db
 
 # NestJS / TypeScript
 *.tsbuildinfo
+/src/generated/prisma
+
+# Local recovery rehearsal material; never commit keys, snapshots or restore files.
+.recovery-rehearsals/
+**/recovery.key
+**/recovery-history.private.json
+**/recovery-verification.private.json
+**/recovery-readiness.private.json
+**/b2-transfer.private.json
+*.bsp

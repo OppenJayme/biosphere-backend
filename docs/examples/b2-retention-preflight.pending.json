@@ -1,0 +1,17 @@
+{
+  "format": "biosphere-b2-preflight-v1",
+  "authorization": {
+    "bucketRefs": null,
+    "namePrefix": "synthetic/",
+    "capabilities": [],
+    "expiresAt": "2000-01-01T00:00:00.000Z"
+  },
+  "bucket": {
+    "bucketRef": "synthetic-example",
+    "private": false,
+    "retentionReadable": false,
+    "objectLockEnabled": false,
+    "mode": null,
+    "retentionDays": 1
+  }
+}

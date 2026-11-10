@@ -1,0 +1,9 @@
+{
+  "moduleFileExtensions": ["js", "json", "ts", "cjs"],
+  "rootDir": ".",
+  "testEnvironment": "node",
+  "testRegex": "source-inventory-connection\\.db-spec\\.ts$",
+  "testTimeout": 120000,
+  "transform": { "^.+\\.(t|j)s$": "ts-jest" },
+  "moduleDirectories": ["node_modules", "<rootDir>/.."]
+}

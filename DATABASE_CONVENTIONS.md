@@ -55,7 +55,7 @@ This document records the conventions agreed upon for the BioSphere database. Th
 ## Constraints
 
 - Add `UNIQUE`, cascading deletes, and other strong constraints only when confirmed business rules support them.
-- Do not enforce a final uniqueness rule for accession numbers until it has been validated with the curator.
+- Accession numbers are unique across all specimen records, including Archived ones, compared trimmed and case-insensitively (curator-approved; REQ-4.4-04, BR-01). No format is enforced yet. See [`docs/ACCESSION_NUMBER_GUIDE.md`](docs/ACCESSION_NUMBER_GUIDE.md).
 
 ## Step 5 - Frozen Statuses, Enums, and Controlled Values
 
@@ -74,8 +74,32 @@ This document records the conventions agreed upon for the BioSphere database. Th
 
 ### Notes
 
+- **DEF-030 historical read compatibility:** the Prisma/PostgreSQL quantity
+  enum additionally represents the already-retained `TEMPORARY_ABSENCE` value
+  so historical rows can be decoded. It is excluded from supported new-write
+  DTOs and form options; the seven operations above remain the approved
+  REQ-4.5-09 / BR-08 write contract. This exception does not approve a new
+  quantity operation. Retention of the value and the status of the test
+  adjustment on `USC-BM-2026-0001` are recorded in DEF-030. See
+  [the compatibility guide](docs/LOT_HISTORY_ENUM_COMPATIBILITY.md).
+  Kyer's 2026-10-31 direction supports retaining the historical value and
+  proposing a future borrowing option; it is recorded in DEF-030 separately
+  from institutional approval and validation of the existing adjustment.
+
 - `TRANSFER_OUT` means a specimen physically leaves the USC Biological Museum collection.
 - Moving a specimen between internal museum storage locations is a location movement and must not reduce total specimen quantity.
 - Collection names must NOT be implemented as an enum because future collections may be added after system turnover.
 - Storage unit types, specimen condition classifications, preservation methods, and other curator-extensible museum values should not be frozen as PostgreSQL enums unless later confirmed.
 - These values are now considered frozen implementation conventions and should be used consistently in the PostgreSQL schema, Prisma schema, NestJS DTOs/services, API validation, frontend status handling, and tests.
+
+## Prisma Implementation Guide
+
+See [`docs/PRISMA_SCHEMA_GUIDE.md`](docs/PRISMA_SCHEMA_GUIDE.md) for the current
+schema inventory, generated-client import rules, naming contract, safe commands,
+migration workflow, and pull-request checklist.
+
+See [`docs/STORAGE_LOCATIONS_GUIDE.md`](docs/STORAGE_LOCATIONS_GUIDE.md) for the
+storage-unit field mapping, hierarchy, movement-history, and archive rules.
+
+See [`docs/SPECIMEN_CORE_GUIDE.md`](docs/SPECIMEN_CORE_GUIDE.md) for the
+specimen-core API mapping, lifecycle boundaries, history, and archive rules.

@@ -1,0 +1,156 @@
+// src/storage-locations/storage-locations.controller.ts
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  ParseUUIDPipe,
+  Patch,
+  Post,
+  Query,
+} from '@nestjs/common';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiOkResponse,
+  ApiCreatedResponse,
+} from '@nestjs/swagger';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { Roles } from '../auth/decorators/roles.decorator';
+import type { AuthenticatedUser } from '../auth/types/auth.types';
+import { StorageLocationsService } from './storage-locations.service';
+import { STORAGE_ARRANGEMENT_TIERS } from './storage-arrangement.policy';
+import { CreateStorageUnitDto } from './dto/create-storage-unit.dto';
+import { UpdateStorageUnitDto } from './dto/update-storage-unit.dto';
+import { MoveStorageUnitDto } from './dto/move-storage-unit.dto';
+import { SearchStorageLocationsQueryDto } from './dto/search-storage-locations-query.dto';
+import { StorageCapacityCheckQueryDto } from './dto/storage-capacity-check-query.dto';
+import { StorageCapacityCheck } from './entities/storage-capacity.entity';
+import { StorageMovement } from './entities/storage-movement.entity';
+import { StorageOccupancySummary } from './entities/storage-occupancy-summary.entity';
+import { StorageUnit, StorageUnitPage } from './entities/storage-unit.entity';
+
+@ApiTags('storage-locations')
+@Roles('CURATOR')
+@Controller('storage-locations')
+export class StorageLocationsController {
+  constructor(private readonly service: StorageLocationsService) {}
+
+  @Post()
+  @ApiOperation({ summary: 'Create a storage unit (curator-only)' })
+  @ApiCreatedResponse({ type: StorageUnit })
+  create(
+    @Body() dto: CreateStorageUnitDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<StorageUnit> {
+    return this.service.create(dto, user.accountId);
+  }
+
+  @Get()
+  @ApiOkResponse({ type: [StorageUnit] })
+  findAll(): Promise<StorageUnit[]> {
+    return this.service.findAll();
+  }
+
+  @Get('arrangement-rules')
+  @ApiOperation({
+    summary:
+      'Unit-type tiers used to reject impossible parent/child arrangements',
+  })
+  getArrangementRules() {
+    return {
+      tiers: STORAGE_ARRANGEMENT_TIERS,
+      rule: 'A unit may sit inside a parent of a higher tier (tiers may be skipped). Containers may also nest inside containers. Unlisted types are not restricted.',
+    };
+  }
+
+  @Get('occupancy-summary')
+  @ApiOperation({
+    summary: 'Active specimen-lot quantity vs. capacity per storage unit',
+  })
+  @ApiOkResponse({ type: [StorageOccupancySummary] })
+  findOccupancySummary(): Promise<StorageOccupancySummary[]> {
+    return this.service.findOccupancySummary();
+  }
+
+  @Get('search')
+  @ApiOperation({ summary: 'Search, filter, and paginate storage locations' })
+  @ApiOkResponse({ type: StorageUnitPage })
+  search(
+    @Query() query: SearchStorageLocationsQueryDto,
+  ): Promise<StorageUnitPage> {
+    return this.service.search(query);
+  }
+
+  @Get(':id/capacity-check')
+  @ApiOperation({
+    summary:
+      'Preview whether placing a quantity in a unit would exceed its capacity',
+  })
+  @ApiOkResponse({ type: StorageCapacityCheck })
+  checkCapacity(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Query() query: StorageCapacityCheckQueryDto,
+  ): Promise<StorageCapacityCheck> {
+    return this.service.checkCapacity(id, query);
+  }
+
+  @Get(':id/path')
+  @ApiOperation({
+    summary: 'Get the root-to-unit storage hierarchy path (REQ-4.6-08)',
+  })
+  @ApiOkResponse({ type: [StorageUnit] })
+  findPath(@Param('id', ParseUUIDPipe) id: string): Promise<StorageUnit[]> {
+    return this.service.findPath(id);
+  }
+
+  @Get(':id')
+  @ApiOkResponse({ type: StorageUnit })
+  findOne(@Param('id', ParseUUIDPipe) id: string): Promise<StorageUnit> {
+    return this.service.findOne(id);
+  }
+
+  @Get(':id/children')
+  @ApiOkResponse({ type: [StorageUnit] })
+  findChildren(@Param('id', ParseUUIDPipe) id: string): Promise<StorageUnit[]> {
+    return this.service.findChildren(id);
+  }
+
+  @Get(':id/movements')
+  @ApiOkResponse({ type: [StorageMovement] })
+  findMovementHistory(
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<StorageMovement[]> {
+    return this.service.findMovementHistory(id);
+  }
+
+  @Patch(':id')
+  @ApiOkResponse({ type: StorageUnit })
+  update(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateStorageUnitDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<StorageUnit> {
+    return this.service.update(id, dto, user.accountId);
+  }
+
+  @Patch(':id/move')
+  @ApiOperation({ summary: 'Reparent a storage unit (REQ-4.6-07/12)' })
+  @ApiOkResponse({ type: StorageUnit })
+  move(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: MoveStorageUnitDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<StorageUnit> {
+    return this.service.move(id, dto, user.accountId);
+  }
+
+  @Patch(':id/archive')
+  @ApiOkResponse({ type: StorageUnit })
+  archive(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<StorageUnit> {
+    return this.service.archive(id, user.accountId);
+  }
+}
