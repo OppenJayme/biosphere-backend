@@ -95,6 +95,9 @@ jobs:
       - name: Verify inventory command has no connection or credential fallback
         run: npm run test:recovery:inventory
 
+      - name: Verify explicit source-connection configuration guards without providers
+        run: npm run test:recovery:inventory:connection
+
   synthetic-recovery:
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -136,6 +139,9 @@ jobs:
 
       - name: Read-only inventory with owned PostgreSQL and synthetic Storage metadata
         run: npm run test:recovery:inventory:db
+
+      - name: Source connection with owned PostgreSQL and loopback Storage HTTP
+        run: npm run test:recovery:inventory:connection:db
 
       - name: Build the separate worker runtime
         run: npm run build
