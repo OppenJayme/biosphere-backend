@@ -11,7 +11,15 @@ fallback. The [inventory command guide](../../docs/BACKUP_SOURCE_INVENTORY.md)
 describes the explicit trusted-adapter interface and its isolated checks.
 Inspection measures catalogs and declared Storage metadata only: database name
 matching is not project authentication, and sizing is not a verified backup.
-No hosted connector, source write coordination or daily schedule is enabled.
+The base command alone enables no hosted connector, source write coordination
+or daily schedule.
+
+The [explicit read-only connection adapter](../../docs/BACKUP_SOURCE_CONNECTION.md)
+adds opt-in PostgreSQL/Storage metadata transport. `npm run recovery:inventory:connect`
+still defaults to a no-I/O plan; a hosted inspection requires separately
+authorized credentials and an explicit project/authorization reference. It
+does not add exports, checkpoint publication, source write coordination or a
+backup schedule.
 
 ## Local deployment-planning readiness check
 

@@ -36,9 +36,19 @@ The caller supplies:
   shape is not assumed or directly accepted. Explicit `null` size means unknown;
   missing, negative and unsafe numeric sizes are rejected.
 
+Alternatively, a trusted adapter can provide
+`storage.summarizeObjects({bucketIds})` instead of `listObjects`. It runs inside
+the read-only SQL transaction and returns one decimal-string aggregate per
+required bucket (`objects`, `declaredObjectBytes`, `unknownSizeObjects`,
+`invalidSizeObjects`, `placeholderObjects`) plus boolean `rowSecurityActive`.
+The core validates bucket identity/uniqueness, safe totals and zero invalid-size
+rows. The connection command defaults to this SQL mode; the base command still
+has no connection fallback. The result labels its `storageInventoryBasis`, and
+SQL-visible metadata is not assumed to be unfiltered by permissions/RLS.
+
 ## What inspection measures
 
-The database portion reads only catalogs/settings and physical database size;
+The base database portion reads catalogs/settings and physical database size;
 it does not select specimen, Auth or visitor row contents. It checks six required
 table names, reports the scoped table count, PostgreSQL version number,
 additional non-system schemas and extension count. It does not certify the
@@ -50,6 +60,12 @@ and schemas prevent `scopeComplete: true`; this flag means only that no scope
 outside the configured schema/bucket set was observed. It never establishes a
 complete recoverable application. No bucket settings, object contents, policies,
 Auth capabilities or cross-service consistency are verified.
+
+The optional SQL summary reads aggregate Storage metadata, not file bytes or
+specimen/Auth/visitor contents. Zero-byte dashboard placeholder objects are
+excluded and counted separately in either supported connection mode. Unknown
+and nonzero-size namesakes are not silently dropped. SQL totals cover all
+role-visible metadata rows, which may differ from current-file API listings.
 
 Results contain aggregates only: no database name/URL, object names, pagination
 cursors, secrets or raw provider exception. Physical DB size includes overhead;
