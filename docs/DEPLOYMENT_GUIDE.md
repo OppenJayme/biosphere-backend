@@ -27,11 +27,13 @@ covered elsewhere and are not part of this guide.
 These are done once, outside the server.
 
 - [ ] **Migrations.** Run `npx prisma migrate status` against the target
-  database. Every migration on `develop` must be applied. Apply new ones with
-  `npx prisma migrate deploy` from an up-to-date `develop` checkout, after any
+  database. Every migration on `main` must be applied. Apply new ones with
+  `npx prisma migrate deploy` from an up-to-date `main` checkout, after any
   pre-check the migration's own comments ask for.
-- [ ] **Test records.** Remove the black-box-test records from the shared
-  database, with the team's approval of the exact list.
+- [x] **Test records.** Done on 10 Nov 2026: the shared database was wiped
+  except for the FAQ, accounts, the backup record and the starter collections
+  and tags. The pre-wipe export is kept outside the repository.
+- [ ] **Release.** `main` holds what is deployed. See section 7.
 - [ ] **Supabase Auth URLs.** In Supabase, Authentication > URL Configuration:
   - Site URL: `https://biosphere.dcism.org`.
   - Redirect URLs: add `https://biosphere.dcism.org/**`.
@@ -82,12 +84,41 @@ changing any of them.
 
 ## 3. First deployment
 
-On the server (`ssh -p 22072 <user>@web.dcism.org`):
+On the server (`ssh -p 22072 <user>@web.dcism.org`).
+
+### Repository access
+
+Both repositories are private. Give the server one read-only deploy key per
+repository (GitHub allows a deploy key on only one repository):
+
+```bash
+ssh-keygen -t ed25519 -N '' -C biosphere-backend-deploy -f ~/.ssh/biosphere_backend_deploy
+ssh-keygen -t ed25519 -N '' -C biosphere-frontend-deploy -f ~/.ssh/biosphere_frontend_deploy
+cat >> ~/.ssh/config <<'EOF'
+Host github-biosphere-backend
+  HostName github.com
+  User git
+  IdentityFile ~/.ssh/biosphere_backend_deploy
+  IdentitiesOnly yes
+Host github-biosphere-frontend
+  HostName github.com
+  User git
+  IdentityFile ~/.ssh/biosphere_frontend_deploy
+  IdentitiesOnly yes
+EOF
+chmod 600 ~/.ssh/config
+cat ~/.ssh/biosphere_backend_deploy.pub ~/.ssh/biosphere_frontend_deploy.pub
+```
+
+Add each public key in its repository under Settings > Deploy keys, with
+"Allow write access" left off. A repository admin has to do this.
+
+### Install and start
 
 ```bash
 mkdir -p ~/apps && cd ~/apps
-git clone -b develop https://github.com/OppenJayme/biosphere-backend.git
-git clone -b develop https://github.com/OppenJayme/biosphere-frontend.git
+git clone -b main github-biosphere-backend:OppenJayme/biosphere-backend.git
+git clone -b main github-biosphere-frontend:OppenJayme/biosphere-frontend.git
 
 # Create the env files from section 2, then:
 cd ~/apps/biosphere-backend
@@ -99,7 +130,9 @@ npm ci
 npm run build
 
 cd ~/apps/biosphere-backend
-pm2 start deploy/ecosystem.config.cjs
+pm2 start deploy/ecosystem.config.cjs --only biosphere-api
+# Check the API (section 4) before starting the web app:
+pm2 start deploy/ecosystem.config.cjs --only biosphere-web
 pm2 save
 ```
 
@@ -134,6 +167,8 @@ Then, in a browser:
 
 ## 5. Updating
 
+Merge the change into `main` first (section 7), then:
+
 ```bash
 cd ~/apps/biosphere-backend && git pull --ff-only && npm ci && npm run build
 cd ~/apps/biosphere-frontend && git pull --ff-only && npm ci && npm run build
@@ -156,8 +191,25 @@ npm ci && npm run build
 pm2 restart biosphere-api        # or biosphere-web
 ```
 
-The checkout is now detached from `develop`, so section 5's `git pull` will
-fail. Run `git checkout develop` once the fix is merged, then update as usual.
+The checkout is now detached from `main`, so section 5's `git pull` will
+fail. Run `git checkout main` once the fix is merged, then update as usual.
+Each release is tagged (section 7), so `<previous-commit>` can be the previous
+tag, such as `v1.0.0`.
 
 A migration that was already applied is not rolled back this way. Ask the
 migration's author before changing the database by hand.
+
+## 7. Releasing to main
+
+Day-to-day work merges into `develop`. The server deploys `main`.
+
+1. Make sure `develop` CI is green and no migration is waiting.
+2. Open a pull request from `develop` into `main` in each repository, backend
+   first. Merge it with a merge commit (not squash), so `main` and `develop`
+   share history and the next release merges cleanly.
+3. Tag the merge commit on `main`, for example
+   `git tag -a v1.0.0 -m "First DCISM release" && git push origin v1.0.0`.
+4. Update the server (section 5), backend first, and run the smoke checks.
+
+Do not commit to `main` directly. A fix found after release goes to `develop`
+and is released the same way.
