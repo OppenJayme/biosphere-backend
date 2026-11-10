@@ -108,3 +108,17 @@ test('refuses injected TLS/debug runtime settings and invalid secret header valu
     assert.doesNotMatch(JSON.stringify(result), /canary|Injected|PRIVATE KEY/);
   }
 });
+
+test('records an opaque authorization reference even for failure and never marks it as a verified project', async () => {
+  const input = environment();
+  input.BIOSPHERE_INVENTORY_DATABASE_URL = 'invalid-private-canary';
+  const values = [...args];
+  values[4] = 'abc';
+  const result = await runConfiguredInventory(values, { environment: input });
+  assert.equal(
+    result.authorizationReferenceSha256,
+    'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad',
+  );
+  assert.equal(Object.hasOwn(result, 'configuredProjectAddressesAgree'), false);
+  assert.doesNotMatch(JSON.stringify(result), /private-canary/);
+});

@@ -55,7 +55,8 @@ async function inspectSource(adapters) {
     adapters &&
       typeof adapters.database?.query === 'function' &&
       typeof adapters.storage?.listBuckets === 'function' &&
-      typeof adapters.storage?.listObjects === 'function',
+      (typeof adapters.storage?.listObjects === 'function' ||
+        typeof adapters.storage?.summarizeObjects === 'function'),
     'SOURCE_INVENTORY_ADAPTER_REQUIRED',
   );
   check(
@@ -66,11 +67,12 @@ async function inspectSource(adapters) {
   const db = adapters.database;
   let begun = false;
   let database;
+  let aggregate;
   try {
     await db.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');
     begun = true;
     await db.query(
-      "SET LOCAL statement_timeout = '5s'; SET LOCAL lock_timeout = '1s'",
+      "SET LOCAL statement_timeout = '5s'; SET LOCAL lock_timeout = '1s'; SET LOCAL idle_in_transaction_session_timeout = '10s'",
     );
     const { rows } = await db.query(`SELECT current_database() AS name,
       current_setting('server_version_num') AS version,
@@ -103,6 +105,11 @@ async function inspectSource(adapters) {
       ).length,
       extensions: bytes(extensions.rows[0].count),
     };
+    if (typeof adapters.storage.summarizeObjects === 'function') {
+      aggregate = await adapters.storage.summarizeObjects({
+        bucketIds: [...BUCKETS],
+      });
+    }
   } finally {
     // Roll back even successful read-only inspection; never own/close the adapter.
     if (begun) await db.query('ROLLBACK');
@@ -124,54 +131,94 @@ async function inspectSource(adapters) {
     objects: 0,
     declaredObjectBytes: 0,
     unknownSizeObjects: 0,
+    placeholderObjects: 0,
   };
-  const deadline = Date.now() + 30000;
-  for (const bucketId of BUCKETS) {
-    let cursor = null;
-    const cursors = new Set();
-    const keys = new Set();
-    let pages = 0;
-    do {
+  if (aggregate !== undefined) {
+    check(
+      aggregate &&
+        Array.isArray(aggregate.buckets) &&
+        aggregate.buckets.length === BUCKETS.length &&
+        typeof aggregate.rowSecurityActive === 'boolean',
+    );
+    const seen = new Set();
+    for (const row of aggregate.buckets) {
+      check(BUCKETS.includes(row.bucketId) && !seen.has(row.bucketId));
+      seen.add(row.bucketId);
+      check(bytes(row.invalidSizeObjects) === 0);
+      const count = bytes(row.objects),
+        unknown = bytes(row.unknownSizeObjects);
+      check(unknown <= count);
+      summary.objects += count;
+      summary.unknownSizeObjects += unknown;
+      summary.declaredObjectBytes += bytes(row.declaredObjectBytes);
+      summary.placeholderObjects += bytes(row.placeholderObjects);
       check(
-        Date.now() < deadline && ++pages <= 1000,
-        'SOURCE_INVENTORY_LIMIT_EXCEEDED',
+        [
+          summary.objects,
+          summary.unknownSizeObjects,
+          summary.declaredObjectBytes,
+          summary.placeholderObjects,
+        ].every(Number.isSafeInteger),
       );
-      const page = await bounded(() =>
-        adapters.storage.listObjects({ bucketId, cursor, pageSize: 1000 }),
-      );
-      check(
-        page &&
-          Array.isArray(page.objects) &&
-          page.objects.length <= 1000 &&
-          (page.nextCursor === null ||
-            (typeof page.nextCursor === 'string' &&
-              page.nextCursor.length > 0 &&
-              page.nextCursor.length <= 4096)),
-      );
-      for (const object of page.objects) {
+    }
+    summary.rowSecurityActive = aggregate.rowSecurityActive;
+  } else {
+    const deadline = Date.now() + 30000;
+    for (const bucketId of BUCKETS) {
+      let cursor = null;
+      const cursors = new Set();
+      const keys = new Set();
+      let pages = 0;
+      do {
         check(
-          typeof object?.key === 'string' &&
-            object.key.length > 0 &&
-            object.key.length <= 1024 &&
-            !keys.has(object.key),
+          Date.now() < deadline && ++pages <= 1000,
+          'SOURCE_INVENTORY_LIMIT_EXCEEDED',
         );
-        keys.add(object.key);
-        check(++summary.objects <= 100000, 'SOURCE_INVENTORY_LIMIT_EXCEEDED');
-        if (object.sizeBytes === null) summary.unknownSizeObjects++;
-        else {
+        const page = await bounded(() =>
+          adapters.storage.listObjects({ bucketId, cursor, pageSize: 1000 }),
+        );
+        check(
+          page &&
+            Array.isArray(page.objects) &&
+            page.objects.length <= 1000 &&
+            (page.nextCursor === null ||
+              (typeof page.nextCursor === 'string' &&
+                page.nextCursor.length > 0 &&
+                page.nextCursor.length <= 4096)),
+        );
+        const placeholders = page.excludedPlaceholders ?? 0;
+        check(
+          Number.isSafeInteger(placeholders) &&
+            placeholders >= 0 &&
+            placeholders <= 1000,
+        );
+        summary.placeholderObjects += placeholders;
+        check(Number.isSafeInteger(summary.placeholderObjects));
+        for (const object of page.objects) {
           check(
-            Number.isSafeInteger(object.sizeBytes) && object.sizeBytes >= 0,
+            typeof object?.key === 'string' &&
+              object.key.length > 0 &&
+              object.key.length <= 1024 &&
+              !keys.has(object.key),
           );
-          summary.declaredObjectBytes += object.sizeBytes;
-          check(Number.isSafeInteger(summary.declaredObjectBytes));
+          keys.add(object.key);
+          check(++summary.objects <= 100000, 'SOURCE_INVENTORY_LIMIT_EXCEEDED');
+          if (object.sizeBytes === null) summary.unknownSizeObjects++;
+          else {
+            check(
+              Number.isSafeInteger(object.sizeBytes) && object.sizeBytes >= 0,
+            );
+            summary.declaredObjectBytes += object.sizeBytes;
+            check(Number.isSafeInteger(summary.declaredObjectBytes));
+          }
         }
-      }
-      cursor = page.nextCursor;
-      if (cursor !== null) {
-        check(!cursors.has(cursor), 'SOURCE_INVENTORY_PAGINATION_INVALID');
-        cursors.add(cursor);
-      }
-    } while (cursor !== null);
+        cursor = page.nextCursor;
+        if (cursor !== null) {
+          check(!cursors.has(cursor), 'SOURCE_INVENTORY_PAGINATION_INVALID');
+          cursors.add(cursor);
+        }
+      } while (cursor !== null);
+    }
   }
   return {
     code: 'SOURCE_INVENTORY_RECORDED',
@@ -179,6 +226,10 @@ async function inspectSource(adapters) {
     sourceIdentityVerified: false,
     database,
     storage: summary,
+    storageInventoryBasis:
+      aggregate === undefined
+        ? 'STORAGE_API_LISTING'
+        : 'DATABASE_ROLE_VISIBLE_METADATA',
     sizeBasis: 'DATABASE_PHYSICAL_AND_OBJECT_DECLARED_METADATA',
     scopeComplete: database.extraSchemas === 0 && summary.extraBuckets === 0,
     objectBytesVerified: false,

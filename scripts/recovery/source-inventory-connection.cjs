@@ -41,12 +41,15 @@ function configuration(project, environment) {
   );
   const key = environment.BIOSPHERE_INVENTORY_STORAGE_API_KEY;
   const bearer = environment.BIOSPHERE_INVENTORY_STORAGE_BEARER;
+  const secretKey = typeof key === 'string' && key.startsWith('sb_secret_');
   check(
     typeof key === 'string' &&
       /^[A-Za-z0-9._-]{16,4096}$/.test(key) &&
-      typeof bearer === 'string' &&
-      /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(bearer) &&
-      bearer.length <= 8192,
+      (secretKey
+        ? bearer === undefined || bearer === ''
+        : typeof bearer === 'string' &&
+          /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(bearer) &&
+          bearer.length <= 8192),
   );
   const ca = environment.BIOSPHERE_INVENTORY_DATABASE_CA_PEM;
   check(
@@ -59,7 +62,7 @@ function configuration(project, environment) {
   return {
     project,
     key,
-    bearer,
+    bearer: secretKey ? undefined : bearer,
     database: {
       host: url.hostname,
       port: 5432,
@@ -72,13 +75,62 @@ function configuration(project, environment) {
         ...(ca ? { ca } : {}),
       },
       connectionTimeoutMillis: 5000,
-      query_timeout: 5000,
-      statement_timeout: 5000,
-      lock_timeout: 1000,
-      idle_in_transaction_session_timeout: 10000,
-      options: '-c default_transaction_read_only=on',
+      query_timeout: 7000,
       application_name: 'biosphere-read-only-inventory',
     },
+  };
+}
+async function summarizeDatabaseObjects(database, bucketIds) {
+  const result = await database.query(
+    `WITH visible AS (
+    SELECT bucket_id, name, metadata->'size' AS size_json, metadata->>'size' AS size_text
+    FROM storage.objects WHERE bucket_id = ANY($1::text[])
+  ), classified AS (
+    SELECT *, CASE
+      WHEN name IS NULL OR name = '' THEN 'invalid'
+      WHEN size_json IS NULL OR size_json = 'null'::jsonb THEN 'unknown'
+      WHEN jsonb_typeof(size_json) = 'number' AND length(size_text) <= 32
+        AND size_text ~ '^(0|[1-9][0-9]*)([.]0+)?$'
+        THEN CASE WHEN size_text::numeric <= 9007199254740991 THEN 'known' ELSE 'invalid' END
+      ELSE 'invalid' END AS kind
+    FROM visible
+  ), marked AS (
+    SELECT *, CASE WHEN kind = 'known' THEN size_text::numeric = 0 AND
+      (name = '.emptyFolderPlaceholder' OR right(name, length('/.emptyFolderPlaceholder')) = '/.emptyFolderPlaceholder')
+      ELSE false END AS placeholder
+    FROM classified
+  )
+  SELECT requested.bucket_id,
+    row_security_active('storage.objects'::regclass) AS row_security_active,
+    count(marked.bucket_id) FILTER (WHERE NOT marked.placeholder)::text AS objects,
+    count(marked.bucket_id) FILTER (WHERE NOT marked.placeholder AND kind = 'unknown')::text AS unknown,
+    count(marked.bucket_id) FILTER (WHERE NOT marked.placeholder AND kind = 'invalid')::text AS invalid,
+    count(marked.bucket_id) FILTER (WHERE marked.placeholder)::text AS placeholders,
+    trunc(coalesce(sum(CASE WHEN kind = 'known' AND NOT marked.placeholder THEN size_text::numeric ELSE 0 END),0))::text AS bytes
+  FROM unnest($1::text[]) AS requested(bucket_id)
+  LEFT JOIN marked ON marked.bucket_id = requested.bucket_id
+  GROUP BY requested.bucket_id`,
+    [bucketIds],
+  );
+  check(
+    result.rows.length === bucketIds.length &&
+      result.rows.every(
+        (row) =>
+          typeof row.row_security_active === 'boolean' &&
+          row.row_security_active === result.rows[0].row_security_active,
+      ),
+    'SOURCE_CONNECTION_RESPONSE_INVALID',
+  );
+  return {
+    rowSecurityActive: result.rows[0].row_security_active,
+    buckets: result.rows.map((row) => ({
+      bucketId: row.bucket_id,
+      objects: row.objects,
+      declaredObjectBytes: row.bytes,
+      unknownSizeObjects: row.unknown,
+      invalidSizeObjects: row.invalid,
+      placeholderObjects: row.placeholders,
+    })),
   };
 }
 function storageAdapter(config, request) {
@@ -117,7 +169,9 @@ function storageAdapter(config, request) {
             agent: false,
             headers: {
               apikey: config.key,
-              Authorization: `Bearer ${config.bearer}`,
+              ...(config.bearer
+                ? { Authorization: `Bearer ${config.bearer}` }
+                : {}),
               Accept: 'application/json',
               ...(encoded
                 ? {
@@ -240,6 +294,7 @@ function storageAdapter(config, request) {
         'SOURCE_CONNECTION_PAGE_INVALID',
       );
       const objects = [];
+      let excludedPlaceholders = 0;
       for (const row of page) {
         check(
           row &&
@@ -267,6 +322,10 @@ function storageAdapter(config, request) {
             'SOURCE_CONNECTION_PAGE_INVALID',
           );
           const size = row.metadata?.size;
+          if (row.name === '.emptyFolderPlaceholder' && size === 0) {
+            excludedPlaceholders++;
+            continue;
+          }
           objects.push({
             key,
             sizeBytes: size === undefined || size === null ? null : size,
@@ -276,7 +335,7 @@ function storageAdapter(config, request) {
       if (page.length < 1000) state.queue.shift();
       else current.offset += page.length;
       state.cursor = state.queue.length ? String(++state.serial) : null;
-      return { objects, nextCursor: state.cursor };
+      return { objects, nextCursor: state.cursor, excludedPlaceholders };
     },
     close() {
       closed = true;
@@ -300,12 +359,14 @@ async function runConfiguredInventory(argv, dependencies = {}) {
   }
   if (
     !Array.isArray(argv) ||
-    argv.length !== 5 ||
+    ![5, 7].includes(argv.length) ||
     argv[0] !== 'inspect' ||
     argv[1] !== '--project-ref' ||
     !/^[a-z0-9]{20}$/.test(argv[2]) ||
     argv[3] !== '--authorization-ref' ||
-    !/^[a-z0-9][a-z0-9._-]{0,79}$/.test(argv[4])
+    !/^[a-z0-9][a-z0-9._-]{0,79}$/.test(argv[4]) ||
+    (argv.length === 7 &&
+      (argv[5] !== '--object-source' || !['api', 'database'].includes(argv[6])))
   )
     return {
       code: 'SOURCE_CONNECTION_ARGUMENTS_INVALID',
@@ -327,12 +388,17 @@ async function runConfiguredInventory(argv, dependencies = {}) {
     database.on('error', () => {}); // Do not expose asynchronous provider diagnostics.
     await database.connect();
     storage = storageAdapter(config, request);
+    if (argv.length === 5 || argv[6] === 'database') {
+      storage.summarizeObjects = ({ bucketIds }) =>
+        summarizeDatabaseObjects(database, bucketIds);
+    }
     result = await require('./source-inventory.cjs').runInventory(['inspect'], {
       database,
       expectedDatabase: 'postgres',
       storage,
     });
-    result.configuredProjectAddressesAgree = true;
+    if (result.code === 'SOURCE_INVENTORY_RECORDED')
+      result.configuredProjectAddressesAgree = true;
   } catch (error) {
     const allowed = new Set([
       'SOURCE_CONNECTION_RUNTIME_UNSAFE',
@@ -361,6 +427,10 @@ async function runConfiguredInventory(argv, dependencies = {}) {
       }
     }
   }
+  result.authorizationReferenceSha256 = require('node:crypto')
+    .createHash('sha256')
+    .update(argv[4], 'utf8')
+    .digest('hex');
   return result;
 }
 module.exports = { runConfiguredInventory };
