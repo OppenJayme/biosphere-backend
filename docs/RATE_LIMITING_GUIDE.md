@@ -49,9 +49,23 @@ The built-in storage is process-local and is appropriate for the current
 single-instance backend. Before running multiple NestJS instances, configure a
 shared throttler storage so all instances enforce one consistent counter.
 
-When deploying behind Nginx or another proxy, configure trusted proxy handling
-and forwarded IP headers together. Do not blindly trust client-supplied
-`X-Forwarded-For` headers, or an attacker could evade per-IP limits.
+Behind a reverse proxy, every request arrives from the proxy's address unless
+Express is told to trust it. `src/main.ts` sets `trust proxy` from
+`TRUST_PROXY` (`src/config/proxy.config.ts`). The default, `loopback`, trusts
+only a proxy on the same machine, which matches the DCISM server: Apache
+proxies from 127.0.0.1 and sends the visitor's address in `X-Forwarded-For`
+(checked 8 Nov 2026). The global limit and the FAQ assistant's per-visitor AI
+limit (`@Ip()`) then count each visitor. Do not set `TRUST_PROXY=true` on a
+server that is reachable directly, or a visitor could send their own
+`X-Forwarded-For` and evade the limits.
+
+Known limit on a shared server: binding to 127.0.0.1 keeps the API off the
+internet except through Apache, but every process on the same machine can
+still connect to it, including other accounts on the DCISM server. Because
+`loopback` trusts those connections, such a caller can send its own
+`X-Forwarded-For` and choose which address the limits count. Authentication
+and role checks still apply to every protected route. Accepted for now; a
+dedicated host or a shared secret header from Apache would close it.
 
 Keep limits centralized in `src/config/rate-limit.config.ts`. Add stricter
 method-level limits to future public or sensitive routes such as password
