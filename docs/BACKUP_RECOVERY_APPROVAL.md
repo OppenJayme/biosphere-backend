@@ -264,6 +264,57 @@ Until those answers arrive, preserve the reviewed synthetic evidence and leave
 hosted export, scheduler enablement and retention deletion unexecuted. This is
 not a waiver of SRS 4.15 or approval to overwrite the live service.
 
+
+## Team operating answers - November 10, 2026
+
+**Status: team-reported proposals and engineering recommendations; not deployment
+approval.** Kyer/Ivan supplied the answers below. John Mark's willingness is
+reported by Kyer/Ivan, not a recorded acceptance by John Mark. No real-data
+export, scheduled execution, credential creation, retention change or restore is
+authorized by this update. Existing execution gates and BAK-002 remain unchanged.
+
+This dated record qualifies the older all-pending entries above. It does not
+mark their approval fields complete. Secret values, the exact project mailbox,
+account recovery details and private destination identifiers belong in the
+restricted operating record, not this document.
+
+| Item | Team answer | Disposition and remaining evidence |
+| --- | --- | --- |
+| Account ownership | Use the existing BioSphere project mailbox; hand it over to whoever manages the system after graduation. | Project mailbox selected in principle. Name the present accountable custodian and successor, confirm their acceptance, and demonstrate mailbox/B2/MFA recovery without a graduating student's device. Account transfer is not complete. |
+| Backup operator | John Mark has reportedly expressed willingness. | Proposed primary human operator for checking outcomes and handling failures. His explicit acceptance, availability/contact route and a named alternate remain pending. This does not replace the least-privilege automation identity. |
+| Encryption-key custody | Store keys in repository Kanban boards. | **Do not adopt this method.** No encryption keys, application keys, passwords or recovery codes in Kanban, issues, comments or committed files, including private repositories. Recommended: a restricted password manager plus a separately held encrypted offline recovery copy, with named custodians and a demonstrated retrieval process. Record only safe custody references here. Custody is pending; no existing key placement was inspected or inferred. |
+| Restore authorization | John Mark or Sir Fidel. | Proposed roles, not confirmed authority. Recommend that Sir Fidel or the designated museum/business owner authorizes the checkpoint, acceptable data loss and any live cutover; John Mark or another qualified administrator executes the approved technical work. Record delegation explicitly if one person fills both roles. Existing SRS approval requirements remain separate. |
+| Backup scope | Database and authentication accepted in principle; files/images questioned, with engineering guidance requested. | Recommend database records including audit/history, required account-recovery data, uploaded object bytes/images/attachments/AR assets, object metadata and necessary reproducible configuration. Database rows alone cannot recover missing object bytes. Reproducible caches/build outputs can be excluded; any other exclusion needs an explicit accepted loss statement. Measure real scope and size before approving retention. Final scope is pending. |
+| Schedule and acceptable loss | Follow the proposal/SRS. | Existing proposal: daily 06:17 Asia/Manila, one run at a time, targeting 24-hour checkpoint spacing. Failed/delayed jobs can leave an older usable copy. This is a proposed schedule, not an enabled job or a guaranteed maximum loss. Confirm acceptance and measure actual checkpoint age. |
+| Running location | Cloud, using Backblaze B2. | B2 is the storage destination, not the compute runner executing capture, encryption and upload. A separate cloud runner, ownership, network compatibility, allowances, protected secrets and missed-run detection are still pending. No provider has been selected or enabled by this answer. |
+| Retention and budget | Warn the administrator/Curator before storage fills; move backups elsewhere and clear/reuse storage if needed. | Retain the proposed seven daily checkpoints only if measured free capacity fits retained/locked versions, the incoming copy and reserve. Alert before exhaustion; stop/report work that would exceed the approved budget. An alert is not a spending guarantee. Before retiring old copies, verify the replacement destination, exact-version readback and recovery/key access; preserve the last usable approved recovery set. Never automatically clear a bucket, bypass locks/holds or activate payment. Thresholds, migration/deletion authority and final retention remain pending. |
+| Recovery time | Follow the proposal; desired recovery within one day. | Record one working day as the team's desired end-to-end target. The existing proposal has an unmeasured eight-hour hands-on benchmark and no end-to-end commitment. Measure incident detection, assistance wait, approvals, provisioning and technical execution separately; do not report the desired target as proven. Target acceptance and staffing remain pending. |
+| Real-data rehearsal | The system administrator should handle it. | An administrator may execute the rehearsal. Before export, obtain explicit intended-source/data-owner authorization naming scope, private target, allowed operators/reviewers and test-copy removal deadline. Retain only sanitized evidence after authorized cleanup. No real-data copy or deletion is authorized here. |
+
+### Next bounded work
+
+The [cloud runner assessment](./BACKUP_CLOUD_RUNNER_ASSESSMENT.md) and
+[hosted capture contract](./BACKUP_HOSTED_CAPTURE_CONTRACT.md) describe the
+candidate and implementation prerequisites. Both are design drafts, not live
+adapters, accepted deployment choices or permission to run real backups.
+
+1. Obtain John Mark's acceptance and an alternate; name the present account
+   custodian, successor and business restore approver/delegate.
+2. Choose the protected key-custody method and independently retrievable recovery
+   copy; keep only custody references in project boards. Do not move secrets into
+   repository content as part of documentation.
+3. Evaluate a cloud runner against the existing worker, required export access,
+   resource/time limits, the actual account allowance and strict budget. Prepare a
+   concrete candidate and isolated verification plan before enabling a schedule.
+4. Measure intended-scope capacity only under separately authorized access; then
+   finalize retention, warnings, spending guards and the real-data rehearsal
+   record. Synthetic checkpoint size is not a museum-capacity estimate.
+
+The [Curator checklist](./BACKUP_RECOVERY_CURATOR_CHECKLIST.md) remains conditional.
+The completed [November 9 synthetic B2 trial](./B2_LIVE_SYNTHETIC_TRIAL_20261109.md)
+is preserved as bounded engineering evidence; none of these answers closes
+production readiness, post-retention recovery, rehearsal acceptance or turnover.
+
 ## Approval statement
 
 Approver name/role and authority: **Pending**
@@ -283,3 +334,4 @@ Next review date: **Pending**
 This record approves only the explicitly completed gates. It does not authorize
 shared migrations, history rewriting, deleting retained museum/test records,
 changing visitor-data access or overwriting the active database.
+
