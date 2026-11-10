@@ -4,6 +4,8 @@
 No code is changed by this note. It asks for one decision: what checkpoint
 recovery should do when an object's Object Lock retention has ended, been
 changed, or cannot be read. Nothing here authorizes B2 access or real data.
+Approving this note accepts the proposal for further review only. It does not
+authorize implementation, weaker integrity checks or live B2 operations.
 
 ## Why a decision is needed
 
@@ -14,9 +16,13 @@ at publication (`fileInfo`, code `B2_TRANSFER_RETENTION_INVALID`). It does not
 compare that deadline with the current time.
 
 That was the right rule for the November 9 synthetic trial, which only
-recovered while the one-day lock was active. It cannot be the production rule:
-a real backup must still restore weeks after its lock ends, and that is
-exactly when a disaster recovery is most likely to need an older copy.
+recovered while the one-day lock was active. Because the deadline is not
+compared with the current time, an expired backup is still recovered **if** B2
+keeps the recorded mode and deadline after expiry. If B2 clears or changes
+them, the exact-match rule would stop every expired backup. A real backup must
+still restore weeks after its lock ends, which is exactly when a disaster
+recovery is most likely to need an older copy, so the rule is unsafe for
+production until post-expiry behavior is known or handled.
 
 What B2 reports after expiry is **not documented**. The
 [`b2_get_file_info` reference](https://www.backblaze.com/apidocs/b2-get-file-info)
@@ -57,13 +63,17 @@ only be reported.
 | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------- |
 | A. Keep exact match                  | Unchanged. Any difference stops recovery.                                                                                                                                                                                                                    | If B2 clears retention after expiry, **every expired backup becomes unrecoverable** by the tool, even though its bytes are intact. |
 | B. Report only                       | Integrity checks still required; retention never stops recovery, only reported in the result.                                                                                                                                                                | A shortened or removed lock before its deadline (a sign of account compromise or misuse) is easy to miss in output.                |
-| **C. Time-aware rule (recommended)** | Integrity checks still required and never overridable. Retention is classified against the recorded deadline. Normal states proceed and are reported; suspicious states stop with their own code and need one explicit operator acknowledgement to continue. | Slightly more code and tests than A or B. Depends on the local clock near the deadline (handled with a margin below).              |
+| **C. Time-aware rule (recommended)** | Integrity checks still required and never overridable. Retention is classified against the recorded deadline. Normal states proceed and are reported; suspicious states stop with their own code and need one explicit operator acknowledgement to continue. | Slightly more code and tests than A or B. Depends on the local clock near the deadline (a proposed skew allowance is below).       |
 
 ## Recommended rule (option C)
 
-Let `D` be the recorded retain-until time and `now` the local time. Treat
-`now` as "after `D`" only once it is more than five minutes past `D`, to absorb
-clock skew.
+Let `D` be the recorded retain-until time and `now` the local time. As a
+proposed clock-skew allowance, treat `now` as "after `D`" only once it is more
+than five minutes past `D`. This absorbs small drift between the local clock
+and B2. It is not protection against an incorrect system clock: a clock that is
+wrong by more than the allowance will classify states wrongly. An
+implementation could reduce that risk by timing against the `Date` header of
+B2's own response instead of the local clock.
 
 | Reported retention                    | Before `D`                       | After `D`                        |
 | ------------------------------------- | -------------------------------- | -------------------------------- |
@@ -72,16 +82,26 @@ clock skew.
 | mode and deadline both `null`         | **stop**: `retention-removed`    | proceed: `expired-cleared`       |
 | any earlier deadline, or another mode | **stop**: `retention-shortened`  | **stop**: `retention-changed`    |
 | `isClientAuthorizedToRead: false`     | **stop**: `retention-unreadable` | **stop**: `retention-unreadable` |
+| missing or malformed `fileRetention`  | **stop**: `retention-malformed`  | **stop**: `retention-malformed`  |
+
+"Missing or malformed" means the `fileRetention` field is absent, or its values
+are invalid or inconsistent: for example a mode with no deadline, a deadline
+with no mode, or a deadline that is not a valid timestamp. It does not include
+the row where mode and deadline are both `null`, which is the expected cleared
+state after `D`.
 
 - A **stop** uses a new distinct code (for example
   `B2_TRANSFER_RETENTION_UNEXPECTED`) carrying the state name, so it is not
   confused with the bucket-level settings check, which today reuses
   `B2_TRANSFER_RETENTION_INVALID`.
-- A stop can be overridden only by a separate explicit confirmation for that
+- **Overridable stops** are only `retention-removed`, `retention-shortened` and
+  `retention-changed`. Each needs a separate explicit confirmation for that
   state (for example `--accept-retention-state retention-removed`). The
   override never relaxes integrity, version, scope or decryption checks.
-- `retention-unreadable` means the key lacks `readFileRetentions`. The fix is
-  the right key, so it should stay a stop.
+- **Non-overridable stops** are `retention-unreadable` and
+  `retention-malformed`. No confirmation accepts them. Unreadable means the key
+  lacks `readFileRetentions`, so the fix is the right key. Missing or malformed
+  metadata gives no trustworthy state to classify.
 - Every result, including a successful one, reports the state, so Backup
   History and the run record can show it once recovery recording is wired in.
 
@@ -110,11 +130,12 @@ should be decided alongside it rather than discovered later:
 ## Tests a change would need
 
 Using the existing mocked-HTTP style in `test/b2-checkpoint-transfer.test.cjs`,
-one case per row of the table above (ten cases), plus:
+one case per cell of the table above (twelve cases), plus:
 
 - integrity failures still stop when retention is in any proceed state;
-- an override for one state does not accept a different state;
-- the five-minute margin at `D` on both sides; and
+- an override for one state does not accept a different state, and no
+  override accepts `retention-unreadable` or `retention-malformed`;
+- the five-minute skew allowance at `D` on both sides; and
 - a successful result reports the retention state and leaves no destination
   on any stop.
 
