@@ -4,6 +4,15 @@ For the next provider-permission/retention slice, use the
 [B2 verification checklist and offline metadata checker](../../docs/B2_PERMISSION_RETENTION_CHECKLIST.md).
 That command makes no provider requests and cannot authorize bucket changes.
 
+## Read-only source inventory boundary
+
+`npm run recovery:inventory` prints a plan without a connection or credential
+fallback. The [inventory command guide](../../docs/BACKUP_SOURCE_INVENTORY.md)
+describes the explicit trusted-adapter interface and its isolated checks.
+Inspection measures catalogs and declared Storage metadata only: database name
+matching is not project authentication, and sizing is not a verified backup.
+No hosted connector, source write coordination or daily schedule is enabled.
+
 ## Local deployment-planning readiness check
 
 Before provisioning an intended-source runner, a technical implementer can

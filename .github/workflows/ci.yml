@@ -92,6 +92,9 @@ jobs:
       - name: Verify offline B2 metadata preflight (no provider access)
         run: node --test test/b2-retention-preflight.test.cjs
 
+      - name: Verify inventory command has no connection or credential fallback
+        run: npm run test:recovery:inventory
+
   synthetic-recovery:
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -130,6 +133,9 @@ jobs:
 
       - name: Real engine, recorder and same-ID reconciliation checks
         run: npm run test:recovery-recording:db
+
+      - name: Read-only inventory with owned PostgreSQL and synthetic Storage metadata
+        run: npm run test:recovery:inventory:db
 
       - name: Build the separate worker runtime
         run: npm run build
