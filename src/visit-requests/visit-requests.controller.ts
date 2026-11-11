@@ -27,16 +27,20 @@ import { ApproveVisitScheduleDto } from './dto/approve-visit-schedule.dto';
 import { CreateVisitRequestDto } from './dto/create-visit-request.dto';
 import { ListVisitRequestsQueryDto } from './dto/list-visit-requests-query.dto';
 import { UpdateVisitRequestDto } from './dto/update-visit-request.dto';
+import { VisitDateRangeQueryDto } from './dto/visit-date-range-query.dto';
 import {
   CampusEntrySummary,
+  VisitAvailability,
+  VisitCalendarEvent,
   VisitRequest,
   VisitRequestSubmissionReceipt,
 } from './entities/visit-request.entity';
 import { VisitRequestsService } from './visit-requests.service';
 
-// POST is the only public route (SRS §4.9). Every other route handles
-// visitor personal data, so it is curator-only (NFR-SEC-10); @Roles is set
-// per method because a class-level @Roles would also block the public POST.
+// POST (SRS §4.9) and GET availability are the only public routes. Every
+// other route handles visitor personal data, so it is curator-only
+// (NFR-SEC-10); @Roles is set per method because a class-level @Roles would
+// also block the public routes.
 // There is no DELETE: Declined, Cancelled, and Completed requests are kept
 // as history (REQ-4.9-14).
 @ApiTags('visit-requests')
@@ -63,6 +67,34 @@ export class VisitRequestsController {
   @ApiOkResponse({ type: [VisitRequest] })
   findAll(@Query() query: ListVisitRequestsQueryDto): Promise<VisitRequest[]> {
     return this.visitRequestsService.findAll(query);
+  }
+
+  // Public and personal-data free: museum opening hours plus the date and
+  // time ranges held by curator-approved visits, so the visit form can offer
+  // only free times.
+  @Public()
+  @Get('availability')
+  @ApiOperation({
+    summary: 'Opening hours and times already held by approved visits (public)',
+  })
+  @ApiOkResponse({ type: VisitAvailability })
+  getAvailability(
+    @Query() query: VisitDateRangeQueryDto,
+  ): Promise<VisitAvailability> {
+    return this.visitRequestsService.getAvailability(query);
+  }
+
+  @Roles('CURATOR')
+  @Get('calendar')
+  @ApiOperation({
+    summary:
+      'Curator-approved visits in a date range for the calendar (curator-only)',
+  })
+  @ApiOkResponse({ type: [VisitCalendarEvent] })
+  getCalendar(
+    @Query() query: VisitDateRangeQueryDto,
+  ): Promise<VisitCalendarEvent[]> {
+    return this.visitRequestsService.getCalendar(query);
   }
 
   @Roles('CURATOR')

@@ -94,6 +94,54 @@ describe('Inquiries and visit requests (e2e)', () => {
     consentAccepted: true,
   };
 
+  // The overlap and calendar queries filter by a status list; list and
+  // search queries do not, and keep returning every stored visit.
+  const scheduledVisitFilter = (where?: Record<string, unknown>) => {
+    const status = where?.status as { in?: string[] } | undefined;
+    if (!status?.in) return undefined;
+    const time = (value: unknown) => (value as Date | null)?.getTime();
+    type Bound = { lt?: Date; gt?: Date; gte?: Date; lte?: Date };
+    const date = where!.approved_date as Date | Bound;
+    const start = where!.approved_start_time as Bound;
+    const end = where!.approved_end_time as Bound;
+    const notId = (where!.id as { not?: string } | undefined)?.not;
+    return (visit: Record<string, unknown>) => {
+      const visitDate = time(visit.approved_date);
+      if (!status.in!.includes(visit.status as string)) return false;
+      if (visitDate === undefined) return false;
+      if (notId && visit.id === notId) return false;
+      if (date instanceof Date) {
+        if (visitDate !== date.getTime()) return false;
+      } else {
+        if (date.gte && visitDate < date.gte.getTime()) return false;
+        if (date.lte && visitDate > date.lte.getTime()) return false;
+      }
+      const visitStart = time(visit.approved_start_time)!;
+      const visitEnd = time(visit.approved_end_time)!;
+      if (start.lt && !(visitStart < start.lt.getTime())) return false;
+      if (end.gt && !(visitEnd > end.gt.getTime())) return false;
+      return true;
+    };
+  };
+
+  // An already-approved visit on Tuesday 2030-10-15, 08:00-09:30.
+  const approvedVisit = (overrides: Record<string, unknown> = {}) => ({
+    id: 'aaaaaaaa-0000-4000-8000-000000000000',
+    status: 'APPROVED_BY_CURATOR',
+    contact_person: 'Approved Visitor',
+    email_address: 'approved@example.com',
+    contact_number: '09170000000',
+    organization_name: 'Approved School',
+    visitor_count: 30,
+    approved_date: new Date('2030-10-15T00:00:00.000Z'),
+    approved_start_time: new Date('1970-01-01T08:00:00.000Z'),
+    approved_end_time: new Date('1970-01-01T09:30:00.000Z'),
+    preferred_visit_date: [],
+    visit_request_visitor: [],
+    visit_request_vehicle: [],
+    ...overrides,
+  });
+
   beforeEach(async () => {
     inquiries = [];
     visits = [];
@@ -188,7 +236,12 @@ describe('Inquiries and visit requests (e2e)', () => {
             return created;
           },
         ),
-        findMany: jest.fn(() => visits),
+        findMany: jest.fn(
+          ({ where }: { where?: Record<string, unknown> } = {}) =>
+            scheduledVisitFilter(where)
+              ? visits.filter(scheduledVisitFilter(where)!)
+              : visits,
+        ),
         findUnique: jest.fn(
           ({ where }: { where: { id: string } }) =>
             visits.find((item) => item.id === where.id) ?? null,
@@ -1141,6 +1194,150 @@ describe('Inquiries and visit requests (e2e)', () => {
       await request(app.getHttpServer())
         .get('/notifications?limit=0')
         .set('Authorization', auth)
+        .expect(400);
+    });
+  });
+
+  describe('visit calendar and availability', () => {
+    const auth = `Bearer ${curatorToken}`;
+
+    it('rejects a submission that overlaps an approved visit with 409', async () => {
+      visits.push(approvedVisit());
+
+      const response = await request(app.getHttpServer())
+        .post('/visit-requests')
+        .send(validVisit)
+        .expect(409);
+
+      expect((response.body as { message: string }).message).toContain(
+        'preferredSchedules[0] (2030-10-15 09:00-11:00) overlaps',
+      );
+      expect(visitWrites).not.toHaveBeenCalled();
+    });
+
+    it('accepts a submission that starts when an approved visit ends', async () => {
+      visits.push(approvedVisit());
+
+      await request(app.getHttpServer())
+        .post('/visit-requests')
+        .send({
+          ...validVisit,
+          preferredSchedules: [
+            { date: '2030-10-15', startTime: '09:30', endTime: '11:00' },
+          ],
+        })
+        .expect(201);
+    });
+
+    it('rejects a time outside museum opening hours with 400', async () => {
+      const response = await request(app.getHttpServer())
+        .post('/visit-requests')
+        .send({
+          ...validVisit,
+          // 2030-10-20 is a Sunday.
+          preferredSchedules: [
+            { date: '2030-10-20', startTime: '09:00', endTime: '10:00' },
+          ],
+        })
+        .expect(400);
+
+      expect((response.body as { message: string }).message).toBe(
+        'preferredSchedules[0] must fit within museum opening hours: the museum is closed on Sundays.',
+      );
+    });
+
+    it('ignores pending, declined and cancelled requests', async () => {
+      visits.push(
+        approvedVisit({ id: 'p', status: 'PENDING' }),
+        approvedVisit({ id: 'd', status: 'DECLINED' }),
+        approvedVisit({ id: 'c', status: 'CANCELLED' }),
+      );
+
+      await request(app.getHttpServer())
+        .post('/visit-requests')
+        .send(validVisit)
+        .expect(201);
+    });
+
+    it('rejects approving an option that overlaps another approved visit', async () => {
+      await request(app.getHttpServer())
+        .post('/visit-requests')
+        .send(validVisit)
+        .expect(201);
+      visits.push(approvedVisit());
+
+      const response = await request(app.getHttpServer())
+        .patch(`/visit-requests/${visitId}/approve-schedule`)
+        .set('Authorization', auth)
+        .send({ preferenceOrder: 1 })
+        .expect(409);
+
+      expect((response.body as { message: string }).message).toBe(
+        'Preferred option 1 overlaps visit AAAAAAAA, already approved for 2030-10-15 08:00-09:30.',
+      );
+      expect(visits.find((visit) => visit.id === visitId)).toMatchObject({
+        status: 'PENDING',
+      });
+    });
+
+    it('serves public availability without any visitor details', async () => {
+      visits.push(
+        approvedVisit(),
+        approvedVisit({ id: 'p', status: 'PENDING' }),
+      );
+
+      const response = await request(app.getHttpServer())
+        .get('/visit-requests/availability?from=2030-10-01&to=2030-10-31')
+        .expect(200);
+
+      const body = response.body as {
+        booked: unknown[];
+        openingHours: unknown[];
+      };
+      expect(body.booked).toEqual([
+        { date: '2030-10-15', startTime: '08:00', endTime: '09:30' },
+      ]);
+      expect(body.openingHours).toContainEqual({
+        dayOfWeek: 1,
+        start: '13:00',
+        end: '16:00',
+      });
+    });
+
+    it('keeps the calendar curator-only', async () => {
+      visits.push(approvedVisit());
+
+      await request(app.getHttpServer())
+        .get('/visit-requests/calendar?from=2030-10-01&to=2030-10-31')
+        .expect(401);
+      const response = await request(app.getHttpServer())
+        .get('/visit-requests/calendar?from=2030-10-01&to=2030-10-31')
+        .set('Authorization', auth)
+        .expect(200);
+
+      expect(response.body).toEqual([
+        {
+          id: 'aaaaaaaa-0000-4000-8000-000000000000',
+          referenceCode: 'AAAAAAAA',
+          status: 'APPROVED_BY_CURATOR',
+          organization: 'Approved School',
+          contactPerson: 'Approved Visitor',
+          visitorCount: 30,
+          date: '2030-10-15',
+          startTime: '08:00',
+          endTime: '09:30',
+        },
+      ]);
+    });
+
+    it.each([
+      'from=2030-10-01',
+      'from=2030-10-31&to=2030-10-01',
+      'from=2030-01-01&to=2030-12-31',
+      'from=10/01/2030&to=2030-10-31',
+    ])('rejects availability query %s with 400', async (query) => {
+      await request(app.getHttpServer())
+        .get(`/visit-requests/availability?${query}`)
         .expect(400);
     });
   });

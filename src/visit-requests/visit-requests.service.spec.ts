@@ -1,4 +1,8 @@
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  NotFoundException,
+} from '@nestjs/common';
 import { MailService } from '../mail/mail.service';
 import { SubmissionNotificationsService } from '../notifications/submission-notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -103,6 +107,8 @@ describe('VisitRequestsService', () => {
         }),
     );
     mail.send.mockResolvedValue({ delivered: true, result: 'SENT <msg-1>' });
+    // No approved visit holds any time unless a test says otherwise.
+    visitDelegate.findMany.mockResolvedValue([]);
     service = new VisitRequestsService(
       prisma as unknown as PrismaService,
       mail as unknown as MailService,
@@ -205,6 +211,215 @@ describe('VisitRequestsService', () => {
     await expect(
       service.create(validDto({ preferredSchedules: [schedule, schedule] })),
     ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  describe('schedule availability', () => {
+    afterEach(() => jest.useRealTimers());
+
+    it('rejects a preferred option that overlaps an approved visit', async () => {
+      visitDelegate.findMany
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([{ id: 'x' }]);
+
+      await expect(service.create(validDto())).rejects.toThrow(
+        new ConflictException(
+          'preferredSchedules[1] (2030-10-16 13:00-15:00) overlaps a visit that is already booked. Choose another time.',
+        ),
+      );
+      expect(visitDelegate.create).not.toHaveBeenCalled();
+    });
+
+    it('queries overlaps with strict bounds so touching times are allowed', async () => {
+      visitDelegate.create.mockResolvedValue(visitRecord());
+
+      await service.create(validDto());
+
+      expect(visitDelegate.findMany.mock.calls[0][0].where).toEqual(
+        expect.objectContaining({
+          approved_start_time: { lt: new Date('1970-01-01T11:00:00.000Z') },
+          approved_end_time: { gt: new Date('1970-01-01T09:00:00.000Z') },
+        }),
+      );
+    });
+
+    it('rejects a time today that has already started, in museum time', async () => {
+      jest.useFakeTimers({ doNotFake: ['nextTick', 'setImmediate'] });
+      // 14:30 in Manila (UTC+8).
+      jest.setSystemTime(new Date('2030-03-01T06:30:00.000Z'));
+
+      await expect(
+        service.create(
+          validDto({
+            preferredSchedules: [
+              { date: '2030-03-01', startTime: '14:30', endTime: '16:00' },
+            ],
+          }),
+        ),
+      ).rejects.toThrow('preferredSchedules[0].startTime has already passed');
+      expect(visitDelegate.findMany).not.toHaveBeenCalled();
+    });
+
+    it('accepts a later time today', async () => {
+      jest.useFakeTimers({ doNotFake: ['nextTick', 'setImmediate'] });
+      jest.setSystemTime(new Date('2030-03-01T06:30:00.000Z'));
+      visitDelegate.create.mockResolvedValue(visitRecord());
+
+      await expect(
+        service.create(
+          validDto({
+            preferredSchedules: [
+              { date: '2030-03-01', startTime: '14:31', endTime: '16:00' },
+            ],
+          }),
+        ),
+      ).resolves.toEqual(expect.objectContaining({ id: VISIT_ID }));
+    });
+
+    it.each([
+      // 2030-10-15 is a Tuesday, 2030-10-19 a Saturday, 2030-10-20 a Sunday.
+      [
+        'over the weekday lunch break',
+        { date: '2030-10-15', startTime: '10:00', endTime: '14:00' },
+        'Tuesday hours are 08:00-11:00 and 13:00-16:00',
+      ],
+      [
+        'after closing',
+        { date: '2030-10-15', startTime: '15:00', endTime: '17:00' },
+        'Tuesday hours are 08:00-11:00 and 13:00-16:00',
+      ],
+      [
+        'on a Saturday afternoon',
+        { date: '2030-10-19', startTime: '13:00', endTime: '14:00' },
+        'Saturday hours are 08:00-11:00',
+      ],
+      [
+        'on a Sunday',
+        { date: '2030-10-20', startTime: '09:00', endTime: '10:00' },
+        'the museum is closed on Sundays',
+      ],
+    ])('rejects a time %s', async (_label, schedule, hours) => {
+      await expect(
+        service.create(validDto({ preferredSchedules: [schedule] })),
+      ).rejects.toThrow(
+        `preferredSchedules[0] must fit within museum opening hours: ${hours}.`,
+      );
+      expect(visitDelegate.create).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      { date: '2030-10-15', startTime: '08:00', endTime: '11:00' },
+      { date: '2030-10-15', startTime: '13:00', endTime: '16:00' },
+      { date: '2030-10-19', startTime: '08:00', endTime: '11:00' },
+    ])('accepts a time filling an opening window: %p', async (schedule) => {
+      visitDelegate.create.mockResolvedValue(visitRecord());
+      await expect(
+        service.create(validDto({ preferredSchedules: [schedule] })),
+      ).resolves.toEqual(expect.objectContaining({ id: VISIT_ID }));
+    });
+
+    it('rejects a date before today in museum time', async () => {
+      jest.useFakeTimers({ doNotFake: ['nextTick', 'setImmediate'] });
+      // 00:30 on 2030-03-02 in Manila, still 2030-03-01 in UTC.
+      jest.setSystemTime(new Date('2030-03-01T16:30:00.000Z'));
+
+      await expect(
+        service.create(
+          validDto({
+            preferredSchedules: [
+              { date: '2030-03-01', startTime: '20:00', endTime: '21:00' },
+            ],
+          }),
+        ),
+      ).rejects.toThrow('preferredSchedules[0].date cannot be in the past');
+    });
+  });
+
+  describe('calendar and availability', () => {
+    const approvedRow = {
+      id: 'bbbbbbbb-0000-4000-8000-000000000000',
+      status: 'SUBMITTED_FOR_CAMPUS_ENTRY',
+      organization_name: 'USC',
+      contact_person: 'Maria Santos',
+      visitor_count: 20,
+      approved_date: new Date('2030-10-15T00:00:00.000Z'),
+      approved_start_time: new Date('1970-01-01T09:00:00.000Z'),
+      approved_end_time: new Date('1970-01-01T11:00:00.000Z'),
+    };
+
+    it('lists only visits with a curator-approved schedule', async () => {
+      visitDelegate.findMany.mockResolvedValue([approvedRow]);
+
+      const events = await service.getCalendar({
+        from: '2030-10-01',
+        to: '2030-10-31',
+      });
+
+      expect(events).toEqual([
+        {
+          id: approvedRow.id,
+          referenceCode: 'BBBBBBBB',
+          status: VisitRequestStatus.SUBMITTED_FOR_CAMPUS_ENTRY,
+          organization: 'USC',
+          contactPerson: 'Maria Santos',
+          visitorCount: 20,
+          date: '2030-10-15',
+          startTime: '09:00',
+          endTime: '11:00',
+        },
+      ]);
+      expect(visitDelegate.findMany.mock.calls[0][0].where).toEqual({
+        status: {
+          in: [
+            'APPROVED_BY_CURATOR',
+            'SUBMITTED_FOR_CAMPUS_ENTRY',
+            'COMPLETED',
+          ],
+        },
+        approved_date: {
+          gte: new Date('2030-10-01T00:00:00.000Z'),
+          lte: new Date('2030-10-31T00:00:00.000Z'),
+        },
+        approved_start_time: { not: null },
+        approved_end_time: { not: null },
+      });
+    });
+
+    it('gives the public form times only, no visitor details', async () => {
+      visitDelegate.findMany.mockResolvedValue([approvedRow]);
+
+      const availability = await service.getAvailability({
+        from: '2030-10-01',
+        to: '2030-10-31',
+      });
+
+      expect(availability.booked).toEqual([
+        { date: '2030-10-15', startTime: '09:00', endTime: '11:00' },
+      ]);
+      expect(availability.openingHours).toContainEqual({
+        dayOfWeek: 6,
+        start: '08:00',
+        end: '11:00',
+      });
+      expect(
+        availability.openingHours.some((window) => window.dayOfWeek === 0),
+      ).toBe(false);
+    });
+
+    it('rejects a reversed, unreal, or over-long range', async () => {
+      await expect(
+        service.getCalendar({ from: '2030-10-31', to: '2030-10-01' }),
+      ).rejects.toThrow('from must be on or before to.');
+      await expect(
+        service.getCalendar({ from: '2030-02-30', to: '2030-03-01' }),
+      ).rejects.toThrow('from is not a real date.');
+      // 2030-01-01 to 2030-04-04 spans 94 days inclusive.
+      await expect(
+        service.getCalendar({ from: '2030-01-01', to: '2030-04-04' }),
+      ).rejects.toThrow('The range cannot be longer than 93 days.');
+      await expect(
+        service.getCalendar({ from: '2030-01-01', to: '2030-04-03' }),
+      ).resolves.toEqual([]);
+    });
   });
 
   it('rejects more named visitors than visitorCount', async () => {
@@ -678,6 +893,41 @@ describe('VisitRequestsService', () => {
       expect(visitDelegate.update).not.toHaveBeenCalled();
     });
 
+    it('rejects an option that overlaps another approved visit', async () => {
+      visitDelegate.findUnique.mockResolvedValue(visitRecord());
+      visitDelegate.findMany.mockResolvedValue([
+        {
+          id: 'aaaaaaaa-0000-4000-8000-000000000000',
+          approved_start_time: new Date('1970-01-01T10:00:00.000Z'),
+          approved_end_time: new Date('1970-01-01T12:00:00.000Z'),
+        },
+      ]);
+
+      await expect(
+        service.approveSchedule(VISIT_ID, { preferenceOrder: 1 }, CURATOR_ID),
+      ).rejects.toThrow(
+        'Preferred option 1 overlaps visit AAAAAAAA, already approved for 2030-10-15 10:00-12:00.',
+      );
+      expect(visitDelegate.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            status: {
+              in: [
+                'APPROVED_BY_CURATOR',
+                'SUBMITTED_FOR_CAMPUS_ENTRY',
+                'COMPLETED',
+              ],
+            },
+            approved_date: new Date('2030-10-15T00:00:00.000Z'),
+            approved_start_time: { lt: new Date('1970-01-01T11:00:00.000Z') },
+            approved_end_time: { gt: new Date('1970-01-01T09:00:00.000Z') },
+            id: { not: VISIT_ID },
+          },
+        }),
+      );
+      expect(visitDelegate.update).not.toHaveBeenCalled();
+    });
+
     it('only approves a Pending request', async () => {
       visitDelegate.findUnique.mockResolvedValue(
         visitRecord({ status: 'DECLINED' }),
@@ -737,6 +987,32 @@ describe('VisitRequestsService', () => {
         service.getCampusEntrySummary(VISIT_ID),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
+  });
+
+  it('rejects a referral whose preferred time overlaps an approved visit (spec 0001 AC-3)', async () => {
+    visitDelegate.findMany.mockResolvedValueOnce([{ id: 'x' }]);
+
+    await expect(
+      service.createFromReferral(
+        prisma as unknown as Parameters<
+          VisitRequestsService['createFromReferral']
+        >[0],
+        {
+          sourceInquiryId: INQUIRY_ID,
+          name: 'Maria Santos',
+          email: 'maria@example.com',
+          phone: '09171234567',
+          organization: 'USC',
+          purpose: null,
+          visitorCount: 20,
+          preferredSchedules: validDto().preferredSchedules,
+          consentAcceptedAt: CREATED_AT,
+        },
+        CURATOR_ID,
+      ),
+    ).rejects.toBeInstanceOf(ConflictException);
+    expect(visitDelegate.create).not.toHaveBeenCalled();
+    expect(historyDelegate.create).not.toHaveBeenCalled();
   });
 
   it('creates a Pending request from an inquiry referral and notes its source', async () => {

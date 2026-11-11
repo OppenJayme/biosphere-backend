@@ -36,6 +36,16 @@ export const CAMPUS_ENTRY_STATUSES: readonly VisitRequestStatus[] = [
   VisitRequestStatus.SUBMITTED_FOR_CAMPUS_ENTRY,
 ];
 
+// Statuses whose curator-approved schedule holds its time slot (team
+// decision 2026-11-11). These are the only visits on the approved-visit
+// calendar, and a new booking or approval may not overlap them. Pending,
+// Declined, and Cancelled requests never hold a slot.
+export const SCHEDULED_VISIT_STATUSES: readonly VisitRequestStatus[] = [
+  VisitRequestStatus.APPROVED_BY_CURATOR,
+  VisitRequestStatus.SUBMITTED_FOR_CAMPUS_ENTRY,
+  VisitRequestStatus.COMPLETED,
+];
+
 export function assertVisitRequestTransition(
   from: VisitRequestStatus,
   to: VisitRequestStatus,
