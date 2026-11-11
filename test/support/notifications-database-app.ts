@@ -38,6 +38,7 @@ export async function seedNotificationsDatabase(admin: Client) {
   `);
   for (const file of [
     'database/sql/015_backup_history.sql',
+    'prisma/migrations/20261112000000_add_weekly_excel_export/migration.sql',
     'database/sql/016_inquiry.sql',
     'database/sql/017_visit_request.sql',
     'prisma/migrations/20261028000000_add_user_notification_state/migration.sql',
