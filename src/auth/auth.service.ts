@@ -64,6 +64,15 @@ function isEmailCodeSession(token: string): boolean {
   }
 }
 
+/**
+ * True when a sign-in failed without Supabase answering about the password:
+ * a network failure (no HTTP status, or 0) or a server error (5xx). A wrong
+ * password is a 400 with code `invalid_credentials` and stays a 401.
+ */
+function isProviderUnavailable(error: { status?: number }) {
+  return !error.status || error.status >= 500;
+}
+
 /** A password the provider refused, or a provider that could not be reached. */
 function passwordUpdateError(error: { code?: string; status?: number }) {
   return error.code === 'weak_password' || error.status === 422
@@ -99,6 +108,25 @@ export class AuthService {
       email,
       password,
     });
+
+    if (error && isProviderUnavailable(error)) {
+      // Supabase never judged the password (network failure or its own
+      // outage), so do not tell the user it was wrong. The frontend shows
+      // 503 as "server unavailable".
+      await this.securityAudit.record({
+        action: 'LOGIN',
+        result: 'FAILED',
+        details: {
+          email: auditedEmail(email),
+          reason: 'PROVIDER_UNAVAILABLE',
+          providerCode: error.code ?? null,
+          providerStatus: error.status ?? null,
+        },
+      });
+      throw new ServiceUnavailableException(
+        'Sign-in is temporarily unavailable. Try again shortly.',
+      );
+    }
 
     if (error || !data.session || !data.user) {
       // The password and provider tokens are never recorded (REQ-4.1-15).

@@ -564,21 +564,25 @@ model collection {
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
 model communication_history {
-  id                 String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  inquiry_id         String?        @db.Uuid
-  visit_request_id   String?        @db.Uuid
-  recorded_by        String         @db.Uuid
-  direction          String         @db.VarChar(50)
-  communication_type String         @db.VarChar(100)
-  recipient_email    String?        @db.VarChar(100)
-  subject            String?        @db.VarChar(255)
-  message            String
-  delivery_result    String?        @db.VarChar(100)
-  sent_at            DateTime?      @db.Timestamptz(6)
-  created_at         DateTime       @default(now()) @db.Timestamptz(6)
-  inquiry            inquiry?       @relation(fields: [inquiry_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  user_account       user_account   @relation(fields: [recorded_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  visit_request      visit_request? @relation(fields: [visit_request_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  id                  String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  inquiry_id          String?        @db.Uuid
+  visit_request_id    String?        @db.Uuid
+  /// Null only for INBOUND visitor replies imported from the museum mailbox.
+  recorded_by         String?        @db.Uuid
+  direction           String         @db.VarChar(50)
+  communication_type  String         @db.VarChar(100)
+  recipient_email     String?        @db.VarChar(100)
+  subject             String?        @db.VarChar(255)
+  message             String
+  delivery_result     String?        @db.VarChar(100)
+  sent_at             DateTime?      @db.Timestamptz(6)
+  created_at          DateTime       @default(now()) @db.Timestamptz(6)
+  /// RFC 5322 Message-ID: the provider id of an OUTBOUND email, or the
+  /// Message-ID of an imported INBOUND reply (prevents double imports).
+  external_message_id String?        @unique(map: "communication_history_external_message_id_key") @db.VarChar(255)
+  inquiry             inquiry?       @relation(fields: [inquiry_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  user_account        user_account?  @relation(fields: [recorded_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  visit_request       visit_request? @relation(fields: [visit_request_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@index([inquiry_id], map: "idx_communication_inquiry_id")
   @@index([visit_request_id], map: "idx_communication_visit_request_id")
@@ -675,6 +679,21 @@ model faq_entry {
 
   @@index([category], map: "idx_faq_entry_category")
   @@index([status], map: "idx_faq_entry_status")
+  @@schema("public")
+}
+
+/// Progress of the read-only museum mailbox sync that imports visitor
+/// replies. One row per synced mailbox address.
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model gmail_sync_state {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  mailbox         String    @unique(map: "gmail_sync_state_mailbox_key") @db.VarChar(255)
+  last_message_at DateTime? @db.Timestamptz(6)
+  last_checked_at DateTime? @db.Timestamptz(6)
+  last_success_at DateTime? @db.Timestamptz(6)
+  last_error      String?   @db.VarChar(500)
+  updated_at      DateTime  @default(now()) @db.Timestamptz(6)
+
   @@schema("public")
 }
 

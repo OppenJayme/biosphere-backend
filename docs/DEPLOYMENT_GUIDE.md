@@ -78,9 +78,11 @@ variables that already exist.
 | `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` | From the Supabase project (anon key only) |
 | `NEXT_PUBLIC_API_URL` | `https://biosphere-api.dcism.org` |
 | `NEXT_PUBLIC_SESSION_IDLE_MINUTES` | `30`, or the value the Curator approves |
+| `APP_ORIGIN` | `https://biosphere.dcism.org`. Server-only. The app's upload, report and notification routes compare the browser's `Origin` with it, because behind Apache the request URL is the internal address. Without it those routes answer 403. |
 
 `NEXT_PUBLIC_*` values are built into the app. Rebuild the frontend after
-changing any of them.
+changing any of them. `APP_ORIGIN` is read when the app starts, so a restart is
+enough after changing it.
 
 ## 3. First deployment
 
@@ -159,6 +161,8 @@ Then, in a browser:
 
 - [ ] The public home page, a public exhibit page and the FAQ assistant load.
 - [ ] A curator can sign in, and the dashboard and specimen list load.
+- [ ] An upload works, such as an exhibit photo or an AR asset (no 403
+  "Cross-site requests are not allowed").
 - [ ] A visit request or general inquiry submits, and the curator alert email
   arrives from the production sender.
 - [ ] An exhibit QR label preview encodes `https://biosphere.dcism.org/exhibits/...`.
