@@ -6,6 +6,11 @@ import { App } from 'supertest/types';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { SUPABASE_CLIENT } from '../src/supabase/supabase.constants';
+import { FAQ_AI_PROVIDER } from '../src/faq/ai/ai-provider';
+import {
+  CURATOR_FAQ_IDS,
+  curatorFaqDrafts,
+} from './fixtures/faq-curator-knowledge';
 
 describe('FAQ knowledge management (e2e)', () => {
   const curatorToken = 'curator-faq-token';
@@ -215,6 +220,12 @@ describe('FAQ knowledge management (e2e)', () => {
       .useValue(prismaMock)
       .overrideProvider(SUPABASE_CLIENT)
       .useValue({ auth: { getUser } })
+      .overrideProvider(FAQ_AI_PROVIDER)
+      .useValue({
+        label: 'isolated-faq-http-test',
+        isConfigured: () => false,
+        generateJson: jest.fn(),
+      })
       .compile();
 
     app = moduleFixture.createNestApplication();
@@ -559,6 +570,88 @@ describe('FAQ knowledge management (e2e)', () => {
   });
 
   describe('public FAQ Assistant', () => {
+    it.each([
+      [
+        'Can our group of 60 visitors book one tour batch?',
+        'ANSWERED',
+        'GENERAL_INQUIRY',
+        false,
+      ],
+      [
+        'Can our group of 50 visitors book one tour batch?',
+        'ANSWERED',
+        'VISIT_REQUEST',
+        true,
+      ],
+      ['Book us for tomorrow', 'VISIT_REQUEST_REDIRECT', 'VISIT_REQUEST', true],
+      ['Cancel my visit request', 'ANSWERED', 'GENERAL_INQUIRY', true],
+      ['Reschedule my museum visit', 'ANSWERED', 'GENERAL_INQUIRY', true],
+      ['Modify my visit request', 'ANSWERED', 'GENERAL_INQUIRY', true],
+    ])(
+      'keeps approved content and referral consistent for %s',
+      async (question, outcome, redirect, genericGuidance) => {
+        entries = curatorFaqDrafts.map((entry) =>
+          initialRecord({
+            id: entry.id,
+            question: entry.question,
+            answer: entry.answer,
+            alternative_wording: entry.alternative_wording,
+            keywords: entry.keywords,
+            category: entry.category,
+            status: 'ACTIVE',
+          }),
+        );
+        entries.push(
+          initialRecord({
+            id: secondEntryId,
+            question:
+              'How should I change or cancel an existing visit request?',
+            answer:
+              'Send a General Inquiry with your reference number to change or cancel an existing request.',
+            alternative_wording: [
+              'Cancel my visit request',
+              'Reschedule my museum visit',
+              'Modify my visit request',
+            ],
+            keywords: ['cancel', 'reschedule', 'modify'],
+            status: 'ACTIVE',
+          }),
+        );
+
+        await request(app.getHttpServer())
+          .post('/faq/assistant/ask')
+          .send({ question })
+          .expect(200)
+          .expect((response) => {
+            expect(response.body).toMatchObject({
+              outcome,
+              redirect,
+              assisted: false,
+            });
+            if (outcome === 'ANSWERED') {
+              const expectedId = question.startsWith('Can our group')
+                ? CURATOR_FAQ_IDS.batch
+                : secondEntryId;
+              expect(response.body.answer).toMatchObject({
+                id: expectedId,
+                answer: entries.find((entry) => entry.id === expectedId)!
+                  .answer,
+              });
+            }
+            if (genericGuidance) {
+              expect(response.body.message).toContain(
+                'The assistant cannot submit',
+              );
+            } else {
+              expect(response.body.message).toBeNull();
+            }
+          });
+        expect(faqCreate).not.toHaveBeenCalled();
+        expect(faqUpdate).not.toHaveBeenCalled();
+        expect(auditCreate).not.toHaveBeenCalled();
+      },
+    );
+
     it('resolves an explicit follow-up using only active approved topic and qualifier evidence', async () => {
       entries = [
         initialRecord({
