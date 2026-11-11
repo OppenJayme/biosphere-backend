@@ -31,6 +31,16 @@ export async function seedBackupHistoryDatabase(admin: Client) {
       'utf8',
     ),
   );
+  // Columns the Prisma client now selects (weekly Excel export, spec 0003).
+  await admin.query(
+    readFileSync(
+      resolve(
+        __dirname,
+        '../../prisma/migrations/20261112000000_add_weekly_excel_export/migration.sql',
+      ),
+      'utf8',
+    ),
+  );
   await admin.query(`
     GRANT SELECT ON backup_history TO service_role;
     INSERT INTO user_account(id, auth_user_id, full_name, role, status) VALUES
