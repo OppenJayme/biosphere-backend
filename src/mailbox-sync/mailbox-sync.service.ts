@@ -133,7 +133,9 @@ export class MailboxSyncService implements OnModuleInit, OnModuleDestroy {
 
     try {
       const ids = await this.gmail.listMessageIds(
-        `in:inbox -from:me after:${Math.floor(since.getTime() / 1000)}`,
+        // Not only the inbox: a reply archived or filtered before a check
+        // still counts. Gmail search already leaves out spam and trash.
+        `-in:sent -in:drafts -from:me after:${Math.floor(since.getTime() / 1000)}`,
       );
       // Oldest first, so the timeline order follows the mailbox.
       for (const id of ids.reverse()) {

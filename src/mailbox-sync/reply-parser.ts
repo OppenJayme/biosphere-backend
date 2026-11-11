@@ -128,26 +128,33 @@ export function replyText(payload: GmailMessagePart | undefined): string {
     : text;
 }
 
-// Cuts the reply at the first line that starts the quoted earlier email:
-// Gmail's "On <date>, <name> wrote:" (sometimes wrapped over two lines),
-// Outlook's "From: ... / Sent: ..." block, "-----Original Message-----",
-// or a "> " quoted line.
+// Removes the quoted earlier email. Everything from the first quote header
+// on is cut: Gmail's "On <date>, <name> wrote:" (sometimes wrapped over two
+// lines), Outlook's "From: ... / Sent: ..." block, or
+// "-----Original Message-----". Lines starting with ">" are dropped wherever
+// they are, so an inline reply ("> question" then the answer) keeps the
+// visitor's answers.
 export function stripQuotedReply(text: string): string {
   const lines = text.split('\n');
+  let end = lines.length;
   for (let index = 0; index < lines.length; index += 1) {
     const line = lines[index].trim();
     const next = (lines[index + 1] ?? '').trim();
     const startsQuote =
-      line.startsWith('>') ||
       /^-{2,}\s*Original Message\s*-{2,}$/i.test(line) ||
       (/^On\b/.test(line) && /wrote:$/.test(line)) ||
       (/^On\b/.test(line) && /wrote:$/.test(`${line} ${next}`)) ||
       (/^From:\s/i.test(line) && /^(Sent|Date):\s/i.test(next));
     if (startsQuote) {
-      return lines.slice(0, index).join('\n');
+      end = index;
+      break;
     }
   }
-  return text;
+  return lines
+    .slice(0, end)
+    .filter((line) => !line.trim().startsWith('>'))
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n');
 }
 
 function findPart(

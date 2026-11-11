@@ -4,8 +4,9 @@ import { CommunicationEntry } from './communication-history.entity';
 // Stored in communication_history.direction / communication_type. INTERNAL
 // entries are curator records; OUTBOUND entries are emails BioSphere sent on
 // a curator's behalf; INBOUND entries are visitor replies imported from the
-// museum mailbox (SRS change approved 2026-11-11, replacing the
-// outbound-only rule in BR-22). INBOUND entries have no acting curator.
+// museum mailbox (team approved 2026-11-11, spec 0002; the SRS text for the
+// outbound-only rule in BR-22 / REQ-4.9-14 still has to be reworded).
+// INBOUND entries have no acting curator.
 export const CommunicationDirection = {
   INTERNAL: 'INTERNAL',
   OUTBOUND: 'OUTBOUND',
@@ -111,6 +112,9 @@ export async function recordInboundReply(
       subject: params.subject.slice(0, 255),
       message: params.message,
       sent_at: params.receivedAt,
+      // The timeline orders by created_at, so a reply sorts by when it was
+      // received, not when the sync imported it.
+      created_at: params.receivedAt,
       external_message_id: params.externalMessageId,
     },
   });

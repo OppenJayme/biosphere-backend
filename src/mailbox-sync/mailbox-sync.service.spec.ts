@@ -111,7 +111,7 @@ describe('MailboxSyncService', () => {
 
     expect(gmail.listMessageIds).toHaveBeenCalledWith(
       // No saved progress: look back 14 days from now.
-      `in:inbox -from:me after:${Math.floor((NOW.getTime() - 14 * 86_400_000) / 1000)}`,
+      `-in:sent -in:drafts -from:me after:${Math.floor((NOW.getTime() - 14 * 86_400_000) / 1000)}`,
     );
     expect(prisma.communication_history.findFirst).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -130,6 +130,7 @@ describe('MailboxSyncService', () => {
         subject: 'Re: About your visit',
         message: 'We will arrive at 1 PM.',
         sent_at: new Date('2026-11-11T03:00:00.000Z'),
+        created_at: new Date('2026-11-11T03:00:00.000Z'),
         external_message_id: '<r1@mail.gmail.com>',
       },
     });
@@ -359,7 +360,7 @@ describe('MailboxSyncService', () => {
     await service.sync();
 
     expect(gmail.listMessageIds).toHaveBeenCalledWith(
-      `in:inbox -from:me after:${Date.parse('2026-11-11T02:55:00.000Z') / 1000}`,
+      `-in:sent -in:drafts -from:me after:${Date.parse('2026-11-11T02:55:00.000Z') / 1000}`,
     );
   });
 

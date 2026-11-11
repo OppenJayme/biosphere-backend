@@ -28,9 +28,13 @@ export class GmailClient {
     );
   }
 
-  // Ids of messages matching a Gmail search query, newest first, across
-  // at most maxPages pages of 50.
-  async listMessageIds(query: string, maxPages = 10): Promise<string[]> {
+  // Ids of messages matching a Gmail search query, newest first. Pages to
+  // the end by default: a truncated list would drop the oldest messages,
+  // and the sync's watermark would then move past them for good.
+  async listMessageIds(
+    query: string,
+    maxPages = Number.POSITIVE_INFINITY,
+  ): Promise<string[]> {
     const ids: string[] = [];
     let pageToken: string | undefined;
     for (let page = 0; page < maxPages; page += 1) {

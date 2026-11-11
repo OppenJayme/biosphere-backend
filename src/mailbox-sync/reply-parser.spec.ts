@@ -141,6 +141,14 @@ describe('reply parser', () => {
       expect(stripQuotedReply(text).trim()).toBe('Yes');
     });
 
+    it('keeps the answers in an inline reply', () => {
+      const text =
+        'Here you go.\n\n> How many students?\n32 students\n\n> Any vehicles?\nOne bus\n\nOn Mon, X <a@b> wrote:\n> old';
+      expect(stripQuotedReply(text)).toBe(
+        'Here you go.\n\n32 students\n\nOne bus\n',
+      );
+    });
+
     it('keeps a reply that merely mentions "From:" mid-text', () => {
       const text = 'From: our school we will bring 20.\nThanks';
       expect(stripQuotedReply(text)).toBe(text);
