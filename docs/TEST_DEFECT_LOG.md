@@ -6,6 +6,47 @@ defect entry.
 
 ## Start here
 
+### DEF-044 - Large-group chatbot answer conflicts with its Visit Request link
+
+**Status:** Open — reproduced on DCISM on 2026-11-11.
+
+**Module/owner:** FAQ assistant, Kyer/Ivan; coordinate with Charles only if the
+Visits/public workflow itself needs changing. No Visits behavior change is
+proposed by this report.
+
+**Impact:** Visitor guidance inconsistency: a group larger than 50 may follow the
+ordinary Visit Request link despite the approved answer requiring General Inquiry
+for batch coordination. No incorrect booking or data corruption was observed.
+
+**Steps:** Open the public Museum Assistant at `https://biosphere.dcism.org/` and
+ask `Can our group of 60 visitors book one tour batch?`.
+
+**Expected:** Preserve the approved maximum of 50 per batch and refer larger-group
+batch coordination to General Inquiry. The answer, supplemental guidance and
+action link should agree; do not imply automatic splitting or multiple bookings.
+See intake S06 in [the content intake](./FAQ_CONTENT_INTAKE_2026-11-02.md).
+
+**Actual:** HTTP 200, `outcome=ANSWERED`, with correct stored answer explaining
+General Inquiry and no automatic splitting. The same response adds generic visit
+transaction guidance and `redirect=VISIT_REQUEST`. The settled widget displays
+`Go to the Visit Request form` linking to `/visit`. An identical question repeated
+after an unsupported contact question produces the same conflicting redirect.
+
+**Evidence:** [Deployed FAQ check](./FAQ_DCISM_CHECK_2026-11-11.md), including five
+other passing question-specific checks and the release-provenance limits. Local
+inspection finds visit-transaction redirection assigned independently of the
+matched answer in `src/faq/faq-assistant.service.ts`; this is a repair lead, not
+proof of the deployed binary revision. No knowledge-entry edit, visit submission
+or live backend change was made.
+
+**Retest criteria:**
+
+- [ ] Larger-group coordination answer and referral agree on General Inquiry.
+- [ ] Ordinary visit-request guidance still uses the appropriate Visit Request path.
+- [ ] Existing request change/cancellation guidance continues to use General Inquiry.
+- [ ] Approved FAQ wording and the no-automatic-booking boundary remain intact.
+- [ ] Isolated regression evidence and a bounded deployed widget retest are recorded.
+
 2026-11-09 live B2 synthetic trial: the reviewed retention probe passed both
 expected deletion denials and all three version readbacks. The 73,845-byte
 checkpoint was published, recovered by its exact version and used for a fresh
