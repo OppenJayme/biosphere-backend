@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { OpeningWindow } from '../museum-hours';
 
 // Mirrors the visit_request_status database enum (SRS REQ-4.9-09).
 export enum VisitRequestStatus {
@@ -185,4 +186,53 @@ export class CampusEntrySummary {
 
   @ApiPropertyOptional({ nullable: true })
   equipment!: string | null;
+}
+
+// A time already held by a curator-approved visit, shown to the public
+// form so visitors pick a free time. Carries no visitor personal data.
+export class BookedVisitSlot {
+  @ApiProperty({ example: '2026-11-20' })
+  date!: string;
+
+  @ApiProperty({ example: '09:00' })
+  startTime!: string;
+
+  @ApiProperty({ example: '11:00' })
+  endTime!: string;
+}
+
+// What the public visit form needs to offer valid times.
+export class VisitAvailability {
+  @ApiProperty({ type: [OpeningWindow] })
+  openingHours!: OpeningWindow[];
+
+  @ApiProperty({ type: [BookedVisitSlot] })
+  booked!: BookedVisitSlot[];
+}
+
+// One curator-approved visit on the curator calendar.
+export class VisitCalendarEvent extends BookedVisitSlot {
+  @ApiProperty()
+  id!: string;
+
+  @ApiProperty({ example: 'A1B2C3D4' })
+  referenceCode!: string;
+
+  @ApiProperty({
+    enum: [
+      VisitRequestStatus.APPROVED_BY_CURATOR,
+      VisitRequestStatus.SUBMITTED_FOR_CAMPUS_ENTRY,
+      VisitRequestStatus.COMPLETED,
+    ],
+  })
+  status!: VisitRequestStatus;
+
+  @ApiProperty()
+  organization!: string;
+
+  @ApiProperty()
+  contactPerson!: string;
+
+  @ApiProperty()
+  visitorCount!: number;
 }
