@@ -1342,7 +1342,6 @@ describe('Inquiries and visit requests (e2e)', () => {
     });
   });
 
-
   describe('date filters', () => {
     const auth = `Bearer ${curatorToken}`;
 
