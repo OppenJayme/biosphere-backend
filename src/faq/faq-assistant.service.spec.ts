@@ -31,6 +31,15 @@ const VISIT_HOWTO = {
   keywords: ['cancel'],
   category: 'Visit',
 };
+const BATCH_SIZE = {
+  id: '66666666-6666-4666-8666-666666666666',
+  question: 'What is the maximum tour batch size?',
+  answer:
+    'A maximum of 50 visitors can be accommodated per batch, for school and non-school groups. For groups larger than 50, send a General Inquiry through BioSphere to coordinate separate batches and proposed times with the Curator. The system does not automatically split groups or book multiple schedules.',
+  alternative_wording: ['How many visitors can join one tour batch?'],
+  keywords: ['maximum', 'batch', '50', 'school tour'],
+  category: 'Group Visits',
+};
 
 describe('FaqAssistantService', () => {
   let service: FaqAssistantService;
@@ -90,6 +99,129 @@ describe('FaqAssistantService', () => {
       redirect: FaqAssistantRedirect.GENERAL_INQUIRY,
     });
   });
+
+  it('keeps the approved oversized-group answer and sends coordination to General Inquiry', async () => {
+    faqDelegate.findMany.mockResolvedValue([HOURS, BATCH_SIZE]);
+
+    const result = await service.ask({
+      question: 'Can our group of 60 visitors book one tour batch?',
+    });
+
+    expect(result).toMatchObject({
+      outcome: FaqAssistantOutcome.ANSWERED,
+      answer: { id: BATCH_SIZE.id, answer: BATCH_SIZE.answer },
+      redirect: FaqAssistantRedirect.GENERAL_INQUIRY,
+      message: null,
+      assisted: false,
+    });
+  });
+
+  it.each([25, 50])(
+    'keeps regular booking guidance for a party of %i',
+    async (size) => {
+      faqDelegate.findMany.mockResolvedValue([BATCH_SIZE]);
+      const result = await service.ask({
+        question: `Can our group of ${size} visitors book one tour batch?`,
+      });
+
+      expect(result).toMatchObject({
+        outcome: FaqAssistantOutcome.ANSWERED,
+        answer: { answer: BATCH_SIZE.answer },
+        redirect: FaqAssistantRedirect.VISIT_REQUEST,
+        message: FAQ_VISIT_REQUEST_MESSAGE,
+      });
+    },
+  );
+
+  it.each([
+    'Can a party of 51 book a tour batch?',
+    'Can 60 people book one tour batch?',
+  ])('coordinates an oversized party for %s', async (question) => {
+    faqDelegate.findMany.mockResolvedValue([BATCH_SIZE]);
+    const result = await service.ask({
+      question,
+      selectedFaqId: BATCH_SIZE.id,
+    });
+
+    expect(result).toMatchObject({
+      outcome: FaqAssistantOutcome.ANSWERED,
+      answer: { answer: BATCH_SIZE.answer },
+      redirect: FaqAssistantRedirect.GENERAL_INQUIRY,
+      message: null,
+    });
+  });
+
+  it('uses the matched approved limit and works with a different FAQ ID', async () => {
+    const changed = {
+      ...BATCH_SIZE,
+      id: '77777777-7777-4777-8777-777777777777',
+      answer:
+        'For groups larger than 75, send a General Inquiry to coordinate batches.',
+    };
+    faqDelegate.findMany.mockResolvedValue([changed]);
+
+    for (const [size, redirect] of [
+      [75, FaqAssistantRedirect.VISIT_REQUEST],
+      [76, FaqAssistantRedirect.GENERAL_INQUIRY],
+    ] as const) {
+      const result = await service.ask({
+        question: `Can ${size} visitors book one tour batch?`,
+        selectedFaqId: changed.id,
+      });
+      expect(result).toMatchObject({
+        answer: { id: changed.id, answer: changed.answer },
+        redirect,
+        message:
+          redirect === FaqAssistantRedirect.GENERAL_INQUIRY
+            ? null
+            : FAQ_VISIT_REQUEST_MESSAGE,
+      });
+    }
+  });
+
+  it('does not treat a date or a prior party size as the current group size', async () => {
+    faqDelegate.findMany.mockResolvedValue([BATCH_SIZE]);
+    const result = await service.ask({
+      question: 'Can 20 visitors book one tour batch in 2027?',
+      history: ['Can 60 visitors book one tour batch?'],
+      selectedFaqId: BATCH_SIZE.id,
+    });
+    expect(result).toMatchObject({
+      redirect: FaqAssistantRedirect.VISIT_REQUEST,
+      message: FAQ_VISIT_REQUEST_MESSAGE,
+    });
+  });
+
+  it('does not invent an oversized-group referral absent an explicit approved rule', async () => {
+    faqDelegate.findMany.mockResolvedValue([
+      { ...BATCH_SIZE, answer: 'A maximum of 50 visitors can join one batch.' },
+    ]);
+    const result = await service.ask({
+      question: 'Can our group of 60 visitors book one tour batch?',
+    });
+    expect(result).toMatchObject({
+      outcome: FaqAssistantOutcome.ANSWERED,
+      redirect: FaqAssistantRedirect.VISIT_REQUEST,
+      message: FAQ_VISIT_REQUEST_MESSAGE,
+    });
+  });
+
+  it.each([
+    'Cancel my visit request',
+    'Reschedule my museum visit',
+    'Modify my visit request',
+  ])(
+    'keeps existing-request changes at General Inquiry: %s',
+    async (question) => {
+      faqDelegate.findMany.mockResolvedValue([HOURS]);
+      const result = await service.ask({ question });
+      expect(result).toMatchObject({
+        outcome: FaqAssistantOutcome.VISIT_REQUEST_REDIRECT,
+        redirect: FaqAssistantRedirect.GENERAL_INQUIRY,
+        message: FAQ_VISIT_REQUEST_MESSAGE,
+      });
+    },
+  );
 
   it('redirects unmatched visit-request transactions to the Visit Request form', async () => {
     faqDelegate.findMany.mockResolvedValue([HOURS]);
