@@ -541,6 +541,17 @@ model backup_history {
   status       backup_status @default(IN_PROGRESS)
   started_at   DateTime      @default(now()) @db.Timestamptz(6)
   completed_at DateTime?     @db.Timestamptz(6)
+  // Weekly Excel export (spec 0003); NULL on recovery rows. The partial
+  // unique indexes on export_date live in migration 20261112000000.
+  export_date       DateTime?     @db.Date
+  row_counts        Json?
+  truncated_counts  Json?
+  file_bytes        BigInt?
+  file_sha256       String?       @db.Char(64)
+  field_set_version String?       @db.VarChar(50)
+  failure_code      String?       @db.VarChar(50)
+  attempt           Int?          @db.SmallInt
+  expired_at        DateTime?     @db.Timestamptz(6)
   user_account user_account? @relation(fields: [created_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@index([created_by], map: "idx_backup_history_created_by")
