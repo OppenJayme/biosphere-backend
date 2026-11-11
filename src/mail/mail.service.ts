@@ -17,11 +17,15 @@ export interface EmailDeliveryResult {
   delivered: boolean;
   // Stored as communication_history.delivery_result, e.g. "SENT <id>".
   result: string;
+  // Brevo's Message-ID for a delivered email; visitor replies quote it in
+  // In-Reply-To, which lets the mailbox sync match them.
+  messageId?: string;
 }
 
-// Sends transactional email through the Brevo API (SRS BR-22: outbound
-// only; BioSphere never reads a mailbox). Never throws: a failed send is
-// reported in the result so the caller's workflow change still stands.
+// Sends transactional email through the Brevo API. Reading visitor replies
+// is a separate, read-only job (MailboxSyncService). Never throws: a failed
+// send is reported in the result so the caller's workflow change still
+// stands.
 @Injectable()
 export class MailService {
   private readonly logger = new Logger(MailService.name);
@@ -80,6 +84,7 @@ export class MailService {
       return {
         delivered: true,
         result: this.truncate(`SENT ${body.messageId ?? ''}`.trim()),
+        ...(body.messageId && { messageId: body.messageId.slice(0, 255) }),
       };
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error);

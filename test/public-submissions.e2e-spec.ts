@@ -60,10 +60,14 @@ describe('Inquiries and visit requests (e2e)', () => {
   const configuredRecipients = process.env.CURATOR_ALERT_EMAILS;
   beforeAll(() => {
     process.env.CURATOR_ALERT_EMAILS = '';
+    // A local .env may turn the mailbox sync on; these tests expect it off.
+    process.env.GMAIL_SYNC_ENABLED = 'false';
   });
   afterAll(() => {
     process.env.CURATOR_ALERT_EMAILS = configuredRecipients;
+    process.env.GMAIL_SYNC_ENABLED = configuredGmailSync;
   });
+  const configuredGmailSync = process.env.GMAIL_SYNC_ENABLED;
   let inquiries: Array<Record<string, unknown>>;
   let visits: Array<Record<string, unknown>>;
   let auditCreate: jest.Mock;
@@ -287,6 +291,10 @@ describe('Inquiries and visit requests (e2e)', () => {
       },
       // The feed's operational alerts read these; no failures exist here.
       backup_history: { findMany: jest.fn(() => []) },
+      gmail_sync_state: {
+        findUnique: jest.fn(() => null),
+        upsert: jest.fn(),
+      },
       $queryRaw: jest.fn(() => []),
       audit_log: {
         create: auditCreate,
@@ -1339,6 +1347,60 @@ describe('Inquiries and visit requests (e2e)', () => {
       await request(app.getHttpServer())
         .get(`/visit-requests/availability?${query}`)
         .expect(400);
+    });
+  });
+
+  // Spec 0002 AC-1 and AC-8: the mailbox routes are curator only, never
+  // return credentials, and refuse to run when the sync is not set up.
+  describe('mailbox sync', () => {
+    it('rejects a request without a token', async () => {
+      await request(app.getHttpServer())
+        .get('/mailbox-sync/status')
+        .expect(401);
+      await request(app.getHttpServer()).post('/mailbox-sync/run').expect(401);
+    });
+
+    it('forbids a developer and records only the denial', async () => {
+      await request(app.getHttpServer())
+        .get('/mailbox-sync/status')
+        .set('Authorization', `Bearer ${developerToken}`)
+        .expect(403);
+      await request(app.getHttpServer())
+        .post('/mailbox-sync/run')
+        .set('Authorization', `Bearer ${developerToken}`)
+        .expect(403);
+
+      expectOnlyAccessDeniedAudits(auditCreate, 2);
+    });
+
+    it('shows a curator the status without any credential', async () => {
+      const response = await request(app.getHttpServer())
+        .get('/mailbox-sync/status')
+        .set('Authorization', `Bearer ${curatorToken}`)
+        .expect(200);
+
+      expect(Object.keys(response.body as object).sort()).toEqual([
+        'configured',
+        'enabled',
+        'intervalSeconds',
+        'lastCheckedAt',
+        'lastError',
+        'lastMessageAt',
+        'lastSuccessAt',
+        'mailbox',
+      ]);
+      expect(response.body).toMatchObject({ enabled: false });
+    });
+
+    it('answers 503 when a curator runs a sync that is not set up', async () => {
+      const response = await request(app.getHttpServer())
+        .post('/mailbox-sync/run')
+        .set('Authorization', `Bearer ${curatorToken}`)
+        .expect(503);
+
+      expect((response.body as { message: string }).message).toBe(
+        'Mailbox sync is not set up on this server.',
+      );
     });
   });
 

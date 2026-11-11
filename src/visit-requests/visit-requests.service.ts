@@ -595,6 +595,7 @@ export class VisitRequestsService {
         message: email.text,
         deliveryResult: delivery.result,
         delivered: delivery.delivered,
+        externalMessageId: delivery.messageId,
       });
       await this.recordAudit(transaction, {
         userId: actingCuratorAccountId,

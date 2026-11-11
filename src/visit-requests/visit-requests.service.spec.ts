@@ -657,6 +657,43 @@ describe('VisitRequestsService', () => {
       });
     });
 
+    it('stores the Brevo Message-ID so a visitor reply can match it (spec 0002 AC-7)', async () => {
+      visitDelegate.findUnique.mockResolvedValue(visitRecord());
+      mail.send.mockResolvedValue({
+        delivered: true,
+        result: 'SENT <brevo-1@smtp-relay>',
+        messageId: '<brevo-1@smtp-relay>',
+      });
+
+      await service.sendMessage(
+        VISIT_ID,
+        { message: 'Please send the list of visitors.' },
+        CURATOR_ID,
+      );
+
+      expect(historyDelegate.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          direction: 'OUTBOUND',
+          recorded_by: CURATOR_ID,
+          external_message_id: '<brevo-1@smtp-relay>',
+        }),
+      });
+    });
+
+    it('stores no Message-ID when the email was not sent', async () => {
+      visitDelegate.findUnique.mockResolvedValue(visitRecord());
+      mail.send.mockResolvedValue({
+        delivered: false,
+        result: 'NOT_SENT email not configured',
+      });
+
+      await service.sendMessage(VISIT_ID, { message: 'Hello' }, CURATOR_ID);
+
+      expect(historyDelegate.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({ external_message_id: null }),
+      });
+    });
+
     it('keeps the approval and records a failed send', async () => {
       visitDelegate.findUnique.mockResolvedValue(visitRecord());
       visitDelegate.update.mockResolvedValue(approvedRecord);

@@ -3,10 +3,14 @@ import { CommunicationEntry } from './communication-history.entity';
 
 // Stored in communication_history.direction / communication_type. INTERNAL
 // entries are curator records; OUTBOUND entries are emails BioSphere sent on
-// a curator's behalf. Incoming external email is never imported (SRS BR-22).
+// a curator's behalf; INBOUND entries are visitor replies imported from the
+// museum mailbox (team approved 2026-11-11, spec 0002; the SRS text for the
+// outbound-only rule in BR-22 / REQ-4.9-14 still has to be reworded).
+// INBOUND entries have no acting curator.
 export const CommunicationDirection = {
   INTERNAL: 'INTERNAL',
   OUTBOUND: 'OUTBOUND',
+  INBOUND: 'INBOUND',
 } as const;
 
 export const CommunicationType = {
@@ -19,6 +23,8 @@ export const CommunicationType = {
   // Curator-written email: an inquiry reply (REQ-4.8-09) or a visit-request
   // message such as a request for more information (REQ-4.9-10).
   MESSAGE_EMAIL: 'MESSAGE_EMAIL',
+  // Visitor email reply matched to this record by the mailbox sync.
+  VISITOR_REPLY: 'VISITOR_REPLY',
 } as const;
 
 export type CommunicationType =
@@ -62,6 +68,9 @@ export async function recordOutboundEmail(
     message: string;
     deliveryResult: string;
     delivered: boolean;
+    // Provider Message-ID, so a visitor's reply can be matched back to the
+    // record by its In-Reply-To header.
+    externalMessageId?: string | null;
   },
 ): Promise<CommunicationEntry> {
   const created = await client.communication_history.create({
@@ -69,12 +78,44 @@ export async function recordOutboundEmail(
       ...toTargetColumns(params.target),
       recorded_by: params.recordedBy,
       direction: CommunicationDirection.OUTBOUND,
+      external_message_id: params.externalMessageId ?? null,
       communication_type: params.type,
       recipient_email: params.recipientEmail,
       subject: params.subject.slice(0, 255),
       message: params.message,
       delivery_result: params.deliveryResult,
       sent_at: params.delivered ? new Date() : null,
+    },
+  });
+  return toCommunicationEntry(created);
+}
+
+// Records a visitor reply imported from the museum mailbox. The unique
+// external_message_id makes a second import of the same email fail with
+// P2002 instead of duplicating the entry.
+export async function recordInboundReply(
+  client: Prisma.TransactionClient,
+  params: {
+    target: CommunicationTarget;
+    subject: string;
+    message: string;
+    receivedAt: Date;
+    externalMessageId: string;
+  },
+): Promise<CommunicationEntry> {
+  const created = await client.communication_history.create({
+    data: {
+      ...toTargetColumns(params.target),
+      recorded_by: null,
+      direction: CommunicationDirection.INBOUND,
+      communication_type: CommunicationType.VISITOR_REPLY,
+      subject: params.subject.slice(0, 255),
+      message: params.message,
+      sent_at: params.receivedAt,
+      // The timeline orders by created_at, so a reply sorts by when it was
+      // received, not when the sync imported it.
+      created_at: params.receivedAt,
+      external_message_id: params.externalMessageId,
     },
   });
   return toCommunicationEntry(created);

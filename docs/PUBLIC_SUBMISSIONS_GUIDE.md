@@ -56,6 +56,13 @@ Visit Request:
 - `GET /visit-requests/calendar?from=&to=` (curator): approved visits for the
   calendar view, see [Visit calendar and schedule rules](#visit-calendar-and-schedule-rules).
 
+Visitor replies (spec 0002):
+
+- `GET /mailbox-sync/status` (curator): whether reply sync is on and when the
+  museum mailbox was last checked. Never returns credentials.
+- `POST /mailbox-sync/run` (curator, 6 per minute): check for replies now.
+  Returns `{ checked, imported, skipped }`, or 503 when sync is not set up.
+
 Curator alerts:
 
 - `GET /notifications?limit=`: new submissions awaiting review. See
@@ -146,11 +153,16 @@ acting curator (`recorded_by`) and time (`created_at`):
 | `INTERNAL` | `NOTE` | `POST .../notes` | the curator's note, max 2000 characters |
 | `OUTBOUND` | `STATUS_UPDATE_EMAIL` | approve, decline, cancel | the plain-text email sent to the visitor |
 | `OUTBOUND` | `MESSAGE_EMAIL` | `replies`, `messages` | the plain-text email sent to the visitor |
+| `INBOUND` | `VISITOR_REPLY` | mailbox sync | the visitor's reply text, quoted earlier email removed |
 
 `OUTBOUND` entries also store `recipient_email`, `subject`, `delivery_result`,
-and `sent_at` (null when the send failed). Incoming replies to the museum's
-external mailbox are never imported (BR-22). Curators record what matters from
-them as a `NOTE`.
+`sent_at` (null when the send failed), and `external_message_id` (Brevo's
+Message-ID, used to match replies). `INBOUND` entries have no acting curator
+(`recorded_by` is null, allowed only for `INBOUND` by a database check), store
+the received time in `sent_at`, and keep the reply's own Message-ID in
+`external_message_id`, which is unique so a reply is never imported twice. This
+replaces the old outbound only rule (BR-22, REQ-4.9-14); see
+[Visitor reply sync](#visitor-reply-sync-gmail).
 
 ## Date filters
 
@@ -303,8 +315,51 @@ Every action is also written to `audit_log` in the same transaction:
 `SUBMIT_INQUIRY`, `UPDATE_INQUIRY_STATUS`, `REFER_INQUIRY`,
 `ADD_INQUIRY_NOTE`, `SUBMIT_VISIT_REQUEST`, `UPDATE_VISIT_REQUEST_STATUS`,
 `APPROVE_VISIT_SCHEDULE`, `CREATE_VISIT_REQUEST_FROM_REFERRAL`,
-`ADD_VISIT_REQUEST_NOTE`, and `EMAIL_VISITOR`. Audit details never contain
-visitor personal data or note text. Public submissions have a null `user_id`.
+`ADD_VISIT_REQUEST_NOTE`, `EMAIL_VISITOR`, and `IMPORT_VISITOR_REPLY` (entry id
+only). Audit details never contain visitor personal data, note text, or reply
+text. Public submissions and imported replies have a null `user_id`.
+
+## Visitor reply sync (Gmail)
+
+Decided in [spec 0002](./specs/0002-gmail-visitor-reply-sync.md). Brevo still
+sends every email. `src/mailbox-sync/` reads the museum mailbox read only
+(scope `gmail.readonly`) and never sends, labels, archives, or deletes mail.
+
+What gets imported: a mailbox email is copied into a timeline only when it
+answers exactly one inquiry or visit request (its `In-Reply-To` or `References`
+header names an email BioSphere sent, or its subject carries `Ref XXXXXXXX`)
+**and** it comes from that record's own email address **and** Gmail's own
+Authentication-Results header shows that address's domain really sent it
+(DMARC pass or best guess pass, or a DKIM signature from that domain), since
+the From header alone is easy to forge. Automated mail (out of office, mailing
+lists), unauthenticated mail, and anything unmatched stay in Gmail only. One
+reply the database rejects is counted as failed (`failed` in the run result,
+details in the server log only) and the run moves on; an outage stops the run
+and the next one resumes at that message.
+
+When it runs: every `GMAIL_SYNC_INTERVAL_SECONDS` (default 120) while the
+server is up, and when a curator calls `POST /mailbox-sync/run`. Never in
+`NODE_ENV=test`. Progress and the last error are kept in `gmail_sync_state`.
+
+Setup (not done yet, needs the mailbox owner):
+
+1. Apply migration `20261111000000_add_mailbox_reply_sync` through the approved
+   migration workflow. It is additive and safe with sync still off.
+2. In Google Cloud, create a project, enable the Gmail API, configure the OAuth
+   consent screen, and create an OAuth client. Decide the publishing status
+   first: an app left in Testing issues refresh tokens that expire after 7
+   days, and `gmail.readonly` is a restricted scope Google may require
+   verification for.
+3. The mailbox owner signs in once to grant `gmail.readonly` and issue a
+   refresh token. Keep it out of git, chat, and docs.
+4. Set `GMAIL_MAILBOX`, `GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET`,
+   `GMAIL_REFRESH_TOKEN`, then `GMAIL_SYNC_ENABLED=true`, and watch
+   `GET /mailbox-sync/status`.
+5. Rollback: set `GMAIL_SYNC_ENABLED=false`. Imported entries can stay.
+
+Not verified yet: whether Brevo's returned id equals the Message-ID header that
+visitors reply to (the subject reference covers it either way), and a real
+mailbox run. There is no curator notification for a new reply yet.
 
 ## Not yet implemented
 
@@ -320,6 +375,9 @@ that review is now implemented behind the default-off rollout flag; see the
   sync/backup/specimen/storage/QR/AR event source.
 - Bounce and delivery-status tracking after Brevo accepts an email (would need
   a Brevo webhook).
+- A curator alert when a visitor reply is imported (needs a
+  `user_notification_state` check change), and a holiday or closure list for
+  visit dates.
 - Visitor-list file upload on the visit form.
 - Deleting or anonymizing finished records. The SRS leaves the visitor-data
   retention period and deletion procedure for USC-BM/university approval.
