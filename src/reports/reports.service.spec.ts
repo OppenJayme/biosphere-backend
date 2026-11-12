@@ -1,3 +1,4 @@
+import readXlsxFile from 'read-excel-file/node';
 import {
   BadRequestException,
   InternalServerErrorException,
@@ -46,7 +47,7 @@ const DOCUMENT: ReportDocument = {
 function dto(overrides: Partial<GenerateReportDto> = {}): GenerateReportDto {
   return {
     type: ReportType.INVENTORY,
-    format: ReportFormat.CSV,
+    format: ReportFormat.XLSX,
     period: ReportPeriodType.MONTHLY,
     month: '2026-09',
     ...overrides,
@@ -82,9 +83,17 @@ describe('ReportsService', () => {
         USER,
       );
 
-      expect(report.fileName).toBe('biosphere_inventory-report_2026-09.csv');
-      expect(report.contentType).toBe('text/csv; charset=utf-8');
-      expect(report.body.toString('utf8')).toContain('Accession No.');
+      expect(report.fileName).toBe('biosphere_inventory-report_2026-09.xlsx');
+      expect(report.contentType).toBe(
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      );
+      expect(report.body.subarray(0, 2).toString('latin1')).toBe('PK');
+      const sheets = await readXlsxFile(report.body);
+      expect(sheets.map((sheet) => sheet.sheet)).toEqual([
+        'Summary',
+        'Details',
+      ]);
+      expect(sheets[1].data[0]).toEqual(['Accession No.']);
       expect(builderMock.build).toHaveBeenCalledWith(
         expect.objectContaining({
           generatedBy: 'Test Curator',
@@ -100,10 +109,10 @@ describe('ReportsService', () => {
           status: 'SUCCESS',
           details: expect.objectContaining({
             reportType: 'INVENTORY',
-            format: 'CSV',
+            format: 'XLSX',
             filters: { category: 'Entomology' },
             rowCount: 1,
-            fileName: 'biosphere_inventory-report_2026-09.csv',
+            fileName: 'biosphere_inventory-report_2026-09.xlsx',
             period: expect.objectContaining({
               type: 'MONTHLY',
               start: '2026-08-31T16:00:00.000Z',
@@ -119,7 +128,7 @@ describe('ReportsService', () => {
       await service.generate(
         dto({
           type: ReportType.CONSOLIDATED_OPERATIONS,
-          format: ReportFormat.PDF,
+          format: ReportFormat.XLSX,
           remarks: 'Sensitive note',
         }),
         USER,
@@ -132,15 +141,10 @@ describe('ReportsService', () => {
 
     it.each([
       [
-        'a format the report does not offer',
-        { type: ReportType.CONSOLIDATED_OPERATIONS, format: ReportFormat.CSV },
-        /not available as CSV/,
-      ],
-      [
         'an all-time consolidated report',
         {
           type: ReportType.CONSOLIDATED_OPERATIONS,
-          format: ReportFormat.PDF,
+          format: ReportFormat.XLSX,
           period: ReportPeriodType.ALL_TIME,
         },
         /monthly, yearly, or custom/,
@@ -218,10 +222,10 @@ describe('ReportsService', () => {
       );
 
       expect(custom.fileName).toBe(
-        'biosphere_inventory-report_2026-09-01_to_2026-09-15.csv',
+        'biosphere_inventory-report_2026-09-01_to_2026-09-15.xlsx',
       );
       expect(allTime.fileName).toMatch(
-        /^biosphere_inventory-report_all-time_\d{4}-\d{2}-\d{2}\.csv$/,
+        /^biosphere_inventory-report_all-time_\d{4}-\d{2}-\d{2}\.xlsx$/,
       );
     });
   });

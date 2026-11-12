@@ -6,7 +6,6 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { parse } from 'csv-parse/sync';
 import { isUUID, validate } from 'class-validator';
 import type { ValidationError } from 'class-validator';
 import { plainToInstance } from 'class-transformer';
@@ -47,7 +46,7 @@ import { SpecimensService } from './specimens.service';
 import { ImportStorageUnitResolver } from './import-storage-unit.resolver';
 import { SpecimenProvenanceService } from './specimen-provenance.service';
 import { SpecimenTaxonomyService } from './specimen-taxonomy.service';
-import { parseXlsxImport } from './xlsx-import';
+import { parseXlsxImport, type XlsxImportSheets } from './xlsx-import';
 
 export const MAX_IMPORT_FILE_BYTES = 5 * 1024 * 1024;
 
@@ -59,7 +58,54 @@ export const MAX_IMPORT_FILE_BYTES = 5 * 1024 * 1024;
 export const PREVIEW_TTL_MS = 30 * 60 * 1000;
 
 const SUPPORTED_COLUMNS =
-  'collectionId, accessionNumber, specimenCategory, scientificName, commonName, gender, classificationStatus, remarks, kingdom, phylum, class, order, family, genus, species, habitat, ecologicalRole, conservationStatus, collector, donor, collectionDate, collectionLocation, preservationType, preservationMethod, storageUnit, conditionClass, quantity, storageNotes';
+  'Accession number, Category, Scientific name, Common name, Sex, Classification status, Remarks, Collection (name or ID), Kingdom, Phylum, Class, Order, Family, Genus, Species, Habitat, Ecological role, Conservation status, Collector, Donor, Collection date, Collection location, Preservation type, Preservation method, Storage unit, Condition, Quantity, Storage notes';
+
+/**
+ * A row only needs a name so the record can be identified (museum decision,
+ * 2026-11-12). Every other missing or unusable value is left blank with a
+ * warning, and the record is saved as Uncataloged for the curator to finish.
+ */
+const NAME_REQUIRED_ERROR =
+  'Add a common name or a scientific name: a record needs at least one.';
+
+/** Labels for warnings about values that will be left blank. */
+const FIELD_LABELS: Record<string, string> = {
+  collectionId: 'Collection',
+  specimenCategory: 'Category',
+  scientificName: 'Scientific name',
+  commonName: 'Common name',
+  gender: 'Sex',
+  classificationStatus: 'Classification status',
+  remarks: 'Remarks',
+  kingdom: 'Kingdom',
+  phylum: 'Phylum',
+  class: 'Class',
+  orderName: 'Order',
+  family: 'Family',
+  genus: 'Genus',
+  species: 'Species',
+  habitat: 'Habitat',
+  ecologicalRole: 'Ecological role',
+  conservationStatus: 'Conservation status',
+  collector: 'Collector',
+  donor: 'Donor',
+  collectionDate: 'Collection date',
+  collectionLocation: 'Collection location',
+  preservationType: 'Preservation type',
+  preservationMethod: 'Preservation method',
+};
+
+/** Lot columns of a backup workbook's "Lots" sheet, by normalized header. */
+const LOT_SHEET_FIELDS = {
+  specimenId: 'specimenid',
+  accessionNumber: 'accessionnumber',
+  storageUnitId: 'storageunitid',
+  storagePath: 'storagepath',
+  condition: 'condition',
+  quantity: 'quantity',
+  storageNotes: 'storagenotes',
+  active: 'active',
+} as const;
 
 const TAXONOMY_ROW_FIELDS = [
   'kingdom',
@@ -93,15 +139,23 @@ const LOT_ROW_FIELDS = [
 const MAX_LOT_QUANTITY = 2_147_483_647;
 
 // Canonical import fields, keyed by a normalized (lowercased, separators
-// stripped) header name so the CSV template can use spaces, underscores, or
+// stripped) header name so the template can use spaces, underscores, or
 // mixed case (e.g. "Scientific Name", "scientific_name", "scientificName").
+// The headers of a weekly backup workbook's Specimens sheet map here too, so
+// a backup can be imported as it is.
 const CANONICAL_FIELDS: Record<string, keyof RowFields> = {
+  id: 'sourceId',
   collectionid: 'collectionId',
+  collection: 'collectionName',
+  collectionname: 'collectionName',
   accessionnumber: 'accessionNumber',
+  category: 'specimenCategory',
   specimencategory: 'specimenCategory',
   scientificname: 'scientificName',
   commonname: 'commonName',
   gender: 'gender',
+  sex: 'gender',
+  archived: 'archived',
   classificationstatus: 'classificationStatus',
   remarks: 'remarks',
   kingdom: 'kingdom',
@@ -134,7 +188,13 @@ const CANONICAL_FIELDS: Record<string, keyof RowFields> = {
 };
 
 interface RowFields {
+  /** A backup's record ID: links the row to its lots on the Lots sheet. */
+  sourceId?: string;
   collectionId?: string;
+  /** Collection by name, used when no existing collection ID is given. */
+  collectionName?: string;
+  /** Non-blank when the source file marks the record as archived. */
+  archived?: string;
   accessionNumber?: string;
   specimenCategory?: string;
   scientificName?: string;
@@ -169,12 +229,25 @@ interface RowFields {
 interface RowExtras {
   taxonomy?: CreateSpecimenTaxonomyDto;
   provenance?: CreateSpecimenProvenanceDto;
-  lot?: CreateSpecimenLotDto;
+  lots: CreateSpecimenLotDto[];
+}
+
+/** One lot to create: from the row's own lot columns or the Lots sheet. */
+interface LotSource {
+  /** Where the lot came from, for warnings. */
+  label: string;
+  /** Storage references to try in order (unit ID, then label path). */
+  storageUnits: string[];
+  conditionClass?: string;
+  quantity?: string;
+  storageNotes?: string;
 }
 
 interface RowContext {
   rowNumber: number;
   fields: RowFields;
+  /** Active lots for this row from a backup workbook's Lots sheet. */
+  sheetLots: LotSource[];
 }
 
 interface InBatchMatch {
@@ -186,6 +259,8 @@ interface CachedPreviewRow {
   dto: CreateSpecimenDto;
   extras: RowExtras;
   valid: boolean;
+  /** Archived in the source file: left out unless the curator picks it. */
+  archivedInSource: boolean;
   committed?: Specimen;
   /**
    * Set synchronously (no `await` between reading and writing it) as soon
@@ -235,7 +310,8 @@ export class SpecimenImportService {
   ): Promise<SpecimenImportPreviewResult> {
     this.sweepExpiredPreviews();
 
-    const rawRecords = await this.parseFile(file);
+    const sheets = await this.parseFile(file);
+    const rawRecords = sheets.specimens;
     if (rawRecords.length === 0) {
       throw new BadRequestException('The uploaded file has no data rows.');
     }
@@ -257,16 +333,17 @@ export class SpecimenImportService {
     const contexts = rawRecords.map((record, index) =>
       this.buildRowContext(record, index + 1, headerMap),
     );
+    const lotSheet = this.attachSheetLots(contexts, sheets.lots);
 
     const candidates = contexts.map((context) => context.fields);
     const [
       existingDuplicates,
-      existingCollectionIds,
+      collections,
       accessionHolders,
       storageUnitResolver,
     ] = await Promise.all([
       this.duplicates.findForCandidates(candidates),
-      this.findExistingCollectionIds(contexts),
+      this.loadCollections(contexts),
       this.accession.findHolders(
         candidates.map((candidate) => candidate.accessionNumber),
       ),
@@ -288,25 +365,47 @@ export class SpecimenImportService {
           rowNumber: context.rowNumber,
           ...context.fields,
         };
-        const instance = plainToInstance(ImportSpecimenRowDto, plain);
-        const validationErrors = await validate(instance);
-        const errors = this.flattenValidationErrors(validationErrors);
+        // Values that will be saved; unusable optional values are removed.
+        const fields: RowFields = { ...context.fields };
+        const errors: string[] = [];
+        const fieldWarnings: string[] = [];
+
+        // A name in the collection ID column is looked up by name.
+        if (fields.collectionId && !isUUID(fields.collectionId)) {
+          fields.collectionName ??= fields.collectionId;
+          fields.collectionId = undefined;
+        }
+
+        const core = plainToInstance(ImportSpecimenRowDto, {
+          rowNumber: context.rowNumber,
+          ...fields,
+        });
+        for (const error of await validate(core)) {
+          const messages = this.flattenValidationErrors([error]);
+          if (error.property === 'rowNumber') continue;
+          // The accession number identifies the record, so it is never
+          // silently replaced by a generated one.
+          if (error.property === 'accessionNumber') {
+            errors.push(...messages);
+            continue;
+          }
+          const property = error.property as keyof RowFields;
+          fieldWarnings.push(
+            this.leftBlankWarning(property, fields[property], messages),
+          );
+          fields[property] = undefined;
+        }
 
         if (this.isBlankRow(context.fields)) {
           errors.push(
             `This row has no recognized values; check that its columns match a supported field (${SUPPORTED_COLUMNS}).`,
           );
+        } else if (!fields.commonName && !fields.scientificName) {
+          errors.push(NAME_REQUIRED_ERROR);
         }
 
-        if (
-          context.fields.collectionId &&
-          isUUID(context.fields.collectionId) &&
-          !existingCollectionIds.has(context.fields.collectionId)
-        ) {
-          errors.push(
-            `Collection ${context.fields.collectionId} does not exist.`,
-          );
-        }
+        const collectionWarning = this.resolveCollection(fields, collections);
+        if (collectionWarning) fieldWarnings.push(collectionWarning);
 
         errors.push(
           ...this.buildAccessionErrors(
@@ -316,11 +415,12 @@ export class SpecimenImportService {
           ),
         );
 
-        const { extras, errors: extraErrors } = await this.buildRowExtras(
-          context.fields,
+        const { extras, warnings } = await this.buildRowExtras(
+          fields,
+          context.sheetLots,
           storageUnitResolver,
         );
-        errors.push(...extraErrors);
+        fieldWarnings.push(...warnings);
 
         const possibleDuplicates = existingDuplicates[index];
         const duplicateWarnings = this.buildDuplicateWarnings(
@@ -332,13 +432,15 @@ export class SpecimenImportService {
           rowNumber: context.rowNumber,
           data: plain as unknown as ImportSpecimenRowDto,
           errors,
+          fieldWarnings,
           duplicateWarnings,
           possibleDuplicates,
           valid: errors.length === 0,
+          archivedInSource: context.fields.archived !== undefined,
           accessionNumberWillBeGenerated:
-            accessionNumberKey(context.fields.accessionNumber) === undefined,
-          catalogReadiness: this.buildCatalogReadiness(context.fields, extras),
-          dto: this.toCreateSpecimenDto(context.fields),
+            accessionNumberKey(fields.accessionNumber) === undefined,
+          catalogReadiness: this.buildCatalogReadiness(fields, extras),
+          dto: this.toCreateSpecimenDto(fields),
           extras,
         };
       }),
@@ -351,7 +453,12 @@ export class SpecimenImportService {
       rows: new Map(
         rows.map((row) => [
           row.rowNumber,
-          { dto: row.dto, extras: row.extras, valid: row.valid },
+          {
+            dto: row.dto,
+            extras: row.extras,
+            valid: row.valid,
+            archivedInSource: row.archivedInSource,
+          },
         ]),
       ),
     });
@@ -363,13 +470,16 @@ export class SpecimenImportService {
         rowNumber: row.rowNumber,
         data: row.data,
         errors: row.errors,
+        fieldWarnings: row.fieldWarnings,
         duplicateWarnings: row.duplicateWarnings,
         possibleDuplicates: row.possibleDuplicates,
         valid: row.valid,
+        archivedInSource: row.archivedInSource,
         accessionNumberWillBeGenerated: row.accessionNumberWillBeGenerated,
         catalogReadiness: row.catalogReadiness,
       })),
       unmappedColumns,
+      lotSheet,
       totalRows: rows.length,
       validRows: rows.filter((row) => row.valid).length,
       invalidRows: rows.filter((row) => !row.valid).length,
@@ -378,6 +488,10 @@ export class SpecimenImportService {
       ).length,
       rowsWithWarnings: rows.filter((row) => row.duplicateWarnings.length > 0)
         .length,
+      rowsWithFieldWarnings: rows.filter(
+        (row) => row.valid && row.fieldWarnings.length > 0,
+      ).length,
+      archivedRows: rows.filter((row) => row.archivedInSource).length,
     };
   }
 
@@ -500,7 +614,7 @@ export class SpecimenImportService {
       return [...new Set(rowNumbers)].sort((a, b) => a - b);
     }
     return [...cached.rows.entries()]
-      .filter(([, row]) => row.valid)
+      .filter(([, row]) => row.valid && !row.archivedInSource)
       .map(([rowNumber]) => rowNumber)
       .sort((a, b) => a - b);
   }
@@ -515,43 +629,26 @@ export class SpecimenImportService {
 
   private async parseFile(
     file: Express.Multer.File | undefined,
-  ): Promise<Record<string, string>[]> {
+  ): Promise<XlsxImportSheets> {
     if (!file) {
-      throw new BadRequestException('A CSV or XLSX file is required.');
+      throw new BadRequestException('An Excel (.xlsx) file is required.');
     }
     if (!file.buffer.length || file.buffer.length > MAX_IMPORT_FILE_BYTES) {
       throw new BadRequestException(
         'Import files must be non-empty and no larger than 5 MB.',
       );
     }
-    if (file.originalname.toLowerCase().endsWith('.xlsx')) {
-      return parseXlsxImport(
-        file.buffer,
-        MAX_IMPORT_ROWS,
-        (header) =>
-          CANONICAL_FIELDS[this.normalizeHeader(header)] === 'accessionNumber',
-      );
-    }
-    if (!file.originalname.toLowerCase().endsWith('.csv')) {
+    if (!file.originalname.toLowerCase().endsWith('.xlsx')) {
       throw new BadRequestException(
-        'Only .csv and .xlsx files are supported for import.',
+        'Only Excel (.xlsx) files can be imported. In Excel, use File > Save As and choose Excel Workbook (.xlsx).',
       );
     }
-
-    try {
-      return parse(file.buffer.toString('utf8'), {
-        columns: true,
-        bom: true,
-        trim: true,
-        skip_empty_lines: true,
-      });
-    } catch (error) {
-      throw new BadRequestException(
-        `The uploaded file could not be parsed as CSV: ${
-          error instanceof Error ? error.message : 'unknown error'
-        }`,
-      );
-    }
+    return parseXlsxImport(
+      file.buffer,
+      MAX_IMPORT_ROWS,
+      (header) =>
+        CANONICAL_FIELDS[this.normalizeHeader(header)] === 'accessionNumber',
+    );
   }
 
   private mapHeaders(headers: string[]): {
@@ -595,7 +692,10 @@ export class SpecimenImportService {
     };
 
     const fields: RowFields = {
+      sourceId: extract('sourceId'),
       collectionId: extract('collectionId'),
+      collectionName: extract('collectionName'),
+      archived: extract('archived'),
       accessionNumber: extract('accessionNumber'),
       specimenCategory: extract('specimenCategory'),
       scientificName: extract('scientificName'),
@@ -612,12 +712,84 @@ export class SpecimenImportService {
       fields[field] = extract(field);
     }
 
-    return { rowNumber, fields };
+    return { rowNumber, fields, sheetLots: [] };
+  }
+
+  /**
+   * Gives each row its active lots from a backup workbook's Lots sheet,
+   * matched by the backup's specimen ID, then by accession number.
+   */
+  private attachSheetLots(
+    contexts: RowContext[],
+    records: Record<string, string>[] | null,
+  ): SpecimenImportPreviewResult['lotSheet'] {
+    if (!records) return null;
+    const summary = { matched: 0, inactive: 0, unmatched: 0 };
+    if (records.length === 0) return summary;
+
+    const headers = Object.keys(records[0]);
+    const column = (name: string) =>
+      headers.find((header) => this.normalizeHeader(header) === name);
+    const columns = {
+      specimenId: column(LOT_SHEET_FIELDS.specimenId),
+      accessionNumber: column(LOT_SHEET_FIELDS.accessionNumber),
+      storageUnitId: column(LOT_SHEET_FIELDS.storageUnitId),
+      storagePath: column(LOT_SHEET_FIELDS.storagePath),
+      condition: column(LOT_SHEET_FIELDS.condition),
+      quantity: column(LOT_SHEET_FIELDS.quantity),
+      storageNotes: column(LOT_SHEET_FIELDS.storageNotes),
+      active: column(LOT_SHEET_FIELDS.active),
+    };
+
+    const bySourceId = new Map<string, RowContext>();
+    const byAccession = new Map<string, RowContext>();
+    for (const context of contexts) {
+      if (context.fields.sourceId) {
+        bySourceId.set(context.fields.sourceId, context);
+      }
+      const key = accessionNumberKey(context.fields.accessionNumber);
+      if (key !== undefined) byAccession.set(key, context);
+    }
+
+    records.forEach((record, index) => {
+      const value = (header: string | undefined) =>
+        header ? record[header]?.trim() || undefined : undefined;
+      const active = value(columns.active);
+      if (active !== undefined && !/^(yes|true|1)$/i.test(active)) {
+        summary.inactive += 1;
+        return;
+      }
+      const specimenId = value(columns.specimenId);
+      const accessionKey = accessionNumberKey(value(columns.accessionNumber));
+      const context =
+        (specimenId ? bySourceId.get(specimenId) : undefined) ??
+        (accessionKey !== undefined
+          ? byAccession.get(accessionKey)
+          : undefined);
+      if (!context) {
+        summary.unmatched += 1;
+        return;
+      }
+      summary.matched += 1;
+      context.sheetLots.push({
+        // Excel row number: the header is row 1.
+        label: `The lot on row ${index + 2} of the Lots sheet`,
+        storageUnits: [
+          value(columns.storageUnitId),
+          value(columns.storagePath),
+        ].filter((reference): reference is string => !!reference),
+        conditionClass: value(columns.condition),
+        quantity: value(columns.quantity),
+        storageNotes: value(columns.storageNotes),
+      });
+    });
+    return summary;
   }
 
   private isBlankRow(fields: RowFields): boolean {
-    return Object.values(fields).every(
-      (value) => value === undefined || value === '',
+    return Object.entries(fields).every(
+      ([field, value]) =>
+        field === 'sourceId' || value === undefined || value === '',
     );
   }
 
@@ -643,23 +815,63 @@ export class SpecimenImportService {
       .replace(/^_+|_+$/g, '');
   }
 
-  private async findExistingCollectionIds(
-    contexts: RowContext[],
-  ): Promise<Set<string>> {
-    const ids = [
-      ...new Set(
-        contexts
-          .map((context) => context.fields.collectionId)
-          .filter((value): value is string => !!value && isUUID(value)),
-      ),
-    ];
-    if (ids.length === 0) return new Set();
+  private leftBlankWarning(
+    field: string,
+    value: unknown,
+    messages: string[],
+  ): string {
+    const label = FIELD_LABELS[field] ?? field;
+    const shown =
+      typeof value === 'string' && value.length > 60
+        ? `${value.slice(0, 57)}...`
+        : value;
+    const detail = messages.length ? ` (${messages.join('; ')})` : '';
+    return `${label} "${String(shown)}" can't be used${detail}; it will be left blank.`;
+  }
 
-    const matches = await this.prisma.collection.findMany({
-      where: { id: { in: ids } },
-      select: { id: true },
+  /** Existing collections by ID, and by unique case-insensitive name. */
+  private async loadCollections(contexts: RowContext[]): Promise<{
+    ids: Set<string>;
+    byName: Map<string, string | null>;
+  }> {
+    const wanted = contexts.some(
+      (context) => context.fields.collectionId || context.fields.collectionName,
+    );
+    if (!wanted) return { ids: new Set(), byName: new Map() };
+
+    const collections = await this.prisma.collection.findMany({
+      select: { id: true, collection_name: true },
     });
-    return new Set(matches.map((match) => match.id));
+    const byName = new Map<string, string | null>();
+    for (const collection of collections) {
+      const key = collection.collection_name.trim().toLowerCase();
+      // Two collections with the same name: ambiguous, so never matched.
+      byName.set(key, byName.has(key) ? null : collection.id);
+    }
+    return {
+      ids: new Set(collections.map((collection) => collection.id)),
+      byName,
+    };
+  }
+
+  /**
+   * Keeps an existing collection ID, otherwise matches the collection by
+   * name. An unknown collection is left blank for the curator to choose.
+   */
+  private resolveCollection(
+    fields: RowFields,
+    collections: { ids: Set<string>; byName: Map<string, string | null> },
+  ): string | undefined {
+    if (fields.collectionId && collections.ids.has(fields.collectionId)) {
+      return undefined;
+    }
+    const byName = fields.collectionName
+      ? collections.byName.get(fields.collectionName.trim().toLowerCase())
+      : undefined;
+    const given = fields.collectionName ?? fields.collectionId;
+    fields.collectionId = byName ?? undefined;
+    if (byName || !given) return undefined;
+    return `Collection "${given}" was not found; it will be left blank. Choose the collection after importing.`;
   }
 
   private groupRowsByAccessionKey(
@@ -759,8 +971,8 @@ export class SpecimenImportService {
       'IMPORT_SPECIMEN',
       importDetails,
     );
-    const { taxonomy, provenance, lot } = row.extras;
-    if (!taxonomy && !provenance && !lot) {
+    const { taxonomy, provenance, lots } = row.extras;
+    if (!taxonomy && !provenance && lots.length === 0) {
       return specimen;
     }
 
@@ -783,13 +995,13 @@ export class SpecimenImportService {
         actingCuratorAccountId,
       );
     }
-    if (lot) {
+    for (const lot of lots) {
       await this.lots.createInTransaction(
         transaction,
         specimen.id,
         {
           ...lot,
-          reason: `Imported from CSV row ${importDetails.rowNumber} (batch ${importDetails.importBatchId})`,
+          reason: `Imported from row ${importDetails.rowNumber} (batch ${importDetails.importBatchId})`,
         },
         actingCuratorAccountId,
       );
@@ -824,9 +1036,9 @@ export class SpecimenImportService {
           : null,
       preservationType: fields.preservationType ?? null,
       preservationMethod: fields.preservationMethod ?? null,
-      // Set only when the lot columns validated and the unit can hold
-      // specimens, which is what the manual rule checks.
-      hasActiveLot: extras.lot !== undefined,
+      // Set only when a lot validated and its unit can hold specimens,
+      // which is what the manual rule checks.
+      hasActiveLot: extras.lots.length > 0,
     });
     const checks = CATALOG_REQUIREMENTS.map((requirement) => ({
       ...requirement,
@@ -847,7 +1059,11 @@ export class SpecimenImportService {
   private async loadStorageUnitResolver(
     contexts: RowContext[],
   ): Promise<ImportStorageUnitResolver | null> {
-    if (!contexts.some((context) => context.fields.storageUnit)) {
+    if (
+      !contexts.some(
+        (context) => context.fields.storageUnit || context.sheetLots.length > 0,
+      )
+    ) {
       return null;
     }
 
@@ -863,113 +1079,170 @@ export class SpecimenImportService {
     return new ImportStorageUnitResolver(units);
   }
 
+  /**
+   * Taxonomy, provenance and lots for a row. Nothing here blocks the row:
+   * an unusable value is left blank and an incomplete lot is left out, each
+   * with a warning, so the specimen can still be imported (2026-11-12).
+   * Values removed here are removed from `fields` too, so catalog readiness
+   * reflects what will actually be saved.
+   */
   private async buildRowExtras(
     fields: RowFields,
+    sheetLots: LotSource[],
     storageUnitResolver: ImportStorageUnitResolver | null,
-  ): Promise<{ extras: RowExtras; errors: string[] }> {
-    const extras: RowExtras = {};
-    const errors: string[] = [];
+  ): Promise<{ extras: RowExtras; warnings: string[] }> {
+    const extras: RowExtras = { lots: [] };
+    const warnings: string[] = [];
 
     if (TAXONOMY_ROW_FIELDS.some((field) => fields[field] !== undefined)) {
-      const taxonomy = plainToInstance(CreateSpecimenTaxonomyDto, {
-        kingdom: fields.kingdom,
-        phylum: fields.phylum,
-        class: fields.taxonClass,
-        orderName: fields.taxonOrder,
-        family: fields.family,
-        genus: fields.genus,
-        species: fields.species,
-        habitat: fields.habitat,
-        ecologicalRole: fields.ecologicalRole,
-        conservationStatus: fields.conservationStatus,
-      });
-      const taxonomyErrors = this.flattenValidationErrors(
-        await validate(taxonomy),
+      extras.taxonomy = await this.usablePart(
+        CreateSpecimenTaxonomyDto,
+        {
+          kingdom: fields.kingdom,
+          phylum: fields.phylum,
+          class: fields.taxonClass,
+          orderName: fields.taxonOrder,
+          family: fields.family,
+          genus: fields.genus,
+          species: fields.species,
+          habitat: fields.habitat,
+          ecologicalRole: fields.ecologicalRole,
+          conservationStatus: fields.conservationStatus,
+        },
+        { class: 'taxonClass', orderName: 'taxonOrder' },
+        fields,
+        warnings,
       );
-      errors.push(...taxonomyErrors.map((message) => `Taxonomy: ${message}`));
-      extras.taxonomy = taxonomy;
     }
 
     if (PROVENANCE_ROW_FIELDS.some((field) => fields[field] !== undefined)) {
-      const provenance = plainToInstance(CreateSpecimenProvenanceDto, {
-        collector: fields.collector,
-        donor: fields.donor,
-        collectionDate: fields.collectionDate,
-        collectionLocation: fields.collectionLocation,
-        preservationType: fields.preservationType,
-        preservationMethod: fields.preservationMethod,
-      });
-      const provenanceErrors = this.flattenValidationErrors(
-        await validate(provenance),
-      );
-      errors.push(
-        ...provenanceErrors.map((message) => `Provenance: ${message}`),
-      );
-      extras.provenance = provenance;
-    }
-
-    if (LOT_ROW_FIELDS.some((field) => fields[field] !== undefined)) {
-      const lotErrors = await this.buildLot(
+      extras.provenance = await this.usablePart(
+        CreateSpecimenProvenanceDto,
+        {
+          collector: fields.collector,
+          donor: fields.donor,
+          collectionDate: fields.collectionDate,
+          collectionLocation: fields.collectionLocation,
+          preservationType: fields.preservationType,
+          preservationMethod: fields.preservationMethod,
+        },
+        {},
         fields,
-        storageUnitResolver,
-        extras,
+        warnings,
       );
-      errors.push(...lotErrors.map((message) => `Lot: ${message}`));
     }
 
-    return { extras, errors };
+    const sources: LotSource[] = [];
+    if (LOT_ROW_FIELDS.some((field) => fields[field] !== undefined)) {
+      sources.push({
+        label: 'The lot in this row',
+        storageUnits: fields.storageUnit ? [fields.storageUnit] : [],
+        conditionClass: fields.conditionClass,
+        quantity: fields.quantity,
+        storageNotes: fields.storageNotes,
+      });
+    }
+    sources.push(...sheetLots);
+    for (const source of sources) {
+      const result = await this.buildLot(source, storageUnitResolver);
+      if (result.lot) {
+        extras.lots.push(result.lot);
+      } else {
+        warnings.push(
+          `${source.label} will not be imported: ${result.problems.join(' ')} Add it from the specimen's inventory after importing.`,
+        );
+      }
+    }
+
+    return { extras, warnings };
+  }
+
+  /**
+   * Validates one related part and keeps only its usable values. Returns
+   * undefined when nothing usable is left.
+   */
+  private async usablePart<T extends object>(
+    type: new () => T,
+    values: Record<string, string | undefined>,
+    rowFieldOf: Record<string, keyof RowFields>,
+    fields: RowFields,
+    warnings: string[],
+  ): Promise<T | undefined> {
+    const kept = { ...values };
+    for (const error of await validate(plainToInstance(type, values))) {
+      warnings.push(
+        this.leftBlankWarning(
+          error.property,
+          values[error.property],
+          this.flattenValidationErrors([error]),
+        ),
+      );
+      kept[error.property] = undefined;
+      fields[
+        rowFieldOf[error.property] ?? (error.property as keyof RowFields)
+      ] = undefined;
+    }
+    if (Object.values(kept).every((value) => value === undefined)) {
+      return undefined;
+    }
+    return plainToInstance(type, kept);
   }
 
   private async buildLot(
-    fields: RowFields,
+    source: LotSource,
     storageUnitResolver: ImportStorageUnitResolver | null,
-    extras: RowExtras,
-  ): Promise<string[]> {
-    const errors: string[] = [];
-    if (!fields.storageUnit) {
-      errors.push('storageUnit is required when a lot is given.');
-    }
-    if (!fields.conditionClass) {
-      errors.push('conditionClass is required when a lot is given.');
-    }
-    if (!fields.quantity) {
-      errors.push('quantity is required when a lot is given.');
+  ): Promise<
+    | { lot: CreateSpecimenLotDto; problems?: undefined }
+    | { lot?: undefined; problems: string[] }
+  > {
+    const problems: string[] = [];
+    const missing = [
+      source.storageUnits.length === 0 ? 'storage unit' : null,
+      source.conditionClass ? null : 'condition',
+      source.quantity ? null : 'quantity',
+    ].filter((part): part is string => part !== null);
+    if (missing.length > 0) {
+      problems.push(`it has no ${missing.join(', ')}.`);
     }
 
-    const quantity = fields.quantity?.replace(/,/g, '');
+    const quantity = source.quantity?.replace(/,/g, '');
     if (
       quantity !== undefined &&
       (!/^\d+$/.test(quantity) ||
         Number(quantity) < 1 ||
         Number(quantity) > MAX_LOT_QUANTITY)
     ) {
-      errors.push('quantity must be a whole number of at least 1.');
+      problems.push(
+        `its quantity "${source.quantity}" is not a whole number of at least 1.`,
+      );
     }
 
     let storageUnitId: string | undefined;
-    if (fields.storageUnit && storageUnitResolver) {
-      const resolution = storageUnitResolver.resolve(fields.storageUnit);
-      if ('error' in resolution) {
-        errors.push(resolution.error);
-      } else {
-        storageUnitId = resolution.storageUnitId;
+    if (source.storageUnits.length > 0 && storageUnitResolver) {
+      let lastError = '';
+      for (const reference of source.storageUnits) {
+        const resolution = storageUnitResolver.resolve(reference);
+        if ('error' in resolution) {
+          lastError = resolution.error;
+        } else {
+          storageUnitId = resolution.storageUnitId;
+          break;
+        }
       }
+      if (!storageUnitId) problems.push(lastError);
     }
-    if (errors.length > 0) {
-      return errors;
+    if (problems.length > 0) {
+      return { problems };
     }
 
     const lot = plainToInstance(CreateSpecimenLotDto, {
       storageUnitId,
-      conditionClass: fields.conditionClass?.replace(/\s+/g, ' '),
+      conditionClass: source.conditionClass?.replace(/\s+/g, ' '),
       quantity: Number(quantity),
-      storageNotes: fields.storageNotes,
+      storageNotes: source.storageNotes,
     });
     const lotErrors = this.flattenValidationErrors(await validate(lot));
-    if (lotErrors.length === 0) {
-      extras.lot = lot;
-    }
-    return lotErrors;
+    return lotErrors.length === 0 ? { lot } : { problems: lotErrors };
   }
 
   private flattenValidationErrors(errors: ValidationError[]): string[] {

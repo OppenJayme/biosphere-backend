@@ -57,7 +57,7 @@ function findUnits(args: {
 
 function context(overrides: Partial<GenerateReportDto>): ReportContext {
   const dto = {
-    format: ReportFormat.PDF,
+    format: ReportFormat.XLSX,
     period: ReportPeriodType.ALL_TIME,
     ...overrides,
   } as GenerateReportDto;
@@ -77,7 +77,7 @@ function tableRows(document: ReportDocument, title: string) {
   return block?.table.rows;
 }
 
-/** The untitled detail table printed in PDF/DOCX (CSV uses csvTable). */
+/** The untitled detail table shown in the report (csvTable holds every column). */
 function printedDetail(document: ReportDocument) {
   const block = document.blocks.find(
     (item): item is Extract<ReportBlock, { kind: 'table' }> =>

@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { ConfigService } from '@nestjs/config';
 import * as dotenv from 'dotenv';
+import { buildXlsx } from '../src/common/excel/xlsx-writer';
 import { PrismaClient } from '../src/generated/prisma/client';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { SpecimenLotsService } from '../src/specimen-lots/specimen-lots.service';
@@ -58,16 +59,21 @@ dotenv.config();
 
 const ROW_COUNT = 500;
 
-function buildCsv(rowCount: number): Express.Multer.File {
-  const header = 'scientificName,commonName,specimenCategory\n';
-  const rows = Array.from(
-    { length: rowCount },
-    (_, index) =>
-      `Testus benchmarkus ${index},Benchmark specimen ${index},ZOOLOGY\n`,
-  ).join('');
+function buildWorkbook(rowCount: number): Express.Multer.File {
+  const rows = Array.from({ length: rowCount }, (_, index) => [
+    `Testus benchmarkus ${index}`,
+    `Benchmark specimen ${index}`,
+    'ZOOLOGY',
+  ]);
   return {
-    originalname: 'benchmark.csv',
-    buffer: Buffer.from(header + rows, 'utf8'),
+    originalname: 'benchmark.xlsx',
+    buffer: buildXlsx([
+      {
+        name: 'Specimens',
+        header: ['scientificName', 'commonName', 'specimenCategory'],
+        rows,
+      },
+    ]).body,
   } as Express.Multer.File;
 }
 
@@ -179,7 +185,7 @@ async function main(): Promise<void> {
     });
     fixtureCuratorAccountId = curator.id;
 
-    const file = buildCsv(ROW_COUNT);
+    const file = buildWorkbook(ROW_COUNT);
 
     const previewStart = performance.now();
     const preview = await importService.previewImport(

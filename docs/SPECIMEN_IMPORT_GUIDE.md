@@ -1,5 +1,66 @@
 # BioSphere Specimen Bulk Import Guide
 
+## Excel-only import, lenient rows and backup restore - 2026-11-12
+
+The museum keeps imports, exports, reports and backups in Excel only. This
+section describes current behavior; where an older section below says
+otherwise, this one applies.
+
+- **Excel only.** `POST /specimens/import/preview` accepts `.xlsx` files only.
+  A `.csv` (or any other file) is rejected with "Only Excel (.xlsx) files can
+  be imported." The `csv-parse` runtime dependency was removed (it remains a
+  dev dependency for tests). Specimens are read from the sheet named
+  `Specimens` (as in the template and the weekly backup).
+- **Only a name is required.** A row is blocked only when it has neither a
+  common name nor a scientific name ("Add a common name or a scientific name:
+  a record needs at least one."), when it has no recognized values, or when
+  its accession number is unusable or already taken. Every other unusable
+  value is left blank and listed in the row's `fieldWarnings` ("... it will be
+  left blank"); the row stays valid and selectable, and the record is created
+  Uncataloged so the curator can finish it.
+- **Lots.** If the storage unit, condition or quantity is missing or cannot be
+  resolved, the specimen is still imported and the warning says the lot will
+  not be imported ("Add it from the specimen's inventory after importing").
+- **Collection by name.** A `Collection` column (or a non-UUID value in
+  `Collection ID`) is matched to an existing collection by name, ignoring
+  case. An unknown or ambiguous name leaves the collection blank with a
+  warning.
+- **Dates.** `Collection Date` may be `YYYY-MM-DD` text or an Excel date cell;
+  a future date is left blank with a warning.
+- **Template.** The downloadable template is now
+  `biosphere-frontend/public/templates/specimen-import-template.xlsx`, built
+  by `npm run build:import-template -- <path>` from `src/specimens/import-template.ts`.
+  It adds a `Collection` column, keeps `Accession Number` as text (leading
+  zeros stay) and has an `Instructions` sheet that the import ignores. A unit
+  test checks that every template header maps and that a filled row meets
+  every catalog requirement.
+
+### Restoring from a weekly backup workbook
+
+A weekly backup workbook (Backup History > Excel export) imports as it is:
+
+- Its `Specimens` sheet columns map directly (`ID`, `Category`, `Sex`,
+  `Collection`, `Archived` and the rest). The backup's `ID` is used only to
+  join lots; new records get new IDs.
+- Its `Lots` sheet is read too. Active lots are joined to their specimen by
+  `Specimen ID`, then by accession number, and their storage unit is matched
+  by ID, falling back to the `Storage path` so a restore into a rebuilt
+  storage tree still works. Inactive lots are skipped. The preview reports
+  `lotSheet: { matched, inactive, unmatched }`.
+- Rows that were archived in the backup are marked `archivedInSource`. They
+  can be selected, but a commit that omits `rowNumbers` leaves them out.
+- Other sheets (Inquiries, Visit requests, ...) are ignored. Row limits apply
+  per sheet: 500 specimens, 2,500 lots.
+- Not restored: status (records come back Uncataloged), tags, public display
+  approval, media, and lot history. Each lot is recorded as
+  `Imported from row N (batch X)`.
+- Importing a backup into the same database it came from is blocked row by
+  row by the existing accession numbers, which prevents duplicates.
+
+`src/specimens/backup-import-roundtrip.spec.ts` builds a real backup workbook
+with the weekly export code and imports it into a restored system with new
+IDs.
+
 ## Live XLSX selected-row commit and retry - 2026-10-30
 
 With explicit permission to retain one synthetic record, the signed-in Curator
@@ -255,7 +316,7 @@ The Curator left the template to the team (7 Nov 2026). The team's template
 is the **minimum set of columns a curator needs to finish each record**: the
 catalog requirements in `catalog-completion.policy.ts` plus the names a
 curator searches by. The downloadable file
-(`biosphere-frontend/public/templates/specimen-import-template.csv`) has these
+(`biosphere-frontend/public/templates/specimen-import-template.xlsx`) has these
 headers, in this order:
 
 | Template header       | Why it is there                                              |
@@ -264,6 +325,7 @@ headers, in this order:
 | `Common Name`         | Catalog requirement                                          |
 | `Scientific Name`     | Main search name; may be blank for unidentified specimens    |
 | `Specimen Category`   | Groups the record on the catalog and reports                 |
+| `Collection`          | Catalog requirement; matched to an existing collection by name |
 | `Kingdom`             | Catalog requirement                                          |
 | `Collection Date`     | Catalog requirement (`YYYY-MM-DD`)                            |
 | `Preservation Type`   | Catalog requirement                                          |
@@ -273,10 +335,10 @@ headers, in this order:
 | `Quantity`            | Lot quantity, at least 1                                     |
 | `Remarks`             | Anything that does not fit another column                    |
 
-No column is mandatory for the importer: a blank cell just leaves that field
-for the curator to fill in before completing the record. The collection is
-not in the template because it is chosen by its system ID; the curator
-assigns it in the app. Any other supported column below can be added to a
+Only a common name or a scientific name is required: any other blank cell
+just leaves that field for the curator to fill in before completing the
+record. The collection is entered by name (2026-11-12; earlier templates left
+it out because it was chosen by its system ID). Any other supported column below can be added to a
 file; the header matching rules are the same.
 
 ## Supported columns

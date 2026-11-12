@@ -71,12 +71,10 @@ export class ReportsController {
   @Throttle({ default: REPORT_GENERATION_RATE_LIMIT })
   @ApiOperation({
     summary:
-      'Generate a report file (PDF, DOCX, or CSV); the attempt is recorded in the audit log',
+      'Generate an Excel (.xlsx) report file; the attempt is recorded in the audit log',
   })
   @ApiProduces(
-    'application/pdf',
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    'text/csv',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   )
   @ApiBadRequestResponse({
     description: 'Invalid period, format, or filters for the chosen report',

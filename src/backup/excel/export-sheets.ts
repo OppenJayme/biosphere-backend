@@ -1,6 +1,6 @@
 import { Prisma } from '../../generated/prisma/client';
 import { referenceCode } from '../../mail/visitor-email';
-import type { XlsxCell } from './xlsx-writer';
+import type { XlsxCell } from '../../common/excel/xlsx-writer';
 
 /**
  * Worksheets of the weekly Excel export (spec 0003, Feature design). Each
