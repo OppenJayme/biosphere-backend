@@ -1202,7 +1202,11 @@ export class SpecimenImportService {
       source.quantity ? null : 'quantity',
     ].filter((part): part is string => part !== null);
     if (missing.length > 0) {
-      problems.push(`it has no ${missing.join(', ')}.`);
+      const list =
+        missing.length > 1
+          ? `${missing.slice(0, -1).join(', ')} or ${missing[missing.length - 1]}`
+          : missing[0];
+      problems.push(`it has no ${list}.`);
     }
 
     const quantity = source.quantity?.replace(/,/g, '');

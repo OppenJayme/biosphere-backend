@@ -1037,4 +1037,15 @@ describe('SpecimenImportService', () => {
       });
     });
   });
+
+  it('lists every missing lot part in a readable warning', async () => {
+    const result = await service.previewImport(
+      csvFile('commonName,condition\nLizard,Fair'),
+      CURATOR_ID,
+    );
+    expect(result.rows[0].valid).toBe(true);
+    expect(result.rows[0].fieldWarnings).toEqual([
+      "The lot in this row will not be imported: it has no storage unit or quantity. Add it from the specimen's inventory after importing.",
+    ]);
+  });
 });
