@@ -43,6 +43,16 @@ export class DeveloperController {
     return this.developerService.onboardInitialCurator(dto, user.id);
   }
 
+  // Emails a new password-setup link while the invitation is still pending.
+  @Post('curators/:id/resend-invitation')
+  @HttpCode(HttpStatus.OK)
+  resendCuratorInvite(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.developerService.resendCuratorInvite(id, user.id);
+  }
+
   @Patch('curators/:id/status')
   updateCuratorStatus(
     @Param('id', ParseUUIDPipe) id: string,

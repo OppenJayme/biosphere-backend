@@ -14,6 +14,7 @@ describe('User accounts (e2e)', () => {
   const inactiveToken = 'inactive-curator-user-accounts-token';
   const inactiveAuthId = '44444444-4444-4444-8444-444444444444';
   const invitedAuthId = '55555555-5555-4555-8555-555555555555';
+  const pendingAccountId = '88888888-8888-4888-8888-888888888888';
 
   let app: INestApplication<App>;
   let findMany: jest.Mock;
@@ -54,7 +55,16 @@ describe('User accounts (e2e)', () => {
     const prismaMock = {
       user_account: {
         findUnique: jest.fn(
-          ({ where }: { where: { auth_user_id?: string } }) => {
+          ({ where }: { where: { auth_user_id?: string; id?: string } }) => {
+            if (where.id === pendingAccountId) {
+              return {
+                id: pendingAccountId,
+                auth_user_id: invitedAuthId,
+                full_name: 'Juan dela Cruz',
+                role: 'CURATOR',
+                status: 'ACTIVE',
+              };
+            }
             if (where.auth_user_id === curatorAuthId) {
               return {
                 id: '22222222-2222-4222-8222-222222222222',
@@ -81,8 +91,20 @@ describe('User accounts (e2e)', () => {
         ),
         findMany,
         create,
+        findUniqueOrThrow: jest.fn(() => ({
+          id: pendingAccountId,
+          auth_user_id: invitedAuthId,
+          full_name: 'Juan dela Cruz',
+          status: 'ACTIVE',
+          created_at: new Date('2026-10-07T00:00:00.000Z'),
+          users: { email: 'juan@usc.edu.ph', last_sign_in_at: null },
+        })),
       },
       users: {
+        findUnique: jest.fn(() => ({
+          email: 'juan@usc.edu.ph',
+          email_confirmed_at: null,
+        })),
         findFirst: jest.fn(() => null),
         findMany: jest.fn(() => [{ id: curatorAuthId }]),
       },
@@ -245,6 +267,55 @@ describe('User accounts (e2e)', () => {
       expect(response.body).toMatchObject({
         id: '88888888-8888-4888-8888-888888888888',
         email: 'juan@usc.edu.ph',
+        inviteAccepted: false,
+      });
+    });
+  });
+
+  describe('POST /user-accounts/:id/resend-invitation', () => {
+    const path = `/user-accounts/${pendingAccountId}/resend-invitation`;
+
+    it('rejects unauthenticated requests', async () => {
+      await request(app.getHttpServer()).post(path).expect(401);
+      expect(inviteUserByEmail).not.toHaveBeenCalled();
+    });
+
+    it('rejects developers', async () => {
+      await request(app.getHttpServer())
+        .post(path)
+        .set('Authorization', `Bearer ${developerToken}`)
+        .expect(403);
+      expect(inviteUserByEmail).not.toHaveBeenCalled();
+    });
+
+    it('rejects an id that is not a UUID', async () => {
+      await request(app.getHttpServer())
+        .post('/user-accounts/not-a-uuid/resend-invitation')
+        .set('Authorization', `Bearer ${curatorToken}`)
+        .expect(400);
+      expect(inviteUserByEmail).not.toHaveBeenCalled();
+    });
+
+    it('lets a curator resend a pending invitation', async () => {
+      const response = await request(app.getHttpServer())
+        .post(path)
+        .set('Authorization', `Bearer ${curatorToken}`)
+        .expect(200);
+
+      expect(inviteUserByEmail).toHaveBeenCalledWith('juan@usc.edu.ph', {
+        redirectTo: expect.stringMatching(/\/login\/accept-invite$/),
+      });
+      expect(create).not.toHaveBeenCalled();
+      expect(auditCreate).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          action: 'RESEND_CURATOR_INVITE',
+          affected_record_id: pendingAccountId,
+          status: 'SUCCESS',
+          user_id: '22222222-2222-4222-8222-222222222222',
+        }),
+      });
+      expect(response.body).toMatchObject({
+        id: pendingAccountId,
         inviteAccepted: false,
       });
     });

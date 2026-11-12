@@ -1,9 +1,20 @@
-/** Curator account list and curator-to-curator invitations for the curator Users page. */
+/** Curator account list, curator-to-curator invitations and invitation resends for the curator Users page. */
 
-import { Body, Controller, Get, Header, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Header,
+  HttpCode,
+  HttpStatus,
+  Param,
+  ParseUUIDPipe,
+  Post,
+} from '@nestjs/common';
 import {
   ApiConflictResponse,
   ApiCreatedResponse,
+  ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
   ApiTags,
@@ -46,5 +57,24 @@ export class UserAccountsController {
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<UserAccountSummary> {
     return this.service.inviteCurator(dto, user);
+  }
+
+  @Post(':id/resend-invitation')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary:
+      'Email a new password-setup link to a curator whose invitation is still pending (REQ-4.1-07)',
+  })
+  @ApiOkResponse({ type: UserAccountSummary })
+  @ApiNotFoundResponse({ description: 'No curator account with this id' })
+  @ApiConflictResponse({
+    description:
+      'The account is inactive, already accepted, or the link was already opened',
+  })
+  resendInvitation(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<UserAccountSummary> {
+    return this.service.resendInvite(id, user);
   }
 }
