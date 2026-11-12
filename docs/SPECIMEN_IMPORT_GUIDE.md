@@ -21,6 +21,12 @@ otherwise, this one applies.
 - **Lots.** If the storage unit, condition or quantity is missing or cannot be
   resolved, the specimen is still imported and the warning says the lot will
   not be imported ("Add it from the specimen's inventory after importing").
+  Each preview row reports `lotsToImport` and `lotsSkipped`, and so do the
+  preview totals. Commit results report `lotsCreated` and `lotsSkipped` per
+  saved row and in total. All of a row's lots are created in the row's
+  transaction, so a saved row has every lot it previewed and never a skipped
+  one; a skipped lot also leaves the row short of the "active lot" catalog
+  requirement.
 - **Collection by name.** A `Collection` column (or a non-UUID value in
   `Collection ID`) is matched to an existing collection by name, ignoring
   case. An unknown or ambiguous name leaves the collection blank with a
@@ -35,9 +41,12 @@ otherwise, this one applies.
   test checks that every template header maps and that a filled row meets
   every catalog requirement.
 
-### Restoring from a weekly backup workbook
+### Re-importing specimens from a weekly backup workbook
 
-A weekly backup workbook (Backup History > Excel export) imports as it is:
+A weekly backup workbook (Backup History > Excel export) imports as it is.
+This is a **specimen and lot re-import, not a full recovery restore**: when
+the file has a `Lots` sheet, the preview's `restoreNotice` says so and lists
+what is not brought back, and the import screen shows it.
 
 - Its `Specimens` sheet columns map directly (`ID`, `Category`, `Sex`,
   `Collection`, `Archived` and the rest). The backup's `ID` is used only to
@@ -49,10 +58,16 @@ A weekly backup workbook (Backup History > Excel export) imports as it is:
   `lotSheet: { matched, inactive, unmatched }`.
 - Rows that were archived in the backup are marked `archivedInSource`. They
   can be selected, but a commit that omits `rowNumbers` leaves them out.
+  The `Archived` cell is read as follows: blank, `No`, `N`, `False` or `0`
+  is not archived; a date or timestamp (`YYYY-MM-DD`, the backup's
+  `YYYY-MM-DD HH:MM`, or an ISO timestamp), `Yes`, `Y`, `True`, `1` or
+  `Archived` is archived. Any other value is treated as archived, so the row
+  starts unselected, with a field warning asking for a date, Yes or No.
 - Other sheets (Inquiries, Visit requests, ...) are ignored. Row limits apply
   per sheet: 500 specimens, 2,500 lots.
 - Not restored: status (records come back Uncataloged), tags, public display
-  approval, media, and lot history. Each lot is recorded as
+  approval, media, lot history, inquiries, visit requests and other linked
+  records. Each lot is recorded as
   `Imported from row N (batch X)`.
 - Importing a backup into the same database it came from is blocked row by
   row by the existing accession numbers, which prevents duplicates.

@@ -87,6 +87,18 @@ export class SpecimenImportPreviewRow {
 
   @ApiProperty({
     description:
+      'Lots that will be created with this record (from the row and the Lots sheet)',
+  })
+  lotsToImport!: number;
+
+  @ApiProperty({
+    description:
+      'Lots in the source that are missing parts or cannot be resolved; they are not created, and fieldWarnings says why',
+  })
+  lotsSkipped!: number;
+
+  @ApiProperty({
+    description:
       'True when the row has no accession number, so the next USC-BM-YYYY-NNNN number is assigned at commit',
   })
   accessionNumberWillBeGenerated!: boolean;
@@ -122,6 +134,22 @@ export class SpecimenImportPreviewResult {
       'How the rows of a "Lots" sheet (as in a backup workbook) were matched; null when the file has no Lots sheet',
   })
   lotSheet!: ImportLotSheetSummary | null;
+
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description:
+      'Set for a backup workbook: what a re-import brings back and what it does not',
+  })
+  restoreNotice!: string | null;
+
+  @ApiProperty({ description: 'Lots that valid rows will create' })
+  lotsToImport!: number;
+
+  @ApiProperty({
+    description: 'Lots on valid rows that will not be created',
+  })
+  lotsSkipped!: number;
 
   @ApiProperty()
   totalRows!: number;
@@ -161,6 +189,17 @@ export class SpecimenImportCommitRowResult {
 
   @ApiPropertyOptional({ type: [String] })
   errors?: string[];
+
+  @ApiPropertyOptional({
+    description: 'Lots created with the record (successful rows only)',
+  })
+  lotsCreated?: number;
+
+  @ApiPropertyOptional({
+    description:
+      'Lots left out at preview and not created (successful rows only); add them from the inventory',
+  })
+  lotsSkipped?: number;
 }
 
 export class SpecimenImportCommitResult {
@@ -175,4 +214,12 @@ export class SpecimenImportCommitResult {
 
   @ApiProperty()
   failedCount!: number;
+
+  @ApiProperty({ description: 'Lots created across the saved rows' })
+  lotsCreated!: number;
+
+  @ApiProperty({
+    description: 'Lots on the saved rows that were not created',
+  })
+  lotsSkipped!: number;
 }

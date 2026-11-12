@@ -5,7 +5,10 @@ import { PrismaService } from '../prisma/prisma.service';
 import { SpecimenLotsService } from '../specimen-lots/specimen-lots.service';
 import { SpecimenAccessionService } from './specimen-accession.service';
 import { SpecimenDuplicatesService } from './specimen-duplicates.service';
-import { SpecimenImportService } from './specimen-import.service';
+import {
+  BACKUP_RESTORE_NOTICE,
+  SpecimenImportService,
+} from './specimen-import.service';
 import { SpecimenProvenanceService } from './specimen-provenance.service';
 import { SpecimenTaxonomyService } from './specimen-taxonomy.service';
 import { SpecimensService } from './specimens.service';
@@ -245,6 +248,10 @@ describe('importing a weekly backup workbook', () => {
       true,
     );
     expect(preview.lotSheet).toEqual({ matched: 3, inactive: 1, unmatched: 0 });
+    // Presented as a specimen and lot re-import, not a full restore.
+    expect(preview.restoreNotice).toBe(BACKUP_RESTORE_NOTICE);
+    expect(preview.restoreNotice).toContain('It is not a full restore');
+    expect(preview).toMatchObject({ lotsToImport: 3, lotsSkipped: 0 });
     expect(preview.unmappedColumns).toEqual(
       expect.arrayContaining(['Status', 'Tags', 'Created', 'Updated']),
     );

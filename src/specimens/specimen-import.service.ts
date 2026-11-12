@@ -261,6 +261,8 @@ interface CachedPreviewRow {
   valid: boolean;
   /** Archived in the source file: left out unless the curator picks it. */
   archivedInSource: boolean;
+  /** Lots in the source that were left out at preview; never created. */
+  lotsSkipped: number;
   committed?: Specimen;
   /**
    * Set synchronously (no `await` between reading and writing it) as soon
@@ -273,6 +275,46 @@ interface CachedPreviewRow {
 }
 
 const GENERATED_ACCESSION_PLACEHOLDER = 'generated at import';
+
+/**
+ * Shown when the file is a backup workbook: importing it re-creates
+ * specimens and their lots, it is not a full recovery restore.
+ */
+export const BACKUP_RESTORE_NOTICE =
+  'This re-imports specimens and their lots as new Uncataloged records. It is not a full restore: status, tags, public display approval, media, lot history, inquiries, visit requests and other linked records are not brought back.';
+
+const ARCHIVED_NO = new Set(['no', 'n', 'false', '0']);
+const ARCHIVED_YES = new Set(['yes', 'y', 'true', '1', 'archived']);
+// A backup writes "YYYY-MM-DD HH:MM" (Manila); an Excel date cell is read as
+// "YYYY-MM-DD" or an ISO timestamp.
+const ARCHIVED_TIMESTAMP =
+  /^\d{4}-\d{2}-\d{2}(?:[ T]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})?)?$/;
+
+/**
+ * Reads an "Archived" cell. Blank, No, False or 0 is not archived; a date or
+ * timestamp, Yes, True, 1 or "Archived" is. Anything else is treated as
+ * archived, so the row starts unselected, and the curator is told why.
+ */
+export function parseArchivedValue(value: string | undefined): {
+  archived: boolean;
+  warning?: string;
+} {
+  const text = value?.trim();
+  if (!text) return { archived: false };
+  const lower = text.toLowerCase();
+  if (ARCHIVED_NO.has(lower)) return { archived: false };
+  if (ARCHIVED_YES.has(lower)) return { archived: true };
+  if (
+    ARCHIVED_TIMESTAMP.test(text) &&
+    !Number.isNaN(Date.parse(text.replace(' ', 'T')))
+  ) {
+    return { archived: true };
+  }
+  return {
+    archived: true,
+    warning: `Archived value "${text.slice(0, 40)}" was not recognized, so the row is treated as archived and left unselected. Use a date, Yes or No.`,
+  };
+}
 
 interface CachedPreview {
   createdBy: string;
@@ -415,12 +457,15 @@ export class SpecimenImportService {
           ),
         );
 
-        const { extras, warnings } = await this.buildRowExtras(
+        const { extras, warnings, lotsSkipped } = await this.buildRowExtras(
           fields,
           context.sheetLots,
           storageUnitResolver,
         );
         fieldWarnings.push(...warnings);
+
+        const archived = parseArchivedValue(context.fields.archived);
+        if (archived.warning) fieldWarnings.push(archived.warning);
 
         const possibleDuplicates = existingDuplicates[index];
         const duplicateWarnings = this.buildDuplicateWarnings(
@@ -436,7 +481,9 @@ export class SpecimenImportService {
           duplicateWarnings,
           possibleDuplicates,
           valid: errors.length === 0,
-          archivedInSource: context.fields.archived !== undefined,
+          archivedInSource: archived.archived,
+          lotsToImport: extras.lots.length,
+          lotsSkipped,
           accessionNumberWillBeGenerated:
             accessionNumberKey(fields.accessionNumber) === undefined,
           catalogReadiness: this.buildCatalogReadiness(fields, extras),
@@ -458,6 +505,7 @@ export class SpecimenImportService {
             extras: row.extras,
             valid: row.valid,
             archivedInSource: row.archivedInSource,
+            lotsSkipped: row.lotsSkipped,
           },
         ]),
       ),
@@ -475,11 +523,21 @@ export class SpecimenImportService {
         possibleDuplicates: row.possibleDuplicates,
         valid: row.valid,
         archivedInSource: row.archivedInSource,
+        lotsToImport: row.lotsToImport,
+        lotsSkipped: row.lotsSkipped,
         accessionNumberWillBeGenerated: row.accessionNumberWillBeGenerated,
         catalogReadiness: row.catalogReadiness,
       })),
       unmappedColumns,
       lotSheet,
+      // A Lots sheet means a backup workbook; say plainly what it does not bring back.
+      restoreNotice: lotSheet ? BACKUP_RESTORE_NOTICE : null,
+      lotsToImport: rows
+        .filter((row) => row.valid)
+        .reduce((sum, row) => sum + row.lotsToImport, 0),
+      lotsSkipped: rows
+        .filter((row) => row.valid)
+        .reduce((sum, row) => sum + row.lotsSkipped, 0),
       totalRows: rows.length,
       validRows: rows.filter((row) => row.valid).length,
       invalidRows: rows.filter((row) => !row.valid).length,
@@ -531,6 +589,8 @@ export class SpecimenImportService {
           rowNumber,
           success: true,
           specimen: cachedRow.committed,
+          lotsCreated: cachedRow.extras.lots.length,
+          lotsSkipped: cachedRow.lotsSkipped,
         });
         continue;
       }
@@ -574,7 +634,15 @@ export class SpecimenImportService {
 
       try {
         const specimen = await cachedRow.inFlight;
-        results.push({ rowNumber, success: true, specimen });
+        // Every lot is created in the row's transaction, so a saved row
+        // has all of them; skipped lots were never part of it.
+        results.push({
+          rowNumber,
+          success: true,
+          specimen,
+          lotsCreated: cachedRow.extras.lots.length,
+          lotsSkipped: cachedRow.lotsSkipped,
+        });
       } catch (error) {
         if (
           error instanceof NotFoundException ||
@@ -603,6 +671,14 @@ export class SpecimenImportService {
       results,
       createdCount: results.filter((result) => result.success).length,
       failedCount: results.filter((result) => !result.success).length,
+      lotsCreated: results.reduce(
+        (sum, result) => sum + (result.lotsCreated ?? 0),
+        0,
+      ),
+      lotsSkipped: results.reduce(
+        (sum, result) => sum + (result.lotsSkipped ?? 0),
+        0,
+      ),
     };
   }
 
@@ -1090,9 +1166,10 @@ export class SpecimenImportService {
     fields: RowFields,
     sheetLots: LotSource[],
     storageUnitResolver: ImportStorageUnitResolver | null,
-  ): Promise<{ extras: RowExtras; warnings: string[] }> {
+  ): Promise<{ extras: RowExtras; warnings: string[]; lotsSkipped: number }> {
     const extras: RowExtras = { lots: [] };
     const warnings: string[] = [];
+    let lotsSkipped = 0;
 
     if (TAXONOMY_ROW_FIELDS.some((field) => fields[field] !== undefined)) {
       extras.taxonomy = await this.usablePart(
@@ -1148,13 +1225,14 @@ export class SpecimenImportService {
       if (result.lot) {
         extras.lots.push(result.lot);
       } else {
+        lotsSkipped += 1;
         warnings.push(
           `${source.label} will not be imported: ${result.problems.join(' ')} Add it from the specimen's inventory after importing.`,
         );
       }
     }
 
-    return { extras, warnings };
+    return { extras, warnings, lotsSkipped };
   }
 
   /**

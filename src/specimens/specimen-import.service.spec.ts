@@ -12,7 +12,10 @@ import { PrismaService } from '../prisma/prisma.service';
 import { SpecimenLotsService } from '../specimen-lots/specimen-lots.service';
 import { SpecimenAccessionService } from './specimen-accession.service';
 import { SpecimenDuplicatesService } from './specimen-duplicates.service';
-import { SpecimenImportService } from './specimen-import.service';
+import {
+  parseArchivedValue,
+  SpecimenImportService,
+} from './specimen-import.service';
 import {
   IMPORT_TEMPLATE_COLUMNS,
   buildImportTemplate,
@@ -1047,5 +1050,162 @@ describe('SpecimenImportService', () => {
     expect(result.rows[0].fieldWarnings).toEqual([
       "The lot in this row will not be imported: it has no storage unit or quantity. Add it from the specimen's inventory after importing.",
     ]);
+  });
+
+  describe('archived column (review of #317)', () => {
+    it.each([
+      [undefined, false],
+      ['', false],
+      ['  ', false],
+      ['No', false],
+      ['n', false],
+      ['FALSE', false],
+      ['0', false],
+      ['Yes', true],
+      ['true', true],
+      ['1', true],
+      ['Archived', true],
+      ['2026-11-10', true],
+      ['2026-11-10 14:05', true],
+      ['2026-11-10T06:05:00.000Z', true],
+    ])('reads %p as archived=%p without a warning', (value, archived) => {
+      expect(parseArchivedValue(value)).toEqual({ archived });
+    });
+
+    it.each(['maybe', '2026-13-45', '10/11/2026', 'archived later'])(
+      'treats the malformed value %p as archived, with a warning',
+      (value) => {
+        const result = parseArchivedValue(value);
+        expect(result.archived).toBe(true);
+        expect(result.warning).toContain(`Archived value "${value}"`);
+      },
+    );
+
+    it('selects only rows that are not archived, and explains a malformed value', async () => {
+      specimensServiceMock.createUncatalogedRecordFor.mockImplementation(
+        (_tx: unknown, dto: { commonName: string }) =>
+          Promise.resolve({ id: `created-${dto.commonName}` }),
+      );
+      const preview = await service.previewImport(
+        csvFile(
+          [
+            'commonName,Archived',
+            'Blank,',
+            'Said no,No',
+            'Said false,false',
+            'Timestamp,2026-11-10 14:05',
+            'Malformed,maybe',
+          ].join('\n'),
+        ),
+        CURATOR_ID,
+      );
+
+      expect(preview.rows.map((row) => row.archivedInSource)).toEqual([
+        false,
+        false,
+        false,
+        true,
+        true,
+      ]);
+      expect(preview.archivedRows).toBe(2);
+      expect(preview.rows[3].fieldWarnings).toEqual([]);
+      expect(preview.rows[4].fieldWarnings).toEqual([
+        expect.stringContaining('Archived value "maybe" was not recognized'),
+      ]);
+
+      const result = await service.commitImport(
+        preview.previewId,
+        undefined,
+        CURATOR_ID,
+      );
+      expect(result.results.map((row) => row.rowNumber)).toEqual([1, 2, 3]);
+    });
+  });
+
+  describe('skipped lots (review of #317)', () => {
+    beforeEach(() => {
+      storageUnitDelegate.findMany.mockResolvedValue(storageUnits());
+      specimensServiceMock.createUncatalogedRecordFor.mockImplementation(
+        (_tx: unknown, dto: { commonName: string }) =>
+          Promise.resolve({ id: `created-${dto.commonName}` }),
+      );
+      specimensServiceMock.findOneInTransaction.mockImplementation(
+        (_tx: unknown, id: string) => Promise.resolve({ id }),
+      );
+    });
+
+    it('never creates a lot that the preview left out, and reports it at preview and commit', async () => {
+      const preview = await service.previewImport(
+        csvFile(
+          [
+            'commonName,Storage Unit,Condition,Quantity',
+            'Kept,Cabinet A > Drawer 1,Good,2',
+            'Unresolved,Nowhere > Shelf 9,Good,3',
+            'Incomplete,,Fair,',
+          ].join('\n'),
+        ),
+        CURATOR_ID,
+      );
+
+      expect(
+        preview.rows.map((row) => [row.lotsToImport, row.lotsSkipped]),
+      ).toEqual([
+        [1, 0],
+        [0, 1],
+        [0, 1],
+      ]);
+      expect(preview).toMatchObject({ lotsToImport: 1, lotsSkipped: 2 });
+      expect(preview.rows[1].fieldWarnings.join(' ')).toContain(
+        'The lot in this row will not be imported',
+      );
+      // Skipped lots leave the record short of an active lot.
+      expect(preview.rows[1].catalogReadiness.missingRequirements).toContain(
+        'An active lot has positive quantity in a specimen-holding storage location',
+      );
+
+      const result = await service.commitImport(
+        preview.previewId,
+        undefined,
+        CURATOR_ID,
+      );
+
+      expect(result.createdCount).toBe(3);
+      expect(
+        result.results.map((row) => [
+          row.rowNumber,
+          row.lotsCreated,
+          row.lotsSkipped,
+        ]),
+      ).toEqual([
+        [1, 1, 0],
+        [2, 0, 1],
+        [3, 0, 1],
+      ]);
+      expect(result).toMatchObject({ lotsCreated: 1, lotsSkipped: 2 });
+      expect(lotsServiceMock.createInTransaction).toHaveBeenCalledTimes(1);
+      expect(lotsServiceMock.createInTransaction).toHaveBeenCalledWith(
+        prismaMock,
+        'created-Kept',
+        expect.objectContaining({ storageUnitId: DRAWER_ID, quantity: 2 }),
+        CURATOR_ID,
+      );
+
+      // A retry reports the same counts without creating anything again.
+      const retry = await service.commitImport(
+        preview.previewId,
+        undefined,
+        CURATOR_ID,
+      );
+      expect(retry).toMatchObject({ lotsCreated: 1, lotsSkipped: 2 });
+      expect(lotsServiceMock.createInTransaction).toHaveBeenCalledTimes(1);
+    });
+
+    it('marks a plain spreadsheet as not a backup restore', async () => {
+      const preview = await service.previewImport(
+        csvFile('commonName' + '\n' + 'Civet'),
+        CURATOR_ID,
+      );
+      expect(preview.restoreNotice).toBeNull();
+    });
   });
 });
