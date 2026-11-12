@@ -1,6 +1,7 @@
 import {
   ConflictException,
   InternalServerErrorException,
+  NotFoundException,
   ServiceUnavailableException,
 } from '@nestjs/common';
 import type { ConfigService } from '@nestjs/config';
@@ -32,9 +33,29 @@ function build(rows: unknown[] = [], authIdsWithPassword: string[] = []) {
   const create = jest.fn();
   const findFirst = jest.fn().mockResolvedValue(null);
   const auditCreate = jest.fn().mockResolvedValue({});
+  const accountFindUnique = jest.fn().mockResolvedValue({
+    id: 'acc-new',
+    auth_user_id: 'auth-new',
+    full_name: 'Juan dela Cruz',
+    role: 'CURATOR',
+    status: 'ACTIVE',
+  });
+  const findUniqueOrThrow = jest.fn().mockResolvedValue(invitedRow());
+  const usersFindUnique = jest
+    .fn()
+    .mockResolvedValue({ email: 'new@usc.edu.ph', email_confirmed_at: null });
   const prisma = {
-    user_account: { findMany, create },
-    users: { findFirst, findMany: usersFindMany },
+    user_account: {
+      findMany,
+      create,
+      findUnique: accountFindUnique,
+      findUniqueOrThrow,
+    },
+    users: {
+      findFirst,
+      findMany: usersFindMany,
+      findUnique: usersFindUnique,
+    },
     audit_log: { create: auditCreate },
   } as unknown as PrismaService;
   const admin = {
@@ -56,6 +77,9 @@ function build(rows: unknown[] = [], authIdsWithPassword: string[] = []) {
     usersFindMany,
     auditCreate,
     admin,
+    accountFindUnique,
+    findUniqueOrThrow,
+    usersFindUnique,
   };
 }
 
@@ -293,5 +317,82 @@ describe('UserAccountsService.inviteCurator', () => {
     await expect(service.inviteCurator(dto, actor)).resolves.toMatchObject({
       id: 'acc-new',
     });
+  });
+});
+
+describe('UserAccountsService.resendInvite', () => {
+  it('emails a new link to a pending curator and audits it', async () => {
+    const { service, admin, auditCreate, findUniqueOrThrow } = build();
+
+    await expect(service.resendInvite('acc-new', actor)).resolves.toEqual({
+      id: 'acc-new',
+      fullName: 'Juan dela Cruz',
+      email: 'new@usc.edu.ph',
+      status: 'ACTIVE',
+      inviteAccepted: false,
+      lastSignInAt: null,
+      createdAt: new Date('2026-09-01T00:00:00.000Z'),
+    });
+    expect(admin.inviteUserByEmail).toHaveBeenCalledWith('new@usc.edu.ph', {
+      redirectTo: 'https://biosphere.test/login/accept-invite',
+    });
+    expect(findUniqueOrThrow).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'acc-new' } }),
+    );
+    expect(admin.updateUserById).not.toHaveBeenCalled();
+    expect(admin.deleteUser).not.toHaveBeenCalled();
+    expect(lastAudit(auditCreate)).toEqual({
+      user_id: 'acc-actor',
+      affected_record_id: 'acc-new',
+      affected_record_type: 'user_account',
+      action: 'RESEND_CURATOR_INVITE',
+      module: 'user-accounts',
+      status: 'SUCCESS',
+      details: { email: 'new@usc.edu.ph' },
+    });
+  });
+
+  it('audits a refused resend and passes the reason on', async () => {
+    const { service, admin, auditCreate, usersFindMany } = build();
+    usersFindMany.mockResolvedValue([{ id: 'auth-new' }]);
+
+    await expect(service.resendInvite('acc-new', actor)).rejects.toBeInstanceOf(
+      ConflictException,
+    );
+    expect(admin.inviteUserByEmail).not.toHaveBeenCalled();
+    expect(lastAudit(auditCreate)).toMatchObject({
+      action: 'RESEND_CURATOR_INVITE',
+      affected_record_id: 'acc-new',
+      status: 'FAILED',
+      details: { reason: expect.stringMatching(/already accepted/) },
+    });
+  });
+
+  it('never resends to a developer account', async () => {
+    const { service, admin, accountFindUnique } = build();
+    accountFindUnique.mockResolvedValue({
+      id: 'acc-dev',
+      auth_user_id: 'auth-dev',
+      role: 'DEVELOPER',
+      status: 'ACTIVE',
+    });
+
+    await expect(service.resendInvite('acc-dev', actor)).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+    expect(admin.inviteUserByEmail).not.toHaveBeenCalled();
+  });
+
+  it('reports a delivery failure as unavailable', async () => {
+    const { service, admin, auditCreate } = build();
+    admin.inviteUserByEmail.mockResolvedValue({
+      data: { user: null },
+      error: { message: 'smtp down', status: 500 },
+    });
+
+    await expect(service.resendInvite('acc-new', actor)).rejects.toBeInstanceOf(
+      ServiceUnavailableException,
+    );
+    expect(lastAudit(auditCreate)).toMatchObject({ status: 'FAILED' });
   });
 });

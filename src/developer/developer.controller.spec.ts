@@ -14,6 +14,7 @@ const developerServiceMock = {
   listCuratorAccounts: jest.fn(),
   onboardInitialCurator: jest.fn(),
   updateCuratorStatus: jest.fn(),
+  resendCuratorInvite: jest.fn(),
   createArAsset: jest.fn(),
   updateArAsset: jest.fn(),
   setArAssetEnabled: jest.fn(),
@@ -67,6 +68,23 @@ describe('DeveloperController', () => {
     expect(developerServiceMock.onboardInitialCurator).toHaveBeenCalledWith(
       dto,
       currentUser.id,
+    );
+    expect(result).toEqual({ id: 'account-1' });
+  });
+
+  it('resendCuratorInvite passes the id and acting user id', async () => {
+    developerServiceMock.resendCuratorInvite.mockResolvedValue({
+      id: 'account-1',
+    });
+
+    const result = await controller.resendCuratorInvite(
+      'account-1',
+      currentUser,
+    );
+
+    expect(developerServiceMock.resendCuratorInvite).toHaveBeenCalledWith(
+      'account-1',
+      'dev-uuid-1',
     );
     expect(result).toEqual({ id: 'account-1' });
   });

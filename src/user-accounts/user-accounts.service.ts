@@ -15,6 +15,10 @@ import {
   authUsersPastInvite,
   ONBOARDING_PENDING_KEY,
 } from '../auth/onboarding';
+import {
+  RESEND_CURATOR_INVITE_ACTION,
+  resendCuratorInvite,
+} from '../auth/invite-resend';
 import type { AuthenticatedUser } from '../auth/types/auth.types';
 import type { InviteCuratorDto } from './dto/invite-curator.dto';
 import {
@@ -164,6 +168,50 @@ export class UserAccountsService {
     );
 
     // Nobody has used the link yet, so no password exists.
+    return this.toSummary(row, false);
+  }
+
+  /**
+   * Emails a new password-setup link to a curator whose invitation is still
+   * pending (REQ-4.1-07), for example after the first link expired. Every
+   * attempt is audited without invitation secrets (REQ-4.1-11).
+   */
+  async resendInvite(
+    accountId: string,
+    actor: AuthenticatedUser,
+  ): Promise<UserAccountSummary> {
+    let email: string;
+    try {
+      ({ email } = await resendCuratorInvite(
+        this.prisma,
+        this.supabase,
+        accountId,
+        this.frontendUrl('/login/accept-invite'),
+      ));
+    } catch (error) {
+      await this.recordAudit(
+        actor,
+        RESEND_CURATOR_INVITE_ACTION,
+        'FAILED',
+        { reason: this.errorMessage(error) },
+        accountId,
+      );
+      throw error;
+    }
+
+    await this.recordAudit(
+      actor,
+      RESEND_CURATOR_INVITE_ACTION,
+      'SUCCESS',
+      { email },
+      accountId,
+    );
+
+    const row = await this.prisma.user_account.findUniqueOrThrow({
+      where: { id: accountId },
+      select: USER_ACCOUNT_SELECT,
+    });
+    // A resend is only allowed while the invitation is still pending.
     return this.toSummary(row, false);
   }
 
