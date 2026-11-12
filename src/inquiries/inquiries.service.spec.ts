@@ -122,6 +122,29 @@ describe('InquiriesService', () => {
     });
   });
 
+  it('stores the Brevo Message-ID on the reply entry (spec 0002 AC-7)', async () => {
+    inquiryDelegate.findUnique.mockResolvedValue(inquiryRecord());
+    mail.send.mockResolvedValue({
+      delivered: true,
+      result: 'SENT <brevo-2@smtp-relay>',
+      messageId: '<brevo-2@smtp-relay>',
+    });
+
+    await service.sendReply(
+      INQUIRY_ID,
+      { message: 'See you then.' },
+      CURATOR_ID,
+    );
+
+    expect(historyDelegate.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        inquiry_id: INQUIRY_ID,
+        direction: 'OUTBOUND',
+        external_message_id: '<brevo-2@smtp-relay>',
+      }),
+    });
+  });
+
   it('includes the reference code in receipts and search', async () => {
     inquiryDelegate.create.mockResolvedValue(inquiryRecord());
     inquiryDelegate.findMany.mockResolvedValue([]);

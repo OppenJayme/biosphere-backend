@@ -67,6 +67,8 @@ describe('MailService', () => {
     expect(result).toEqual({
       delivered: true,
       result: 'SENT <abc@smtp-relay>',
+      // Stored on the history row so visitor replies can match it.
+      messageId: '<abc@smtp-relay>',
     });
     const [url, init] = fetchMock.mock.calls[0] as [
       string,

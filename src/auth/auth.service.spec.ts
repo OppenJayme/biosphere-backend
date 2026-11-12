@@ -155,7 +155,11 @@ describe('AuthService', () => {
   it('rejects invalid Supabase credentials', async () => {
     authClientMock.auth.signInWithPassword.mockResolvedValue({
       data: { session: null, user: null },
-      error: { message: 'Invalid credentials' },
+      error: {
+        message: 'Invalid login credentials',
+        code: 'invalid_credentials',
+        status: 400,
+      },
     });
 
     await expect(
@@ -249,6 +253,7 @@ describe('AuthService', () => {
         error: {
           message: 'Invalid login credentials',
           code: 'invalid_credentials',
+          status: 400,
         },
       });
 
@@ -267,6 +272,37 @@ describe('AuthService', () => {
       });
       expect(auditedValues()).not.toContain('wrong-password');
     });
+
+    it.each([
+      ['a network failure', { message: 'fetch failed', status: 0 }],
+      ['no status at all', { message: 'fetch failed' }],
+      [
+        'a provider outage',
+        { message: 'Internal error', code: 'unexpected_failure', status: 500 },
+      ],
+    ])(
+      'answers 503, not a wrong password, after %s',
+      async (_case, providerError) => {
+        authClientMock.auth.signInWithPassword.mockResolvedValue({
+          data: { session: null, user: null },
+          error: providerError,
+        });
+
+        await expect(
+          service.login('curator@example.com', 'secret-password'),
+        ).rejects.toBeInstanceOf(ServiceUnavailableException);
+
+        expect(securityAuditMock.record).toHaveBeenCalledWith({
+          action: 'LOGIN',
+          result: 'FAILED',
+          details: expect.objectContaining({
+            email: 'curator@example.com',
+            reason: 'PROVIDER_UNAVAILABLE',
+          }) as unknown,
+        });
+        expect(auditedValues()).not.toContain('secret-password');
+      },
+    );
 
     it('records a login denied for an inactive account', async () => {
       signInSucceeds();

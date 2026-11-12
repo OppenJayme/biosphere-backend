@@ -26,6 +26,7 @@ import { NotificationsModule } from './notifications/notifications.module';
 import { ReportsModule } from './reports/reports.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { UserAccountsModule } from './user-accounts/user-accounts.module';
+import { MailboxSyncModule } from './mailbox-sync/mailbox-sync.module';
 
 @Module({
   imports: [
@@ -40,6 +41,7 @@ import { UserAccountsModule } from './user-accounts/user-accounts.module';
     ThrottlerModule.forRoot([GLOBAL_RATE_LIMIT]),
     InquiriesModule,
     VisitRequestsModule,
+    MailboxSyncModule,
     NotificationsModule,
     DeveloperModule,
     StorageLocationsModule,

@@ -44,6 +44,28 @@ const AI_SOURCE_LIMIT = 5;
 /** Short questions borrow the previous visitor question for retrieval only. */
 const SHORT_QUESTION_TOKENS = 4;
 
+/** Bounded English rule from a matched stored answer, never AI-generated text. */
+function needsGroupCoordination(
+  question: string,
+  approvedAnswer: string,
+): boolean {
+  const referral =
+    /\bfor groups larger than (\d+),\s*send a general inquiry\b/i.exec(
+      approvedAnswer,
+    );
+  if (!referral) return false;
+  const limit = Number(referral[1]);
+  if (!Number.isSafeInteger(limit) || limit <= 0) return false;
+
+  const partySizes = question.matchAll(
+    /\b(?:group|party)\s+of\s+(\d+)\b|\b(\d+)\s+(?:visitors|people|students|guests|participants)\b/gi,
+  );
+  return [...partySizes].some((match) => {
+    const size = Number(match[1] ?? match[2]);
+    return Number.isSafeInteger(size) && size > limit;
+  });
+}
+
 /**
  * Public, read-only FAQ Assistant. It reads only ACTIVE entries and never
  * writes (no question, IP or audit row is stored).
@@ -190,6 +212,12 @@ export class FaqAssistantService {
     }
 
     if (best) {
+      // The approved batch-coordination referral takes precedence over generic
+      // booking guidance only when the visitor states a party above its limit.
+      const groupCoordination = needsGroupCoordination(
+        question,
+        best.entry.answer,
+      );
       return {
         outcome: FaqAssistantOutcome.ANSWERED,
         answer: {
@@ -197,8 +225,15 @@ export class FaqAssistantService {
           answer: best.entry.answer,
         },
         related: relatedQuestions,
-        message: visitTransaction ? FAQ_VISIT_REQUEST_MESSAGE : null,
-        redirect: visitTransaction ? visitRedirect : null,
+        message:
+          visitTransaction && !groupCoordination
+            ? FAQ_VISIT_REQUEST_MESSAGE
+            : null,
+        redirect: groupCoordination
+          ? FaqAssistantRedirect.GENERAL_INQUIRY
+          : visitTransaction
+            ? visitRedirect
+            : null,
         assisted: false,
         sources: [],
         notice,

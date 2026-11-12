@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -14,6 +15,7 @@ import {
 import { CreateInternalNoteDto } from '../communication-history/dto/create-internal-note.dto';
 import {
   calendarDateRange,
+  parseDateOnly,
   submittedAtRange,
 } from '../communication-history/dto/date-filter';
 import { SendVisitorMessageDto } from '../communication-history/dto/send-visitor-message.dto';
@@ -38,19 +40,33 @@ import { ListVisitRequestsQueryDto } from './dto/list-visit-requests-query.dto';
 import { PreferredScheduleDto } from './dto/preferred-schedule.dto';
 import { UpdateVisitRequestDto } from './dto/update-visit-request.dto';
 import {
+  MAX_VISIT_RANGE_DAYS,
+  VisitDateRangeQueryDto,
+} from './dto/visit-date-range-query.dto';
+import {
   CampusEntrySummary,
+  VisitAvailability,
+  VisitCalendarEvent,
   VisitRequest,
   VisitRequestStatus,
   VisitRequestSubmissionReceipt,
 } from './entities/visit-request.entity';
 import {
+  describeOpeningHours,
+  fitsOpeningHours,
+  openingWindows,
+} from './museum-hours';
+import {
   CAMPUS_ENTRY_STATUSES,
+  SCHEDULED_VISIT_STATUSES,
   assertVisitRequestTransition,
 } from './visit-request-status.policy';
 
 // The museum operates in Philippine time; "today" for past-date checks is
 // the current date there, not the server's UTC date.
 const MUSEUM_TIME_ZONE = 'Asia/Manila';
+
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 const CONFLICT_MESSAGE =
   'This visit request was changed by someone else. Reload and try again.';
@@ -99,6 +115,9 @@ export class VisitRequestsService {
     this.assertSchedulesValid(dto.preferredSchedules);
     this.assertVisitorsValid(dto);
     this.assertVehicleValid(dto);
+    // Pending requests never hold a slot, so this check needs no lock: a
+    // later approval re-checks overlaps inside its serializable transaction.
+    await this.assertSchedulesAvailable(this.prisma, dto.preferredSchedules);
 
     const receipt = await this.prisma.$transaction(async (transaction) => {
       const submittedAt = new Date();
@@ -177,6 +196,10 @@ export class VisitRequestsService {
     actingCuratorAccountId: string,
   ): Promise<string> {
     this.assertSchedulesValid(referral.preferredSchedules);
+    await this.assertSchedulesAvailable(
+      transaction,
+      referral.preferredSchedules,
+    );
 
     const createdAt = new Date();
     const created = await transaction.visit_request.create({
@@ -264,6 +287,41 @@ export class VisitRequestsService {
       orderBy: [{ created_at: 'desc' }, { id: 'asc' }],
     });
     return items.map((item) => this.toEntity(item));
+  }
+
+  // Museum opening hours plus the times held by curator-approved visits
+  // (public). The visit form uses it to offer only free times inside opening
+  // hours; the server still enforces both rules on submission.
+  async getAvailability(
+    query: VisitDateRangeQueryDto,
+  ): Promise<VisitAvailability> {
+    const { from, to } = this.parseRange(query);
+    // Times only: the public response must never carry visitor details.
+    const rows = await this.prisma.visit_request.findMany({
+      where: this.scheduledInRange(from, to),
+      select: {
+        approved_date: true,
+        approved_start_time: true,
+        approved_end_time: true,
+      },
+      orderBy: [{ approved_date: 'asc' }, { approved_start_time: 'asc' }],
+    });
+    return {
+      openingHours: openingWindows(),
+      booked: rows.map((row) => ({
+        date: this.formatDate(row.approved_date!),
+        startTime: this.formatTime(row.approved_start_time!),
+        endTime: this.formatTime(row.approved_end_time!),
+      })),
+    };
+  }
+
+  // Curator calendar: only visits with a curator-approved schedule, never
+  // Pending, Declined, or Cancelled requests (team decision 2026-11-11).
+  async getCalendar(
+    query: VisitDateRangeQueryDto,
+  ): Promise<VisitCalendarEvent[]> {
+    return this.findScheduledInRange(query);
   }
 
   async findOne(id: string): Promise<VisitRequest> {
@@ -357,9 +415,26 @@ export class VisitRequestsService {
           );
         }
         const optionDate = this.formatDate(option.preferred_date);
-        if (optionDate < this.museumToday()) {
+        const optionStart = this.formatTime(option.preferred_start_time);
+        const optionEnd = this.formatTime(option.preferred_end_time);
+        if (this.hasStarted(optionDate, optionStart)) {
           throw new BadRequestException(
             `Preferred option ${dto.preferenceOrder} is already in the past.`,
+          );
+        }
+        // Read inside the serializable transaction, so two curators
+        // approving overlapping visits at once cannot both succeed.
+        const [clash] = await this.findScheduledOverlaps(
+          transaction,
+          { date: optionDate, startTime: optionStart, endTime: optionEnd },
+          id,
+        );
+        if (clash) {
+          throw new ConflictException(
+            `Preferred option ${dto.preferenceOrder} overlaps visit ` +
+              `${referenceCode(clash.id)}, already approved for ${optionDate} ` +
+              `${this.formatTime(clash.approved_start_time!)}-` +
+              `${this.formatTime(clash.approved_end_time!)}.`,
           );
         }
 
@@ -377,8 +452,7 @@ export class VisitRequestsService {
         });
         const approvedLine =
           `Approved option ${dto.preferenceOrder}: ${optionDate} ` +
-          `${this.formatTime(option.preferred_start_time)}-` +
-          `${this.formatTime(option.preferred_end_time)}.`;
+          `${optionStart}-${optionEnd}.`;
         await recordInternalEntry(transaction, {
           target: { visitRequestId: id },
           recordedBy: actingCuratorAccountId,
@@ -521,6 +595,7 @@ export class VisitRequestsService {
         message: email.text,
         deliveryResult: delivery.result,
         delivered: delivery.delivered,
+        externalMessageId: delivery.messageId,
       });
       await this.recordAudit(transaction, {
         userId: actingCuratorAccountId,
@@ -592,6 +667,7 @@ export class VisitRequestsService {
 
   private assertSchedulesValid(schedules: PreferredScheduleDto[]): void {
     const today = this.museumToday();
+    const now = this.museumNowTime();
     const seen = new Set<string>();
 
     schedules.forEach((schedule, index) => {
@@ -603,9 +679,22 @@ export class VisitRequestsService {
       if (schedule.date < today) {
         throw new BadRequestException(`${label}.date cannot be in the past.`);
       }
+      if (schedule.date === today && schedule.startTime <= now) {
+        throw new BadRequestException(
+          `${label}.startTime has already passed today.`,
+        );
+      }
       if (schedule.endTime <= schedule.startTime) {
         throw new BadRequestException(
           `${label}.endTime must be later than startTime.`,
+        );
+      }
+      if (
+        !fitsOpeningHours(schedule.date, schedule.startTime, schedule.endTime)
+      ) {
+        throw new BadRequestException(
+          `${label} must fit within museum opening hours: ` +
+            `${describeOpeningHours(schedule.date)}.`,
         );
       }
 
@@ -615,6 +704,103 @@ export class VisitRequestsService {
       }
       seen.add(key);
     });
+  }
+
+  // Rejects any preferred option that overlaps a curator-approved visit, so
+  // visitors can only request times that are still free.
+  private async assertSchedulesAvailable(
+    client: Prisma.TransactionClient,
+    schedules: PreferredScheduleDto[],
+  ): Promise<void> {
+    for (const [index, schedule] of schedules.entries()) {
+      const overlaps = await this.findScheduledOverlaps(client, schedule);
+      if (overlaps.length > 0) {
+        throw new ConflictException(
+          `preferredSchedules[${index}] (${schedule.date} ` +
+            `${schedule.startTime}-${schedule.endTime}) overlaps a visit ` +
+            'that is already booked. Choose another time.',
+        );
+      }
+    }
+  }
+
+  // Scheduled visits on the same date whose approved time overlaps the
+  // given range. Touching ranges (one ends at 11:00, the next starts at
+  // 11:00) do not overlap.
+  private findScheduledOverlaps(
+    client: Prisma.TransactionClient,
+    schedule: { date: string; startTime: string; endTime: string },
+    excludeId?: string,
+  ) {
+    return client.visit_request.findMany({
+      where: {
+        status: { in: [...SCHEDULED_VISIT_STATUSES] },
+        approved_date: this.toDbDate(schedule.date),
+        approved_start_time: { lt: this.toDbTime(schedule.endTime) },
+        approved_end_time: { gt: this.toDbTime(schedule.startTime) },
+        ...(excludeId && { id: { not: excludeId } }),
+      },
+      select: { id: true, approved_start_time: true, approved_end_time: true },
+      orderBy: { approved_start_time: 'asc' },
+    });
+  }
+
+  private parseRange(query: VisitDateRangeQueryDto): { from: Date; to: Date } {
+    const from = parseDateOnly(query.from, 'from');
+    const to = parseDateOnly(query.to, 'to');
+    if (from > to) {
+      throw new BadRequestException('from must be on or before to.');
+    }
+    if ((to.getTime() - from.getTime()) / DAY_MS >= MAX_VISIT_RANGE_DAYS) {
+      throw new BadRequestException(
+        `The range cannot be longer than ${MAX_VISIT_RANGE_DAYS} days.`,
+      );
+    }
+    return { from, to };
+  }
+
+  private scheduledInRange(from: Date, to: Date) {
+    return {
+      status: { in: [...SCHEDULED_VISIT_STATUSES] },
+      approved_date: { gte: from, lte: to },
+      approved_start_time: { not: null },
+      approved_end_time: { not: null },
+    } satisfies Prisma.visit_requestWhereInput;
+  }
+
+  private async findScheduledInRange(
+    query: VisitDateRangeQueryDto,
+  ): Promise<VisitCalendarEvent[]> {
+    const { from, to } = this.parseRange(query);
+    const items = await this.prisma.visit_request.findMany({
+      where: this.scheduledInRange(from, to),
+      select: {
+        id: true,
+        status: true,
+        organization_name: true,
+        contact_person: true,
+        visitor_count: true,
+        approved_date: true,
+        approved_start_time: true,
+        approved_end_time: true,
+      },
+      orderBy: [
+        { approved_date: 'asc' },
+        { approved_start_time: 'asc' },
+        { id: 'asc' },
+      ],
+    });
+    return items.map((item) => ({
+      id: item.id,
+      referenceCode: referenceCode(item.id),
+      status: item.status as VisitRequestStatus,
+      organization: item.organization_name,
+      contactPerson: item.contact_person,
+      visitorCount: item.visitor_count,
+      date: this.formatDate(item.approved_date!),
+      startTime: this.formatTime(item.approved_start_time!),
+      endTime: this.formatTime(item.approved_end_time!),
+    }));
   }
 
   private assertVisitorsValid(dto: CreateVisitRequestDto): void {
@@ -694,6 +880,25 @@ export class VisitRequestsService {
     return new Intl.DateTimeFormat('en-CA', {
       timeZone: MUSEUM_TIME_ZONE,
     }).format(new Date());
+  }
+
+  // HH:MM in museum time, compared against HH:MM schedule strings.
+  private museumNowTime(): string {
+    return new Intl.DateTimeFormat('en-GB', {
+      timeZone: MUSEUM_TIME_ZONE,
+      hour: '2-digit',
+      minute: '2-digit',
+      hourCycle: 'h23',
+    }).format(new Date());
+  }
+
+  // True when the date is before today, or is today and the start time has
+  // been reached, in museum time.
+  private hasStarted(date: string, startTime: string): boolean {
+    const today = this.museumToday();
+    return (
+      date < today || (date === today && startTime <= this.museumNowTime())
+    );
   }
 
   // @db.Date and @db.Time columns round-trip through UTC Date objects.

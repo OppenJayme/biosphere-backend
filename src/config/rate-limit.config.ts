@@ -29,3 +29,10 @@ export const FAQ_ASSISTANT_RATE_LIMIT = {
   ttl: RATE_LIMIT_WINDOW_MS,
   limit: 30,
 } as const;
+
+// A manual mailbox check calls the Gmail API once per new message; the
+// background poll already runs every couple of minutes.
+export const MAILBOX_SYNC_RATE_LIMIT = {
+  ttl: RATE_LIMIT_WINDOW_MS,
+  limit: 6,
+} as const;
