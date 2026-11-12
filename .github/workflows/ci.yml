@@ -63,9 +63,6 @@ jobs:
       - name: Verify Swagger JSON and YAML compatibility
         run: npm run verify:swagger-yaml
 
-      - name: Verify CSV parser compatibility and prototype safety
-        run: npm run verify:csv-parser
-
       - name: Verify pinned Storage response contract without services
         run: npm run test:recovery:supabase:contracts
 

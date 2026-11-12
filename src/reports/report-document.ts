@@ -1,6 +1,6 @@
-// Format-neutral report model. Report builders produce a ReportDocument and
-// the CSV, PDF, and DOCX renderers turn the same document into a file, so
-// every report type supports every format without format-specific queries.
+// Report model. Report builders produce a ReportDocument and the XLSX
+// renderer turns it into a workbook: a Summary sheet plus one sheet per
+// table, with the detail table always included.
 
 export type ReportCell = string | number | null;
 
@@ -27,7 +27,7 @@ export interface ReportDocument {
    */
   confidential: boolean;
   blocks: ReportBlock[];
-  /** The detail table exported as CSV; absent for summary-only reports. */
+  /** The detail table (always given its own sheet); absent for summary-only reports. */
   csvTable?: ReportTable;
   /** Detail rows in the report, recorded in the audit log. */
   rowCount: number;

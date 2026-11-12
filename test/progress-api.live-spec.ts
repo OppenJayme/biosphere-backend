@@ -18,6 +18,7 @@ import { randomUUID } from 'node:crypto';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import request from 'supertest';
+import { buildXlsx } from '../src/common/excel/xlsx-writer';
 import type { App } from 'supertest/types';
 import { DisposableAppDatabase } from './support/progress-api-live/disposable-app-database';
 import {
@@ -2439,19 +2440,28 @@ describe('Specimens, cataloging, lots (§4.4, §4.5, §4.6)', () => {
     });
   });
 
-  it('previews and commits a CSV import with row validation (REQ-4.4-19/20)', async () => {
+  it('previews and commits an Excel import with row validation (REQ-4.4-19/20)', async () => {
     const C = tokens.curatorA;
     const csv = [
       'commonName,scientificName,accessionNumber,collectionId,kingdom,collectionDate,preservationType,preservationMethod,storageUnit,conditionClass,quantity,mysteryColumn',
       `Rufous Hornbill,Buceros hydrocorax,USC-BM-TEST-0100,${ctx.collection},Animalia,2019-03-02,Skin,Dry,${ctx.drawer1},Good,1,x`,
       'Broken Row,,USC-BM-TEST-0101,,Animalia,2019-13-45,,,,Good,abc,y',
     ].join('\n');
+    const [header, ...rows] = csv.split('\n').map((row) => row.split(','));
+    const workbook = buildXlsx([
+      {
+        name: 'Specimens',
+        header,
+        rows: rows.map((row) => row.map((cell) => cell || null)),
+      },
+    ]).body;
     let res = await api('POST', '/specimens/import/preview', {
       token: C,
       file: {
-        buffer: Buffer.from(csv),
-        filename: 'import.csv',
-        contentType: 'text/csv',
+        buffer: workbook,
+        filename: 'import.xlsx',
+        contentType:
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       },
     });
     ctx.preview = res.body?.previewId ?? res.body?.id;
@@ -3818,27 +3828,22 @@ describe('Reports, FAQ, offline sync, audit, backups (§4.7, §4.11, §4.14, §4
     );
     const plan: Array<[string, string, string, string[]]> = [];
     const pick = (re: RegExp) => types.find((t) => re.test(t)) ?? '';
+    // Reports are Excel only (museum decision, 2026-11-12).
     plan.push([
-      'RPT-CONSOLIDATED-DOCX',
+      'RPT-CONSOLIDATED-XLSX',
       pick(/CONSOLIDATED|OPERATIONS/),
-      'DOCX',
+      'XLSX',
       ['REQ-4.7-05', 'REQ-4.7-06', 'REQ-4.7-11', 'REQ-4.7-16'],
     ]);
     plan.push([
-      'RPT-INVENTORY-PDF',
+      'RPT-INVENTORY-XLSX',
       pick(/INVENTORY/),
-      'PDF',
+      'XLSX',
       ['REQ-4.7-07', 'REQ-4.7-12', 'REQ-4.7-13'],
     ]);
-    plan.push([
-      'RPT-INVENTORY-CSV',
-      pick(/INVENTORY/),
-      'CSV',
-      ['REQ-4.7-07', 'REQ-4.7-12'],
-    ]);
-    plan.push(['RPT-INQUIRY', pick(/INQUIRY/), 'CSV', ['REQ-4.7-08']]);
-    plan.push(['RPT-VISIT', pick(/VISIT/), 'PDF', ['REQ-4.7-09']]);
-    plan.push(['RPT-QR-AR', pick(/QR|EXHIBIT|AR/), 'PDF', ['REQ-4.7-10']]);
+    plan.push(['RPT-INQUIRY', pick(/INQUIRY/), 'XLSX', ['REQ-4.7-08']]);
+    plan.push(['RPT-VISIT', pick(/VISIT/), 'XLSX', ['REQ-4.7-09']]);
+    plan.push(['RPT-QR-AR', pick(/QR|EXHIBIT|AR/), 'XLSX', ['REQ-4.7-10']]);
     for (const [id, type, format, srs] of plan) {
       const r = await api('POST', '/reports', {
         token: C,
@@ -3865,7 +3870,7 @@ describe('Reports, FAQ, offline sync, audit, backups (§4.7, §4.11, §4.14, §4
       token: C,
       body: {
         type: plan[1][1],
-        format: 'PDF',
+        format: 'XLSX',
         period: 'CUSTOM',
         from: '2026-12-31',
         to: '2026-01-01',

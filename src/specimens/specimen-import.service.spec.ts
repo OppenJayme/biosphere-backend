@@ -4,12 +4,22 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
+import { readSheet } from 'read-excel-file/node';
+import { parse } from 'csv-parse/sync';
+import { buildXlsx, type XlsxSheet } from '../common/excel/xlsx-writer';
 import { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { SpecimenLotsService } from '../specimen-lots/specimen-lots.service';
 import { SpecimenAccessionService } from './specimen-accession.service';
 import { SpecimenDuplicatesService } from './specimen-duplicates.service';
-import { SpecimenImportService } from './specimen-import.service';
+import {
+  parseArchivedValue,
+  SpecimenImportService,
+} from './specimen-import.service';
+import {
+  IMPORT_TEMPLATE_COLUMNS,
+  buildImportTemplate,
+} from './import-template';
 import { SpecimenProvenanceService } from './specimen-provenance.service';
 import { SpecimenTaxonomyService } from './specimen-taxonomy.service';
 import { SpecimensService } from './specimens.service';
@@ -73,10 +83,32 @@ const COLLECTION_ID = '44444444-4444-4444-8444-444444444444';
 const CURATOR_ID = 'curator-1';
 const OTHER_CURATOR_ID = 'curator-2';
 
-function csvFile(content: string): Express.Multer.File {
+/**
+ * Test rows are written as CSV text for readability, then turned into the
+ * .xlsx workbook the import accepts (one "Specimens" sheet, all text cells).
+ * `extraSheets` adds further sheets, such as a backup's "Lots" sheet.
+ */
+function csvFile(
+  content: string,
+  extraSheets: { name: string; csv: string }[] = [],
+): Express.Multer.File {
+  const sheet = (name: string, csv: string): XlsxSheet => {
+    const [header, ...rows] = parse(csv, {
+      relax_column_count: true,
+      skip_empty_lines: true,
+    });
+    return {
+      name,
+      header,
+      rows: rows.map((row) => row.map((cell) => (cell === '' ? null : cell))),
+    };
+  };
   return {
-    originalname: 'specimens.csv',
-    buffer: Buffer.from(content, 'utf8'),
+    originalname: 'specimens.xlsx',
+    buffer: buildXlsx([
+      sheet('Specimens', content),
+      ...extraSheets.map((extra) => sheet(extra.name, extra.csv)),
+    ]).body,
   } as Express.Multer.File;
 }
 
@@ -109,16 +141,23 @@ describe('SpecimenImportService', () => {
     service = module.get<SpecimenImportService>(SpecimenImportService);
   });
 
-  it('marks future provenance dates invalid in mixed-row preview without creating records', async () => {
+  it('leaves a future collection date blank with a warning, without creating records', async () => {
     const result = await service.previewImport(
       csvFile(
         'commonName,collectionDate\nValid specimen,2020-01-01\nFuture specimen,2099-01-01',
       ),
       CURATOR_ID,
     );
-    expect(result.validRows).toBe(1);
-    expect(result.invalidRows).toBe(1);
-    expect(result.rows[1].errors.join(' ')).toContain('on or before today');
+    expect(result.validRows).toBe(2);
+    expect(result.invalidRows).toBe(0);
+    expect(result.rows[0].fieldWarnings).toEqual([]);
+    expect(result.rows[1].fieldWarnings.join(' ')).toContain(
+      'on or before today',
+    );
+    expect(result.rows[1].fieldWarnings.join(' ')).toContain(
+      'it will be left blank',
+    );
+    expect(result.rowsWithFieldWarnings).toBe(1);
     expect(
       specimensServiceMock.createUncatalogedRecordFor,
     ).not.toHaveBeenCalled();
@@ -131,9 +170,10 @@ describe('SpecimenImportService', () => {
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 
-    it('rejects a non-CSV file', async () => {
+    it('rejects a CSV or any other non-.xlsx file', async () => {
       const file = csvFile('a,b\n1,2\n');
-      file.originalname = 'specimens.xlsx';
+      file.originalname = 'specimens.csv';
+      file.buffer = Buffer.from('commonName\nCivet\n', 'utf8');
       await expect(
         service.previewImport(file, CURATOR_ID),
       ).rejects.toBeInstanceOf(BadRequestException);
@@ -165,7 +205,7 @@ describe('SpecimenImportService', () => {
     });
 
     it('flags a row with recognized headers but no values in any of them', async () => {
-      const file = csvFile('scientificName,commonName,remarks\n,,\n');
+      const file = csvFile('scientificName,commonName,notes\n,,only here\n');
       const result = await service.previewImport(file, CURATOR_ID);
 
       expect(result.rows[0].valid).toBe(false);
@@ -204,13 +244,29 @@ describe('SpecimenImportService', () => {
       expect(result.rows[0].valid).toBe(true);
     });
 
-    it('flags an invalid enum value as a row error', async () => {
+    it('leaves an unknown sex value blank with a warning instead of blocking', async () => {
       const file = csvFile('scientificName,gender\nTestus specimenus,Xyz\n');
       const result = await service.previewImport(file, CURATOR_ID);
 
-      expect(result.validRows).toBe(0);
-      expect(result.rows[0].valid).toBe(false);
-      expect(result.rows[0].errors.length).toBeGreaterThan(0);
+      expect(result.validRows).toBe(1);
+      expect(result.rows[0].errors).toEqual([]);
+      expect(result.rows[0].fieldWarnings).toEqual([
+        expect.stringMatching(/^Sex "XYZ" can't be used .*left blank\.$/),
+      ]);
+    });
+
+    it('blocks only a row with neither a common nor a scientific name', async () => {
+      const result = await service.previewImport(
+        csvFile(
+          'commonName,scientificName,remarks\nCivet,,\n,Paradoxurus,\n,,Unlabelled jar\n',
+        ),
+        CURATOR_ID,
+      );
+
+      expect(result.rows.map((row) => row.valid)).toEqual([true, true, false]);
+      expect(result.rows[2].errors).toEqual([
+        'Add a common name or a scientific name: a record needs at least one.',
+      ]);
     });
 
     it('reports the prototype header as unmapped without copying it into specimen data', async () => {
@@ -226,20 +282,45 @@ describe('SpecimenImportService', () => {
       expect(Object.getPrototypeOf(result.rows[0].data)).toBe(Object.prototype);
     });
 
-    it('flags a collectionId that does not exist', async () => {
+    it('leaves an unknown collection blank with a warning', async () => {
       collectionDelegate.findMany.mockResolvedValue([]);
-      const file = csvFile(`collectionId\n${COLLECTION_ID}\n`);
+      const file = csvFile(`collectionId,commonName\n${COLLECTION_ID},Civet\n`);
       const result = await service.previewImport(file, CURATOR_ID);
 
-      expect(result.rows[0].valid).toBe(false);
-      expect(result.rows[0].errors[0]).toContain('does not exist');
+      expect(result.rows[0].valid).toBe(true);
+      expect(result.rows[0].fieldWarnings).toEqual([
+        `Collection "${COLLECTION_ID}" was not found; it will be left blank. Choose the collection after importing.`,
+      ]);
+      expect(result.rows[0].catalogReadiness.missingRequirements).toContain(
+        'Collection is assigned',
+      );
+    });
+
+    it('matches a collection by name, ignoring case, but never an ambiguous name', async () => {
+      collectionDelegate.findMany.mockResolvedValue([
+        { id: COLLECTION_ID, collection_name: 'Mammals' },
+        { id: 'dup-1', collection_name: 'Insects' },
+        { id: 'dup-2', collection_name: 'insects ' },
+      ]);
+      const result = await service.previewImport(
+        csvFile('Collection,commonName\nmammals,Civet\nInsects,Beetle\n'),
+        CURATOR_ID,
+      );
+
+      expect(result.rows[0].fieldWarnings).toEqual([]);
+      expect(result.rows[0].catalogReadiness.missingRequirements).not.toContain(
+        'Collection is assigned',
+      );
+      expect(result.rows[1].fieldWarnings[0]).toContain(
+        'Collection "Insects" was not found',
+      );
     });
 
     it('blocks a row whose accession number is already assigned, case-insensitively', async () => {
       queryRawMock.mockResolvedValue([
         accessionHolderRow({ input_value: 'abc-100' }),
       ]);
-      const file = csvFile('accessionNumber\nabc-100\n');
+      const file = csvFile('accessionNumber,commonName\nabc-100,Civet\n');
       const result = await service.previewImport(file, CURATOR_ID);
 
       expect(result.rows[0].valid).toBe(false);
@@ -269,7 +350,7 @@ describe('SpecimenImportService', () => {
       queryRawMock.mockResolvedValue([
         accessionHolderRow({ status: 'ARCHIVED' }),
       ]);
-      const file = csvFile('accessionNumber\nABC-100\n');
+      const file = csvFile('accessionNumber,commonName\nABC-100,Civet\n');
       const result = await service.previewImport(file, CURATOR_ID);
 
       expect(result.rows[0].valid).toBe(false);
@@ -280,7 +361,7 @@ describe('SpecimenImportService', () => {
 
     it('blocks every row sharing an accession number within the file', async () => {
       const file = csvFile(
-        'accessionNumber\nABC-100\n abc-100 \nABC-200\nAbc-100\n',
+        'accessionNumber,commonName\nABC-100,A\n abc-100 ,B\nABC-200,C\nAbc-100,D\n',
       );
       const result = await service.previewImport(file, CURATOR_ID);
 
@@ -441,7 +522,7 @@ describe('SpecimenImportService', () => {
     });
 
     it('does not commit a row the preview marked invalid', async () => {
-      const file = csvFile('scientificName,gender\nTestus specimenus,Xyz\n');
+      const file = csvFile('remarks\nNo name given\n');
       const preview = await service.previewImport(file, CURATOR_ID);
       expect(preview.rows[0].valid).toBe(false);
 
@@ -646,7 +727,7 @@ describe('SpecimenImportService', () => {
       expect(result.rows[0].errors).toEqual([]);
     });
 
-    it('reports lot, taxonomy, and provenance problems as row errors', async () => {
+    it('imports the row and leaves out unusable lot, taxonomy and provenance values with warnings', async () => {
       const result = await service.previewImport(
         csvFile(
           [
@@ -661,26 +742,25 @@ describe('SpecimenImportService', () => {
       );
 
       const [first, second, third, fourth] = result.rows;
-      expect(first.valid).toBe(false);
-      expect(first.errors).toEqual(
-        expect.arrayContaining([
-          expect.stringMatching(/^Taxonomy: family/),
-          expect.stringMatching(/^Provenance: /),
-          'Lot: quantity must be a whole number of at least 1.',
-          expect.stringMatching(/^Lot: "Drawer 1" matches 2 storage units/),
-        ]),
-      );
-      expect(second.errors).toEqual(
-        expect.arrayContaining([
-          'Lot: quantity is required when a lot is given.',
-          'Lot: Storage unit "Zoology Room" is not configured to hold specimens.',
-        ]),
-      );
-      expect(third.errors).toEqual([
-        'Lot: conditionClass is required when a lot is given.',
+      expect(result.rows.every((row) => row.valid)).toBe(true);
+      expect(result.rows.every((row) => row.errors.length === 0)).toBe(true);
+      expect(first.fieldWarnings).toEqual([
+        expect.stringMatching(/^Family "x{57}\.\.\." can't be used/),
+        expect.stringMatching(/^Collection date "14\/03\/2026" can't be used/),
+        expect.stringMatching(
+          /^The lot in this row will not be imported: its quantity "0" is not a whole number of at least 1\. "Drawer 1" matches 2 storage units/,
+        ),
       ]);
-      expect(fourth.errors).toEqual([
-        expect.stringMatching(/^Lot: No active storage unit matches "Nowhere"/),
+      expect(second.fieldWarnings).toEqual([
+        'The lot in this row will not be imported: it has no quantity. Storage unit "Zoology Room" is not configured to hold specimens. Add it from the specimen\'s inventory after importing.',
+      ]);
+      expect(third.fieldWarnings).toEqual([
+        "The lot in this row will not be imported: it has no condition. Add it from the specimen's inventory after importing.",
+      ]);
+      expect(fourth.fieldWarnings).toEqual([
+        expect.stringMatching(
+          /^The lot in this row will not be imported: No active storage unit matches "Nowhere"/,
+        ),
       ]);
     });
 
@@ -750,7 +830,7 @@ describe('SpecimenImportService', () => {
           conditionClass: 'Good',
           quantity: 12,
           storageNotes: 'Top shelf',
-          reason: expect.stringMatching(/^Imported from CSV row 1 \(batch /),
+          reason: expect.stringMatching(/^Imported from row 1 \(batch /),
         }),
         CURATOR_ID,
       );
@@ -831,7 +911,9 @@ describe('SpecimenImportService', () => {
     });
 
     it('reports a row that meets every catalog requirement', async () => {
-      collectionDelegate.findMany.mockResolvedValue([{ id: COLLECTION_ID }]);
+      collectionDelegate.findMany.mockResolvedValue([
+        { id: COLLECTION_ID, collection_name: 'Mammals' },
+      ]);
 
       const result = await service.previewImport(
         csvFile(
@@ -895,11 +977,235 @@ describe('SpecimenImportService', () => {
         CURATOR_ID,
       );
 
-      expect(result.rows[0].valid).toBe(false);
+      expect(result.rows[0].valid).toBe(true);
+      expect(result.rows[0].fieldWarnings[0]).toContain(
+        'The lot in this row will not be imported',
+      );
       expect(result.rows[0].catalogReadiness.missingRequirements).toContain(
         'An active lot has positive quantity in a specimen-holding storage location',
       );
       expect(result.catalogReadyRows).toBe(0);
+    });
+  });
+
+  describe('import template', () => {
+    it('maps every template column and previews a filled row with no warnings', async () => {
+      storageUnitDelegate.findMany.mockResolvedValue(storageUnits());
+      collectionDelegate.findMany.mockResolvedValue([
+        { id: COLLECTION_ID, collection_name: 'Zoology Reference' },
+      ]);
+      const template = await readSheet(buildImportTemplate(), 'Specimens');
+      const header = template[0] as string[];
+      expect(header).toEqual(
+        IMPORT_TEMPLATE_COLUMNS.map((column) => column.header),
+      );
+
+      const values: Record<string, string> = {
+        'Accession Number': '000123',
+        'Common Name': 'Philippine tarsier',
+        'Scientific Name': 'Carlito syrichta',
+        'Specimen Category': 'Mammal',
+        Collection: 'zoology reference',
+        Kingdom: 'Animalia',
+        'Collection Date': '2020-01-01',
+        'Preservation Type': 'Dry',
+        'Preservation Method': 'Skin mount',
+        'Storage Unit': 'Zoology Room > Cabinet A > Drawer 1',
+        Condition: 'Good',
+        Quantity: '1',
+        Remarks: 'Template check',
+      };
+      const file = {
+        originalname: 'template.xlsx',
+        buffer: buildXlsx([
+          {
+            name: 'Specimens',
+            header,
+            rows: [header.map((column) => values[column] ?? null)],
+          },
+        ]).body,
+      } as Express.Multer.File;
+
+      const result = await service.previewImport(file, CURATOR_ID);
+      expect(result.unmappedColumns).toEqual([]);
+      expect(result.validRows).toBe(1);
+      // Every catalog requirement, including the collection and the lot.
+      expect(result.rows[0].catalogReadiness.missingRequirements).toEqual([]);
+      expect(result.rows[0].catalogReadiness.requirementsMet).toBe(true);
+      expect(result.rows[0].errors).toEqual([]);
+      expect(result.rows[0].fieldWarnings).toEqual([]);
+      expect(result.rows[0].data).toMatchObject({
+        accessionNumber: '000123',
+        collectionName: 'zoology reference',
+      });
+    });
+  });
+
+  it('lists every missing lot part in a readable warning', async () => {
+    const result = await service.previewImport(
+      csvFile('commonName,condition\nLizard,Fair'),
+      CURATOR_ID,
+    );
+    expect(result.rows[0].valid).toBe(true);
+    expect(result.rows[0].fieldWarnings).toEqual([
+      "The lot in this row will not be imported: it has no storage unit or quantity. Add it from the specimen's inventory after importing.",
+    ]);
+  });
+
+  describe('archived column (review of #317)', () => {
+    it.each([
+      [undefined, false],
+      ['', false],
+      ['  ', false],
+      ['No', false],
+      ['n', false],
+      ['FALSE', false],
+      ['0', false],
+      ['Yes', true],
+      ['true', true],
+      ['1', true],
+      ['Archived', true],
+      ['2026-11-10', true],
+      ['2026-11-10 14:05', true],
+      ['2026-11-10T06:05:00.000Z', true],
+    ])('reads %p as archived=%p without a warning', (value, archived) => {
+      expect(parseArchivedValue(value)).toEqual({ archived });
+    });
+
+    it.each(['maybe', '2026-13-45', '10/11/2026', 'archived later'])(
+      'treats the malformed value %p as archived, with a warning',
+      (value) => {
+        const result = parseArchivedValue(value);
+        expect(result.archived).toBe(true);
+        expect(result.warning).toContain(`Archived value "${value}"`);
+      },
+    );
+
+    it('selects only rows that are not archived, and explains a malformed value', async () => {
+      specimensServiceMock.createUncatalogedRecordFor.mockImplementation(
+        (_tx: unknown, dto: { commonName: string }) =>
+          Promise.resolve({ id: `created-${dto.commonName}` }),
+      );
+      const preview = await service.previewImport(
+        csvFile(
+          [
+            'commonName,Archived',
+            'Blank,',
+            'Said no,No',
+            'Said false,false',
+            'Timestamp,2026-11-10 14:05',
+            'Malformed,maybe',
+          ].join('\n'),
+        ),
+        CURATOR_ID,
+      );
+
+      expect(preview.rows.map((row) => row.archivedInSource)).toEqual([
+        false,
+        false,
+        false,
+        true,
+        true,
+      ]);
+      expect(preview.archivedRows).toBe(2);
+      expect(preview.rows[3].fieldWarnings).toEqual([]);
+      expect(preview.rows[4].fieldWarnings).toEqual([
+        expect.stringContaining('Archived value "maybe" was not recognized'),
+      ]);
+
+      const result = await service.commitImport(
+        preview.previewId,
+        undefined,
+        CURATOR_ID,
+      );
+      expect(result.results.map((row) => row.rowNumber)).toEqual([1, 2, 3]);
+    });
+  });
+
+  describe('skipped lots (review of #317)', () => {
+    beforeEach(() => {
+      storageUnitDelegate.findMany.mockResolvedValue(storageUnits());
+      specimensServiceMock.createUncatalogedRecordFor.mockImplementation(
+        (_tx: unknown, dto: { commonName: string }) =>
+          Promise.resolve({ id: `created-${dto.commonName}` }),
+      );
+      specimensServiceMock.findOneInTransaction.mockImplementation(
+        (_tx: unknown, id: string) => Promise.resolve({ id }),
+      );
+    });
+
+    it('never creates a lot that the preview left out, and reports it at preview and commit', async () => {
+      const preview = await service.previewImport(
+        csvFile(
+          [
+            'commonName,Storage Unit,Condition,Quantity',
+            'Kept,Cabinet A > Drawer 1,Good,2',
+            'Unresolved,Nowhere > Shelf 9,Good,3',
+            'Incomplete,,Fair,',
+          ].join('\n'),
+        ),
+        CURATOR_ID,
+      );
+
+      expect(
+        preview.rows.map((row) => [row.lotsToImport, row.lotsSkipped]),
+      ).toEqual([
+        [1, 0],
+        [0, 1],
+        [0, 1],
+      ]);
+      expect(preview).toMatchObject({ lotsToImport: 1, lotsSkipped: 2 });
+      expect(preview.rows[1].fieldWarnings.join(' ')).toContain(
+        'The lot in this row will not be imported',
+      );
+      // Skipped lots leave the record short of an active lot.
+      expect(preview.rows[1].catalogReadiness.missingRequirements).toContain(
+        'An active lot has positive quantity in a specimen-holding storage location',
+      );
+
+      const result = await service.commitImport(
+        preview.previewId,
+        undefined,
+        CURATOR_ID,
+      );
+
+      expect(result.createdCount).toBe(3);
+      expect(
+        result.results.map((row) => [
+          row.rowNumber,
+          row.lotsCreated,
+          row.lotsSkipped,
+        ]),
+      ).toEqual([
+        [1, 1, 0],
+        [2, 0, 1],
+        [3, 0, 1],
+      ]);
+      expect(result).toMatchObject({ lotsCreated: 1, lotsSkipped: 2 });
+      expect(lotsServiceMock.createInTransaction).toHaveBeenCalledTimes(1);
+      expect(lotsServiceMock.createInTransaction).toHaveBeenCalledWith(
+        prismaMock,
+        'created-Kept',
+        expect.objectContaining({ storageUnitId: DRAWER_ID, quantity: 2 }),
+        CURATOR_ID,
+      );
+
+      // A retry reports the same counts without creating anything again.
+      const retry = await service.commitImport(
+        preview.previewId,
+        undefined,
+        CURATOR_ID,
+      );
+      expect(retry).toMatchObject({ lotsCreated: 1, lotsSkipped: 2 });
+      expect(lotsServiceMock.createInTransaction).toHaveBeenCalledTimes(1);
+    });
+
+    it('marks a plain spreadsheet as not a backup restore', async () => {
+      const preview = await service.previewImport(
+        csvFile('commonName' + '\n' + 'Civet'),
+        CURATOR_ID,
+      );
+      expect(preview.restoreNotice).toBeNull();
     });
   });
 });

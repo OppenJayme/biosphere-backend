@@ -5,6 +5,11 @@ export interface XlsxSheet {
   name: string;
   header: string[];
   rows: XlsxCell[][];
+  /**
+   * Zero-based columns formatted as Text, so values typed into them later
+   * (in a template) stay text, keeping leading zeros.
+   */
+  textColumns?: number[];
 }
 
 export type XlsxCell = string | number | null;
@@ -97,7 +102,10 @@ function sheetXml(sheet: XlsxSheet, onTruncate: () => void): string {
         ...sheet.rows.slice(0, 200).map((row) => String(row[c] ?? '').length),
       );
       const w = Math.min(Math.max(longest + 2, 10), 60);
-      return `<col min="${c + 1}" max="${c + 1}" width="${w}" customWidth="1"/>`;
+      const style = sheet.textColumns?.includes(c)
+        ? ` style="${STYLE_QUOTED}"`
+        : '';
+      return `<col min="${c + 1}" max="${c + 1}" width="${w}"${style} customWidth="1"/>`;
     })
     .join('');
   return (

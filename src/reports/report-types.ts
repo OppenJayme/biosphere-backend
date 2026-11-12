@@ -11,11 +11,18 @@ export enum ReportType {
   AUDIT_LOG = 'AUDIT_LOG',
 }
 
+// The museum keeps reports, imports, exports and backups in Excel only
+// (2026-11-12 re-presentation), so XLSX is the one format generated.
 export enum ReportFormat {
-  PDF = 'PDF',
-  DOCX = 'DOCX',
-  CSV = 'CSV',
+  XLSX = 'XLSX',
 }
+
+/**
+ * Formats that may appear in report history: reports generated before the
+ * Excel-only change were recorded as PDF, DOCX or CSV.
+ */
+export const RECORDED_REPORT_FORMATS = ['XLSX', 'PDF', 'DOCX', 'CSV'] as const;
+export type RecordedReportFormat = (typeof RECORDED_REPORT_FORMATS)[number];
 
 export interface ReportDefinition {
   type: ReportType;
@@ -52,8 +59,7 @@ export const REPORT_DEFINITIONS: Record<ReportType, ReportDefinition> = {
     title: 'Consolidated Museum Operations Report',
     description:
       'Inventory summaries and changes, condition and category breakdowns, general inquiries, visit requests, QR and AR exhibits, and curator remarks for the period.',
-    // CSV is for detailed tabular data; this report is summary tables only.
-    formats: [ReportFormat.DOCX, ReportFormat.PDF],
+    formats: [ReportFormat.XLSX],
     periods: [
       ReportPeriodType.MONTHLY,
       ReportPeriodType.YEARLY,
@@ -67,7 +73,7 @@ export const REPORT_DEFINITIONS: Record<ReportType, ReportDefinition> = {
     type: ReportType.INVENTORY,
     title: 'Inventory Report',
     description: 'Complete or filtered specimen inventory.',
-    formats: [ReportFormat.PDF, ReportFormat.CSV, ReportFormat.DOCX],
+    formats: [ReportFormat.XLSX],
     periods: ALL_PERIODS,
     filters: INVENTORY_FILTERS,
     periodAppliesTo: 'Date the specimen was added.',
@@ -76,7 +82,7 @@ export const REPORT_DEFINITIONS: Record<ReportType, ReportDefinition> = {
     type: ReportType.INQUIRY_SUMMARY,
     title: 'General Inquiry Summary',
     description: 'Inquiry counts and details by period and status.',
-    formats: [ReportFormat.PDF, ReportFormat.CSV, ReportFormat.DOCX],
+    formats: [ReportFormat.XLSX],
     periods: ALL_PERIODS,
     filters: ['inquiryStatus', 'inquiryType'],
     periodAppliesTo: 'Date the inquiry was received.',
@@ -85,7 +91,7 @@ export const REPORT_DEFINITIONS: Record<ReportType, ReportDefinition> = {
     type: ReportType.VISIT_REQUEST_SUMMARY,
     title: 'Visit-Request Summary',
     description: 'Visit requests by period and status.',
-    formats: [ReportFormat.PDF, ReportFormat.CSV, ReportFormat.DOCX],
+    formats: [ReportFormat.XLSX],
     periods: ALL_PERIODS,
     filters: ['visitStatus'],
     periodAppliesTo: 'Date the visit request was submitted.',
@@ -95,7 +101,7 @@ export const REPORT_DEFINITIONS: Record<ReportType, ReportDefinition> = {
     title: 'QR and AR Exhibit Report',
     description:
       'Published, unpublished, disabled, and AR-enabled exhibit pages.',
-    formats: [ReportFormat.PDF, ReportFormat.CSV, ReportFormat.DOCX],
+    formats: [ReportFormat.XLSX],
     periods: ALL_PERIODS,
     filters: ['exhibitStatus', 'arEnabled'],
     periodAppliesTo: 'Date the exhibit page was created.',
@@ -105,7 +111,7 @@ export const REPORT_DEFINITIONS: Record<ReportType, ReportDefinition> = {
     title: 'Audit Log Report',
     description:
       'Recorded system activity and security events with the acting account, module, action, affected record, and result.',
-    formats: [ReportFormat.PDF, ReportFormat.CSV, ReportFormat.DOCX],
+    formats: [ReportFormat.XLSX],
     periods: ALL_PERIODS,
     filters: ['auditModule', 'auditAction', 'auditResult'],
     periodAppliesTo: 'Date and time the event was recorded.',

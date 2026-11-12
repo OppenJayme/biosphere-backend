@@ -1,6 +1,11 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { ReportPeriodType } from '../report-period';
-import { ReportFormat, ReportType } from '../report-types';
+import {
+  RECORDED_REPORT_FORMATS,
+  ReportFormat,
+  ReportType,
+} from '../report-types';
+import type { RecordedReportFormat } from '../report-types';
 
 export class ReportDefinitionEntity {
   @ApiProperty({ enum: ReportType })
@@ -46,8 +51,8 @@ export class ReportHistoryItem {
   @ApiProperty({ nullable: true, type: String })
   title!: string | null;
 
-  @ApiProperty({ enum: ReportFormat, nullable: true })
-  format!: ReportFormat | null;
+  @ApiProperty({ enum: RECORDED_REPORT_FORMATS, nullable: true })
+  format!: RecordedReportFormat | null;
 
   @ApiProperty({ nullable: true, type: String, example: 'September 2026' })
   periodLabel!: string | null;
@@ -106,8 +111,8 @@ export class LastGeneratedReport {
   @ApiProperty()
   title!: string;
 
-  @ApiProperty({ enum: ReportFormat })
-  format!: ReportFormat;
+  @ApiProperty({ enum: RECORDED_REPORT_FORMATS })
+  format!: RecordedReportFormat;
 
   @ApiProperty()
   generatedAt!: Date;
