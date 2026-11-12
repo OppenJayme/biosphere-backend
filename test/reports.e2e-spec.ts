@@ -1,5 +1,6 @@
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
+import readXlsxFile from 'read-excel-file/node';
 import request from 'supertest';
 import { App } from 'supertest/types';
 import { AppModule } from '../src/app.module';
@@ -106,9 +107,9 @@ describe('Reports (e2e)', () => {
     await app.close();
   });
 
-  const inquiryCsv = {
+  const inquiryReport = {
     type: 'INQUIRY_SUMMARY',
-    format: 'CSV',
+    format: 'XLSX',
     period: 'MONTHLY',
     month: '2026-09',
   };
@@ -118,7 +119,7 @@ describe('Reports (e2e)', () => {
     await request(app.getHttpServer())
       .post('/reports')
       .set('Authorization', `Bearer ${developerToken}`)
-      .send(inquiryCsv)
+      .send(inquiryReport)
       .expect(403);
   });
 
@@ -143,15 +144,25 @@ describe('Reports (e2e)', () => {
     const response = await request(app.getHttpServer())
       .post('/reports')
       .set('Authorization', `Bearer ${curatorToken}`)
-      .send(inquiryCsv)
+      .send(inquiryReport)
+      .buffer(true)
+      .parse((res, callback) => {
+        const chunks: Buffer[] = [];
+        res.on('data', (chunk: Buffer) => chunks.push(chunk));
+        res.on('end', () => callback(null, Buffer.concat(chunks)));
+      })
       .expect(200);
 
-    expect(response.headers['content-type']).toBe('text/csv; charset=utf-8');
+    expect(response.headers['content-type']).toBe(
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    );
     expect(response.headers['content-disposition']).toBe(
-      'attachment; filename="biosphere_inquiry-summary_2026-09.csv"',
+      'attachment; filename="biosphere_inquiry-summary_2026-09.xlsx"',
     );
     expect(response.headers['cache-control']).toBe('no-store');
-    expect(response.text).toContain('Juan dela Cruz');
+    const sheets = await readXlsxFile(response.body as Buffer);
+    const cells = sheets.flatMap((sheet) => sheet.data.flat());
+    expect(cells).toContain('Juan dela Cruz');
     expect(auditCreate).toHaveBeenCalledWith({
       data: expect.objectContaining({
         user_id: curatorAccountId,
@@ -162,10 +173,10 @@ describe('Reports (e2e)', () => {
 
   it('rejects malformed and unsupported requests with a readable message', async () => {
     const invalidBodies = [
-      { ...inquiryCsv, type: 'UNKNOWN' },
-      { ...inquiryCsv, format: 'XLSX' },
-      { ...inquiryCsv, unknown: true },
-      { ...inquiryCsv, publicDisplay: 'yes' },
+      { ...inquiryReport, type: 'UNKNOWN' },
+      { ...inquiryReport, format: 'PDF' },
+      { ...inquiryReport, unknown: true },
+      { ...inquiryReport, publicDisplay: 'yes' },
     ];
     for (const body of invalidBodies) {
       await request(app.getHttpServer())
@@ -178,7 +189,7 @@ describe('Reports (e2e)', () => {
     const response = await request(app.getHttpServer())
       .post('/reports')
       .set('Authorization', `Bearer ${curatorToken}`)
-      .send({ ...inquiryCsv, visitStatus: 'PENDING' })
+      .send({ ...inquiryReport, visitStatus: 'PENDING' })
       .expect(400);
     expect(response.body.message).toBe(
       'The General Inquiry Summary does not support these filters: visitStatus.',

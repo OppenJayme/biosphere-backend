@@ -25,6 +25,11 @@ import {
   authUsersPastInvite,
   ONBOARDING_PENDING_KEY,
 } from '../auth/onboarding';
+import {
+  RESEND_CURATOR_INVITE_ACTION,
+  resendCuratorInvite,
+  type ResentInvite,
+} from '../auth/invite-resend';
 import { OnboardCuratorDto } from './dto/onboard-curator.dto';
 import { UpdateCuratorStatusDto } from './dto/update-curator-status.dto';
 import { HandOverCuratorDto } from './dto/hand-over-curator.dto';
@@ -229,6 +234,48 @@ export class DeveloperService {
 
     // Nobody has used the link yet.
     return this.toCuratorAccountEntity(accountRow, false);
+  }
+
+  /**
+   * Emails a new password-setup link to a curator whose invitation is still
+   * pending (REQ-4.2-02), for example after the first link expired. Every
+   * attempt is audited without invitation secrets (REQ-4.1-11).
+   */
+  async resendCuratorInvite(
+    id: string,
+    actingDeveloperId: string,
+  ): Promise<CuratorAccountEntity> {
+    let resent: ResentInvite;
+    try {
+      resent = await resendCuratorInvite(
+        this.prisma,
+        this.supabase,
+        id,
+        this.buildFrontendRedirectUrl('/login/accept-invite'),
+      );
+    } catch (error) {
+      await this.recordAudit({
+        actingAuthUserId: actingDeveloperId,
+        action: RESEND_CURATOR_INVITE_ACTION,
+        affectedRecordId: id,
+        affectedRecordType: 'user_account',
+        status: 'FAILED',
+        details: { reason: this.errorMessage(error) },
+      });
+      throw error;
+    }
+
+    await this.recordAudit({
+      actingAuthUserId: actingDeveloperId,
+      action: RESEND_CURATOR_INVITE_ACTION,
+      affectedRecordId: id,
+      affectedRecordType: 'user_account',
+      status: 'SUCCESS',
+      details: { email: resent.email },
+    });
+
+    // A resend is only allowed while the invitation is still pending.
+    return this.toCuratorAccountEntity(resent.account, false);
   }
 
   async updateCuratorStatus(

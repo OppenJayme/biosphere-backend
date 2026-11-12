@@ -31,7 +31,7 @@ import {
   TRUNCATION_MARK,
   type XlsxCell,
   type XlsxSheet,
-} from './xlsx-writer';
+} from '../../common/excel/xlsx-writer';
 
 export const WEEKLY_EXPORT_TYPE = 'WEEKLY_EXCEL_EXPORT';
 export const MANUAL_EXPORT_TYPE = 'MANUAL_EXCEL_EXPORT';

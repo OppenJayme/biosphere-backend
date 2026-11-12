@@ -533,6 +533,91 @@ describe('DeveloperService', () => {
   // ===========================================================
   // updateCuratorStatus — REQ-4.2-03
   // ===========================================================
+  describe('resendCuratorInvite', () => {
+    const pendingCurator = {
+      id: 'curator-pending',
+      auth_user_id: 'auth-pending',
+      full_name: 'Juan dela Cruz',
+      role: 'CURATOR',
+      status: 'ACTIVE',
+      avatar_path: null,
+      created_at: new Date('2026-11-01T00:00:00.000Z'),
+      updated_at: new Date('2026-11-01T00:00:00.000Z'),
+    };
+
+    beforeEach(() => {
+      prismaMock.user_account.findUnique.mockResolvedValue(pendingCurator);
+      prismaMock.users.findUnique.mockResolvedValue({
+        email: 'juan@usc.edu.ph',
+        email_confirmed_at: null,
+      });
+      supabaseMock.auth.admin.inviteUserByEmail.mockResolvedValue({
+        data: { user: { id: 'auth-pending' } },
+        error: null,
+      });
+    });
+
+    it('emails a new link and audits the resend', async () => {
+      await expect(
+        service.resendCuratorInvite(
+          'curator-pending',
+          ACTING_DEVELOPER_AUTH_ID,
+        ),
+      ).resolves.toMatchObject({
+        id: 'curator-pending',
+        inviteAccepted: false,
+      });
+      expect(supabaseMock.auth.admin.inviteUserByEmail).toHaveBeenCalledWith(
+        'juan@usc.edu.ph',
+        { redirectTo: `${FRONTEND_URL}/login/accept-invite` },
+      );
+      expect(supabaseMock.auth.admin.updateUserById).not.toHaveBeenCalled();
+      expect(prismaMock.audit_log.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          action: 'RESEND_CURATOR_INVITE',
+          affected_record_id: 'curator-pending',
+          status: 'SUCCESS',
+        }),
+      });
+    });
+
+    it('refuses an inactive curator and audits the refusal', async () => {
+      prismaMock.user_account.findUnique.mockResolvedValue({
+        ...pendingCurator,
+        status: 'INACTIVE',
+      });
+
+      await expect(
+        service.resendCuratorInvite(
+          'curator-pending',
+          ACTING_DEVELOPER_AUTH_ID,
+        ),
+      ).rejects.toThrow(ConflictException);
+      expect(supabaseMock.auth.admin.inviteUserByEmail).not.toHaveBeenCalled();
+      expect(prismaMock.audit_log.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          action: 'RESEND_CURATOR_INVITE',
+          status: 'FAILED',
+        }),
+      });
+    });
+
+    it('treats a developer account as not found', async () => {
+      prismaMock.user_account.findUnique.mockResolvedValue({
+        ...pendingCurator,
+        role: 'DEVELOPER',
+      });
+
+      await expect(
+        service.resendCuratorInvite(
+          'curator-pending',
+          ACTING_DEVELOPER_AUTH_ID,
+        ),
+      ).rejects.toThrow(NotFoundException);
+      expect(supabaseMock.auth.admin.inviteUserByEmail).not.toHaveBeenCalled();
+    });
+  });
+
   describe('updateCuratorStatus', () => {
     const dto = {
       status: 'INACTIVE' as const,

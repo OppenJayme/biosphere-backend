@@ -131,7 +131,7 @@ describe('Archive read consistency on owned PostgreSQL', () => {
   it('consolidated statuses match effective archive membership while preserving totals and active quantities', async () => {
     const dto = Object.assign(new GenerateReportDto(), {
       type: ReportType.CONSOLIDATED_OPERATIONS,
-      format: ReportFormat.CSV,
+      format: ReportFormat.XLSX,
       period: ReportPeriodType.ALL_TIME,
     });
     const result = await new ReportBuilderService(prisma).build({

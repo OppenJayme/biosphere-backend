@@ -1,5 +1,26 @@
 # BioSphere Reports Guide
 
+## Excel-only reports - 2026-11-12
+
+The museum keeps reports, imports, exports and backups in Excel only (decision
+for the 2026-11-12 re-presentation). Every report type is now generated as an
+`.xlsx` workbook (`format: "XLSX"`); PDF, DOCX and CSV are no longer offered,
+and requests for them are rejected with `400`. The `pdfkit` and `docx`
+dependencies were removed.
+
+Each workbook has a **Summary** sheet first (title, institution, period,
+generation time and account, the confidentiality notice where it applies,
+headings, notes and key figures in reading order), then one sheet per table,
+named after its section heading. The detail table always appears with every
+column, one field per column; the narrowed "printed" table that stacked two
+fields per cell for portrait pages is replaced by it. Text that starts with
+`=`, `+`, `-`, `@`, a tab or a carriage return is stored with Excel's quote
+prefix, so it shows and stays as text and never runs as a formula.
+
+Report history still lists earlier PDF, DOCX and CSV generations with their
+recorded format. The PDF/DOCX letterhead and 12 pt print rules below describe
+those earlier files only. The `assets/reports` logos are no longer read.
+
 ## Archive-read consistency - 2026-11-04
 
 Consolidated active category, condition and lot quantity breakdowns now exclude
@@ -64,16 +85,16 @@ are public or available to Developer accounts.
 
 | `type` | Formats | Periods | Filters |
 | --- | --- | --- | --- |
-| `CONSOLIDATED_OPERATIONS` | DOCX, PDF | MONTHLY, YEARLY, CUSTOM | `remarks` |
-| `INVENTORY` | PDF, CSV, DOCX | any | `specimenStatus`, `category`, `kingdom`, `phylum`, `taxonClass`, `taxonOrder`, `family`, `genus`, `species`, `conditionClass`, `storageUnitId`, `includeDescendantUnits`, `publicDisplay` |
-| `INQUIRY_SUMMARY` | PDF, CSV, DOCX | any | `inquiryStatus`, `inquiryType` |
-| `VISIT_REQUEST_SUMMARY` | PDF, CSV, DOCX | any | `visitStatus` |
-| `QR_AR_EXHIBITS` | PDF, CSV, DOCX | any | `exhibitStatus`, `arEnabled` |
-| `AUDIT_LOG` | PDF, CSV, DOCX | any | `auditModule`, `auditAction`, `auditResult` |
+| `CONSOLIDATED_OPERATIONS` | XLSX | MONTHLY, YEARLY, CUSTOM | `remarks` |
+| `INVENTORY` | XLSX | any | `specimenStatus`, `category`, `kingdom`, `phylum`, `taxonClass`, `taxonOrder`, `family`, `genus`, `species`, `conditionClass`, `storageUnitId`, `includeDescendantUnits`, `publicDisplay` |
+| `INQUIRY_SUMMARY` | XLSX | any | `inquiryStatus`, `inquiryType` |
+| `VISIT_REQUEST_SUMMARY` | XLSX | any | `visitStatus` |
+| `QR_AR_EXHIBITS` | XLSX | any | `exhibitStatus`, `arEnabled` |
+| `AUDIT_LOG` | XLSX | any | `auditModule`, `auditAction`, `auditResult` |
 
-The Consolidated report is summary tables only, so it has no CSV export. Its
-DOCX is a separate editable file; editing it never changes BioSphere records
-(REQ-4.7-16).
+The Consolidated report is summary tables only, so its workbook has no detail
+sheet. The workbook is a separate editable file; editing it never changes
+BioSphere records (REQ-4.7-16).
 
 The Consolidated report covers, for the period: specimens added, catalog
 completions, specimens archived, lot activity and quantity adjustments,
@@ -96,7 +117,7 @@ audited, so a new export includes earlier report generations.
 ```json
 {
   "type": "INVENTORY",
-  "format": "PDF",
+  "format": "XLSX",
   "period": "MONTHLY",
   "month": "2026-09",
   "family": "Papilionidae",
@@ -118,8 +139,8 @@ audited, so a new export includes earlier report generations.
 ## Failures
 
 Invalid requests return `400` with a message the UI can show, for example
-"The Consolidated Museum Operations Report is not available as CSV. Choose DOCX
-or PDF." A detail report that would exceed 10,000 rows is refused with a
+"The Consolidated Museum Operations Report needs a monthly, yearly, or custom
+period." A detail report that would exceed 10,000 rows is refused with a
 message to narrow the period or filters, rather than exported incomplete.
 Unexpected errors return `500` with a generic message and no file. Every
 failure after body validation is audited with `status: FAILED`.
@@ -133,6 +154,10 @@ start, end), `filters`, `rowCount`, and `fileName`, or `error` on failure
 (REQ-4.7-14). Remarks are recorded only as `true`, never their text.
 
 ## Output notes
+
+The notes below on page layout, fonts, CSV encoding and printed columns apply
+to PDF, DOCX and CSV files generated before 2026-11-12. Current output is
+described in "Excel-only reports - 2026-11-12" at the top of this guide.
 
 - Confidential reports (Inventory, Inquiry, Visit-Request, and Audit Log) carry a
   confidentiality notice on the first page and in every page footer or header.

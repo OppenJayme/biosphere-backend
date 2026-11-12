@@ -32,6 +32,19 @@ export class ImportCatalogReadiness {
   missingRequirements!: string[];
 }
 
+export class ImportLotSheetSummary {
+  @ApiProperty({ description: 'Active lots matched to a row' })
+  matched!: number;
+
+  @ApiProperty({ description: 'Inactive lots, which are not imported' })
+  inactive!: number;
+
+  @ApiProperty({
+    description: 'Lots whose specimen is not in the Specimens sheet',
+  })
+  unmatched!: number;
+}
+
 export class SpecimenImportPreviewRow {
   @ApiProperty()
   rowNumber!: number;
@@ -39,8 +52,19 @@ export class SpecimenImportPreviewRow {
   @ApiProperty({ type: ImportSpecimenRowDto })
   data!: ImportSpecimenRowDto;
 
-  @ApiProperty({ type: [String] })
+  @ApiProperty({
+    type: [String],
+    description:
+      'Blocking problems only: a missing name, an accession number that is taken or repeated, or a blank row',
+  })
   errors!: string[];
+
+  @ApiProperty({
+    type: [String],
+    description:
+      'Values or lots that will be left out so the row can still be imported (unusable optional values, unknown collections, incomplete lots)',
+  })
+  fieldWarnings!: string[];
 
   @ApiProperty({ type: [String] })
   duplicateWarnings!: string[];
@@ -54,6 +78,24 @@ export class SpecimenImportPreviewRow {
 
   @ApiProperty()
   valid!: boolean;
+
+  @ApiProperty({
+    description:
+      'The source file marks this record as archived (for example a backup workbook). It is left unselected by default and is imported as a new Uncataloged record if chosen.',
+  })
+  archivedInSource!: boolean;
+
+  @ApiProperty({
+    description:
+      'Lots that will be created with this record (from the row and the Lots sheet)',
+  })
+  lotsToImport!: number;
+
+  @ApiProperty({
+    description:
+      'Lots in the source that are missing parts or cannot be resolved; they are not created, and fieldWarnings says why',
+  })
+  lotsSkipped!: number;
 
   @ApiProperty({
     description:
@@ -85,6 +127,30 @@ export class SpecimenImportPreviewResult {
   @ApiProperty({ type: [String] })
   unmappedColumns!: string[];
 
+  @ApiProperty({
+    type: ImportLotSheetSummary,
+    nullable: true,
+    description:
+      'How the rows of a "Lots" sheet (as in a backup workbook) were matched; null when the file has no Lots sheet',
+  })
+  lotSheet!: ImportLotSheetSummary | null;
+
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description:
+      'Set for a backup workbook: what a re-import brings back and what it does not',
+  })
+  restoreNotice!: string | null;
+
+  @ApiProperty({ description: 'Lots that valid rows will create' })
+  lotsToImport!: number;
+
+  @ApiProperty({
+    description: 'Lots on valid rows that will not be created',
+  })
+  lotsSkipped!: number;
+
   @ApiProperty()
   totalRows!: number;
 
@@ -101,6 +167,14 @@ export class SpecimenImportPreviewResult {
     description: 'Valid rows that meet every catalog requirement',
   })
   catalogReadyRows!: number;
+
+  @ApiProperty({
+    description: 'Valid rows that will be imported with some values left out',
+  })
+  rowsWithFieldWarnings!: number;
+
+  @ApiProperty({ description: 'Rows the source file marks as archived' })
+  archivedRows!: number;
 }
 
 export class SpecimenImportCommitRowResult {
@@ -115,6 +189,17 @@ export class SpecimenImportCommitRowResult {
 
   @ApiPropertyOptional({ type: [String] })
   errors?: string[];
+
+  @ApiPropertyOptional({
+    description: 'Lots created with the record (successful rows only)',
+  })
+  lotsCreated?: number;
+
+  @ApiPropertyOptional({
+    description:
+      'Lots left out at preview and not created (successful rows only); add them from the inventory',
+  })
+  lotsSkipped?: number;
 }
 
 export class SpecimenImportCommitResult {
@@ -129,4 +214,12 @@ export class SpecimenImportCommitResult {
 
   @ApiProperty()
   failedCount!: number;
+
+  @ApiProperty({ description: 'Lots created across the saved rows' })
+  lotsCreated!: number;
+
+  @ApiProperty({
+    description: 'Lots on the saved rows that were not created',
+  })
+  lotsSkipped!: number;
 }

@@ -1,11 +1,22 @@
 import { BadRequestException } from '@nestjs/common';
 import { strFromU8, unzipSync, zipSync } from 'fflate';
-import { readSheet } from 'read-excel-file/node';
+import { readSheet, SheetNotFoundError } from 'read-excel-file/node';
 import { SaxesParser } from 'saxes';
 
 const MAX_EXPANDED_BYTES = 20 * 1024 * 1024;
 const MAX_ENTRIES = 128;
 const MAX_COLUMNS = 100;
+/** Worksheets the import reads; every other sheet is skipped. */
+export const SPECIMENS_SHEET = 'Specimens';
+export const LOTS_SHEET = 'Lots';
+/** A specimen can have several lots, so the Lots sheet may run longer. */
+const LOTS_PER_SPECIMEN = 5;
+/**
+ * Sheets the import does not read (for example the visitor sheets of a
+ * weekly backup workbook) still pass the XML safety checks, with a looser
+ * row bound; the 20 MB expanded limit caps them overall.
+ */
+const OTHER_SHEET_MAX_ROWS = 200_000;
 const fail = (message: string): never => {
   throw new BadRequestException(message);
 };
@@ -103,12 +114,47 @@ function checkXmlPart(xml: string, maxRows: number): void {
   parser.write(xml).close();
 }
 
+export interface XlsxImportSheets {
+  specimens: Record<string, string>[];
+  /** Rows of a "Lots" sheet (as in a backup workbook), or null if absent. */
+  lots: Record<string, string>[] | null;
+}
+
+/**
+ * Maps each worksheet name to its XML part, so the row limit can be strict
+ * for the sheets the import reads and looser for the rest.
+ */
+function sheetParts(files: Record<string, Uint8Array>): Map<string, string> {
+  const parts = new Map<string, string>();
+  const workbook = files['xl/workbook.xml'];
+  const rels = files['xl/_rels/workbook.xml.rels'];
+  if (!workbook || !rels) return parts;
+  const targets = new Map<string, string>();
+  for (const match of strFromU8(rels).matchAll(/<Relationship\b[^>]*>/g)) {
+    const id = /\bId="([^"]+)"/.exec(match[0])?.[1];
+    const target = /\bTarget="([^"]+)"/.exec(match[0])?.[1];
+    if (id && target) {
+      targets.set(
+        id,
+        target.startsWith('/') ? target.slice(1) : `xl/${target}`,
+      );
+    }
+  }
+  for (const match of strFromU8(workbook).matchAll(/<sheet\b[^>]*>/g)) {
+    const name = /\bname="([^"]+)"/.exec(match[0])?.[1];
+    const id = /\br:id="([^"]+)"/.exec(match[0])?.[1];
+    const part = id ? targets.get(id) : undefined;
+    if (name && part) parts.set(part, name);
+  }
+  return parts;
+}
+
 /** No filesystem extraction, formula evaluation or remote workbook references. */
 export async function parseXlsxImport(
   buffer: Buffer,
   maxRows: number,
   isAccessionHeader: (header: string) => boolean,
-): Promise<Record<string, string>[]> {
+): Promise<XlsxImportSheets> {
   try {
     let expanded = 0;
     const seen = new Set<string>();
@@ -144,74 +190,95 @@ export async function parseXlsxImport(
     });
     if (!files['xl/workbook.xml'] || !files['[Content_Types].xml'])
       fail('Upload a valid XLSX workbook.');
+    const sheetNames = sheetParts(files);
     for (const [name, data] of Object.entries(files)) {
       if (!/\.(xml|rels)$/i.test(name)) continue;
       const xml = strFromU8(data);
-      checkXmlPart(xml, maxRows);
+      const sheet = sheetNames.get(name);
+      checkXmlPart(
+        xml,
+        sheet === undefined || sheet === SPECIMENS_SHEET
+          ? maxRows
+          : sheet === LOTS_SHEET
+            ? maxRows * LOTS_PER_SPECIMEN
+            : OTHER_SHEET_MAX_ROWS,
+      );
     }
     // Repackage bounded entries so a second ZIP reader never trusts original size metadata.
-    const rows = (await readSheet<{ numeric: string }>(
-      Buffer.from(zipSync(files, { level: 0 })),
-      'Specimens',
-      {
+    const workbook = Buffer.from(zipSync(files, { level: 0 }));
+    const read = async (sheet: string) =>
+      (await readSheet<{ numeric: string }>(workbook, sheet, {
         parseNumber: (numeric) => ({ numeric }),
-      },
-    )) as unknown[][];
-    if (!rows.length) return [];
-    const headers = rows[0].map((value) => {
-      if (typeof value !== 'string' || !value.trim())
-        fail('XLSX headers must be non-empty text values.');
-      return (value as string).trim();
-    });
-    const normalized = headers.map((h) =>
-      h.toLowerCase().replace(/[\s_-]+/g, ''),
-    );
-    if (new Set(normalized).size !== headers.length)
-      fail('The XLSX contains duplicate column headers.');
-    return rows.slice(1).map((row) => {
-      if (
-        row.length > headers.length &&
-        row.slice(headers.length).some((value) => value != null)
-      ) {
-        fail('Every XLSX data column needs a header.');
-      }
-      return Object.fromEntries(
-        headers.map((header, i) => {
-          const value = row[i];
-          if (value == null) return [header, ''];
-          if (typeof value === 'string' || typeof value === 'boolean')
-            return [header, String(value)];
-          if (value instanceof Date) {
-            if (
-              normalized[i] !== 'collectiondate' ||
-              !Number.isFinite(value.getTime()) ||
-              value.toISOString().slice(11) !== '00:00:00.000Z'
-            ) {
-              fail(
-                'Use a date-only collection date and text values for other fields.',
-              );
-            }
-            return [header, value.toISOString().slice(0, 10)];
-          }
-          if (
-            typeof value === 'object' &&
-            'numeric' in value &&
-            typeof value.numeric === 'string'
-          ) {
-            if (isAccessionHeader(header))
-              fail(
-                'Format accession numbers as Text in Excel to preserve leading zeros.',
-              );
-            return [header, value.numeric];
-          }
-          return fail('The XLSX contains an unsupported cell value.');
-        }),
-      );
-    });
+      })) as unknown[][];
+    const specimens = toRecords(await read(SPECIMENS_SHEET), isAccessionHeader);
+    let lots: Record<string, string>[] | null = null;
+    try {
+      lots = toRecords(await read(LOTS_SHEET), () => false);
+    } catch (error) {
+      if (!(error instanceof SheetNotFoundError)) throw error;
+    }
+    return { specimens, lots };
   } catch (error) {
     if (error instanceof BadRequestException) throw error;
     throw new BadRequestException(
-      'The XLSX could not be read. Use a valid workbook with a worksheet named Specimens and literal cell values.',
+      `The XLSX could not be read. Use a valid workbook with a worksheet named ${SPECIMENS_SHEET} and literal cell values.`,
     );
   }
+}
+
+/** Header row plus data rows to records keyed by header, as text. */
+function toRecords(
+  rows: unknown[][],
+  isAccessionHeader: (header: string) => boolean,
+): Record<string, string>[] {
+  if (!rows.length) return [];
+  const headers = rows[0].map((value) => {
+    if (typeof value !== 'string' || !value.trim())
+      fail('XLSX headers must be non-empty text values.');
+    return (value as string).trim();
+  });
+  const normalized = headers.map((h) =>
+    h.toLowerCase().replace(/[\s_-]+/g, ''),
+  );
+  if (new Set(normalized).size !== headers.length)
+    fail('The XLSX contains duplicate column headers.');
+  return rows.slice(1).map((row) => {
+    if (
+      row.length > headers.length &&
+      row.slice(headers.length).some((value) => value != null)
+    ) {
+      fail('Every XLSX data column needs a header.');
+    }
+    return Object.fromEntries(
+      headers.map((header, i) => {
+        const value = row[i];
+        if (value == null) return [header, ''];
+        if (typeof value === 'string' || typeof value === 'boolean')
+          return [header, String(value)];
+        if (value instanceof Date) {
+          if (!Number.isFinite(value.getTime()))
+            fail('The XLSX contains an invalid date.');
+          // Excel stores dates without a time zone; the reader returns
+          // them as UTC midnight, so the date part is the cell's date.
+          const iso = value.toISOString();
+          return [
+            header,
+            iso.slice(11) === '00:00:00.000Z' ? iso.slice(0, 10) : iso,
+          ];
+        }
+        if (
+          typeof value === 'object' &&
+          'numeric' in value &&
+          typeof value.numeric === 'string'
+        ) {
+          if (isAccessionHeader(header))
+            fail(
+              'Format accession numbers as Text in Excel to preserve leading zeros.',
+            );
+          return [header, value.numeric];
+        }
+        return fail('The XLSX contains an unsupported cell value.');
+      }),
+    );
+  });
 }

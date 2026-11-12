@@ -170,6 +170,9 @@ describe('Specimens (e2e)', () => {
         findUnique: jest.fn(({ where }: { where: { id: string } }) =>
           where.id === collectionId ? { id: collectionId } : null,
         ),
+        findMany: jest.fn(() => [
+          { id: collectionId, collection_name: 'E2E collection' },
+        ]),
       },
       specimen_lot: { count: jest.fn(() => 0) },
       specimen_revision_history: revisionDelegate,
@@ -355,7 +358,7 @@ describe('Specimens (e2e)', () => {
     );
   });
 
-  describe('reviewed CSV HTTP workflow', () => {
+  describe('reviewed import HTTP workflow', () => {
     it('rejects repeated unclosed XML tags within a bounded HTTP response time', async () => {
       const malformed = xlsxFixture(
         { Specimens: [['commonName'], ['Test']] },
@@ -665,26 +668,35 @@ describe('Specimens (e2e)', () => {
       'Invalid gender,BAD_VALUE,,',
       'Future date,UNKNOWN,2099-01-01,',
       'Invalid collection,UNKNOWN,,not-a-uuid',
+      ',UNKNOWN,,',
     ].join('\n');
 
-    const preview = (format = 'csv') =>
+    const preview = () =>
       request(app.getHttpServer())
         .post('/specimens/import/preview')
         .set('Authorization', `Bearer ${curatorToken}`)
         .attach(
           'file',
-          format === 'xlsx'
-            ? xlsxFixture({
-                Specimens: csv.split('\n').map((row) => row.split(',')),
-              })
-            : Buffer.from(csv),
-          `cataloging-http.${format}`,
+          xlsxFixture({
+            Specimens: csv.split('\n').map((row) => row.split(',')),
+          }),
+          'cataloging-http.xlsx',
         );
 
-    it.each(['csv', 'xlsx'])(
+    it('refuses a CSV upload: imports are Excel only', async () => {
+      const response = await request(app.getHttpServer())
+        .post('/specimens/import/preview')
+        .set('Authorization', `Bearer ${curatorToken}`)
+        .attach('file', Buffer.from(csv), 'cataloging-http.csv')
+        .expect(400);
+      expect(response.body.message).toContain('Only Excel (.xlsx) files');
+      expect(specimenDelegate.create).not.toHaveBeenCalled();
+    });
+
+    it.each(['xlsx'])(
       'commits only a selected valid %s row and reuses its record on retry',
-      async (format) => {
-        const reviewed = await preview(format).expect(201);
+      async () => {
+        const reviewed = await preview().expect(201);
         const previewId = reviewed.body.previewId as string;
         const commit = () =>
           request(app.getHttpServer())
@@ -739,26 +751,12 @@ describe('Specimens (e2e)', () => {
       const result = await request(app.getHttpServer())
         .post('/specimens/import/commit')
         .set('Authorization', `Bearer ${curatorToken}`)
-        .send({ previewId: reviewed.body.previewId, rowNumbers: [3, 4, 5, 99] })
+        .send({ previewId: reviewed.body.previewId, rowNumbers: [6, 99] })
         .expect(201);
-      expect(result.body).toMatchObject({ createdCount: 0, failedCount: 4 });
+      expect(result.body).toMatchObject({ createdCount: 0, failedCount: 2 });
       expect(result.body.results).toEqual([
         {
-          rowNumber: 3,
-          success: false,
-          errors: [
-            'This row failed preview validation and cannot be committed.',
-          ],
-        },
-        {
-          rowNumber: 4,
-          success: false,
-          errors: [
-            'This row failed preview validation and cannot be committed.',
-          ],
-        },
-        {
-          rowNumber: 5,
+          rowNumber: 6,
           success: false,
           errors: [
             'This row failed preview validation and cannot be committed.',
@@ -797,34 +795,44 @@ describe('Specimens (e2e)', () => {
       expect(specimenDelegate.create).toHaveBeenCalledTimes(1);
     });
 
-    it.each(['csv', 'xlsx'])(
+    it.each(['xlsx'])(
       'previews mixed %s rows without changing specimens or audit history',
-      async (format) => {
+      async () => {
         const before = await request(app.getHttpServer())
           .get('/specimens')
           .set('Authorization', `Bearer ${curatorToken}`)
           .expect(200);
-        const result = await preview(format).expect(201);
+        const result = await preview().expect(201);
         expect(result.body).toMatchObject({
-          totalRows: 5,
-          validRows: 2,
-          invalidRows: 3,
+          totalRows: 6,
+          validRows: 5,
+          invalidRows: 1,
+          rowsWithFieldWarnings: 3,
         });
         const rows = result.body.rows as Array<{
           rowNumber: number;
           valid: boolean;
           errors: string[];
+          fieldWarnings: string[];
         }>;
         expect(rows.map((row) => [row.rowNumber, row.valid])).toEqual([
           [1, true],
           [2, true],
-          [3, false],
-          [4, false],
-          [5, false],
+          [3, true],
+          [4, true],
+          [5, true],
+          [6, false],
         ]);
-        expect(rows[2].errors.join(' ')).toContain('gender');
-        expect(rows[3].errors.join(' ')).toContain('on or before today');
-        expect(rows[4].errors.join(' ')).toContain('collectionId');
+        // Unusable optional values are left blank with a warning.
+        expect(rows[2].fieldWarnings.join(' ')).toContain('Sex "BAD_VALUE"');
+        expect(rows[3].fieldWarnings.join(' ')).toContain('on or before today');
+        expect(rows[4].fieldWarnings.join(' ')).toContain(
+          'Collection "not-a-uuid" was not found',
+        );
+        // Only a missing name blocks a row.
+        expect(rows[5].errors).toEqual([
+          'Add a common name or a scientific name: a record needs at least one.',
+        ]);
         const after = await request(app.getHttpServer())
           .get('/specimens')
           .set('Authorization', `Bearer ${curatorToken}`)

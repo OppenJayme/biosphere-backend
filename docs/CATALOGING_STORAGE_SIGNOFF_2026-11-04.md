@@ -6,6 +6,77 @@ This is the finite acceptance handoff for these two modules. It does not sign
 off Inventory, FAQ, Offline, Audit, Reports or the entire project. Source PR
 approval and a passing engineering test are evidence, not module acceptance.
 
+## DCISM read-only smoke checkpoint - 2026-11-11
+
+Target: `https://biosphere.dcism.org`, using an existing Curator account in a
+separate Edge test session. This checkpoint was executed by Codex under Kyer's
+direction; it is owner engineering evidence, not independent acceptance.
+
+The local source references at execution were backend `main`
+`751169154fd0093dd1e9c1e7a9eed8d680d31d0f` and frontend `main`
+`a69330f089d1079bf2dd7dc0e2d68bac879a5f3c`. These identify the inspected local
+sources only. The running DCISM source/build revisions were not verified.
+Deployment provenance remains a reviewer/coordinator follow-up.
+
+| Check | Observed result |
+| --- | --- |
+| `/cataloging` | Cataloging Queue title and Cataloging/Records awaiting catalog work headings rendered without login redirection or nonempty alert messages |
+| `/specimens` | Specimens, Selected Specimen and Offline specimen workspace headings rendered without nonempty alert messages |
+| `/storage` | Storage hierarchy, selected location, child locations, movement history and management headings rendered without nonempty alert messages |
+| Show archived locations | Click triggered navigation; the settled URL contained `archived=1` and the checkbox was checked |
+| Return to default Storage view | Opening `/storage` restored the unchecked archived toggle |
+
+The immediate Playwright `check()` assertion initially reported an unchanged
+checkbox before the navigation settled. Subsequent inspection confirmed the
+checked state and URL. This timing observation alone does not establish an
+application defect. This pass did not assert archived contents/counts or
+archived-record read-only enforcement; retain their earlier scoped evidence.
+
+No create, edit, archive, move or import controls were submitted. Normal session
+activity and device-local cache effects are outside that statement. No source
+change, deployment, database migration or backend restart was part of this
+checkpoint. Credentials and browser session state are excluded from this handoff.
+
+Limits: page loads and one view toggle do not prove record completeness,
+mutation persistence, role denial, imports, concurrency, full accessibility or
+module acceptance. Existing case/defect dispositions and the decision record
+below remain unchanged. Sanitized observations are recorded above so review
+does not depend on workstation-only artifacts.
+
+### Requested teammate review
+
+1. Read the five decisions and linked evidence below. Distinguish evidence you
+   reviewed from steps you personally executed; do not repeat every historical
+   test merely because it is listed.
+2. Record the target, date, and verified frontend/backend release or build
+   identity. If a deployed revision is unknown, mark it unknown and request the
+   deployment owner's confirmation rather than infer it from local Git.
+3. On DCISM as Curator, check the Cataloging queue, specimen selection/details,
+   and ordinary search/filter behavior. Check Storage selection, its archived
+   toggle, and an existing archived location's read-only history if available.
+   Record actual results and any unavailable fixtures.
+4. Do not modify real holdings or create Inventory lots for this review. If
+   missing evidence requires a write test, first agree a named test fixture and
+   bounded steps with the relevant owner. A read-only review does not establish
+   write behavior.
+5. Review the pending case/defect dispositions listed below and identify either
+   accepted scoped evidence, an explicitly accepted limitation, a reproducible
+   failure, or a still-pending decision. Security and data-integrity gaps must
+   not be silently waived.
+6. Reply in the PR using this template. An accepted scope must state its
+   boundaries; leave the decision record pending until the named decisions exist.
+
+```text
+Reviewer / role / date:
+Target and verified frontend/backend release or build (unknown if unverified):
+CAT/STO cases and defect IDs reviewed:
+Existing evidence reviewed:
+Steps personally executed and actual results:
+Failures and reproduction steps / unavailable fixtures:
+Accepted limitations and unresolved items:
+Decision: Accepted for the stated scope / Changes required / Pending
+```
+
 ## Five acceptance decisions - reconciled 2026-11-05
 
 Snapshot: merged backend `51f6764`. This is a decision checklist using existing
@@ -241,6 +312,27 @@ apply/verify it against the confirmed target **before starting/deploying the
 claimed; this review-fix PR does not apply that later migration. The next release
 preflight must compare against its own source migration set, not reuse this
 historical ten-migration result.
+
+## DCISM read-only follow-up - 2026-11-12
+
+Codex executed the [signed-in walkthrough](./CATALOGING_STORAGE_LIVE_READONLY_2026-11-12.md)
+after the user manually authenticated as Curator. Specimen selection, GET filter
+submission, Clear all's actual search/gender reset, details, existing media image,
+attached/reusable tags, revision-history rendering and the Cataloging queue passed
+within the stated smoke scope. Storage's archived toggle persisted after reload;
+the selected active room showed separate active/archived child counts.
+
+No archived Storage fixture was available, so this run does not verify archived
+badges, search exclusion, historical direct links or read-only mutation controls.
+The selected-cover POST was blocked by the read-only guard; its resulting error
+is not a product failure or a successful cover-preview retest. Existing media
+loaded on the dedicated media page. No record mutations were attempted.
+
+Today's running frontend/backend SHAs remain unconfirmed. This checkpoint does
+not supersede the identified November 6 evidence or establish equivalence to it.
+The reviewer should assess the combined evidence and identify only specific
+remaining gaps; this does not restart every historical test or close defects.
+Owner and independent acceptance below remain pending.
 
 ## Decision record
 

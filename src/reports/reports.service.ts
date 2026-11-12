@@ -27,10 +27,14 @@ import {
   resolveReportPeriod,
   type ResolvedReportPeriod,
 } from './report-period';
-import { REPORT_DEFINITIONS, ReportFormat, ReportType } from './report-types';
-import { renderCsv } from './renderers/csv.renderer';
-import { renderDocx } from './renderers/docx.renderer';
-import { renderPdf } from './renderers/pdf.renderer';
+import {
+  RECORDED_REPORT_FORMATS,
+  REPORT_DEFINITIONS,
+  ReportFormat,
+  ReportType,
+} from './report-types';
+import type { RecordedReportFormat } from './report-types';
+import { renderXlsx } from './renderers/xlsx.renderer';
 
 export const REPORT_AUDIT_MODULE = 'reports';
 export const REPORT_AUDIT_ACTION = 'GENERATE_REPORT';
@@ -42,10 +46,8 @@ export interface GeneratedReport {
 }
 
 const CONTENT_TYPES: Record<ReportFormat, string> = {
-  [ReportFormat.PDF]: 'application/pdf',
-  [ReportFormat.DOCX]:
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  [ReportFormat.CSV]: 'text/csv; charset=utf-8',
+  [ReportFormat.XLSX]:
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
 };
 
 type ReportAuditDetails = {
@@ -305,17 +307,8 @@ function render(
   format: ReportFormat,
 ): Promise<Buffer> {
   switch (format) {
-    case ReportFormat.PDF:
-      return renderPdf(document);
-    case ReportFormat.DOCX:
-      return renderDocx(document);
-    case ReportFormat.CSV:
-      if (!document.csvTable) {
-        throw new BadRequestException(
-          `The ${document.title} has no CSV export.`,
-        );
-      }
-      return Promise.resolve(renderCsv(document.csvTable));
+    case ReportFormat.XLSX:
+      return Promise.resolve(renderXlsx(document));
   }
 }
 
@@ -388,6 +381,6 @@ function isReportType(value: unknown): value is ReportType {
   return Object.values(ReportType).includes(value as ReportType);
 }
 
-function isReportFormat(value: unknown): value is ReportFormat {
-  return Object.values(ReportFormat).includes(value as ReportFormat);
+function isReportFormat(value: unknown): value is RecordedReportFormat {
+  return RECORDED_REPORT_FORMATS.includes(value as RecordedReportFormat);
 }
