@@ -313,6 +313,27 @@ claimed; this review-fix PR does not apply that later migration. The next releas
 preflight must compare against its own source migration set, not reuse this
 historical ten-migration result.
 
+## DCISM read-only follow-up - 2026-11-12
+
+Codex executed the [signed-in walkthrough](./CATALOGING_STORAGE_LIVE_READONLY_2026-11-12.md)
+after the user manually authenticated as Curator. Specimen selection, GET filter
+submission, Clear all's actual search/gender reset, details, existing media image,
+attached/reusable tags, revision-history rendering and the Cataloging queue passed
+within the stated smoke scope. Storage's archived toggle persisted after reload;
+the selected active room showed separate active/archived child counts.
+
+No archived Storage fixture was available, so this run does not verify archived
+badges, search exclusion, historical direct links or read-only mutation controls.
+The selected-cover POST was blocked by the read-only guard; its resulting error
+is not a product failure or a successful cover-preview retest. Existing media
+loaded on the dedicated media page. No record mutations were attempted.
+
+Today's running frontend/backend SHAs remain unconfirmed. This checkpoint does
+not supersede the identified November 6 evidence or establish equivalence to it.
+The reviewer should assess the combined evidence and identify only specific
+remaining gaps; this does not restart every historical test or close defects.
+Owner and independent acceptance below remain pending.
+
 ## Decision record
 
 | Module | Kyer acceptance/date | Ivan acceptance/date | Independent reviewer/date | Result | Accepted limitations and evidence |
