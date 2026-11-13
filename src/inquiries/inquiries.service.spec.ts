@@ -68,7 +68,10 @@ describe('InquiriesService', () => {
       Promise.resolve(callback(prisma)),
   );
   const visitRequestsService = { createFromReferral: jest.fn() };
-  const submissionNotifications = { announce: jest.fn() };
+  const submissionNotifications = {
+    announce: jest.fn(),
+    announceReferral: jest.fn(),
+  };
   let service: InquiriesService;
 
   beforeEach(() => {
@@ -464,8 +467,17 @@ describe('InquiriesService', () => {
           visitorCount: 20,
           preferredSchedules: referral.preferredSchedules,
           consentAcceptedAt: CREATED_AT,
+          note: 'Teacher asked for a guided tour.',
         },
         CURATOR_ID,
+      );
+      // The visitor learns the new reference only after the referral commits.
+      expect(submissionNotifications.announceReferral).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: VISIT_ID,
+          sourceInquiryId: INQUIRY_ID,
+          visitorEmail: 'juan@example.com',
+        }),
       );
       expect(historyDelegate.create).toHaveBeenCalledWith({
         data: expect.objectContaining({
@@ -473,7 +485,7 @@ describe('InquiriesService', () => {
           communication_type: 'REFERRAL',
           message:
             'Status changed from PENDING to TURNED_TO_VISIT_REQUEST.\n\n' +
-            `Referred to visit request ${VISIT_ID}.\n\n` +
+            `Referred to visit request ${VISIT_ID.slice(0, 8).toUpperCase()}.\n\n` +
             'Teacher asked for a guided tour.',
         }),
       });
