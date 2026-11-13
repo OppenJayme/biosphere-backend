@@ -94,7 +94,11 @@ describe('Inquiries and visit requests (e2e)', () => {
       { date: '2030-10-15', startTime: '09:00', endTime: '11:00' },
       { date: '2030-10-16', startTime: '13:00', endTime: '15:00' },
     ],
-    visitorCount: 20,
+    visitorCount: 2,
+    visitors: [
+      { firstName: 'Ana', lastName: 'Reyes' },
+      { firstName: 'Ben', lastName: 'Cruz' },
+    ],
     consentAccepted: true,
   };
 
@@ -420,7 +424,6 @@ describe('Inquiries and visit requests (e2e)', () => {
         .post('/visit-requests')
         .send({
           ...validVisit,
-          visitors: [{ firstName: 'Ana', lastName: 'Reyes' }],
           bringingVehicle: true,
           vehicles: [
             { plateNumber: 'ABC 1234', carBrand: 'Toyota' },
@@ -440,7 +443,10 @@ describe('Inquiries and visit requests (e2e)', () => {
           { preference_order: 1 },
           { preference_order: 2 },
         ],
-        visit_request_visitor: [{ visitor_name: 'Ana Reyes' }],
+        visit_request_visitor: [
+          { visitor_name: 'Ana Reyes' },
+          { visitor_name: 'Ben Cruz' },
+        ],
         visit_request_vehicle: [
           {
             plate_number: 'ABC 1234',
@@ -499,6 +505,65 @@ describe('Inquiries and visit requests (e2e)', () => {
         },
       ],
       ['zero visitors', { ...validVisit, visitorCount: 0 }],
+      ['no visitor names', { ...validVisit, visitors: undefined }],
+      ['an empty visitor list', { ...validVisit, visitors: [] }],
+      ['fewer names than visitors', { ...validVisit, visitorCount: 3 }],
+      ['more names than visitors', { ...validVisit, visitorCount: 1 }],
+      [
+        'a visitor without a last name',
+        {
+          ...validVisit,
+          visitors: [
+            { firstName: 'Ana', lastName: 'Reyes' },
+            { firstName: 'Ben' },
+          ],
+        },
+      ],
+      [
+        'a blank last name',
+        {
+          ...validVisit,
+          visitors: [
+            { firstName: 'Ana', lastName: 'Reyes' },
+            { firstName: 'Ben', lastName: '   ' },
+          ],
+        },
+      ],
+      [
+        'a plate number over 15 characters',
+        {
+          ...validVisit,
+          bringingVehicle: true,
+          vehicles: [{ plateNumber: 'P'.repeat(16) }],
+        },
+      ],
+      [
+        'a car brand over 40 characters',
+        {
+          ...validVisit,
+          bringingVehicle: true,
+          vehicles: [{ plateNumber: 'ABC 1234', carBrand: 'B'.repeat(41) }],
+        },
+      ],
+      [
+        'a car type over 40 characters',
+        {
+          ...validVisit,
+          bringingVehicle: true,
+          vehicles: [{ plateNumber: 'ABC 1234', carType: 'T'.repeat(41) }],
+        },
+      ],
+      [
+        'more than 200 visitors',
+        {
+          ...validVisit,
+          visitorCount: 201,
+          visitors: Array.from({ length: 201 }, (_, index) => ({
+            firstName: `Visitor${index}`,
+            lastName: 'Cruz',
+          })),
+        },
+      ],
       [
         'bringing a vehicle with none listed',
         { ...validVisit, bringingVehicle: true },
@@ -918,7 +983,7 @@ describe('Inquiries and visit requests (e2e)', () => {
         visitRequestId: visitId,
         organization: validVisit.organization,
         approvedSchedule: { date: '2030-10-16' },
-        visitorCount: 20,
+        visitorCount: validVisit.visitorCount,
       });
 
       await request(app.getHttpServer())

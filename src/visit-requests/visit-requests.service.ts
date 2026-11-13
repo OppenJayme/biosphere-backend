@@ -140,10 +140,8 @@ export class VisitRequestsService {
             create: this.toPreferredDateRows(dto.preferredSchedules),
           },
           visit_request_visitor: {
-            create: (dto.visitors ?? []).map((visitor) => ({
-              visitor_name: [visitor.firstName, visitor.lastName]
-                .filter(Boolean)
-                .join(' '),
+            create: dto.visitors.map((visitor) => ({
+              visitor_name: `${visitor.firstName} ${visitor.lastName}`,
             })),
           },
           visit_request_vehicle: {
@@ -803,10 +801,11 @@ export class VisitRequestsService {
     }));
   }
 
+  // Campus entry needs every visitor's name, so the list must match the count.
   private assertVisitorsValid(dto: CreateVisitRequestDto): void {
-    if ((dto.visitors?.length ?? 0) > dto.visitorCount) {
+    if (dto.visitors.length !== dto.visitorCount) {
       throw new BadRequestException(
-        'visitors cannot list more people than visitorCount.',
+        'visitors must list one name for each of the visitorCount visitors.',
       );
     }
   }
