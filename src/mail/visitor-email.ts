@@ -6,6 +6,15 @@ export function referenceCode(id: string): string {
   return id.slice(0, 8).toUpperCase();
 }
 
+// A curator's own subject keeps the "(Ref XXXXXXXX)" tag, which the mailbox
+// sync falls back on when a reply loses its In-Reply-To header (a curator
+// subject "Email Approval" was seen without it on 2026-11-13).
+export function withReference(subject: string, reference: string): string {
+  return subject.toUpperCase().includes(reference.toUpperCase())
+    ? subject
+    : `${subject} (Ref ${reference})`;
+}
+
 // Matches a reference code typed into curator search.
 export const REFERENCE_CODE_PATTERN = /^[0-9a-f]{8}$/i;
 

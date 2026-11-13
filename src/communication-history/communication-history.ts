@@ -6,7 +6,7 @@ import { CommunicationEntry } from './communication-history.entity';
 // a curator's behalf; INBOUND entries are visitor replies imported from the
 // museum mailbox (team approved 2026-11-11, spec 0002; the SRS text for the
 // outbound-only rule in BR-22 / REQ-4.9-14 still has to be reworded).
-// INBOUND entries have no acting curator.
+// INBOUND entries and system receipts (RECEIPT_EMAIL) have no acting curator.
 export const CommunicationDirection = {
   INTERNAL: 'INTERNAL',
   OUTBOUND: 'OUTBOUND',
@@ -25,6 +25,10 @@ export const CommunicationType = {
   MESSAGE_EMAIL: 'MESSAGE_EMAIL',
   // Visitor email reply matched to this record by the mailbox sync.
   VISITOR_REPLY: 'VISITOR_REPLY',
+  // Automatic receipt sent when a request is submitted or created from a
+  // referral (REQ-4.8-08, REQ-4.9-07). Kept on the timeline so a visitor
+  // reply to it has context and matches by In-Reply-To.
+  RECEIPT_EMAIL: 'RECEIPT_EMAIL',
 } as const;
 
 export type CommunicationType =
@@ -33,11 +37,13 @@ export type CommunicationType =
 export type CommunicationTarget =
   { inquiryId: string } | { visitRequestId: string };
 
+// recordedBy is null only for entries BioSphere adds by itself, such as the
+// pointer left when a visitor reply is filed on a referred visit request.
 export async function recordInternalEntry(
   client: Prisma.TransactionClient,
   params: {
     target: CommunicationTarget;
-    recordedBy: string;
+    recordedBy: string | null;
     type: CommunicationType;
     message: string;
   },
@@ -54,14 +60,14 @@ export async function recordInternalEntry(
   return toCommunicationEntry(created);
 }
 
-// Records an email BioSphere sent (or tried to send) for a curator, with
-// the delivery result, so the timeline shows whether it went out
-// (REQ-4.8-09, REQ-4.9-11/14).
+// Records an email BioSphere sent (or tried to send), with the delivery
+// result, so the timeline shows whether it went out (REQ-4.8-09,
+// REQ-4.9-11/14). recordedBy is null only for automatic receipts.
 export async function recordOutboundEmail(
   client: Prisma.TransactionClient,
   params: {
     target: CommunicationTarget;
-    recordedBy: string;
+    recordedBy: string | null;
     type: CommunicationType;
     recipientEmail: string;
     subject: string;
