@@ -153,22 +153,29 @@ export class NotificationsService {
     accountId?: string,
   ): Promise<CuratorNotificationFeed> {
     const select = { id: true, created_at: true };
-    const [inquiries, visitRequests, operational, changes, incomplete] =
-      await Promise.all([
-        this.prisma.inquiry.findMany({
-          where: { status: 'PENDING' },
-          select,
-          orderBy: PENDING_ORDER,
-        }),
-        this.prisma.visit_request.findMany({
-          where: { status: 'PENDING' },
-          select,
-          orderBy: PENDING_ORDER,
-        }),
-        this.operationalAlerts(accountId),
-        accountId ? this.changeEventAlerts(accountId) : [],
-        this.incompleteRecordAlerts(),
-      ]);
+    const [
+      inquiries,
+      visitRequests,
+      operational,
+      changes,
+      incomplete,
+      visitorReplies,
+    ] = await Promise.all([
+      this.prisma.inquiry.findMany({
+        where: { status: 'PENDING' },
+        select,
+        orderBy: PENDING_ORDER,
+      }),
+      this.prisma.visit_request.findMany({
+        where: { status: 'PENDING' },
+        select,
+        orderBy: PENDING_ORDER,
+      }),
+      this.operationalAlerts(accountId),
+      accountId ? this.changeEventAlerts(accountId) : [],
+      this.incompleteRecordAlerts(),
+      this.unansweredVisitorReplies(),
+    ]);
 
     const pendingIds = [...inquiries, ...visitRequests].map((row) => row.id);
     const failures =
@@ -228,6 +235,7 @@ export class NotificationsService {
           ? { id: `SUBMISSION_EMAIL_FAILED:${row.id}` }
           : {}),
       })),
+      ...visitorReplies,
       ...operational,
       ...changes,
       ...incomplete,
@@ -247,6 +255,51 @@ export class NotificationsService {
       incompleteRecords: incomplete.length,
       items: items.slice(0, limit),
     };
+  }
+
+  // Visitor replies from the last CHANGE_EVENT_DAYS days that no curator has
+  // followed up: no curator-recorded entry (email, note, status change) on
+  // the same record after the reply. Without this a reply is only seen by
+  // opening the record. Keyed VISITOR_REPLY:<entry id> for the state table.
+  private async unansweredVisitorReplies(): Promise<CuratorNotification[]> {
+    const rows = await this.prisma.$queryRaw<
+      Array<{
+        id: string;
+        inquiry_id: string | null;
+        visit_request_id: string | null;
+        created_at: Date;
+      }>
+    >`
+      SELECT c.id, c.inquiry_id, c.visit_request_id, c.created_at
+      FROM public.communication_history c
+      WHERE c.direction = 'INBOUND'
+        AND c.created_at >= CURRENT_TIMESTAMP - make_interval(days => ${CHANGE_EVENT_DAYS})
+        AND NOT EXISTS (
+          SELECT 1 FROM public.communication_history r
+          WHERE r.recorded_by IS NOT NULL
+            AND r.created_at > c.created_at
+            AND (r.inquiry_id = c.inquiry_id OR r.visit_request_id = c.visit_request_id)
+        )
+      ORDER BY c.created_at DESC, c.id ASC
+    `;
+    return rows.flatMap((row) => {
+      const recordId = row.visit_request_id ?? row.inquiry_id;
+      if (!recordId) return [];
+      return [
+        {
+          ...this.toNotification(
+            CuratorNotificationType.VISITOR_REPLY,
+            row.visit_request_id
+              ? NotificationRecordType.VISIT_REQUEST
+              : NotificationRecordType.INQUIRY,
+            'A visitor replied by email',
+            recordId,
+            row.created_at,
+          ),
+          id: `${CuratorNotificationType.VISITOR_REPLY}:${row.id}`,
+        },
+      ];
+    });
   }
 
   // Failures that stay internal (REQ-4.3-10). Sync and report failures belong

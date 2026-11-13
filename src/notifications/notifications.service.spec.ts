@@ -161,6 +161,7 @@ describe('NotificationsService', () => {
       reports?: unknown[];
       changes?: unknown[];
       incomplete?: unknown[];
+      replies?: unknown[];
     }) {
       prisma.$queryRaw.mockImplementation((strings: TemplateStringsArray) => {
         const sql = strings.join('?');
@@ -170,12 +171,49 @@ describe('NotificationsService', () => {
           return Promise.resolve(rows.changes ?? []);
         if (sql.includes('FROM public.specimen s'))
           return Promise.resolve(rows.incomplete ?? []);
+        if (sql.includes('FROM public.communication_history c'))
+          return Promise.resolve(rows.replies ?? []);
         return Promise.resolve(rows.reports ?? []);
       });
     }
     function sqlOf(call: number) {
       return (prisma.$queryRaw.mock.calls[call][0] as string[]).join('?');
     }
+
+    it('alerts curators to visitor replies nobody has followed up', async () => {
+      const ENTRY = '77777777-7777-4777-8777-777777777777';
+      const VISIT = '5b2c0e7d-3333-4333-8333-333333333333';
+      unresolvedRows({
+        replies: [
+          {
+            id: ENTRY,
+            inquiry_id: null,
+            visit_request_id: VISIT,
+            created_at: new Date('2026-11-14T03:10:00Z'),
+          },
+        ],
+      });
+
+      const feed = await service.getFeed(20, ACCOUNT);
+
+      expect(feed.items).toContainEqual(
+        expect.objectContaining({
+          id: `VISITOR_REPLY:${ENTRY}`,
+          type: 'VISITOR_REPLY',
+          title: 'A visitor replied by email',
+          recordType: 'visit_request',
+          recordId: VISIT,
+          referenceCode: '5B2C0E7D',
+        }),
+      );
+      const sql = (prisma.$queryRaw.mock.calls as Array<[string[]]>)
+        .map(([strings]) => strings.join('?'))
+        .find((text) => text.includes('FROM public.communication_history c'));
+      // Cleared by any later curator-recorded entry on the same record.
+      expect(sql).toContain("c.direction = 'INBOUND'");
+      expect(sql).toContain('r.recorded_by IS NOT NULL');
+      expect(sql).toContain('r.created_at > c.created_at');
+    });
 
     it('maps unresolved sync failures for the acting curator', async () => {
       unresolvedRows({
@@ -318,9 +356,10 @@ describe('NotificationsService', () => {
     it('omits personal and change alerts without an account', async () => {
       await service.getFeed();
 
-      // Only the shared incomplete-record lookup runs.
-      expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
+      // Only the shared incomplete-record and visitor-reply lookups run.
+      expect(prisma.$queryRaw).toHaveBeenCalledTimes(2);
       expect(sqlOf(0)).toContain('FROM public.specimen s');
+      expect(sqlOf(1)).toContain('FROM public.communication_history c');
     });
 
     it('maps significant changes by other curators to one alert per event', async () => {
