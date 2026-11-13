@@ -9,10 +9,13 @@ export function referenceCode(id: string): string {
 // A curator's own subject keeps the "(Ref XXXXXXXX)" tag, which the mailbox
 // sync falls back on when a reply loses its In-Reply-To header (a curator
 // subject "Email Approval" was seen without it on 2026-11-13).
+// Only the full "(Ref XXXXXXXX)" marker for this record counts: a bare code
+// typed into the subject, or another record's marker, still gets this one.
 export function withReference(subject: string, reference: string): string {
-  return subject.toUpperCase().includes(reference.toUpperCase())
-    ? subject
-    : `${subject} (Ref ${reference})`;
+  // Reference codes are 8 hex characters, so they are safe inside a pattern.
+  const code = reference.toUpperCase();
+  const marker = new RegExp(String.raw`\(\s*Ref\s+${code}\s*\)`, 'i');
+  return marker.test(subject) ? subject : `${subject} (Ref ${code})`;
 }
 
 // Matches a reference code typed into curator search.
