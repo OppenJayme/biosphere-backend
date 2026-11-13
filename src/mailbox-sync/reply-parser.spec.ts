@@ -27,6 +27,19 @@ const message = (
 });
 
 describe('reply parser', () => {
+  it('takes the last reference when a subject quotes another record', () => {
+    const parsed = parseGmailMessage(
+      message(
+        {
+          From: 'maria@example.com',
+          Subject: 'Re: About visit (Ref 14D4337D) (Ref E2C89B18)',
+        },
+        [{ mimeType: 'text/plain', text: 'Thanks' }],
+      ),
+    );
+    expect(parsed.reference).toBe('E2C89B18');
+  });
+
   it('reads headers, reference code, and the plain-text reply', () => {
     const parsed = parseGmailMessage(
       message(

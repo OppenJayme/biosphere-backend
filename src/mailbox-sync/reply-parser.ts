@@ -5,7 +5,14 @@
 export const MAX_REPLY_LENGTH = 10_000;
 
 // "(Ref 9A81836F)" as written in every BioSphere visitor email subject.
-const SUBJECT_REFERENCE = /\bRef\s+([0-9a-f]{8})\b/i;
+const SUBJECT_REFERENCE = /\bRef\s+([0-9a-f]{8})\b/gi;
+
+// The last reference wins: BioSphere appends its own marker after a
+// curator's subject text, which may quote another record's "(Ref …)".
+function lastReference(subject: string): string | null {
+  const matches = [...subject.matchAll(SUBJECT_REFERENCE)];
+  return matches.at(-1)?.[1]?.toUpperCase() ?? null;
+}
 const MESSAGE_ID = /<[^<>\s]+>/g;
 // Postgres text rejects NUL, and other control characters only garble the
 // timeline; tabs and newlines stay.
@@ -63,7 +70,7 @@ export function parseGmailMessage(message: GmailMessage): ParsedReply {
     ],
     from,
     subject,
-    reference: SUBJECT_REFERENCE.exec(subject)?.[1]?.toUpperCase() ?? null,
+    reference: lastReference(subject),
     receivedAt: new Date(Number(message.internalDate ?? Date.now())),
     // Out-of-office and mailing-list mail must not land in a timeline.
     automated:
