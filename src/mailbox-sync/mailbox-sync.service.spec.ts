@@ -45,7 +45,7 @@ describe('MailboxSyncService', () => {
     gmail_sync_state: { findUnique: jest.fn(), upsert: jest.fn() },
     communication_history: { findFirst: jest.fn(), create: jest.fn() },
     inquiry: { findMany: jest.fn() },
-    visit_request: { findMany: jest.fn() },
+    visit_request: { findMany: jest.fn(), findFirst: jest.fn() },
     audit_log: { create: jest.fn() },
     $transaction: jest.fn(),
   };
@@ -74,6 +74,7 @@ describe('MailboxSyncService', () => {
     prisma.communication_history.findFirst.mockResolvedValue(null);
     prisma.inquiry.findMany.mockResolvedValue([]);
     prisma.visit_request.findMany.mockResolvedValue([]);
+    prisma.visit_request.findFirst.mockResolvedValue(null);
     prisma.communication_history.create.mockImplementation(
       ({ data }: { data: Record<string, unknown> }) =>
         Promise.resolve({ id: 'entry-1', created_at: NOW, ...data }),
@@ -152,6 +153,63 @@ describe('MailboxSyncService', () => {
         last_error: null,
       }),
       update: expect.objectContaining({ last_success_at: NOW }),
+    });
+  });
+
+  it('files a reply on a referred inquiry on its visit request, with a pointer', async () => {
+    messages.r1 = gmailMessage('r1', {
+      From: 'juan@example.com',
+      Subject: 'Re: your BioSphere museum inquiry (Ref 9A81836F)',
+    });
+    prisma.inquiry.findMany.mockResolvedValue([{ id: INQUIRY_ID }]);
+    prisma.visit_request.findFirst.mockResolvedValue({
+      id: VISIT_ID,
+      email_address: 'Juan@Example.com',
+    });
+
+    await expect(service.sync()).resolves.toMatchObject({ imported: 1 });
+
+    expect(prisma.visit_request.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { source_inquiry_id: INQUIRY_ID } }),
+    );
+    expect(prisma.communication_history.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        visit_request_id: VISIT_ID,
+        direction: 'INBOUND',
+      }),
+    });
+    expect(prisma.communication_history.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        inquiry_id: INQUIRY_ID,
+        direction: 'INTERNAL',
+        recorded_by: null,
+        message: expect.stringContaining('filed on visit request 9A81836F'),
+      }),
+    });
+    expect(prisma.audit_log.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        affected_record_id: VISIT_ID,
+        details: { entryId: 'entry-1', forwardedFromInquiryId: INQUIRY_ID },
+      }),
+    });
+  });
+
+  it('keeps a reply on the inquiry when its referral went to another address', async () => {
+    messages.r1 = gmailMessage('r1', {
+      From: 'juan@example.com',
+      Subject: 'Re: your BioSphere museum inquiry (Ref 9A81836F)',
+    });
+    prisma.inquiry.findMany.mockResolvedValue([{ id: INQUIRY_ID }]);
+    prisma.visit_request.findFirst.mockResolvedValue({
+      id: VISIT_ID,
+      email_address: 'someone-else@example.com',
+    });
+
+    await expect(service.sync()).resolves.toMatchObject({ imported: 1 });
+
+    expect(prisma.communication_history.create).toHaveBeenCalledTimes(1);
+    expect(prisma.communication_history.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ inquiry_id: INQUIRY_ID }),
     });
   });
 
