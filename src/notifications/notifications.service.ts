@@ -30,6 +30,12 @@ import {
   REPORT_AUDIT_MODULE,
 } from '../reports/reports.service';
 import { REPORT_TIMEZONE } from '../reports/report-period';
+import {
+  MAX_VISITOR_REPLY_ALERTS,
+  unansweredReplies,
+} from './visitor-reply-alerts';
+
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 const PENDING_ORDER = [{ created_at: 'desc' as const }, { id: 'asc' as const }];
 
@@ -261,28 +267,45 @@ export class NotificationsService {
   // followed up: no curator-recorded entry (email, note, status change) on
   // the same record after the reply. Without this a reply is only seen by
   // opening the record. Keyed VISITOR_REPLY:<entry id> for the state table.
-  private async unansweredVisitorReplies(): Promise<CuratorNotification[]> {
-    const rows = await this.prisma.$queryRaw<
-      Array<{
-        id: string;
-        inquiry_id: string | null;
-        visit_request_id: string | null;
-        created_at: Date;
-      }>
-    >`
-      SELECT c.id, c.inquiry_id, c.visit_request_id, c.created_at
-      FROM public.communication_history c
-      WHERE c.direction = 'INBOUND'
-        AND c.created_at >= CURRENT_TIMESTAMP - make_interval(days => ${CHANGE_EVENT_DAYS})
-        AND NOT EXISTS (
-          SELECT 1 FROM public.communication_history r
-          WHERE r.recorded_by IS NOT NULL
-            AND r.created_at > c.created_at
-            AND (r.inquiry_id = c.inquiry_id OR r.visit_request_id = c.visit_request_id)
-        )
-      ORDER BY c.created_at DESC, c.id ASC
-    `;
-    return rows.flatMap((row) => {
+  // Two bounded queries instead of a correlated subquery: the replies read is
+  // capped, and the follow-up read uses the existing inquiry_id and
+  // visit_request_id indexes.
+  private async unansweredVisitorReplies(
+    now = new Date(),
+  ): Promise<CuratorNotification[]> {
+    const since = new Date(now.getTime() - CHANGE_EVENT_DAYS * DAY_MS);
+    const replies = await this.prisma.communication_history.findMany({
+      where: { direction: 'INBOUND', created_at: { gte: since } },
+      select: {
+        id: true,
+        inquiry_id: true,
+        visit_request_id: true,
+        created_at: true,
+      },
+      orderBy: [{ created_at: 'desc' }, { id: 'asc' }],
+      take: MAX_VISITOR_REPLY_ALERTS,
+    });
+    if (replies.length === 0) return [];
+
+    const ids = (column: 'inquiry_id' | 'visit_request_id') => [
+      ...new Set(
+        replies.flatMap((reply) => (reply[column] ? [reply[column]] : [])),
+      ),
+    ];
+    const followUps = await this.prisma.communication_history.findMany({
+      where: {
+        // Only curator-recorded entries answer a reply; see unansweredReplies.
+        recorded_by: { not: null },
+        created_at: { gt: replies[replies.length - 1].created_at },
+        OR: [
+          { inquiry_id: { in: ids('inquiry_id') } },
+          { visit_request_id: { in: ids('visit_request_id') } },
+        ],
+      },
+      select: { inquiry_id: true, visit_request_id: true, created_at: true },
+    });
+
+    return unansweredReplies(replies, followUps).flatMap((row) => {
       const recordId = row.visit_request_id ?? row.inquiry_id;
       if (!recordId) return [];
       return [

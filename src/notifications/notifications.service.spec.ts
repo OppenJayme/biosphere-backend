@@ -1,4 +1,5 @@
 import { PrismaService } from '../prisma/prisma.service';
+import { CuratorNotificationType } from './entities/curator-notification.entity';
 import { NotificationsService } from './notifications.service';
 
 const INQUIRY_ID = '11111111-1111-4111-8111-111111111111';
@@ -12,6 +13,7 @@ describe('NotificationsService', () => {
     audit_log: { findMany: jest.fn() },
     backup_history: { findMany: jest.fn() },
     offline_draft_sync: { findMany: jest.fn() },
+    communication_history: { findMany: jest.fn() },
     $queryRaw: jest.fn(),
   };
   let service: NotificationsService;
@@ -31,6 +33,7 @@ describe('NotificationsService', () => {
     prisma.audit_log.findMany.mockResolvedValue([]);
     prisma.backup_history.findMany.mockResolvedValue([]);
     prisma.offline_draft_sync.findMany.mockResolvedValue([]);
+    prisma.communication_history.findMany.mockResolvedValue([]);
     prisma.$queryRaw.mockResolvedValue([]);
     service = new NotificationsService(prisma as unknown as PrismaService);
   });
@@ -161,7 +164,6 @@ describe('NotificationsService', () => {
       reports?: unknown[];
       changes?: unknown[];
       incomplete?: unknown[];
-      replies?: unknown[];
     }) {
       prisma.$queryRaw.mockImplementation((strings: TemplateStringsArray) => {
         const sql = strings.join('?');
@@ -171,8 +173,6 @@ describe('NotificationsService', () => {
           return Promise.resolve(rows.changes ?? []);
         if (sql.includes('FROM public.specimen s'))
           return Promise.resolve(rows.incomplete ?? []);
-        if (sql.includes('FROM public.communication_history c'))
-          return Promise.resolve(rows.replies ?? []);
         return Promise.resolve(rows.reports ?? []);
       });
     }
@@ -180,39 +180,114 @@ describe('NotificationsService', () => {
       return (prisma.$queryRaw.mock.calls[call][0] as string[]).join('?');
     }
 
-    it('alerts curators to visitor replies nobody has followed up', async () => {
+    describe('visitor replies', () => {
       const ENTRY = '77777777-7777-4777-8777-777777777777';
+      const OTHER = '77777777-7777-4777-8777-777777777778';
       const VISIT = '5b2c0e7d-3333-4333-8333-333333333333';
-      unresolvedRows({
-        replies: [
+      const INQUIRY = '6c3d1f8e-4444-4444-8444-444444444444';
+      const repliedAt = new Date('2026-11-14T03:10:00Z');
+
+      // First call: inbound replies; second: curator follow-ups.
+      function history(replies: unknown[], followUps: unknown[] = []) {
+        prisma.communication_history.findMany
+          .mockResolvedValueOnce(replies)
+          .mockResolvedValueOnce(followUps);
+      }
+
+      it('alerts curators to a reply nobody has followed up', async () => {
+        history([
           {
             id: ENTRY,
             inquiry_id: null,
             visit_request_id: VISIT,
-            created_at: new Date('2026-11-14T03:10:00Z'),
+            created_at: repliedAt,
           },
-        ],
+        ]);
+
+        const feed = await service.getFeed(20, ACCOUNT);
+
+        expect(feed.items).toContainEqual(
+          expect.objectContaining({
+            id: `VISITOR_REPLY:${ENTRY}`,
+            type: 'VISITOR_REPLY',
+            title: 'A visitor replied by email',
+            recordType: 'visit_request',
+            recordId: VISIT,
+            referenceCode: '5B2C0E7D',
+          }),
+        );
       });
 
-      const feed = await service.getFeed(20, ACCOUNT);
+      it('reads a bounded window of replies and only curator follow-ups', async () => {
+        history([
+          {
+            id: ENTRY,
+            inquiry_id: INQUIRY,
+            visit_request_id: null,
+            created_at: repliedAt,
+          },
+        ]);
 
-      expect(feed.items).toContainEqual(
-        expect.objectContaining({
-          id: `VISITOR_REPLY:${ENTRY}`,
-          type: 'VISITOR_REPLY',
-          title: 'A visitor replied by email',
-          recordType: 'visit_request',
-          recordId: VISIT,
-          referenceCode: '5B2C0E7D',
-        }),
-      );
-      const sql = (prisma.$queryRaw.mock.calls as Array<[string[]]>)
-        .map(([strings]) => strings.join('?'))
-        .find((text) => text.includes('FROM public.communication_history c'));
-      // Cleared by any later curator-recorded entry on the same record.
-      expect(sql).toContain("c.direction = 'INBOUND'");
-      expect(sql).toContain('r.recorded_by IS NOT NULL');
-      expect(sql).toContain('r.created_at > c.created_at');
+        await service.getFeed(20, ACCOUNT);
+
+        const [repliesQuery, followUpsQuery] = prisma.communication_history
+          .findMany.mock.calls as Array<[Record<string, unknown>]>;
+        expect(repliesQuery[0]).toMatchObject({
+          where: { direction: 'INBOUND' },
+          take: 100,
+        });
+        // Receipts and BioSphere's own pointer notes have no curator.
+        expect(followUpsQuery[0]).toMatchObject({
+          where: {
+            recorded_by: { not: null },
+            created_at: { gt: repliedAt },
+            OR: [
+              { inquiry_id: { in: [INQUIRY] } },
+              { visit_request_id: { in: [] } },
+            ],
+          },
+        });
+      });
+
+      it('clears an alert once a curator emails, notes, or changes status', async () => {
+        history(
+          [
+            {
+              id: ENTRY,
+              inquiry_id: null,
+              visit_request_id: VISIT,
+              created_at: repliedAt,
+            },
+            {
+              id: OTHER,
+              inquiry_id: INQUIRY,
+              visit_request_id: null,
+              created_at: repliedAt,
+            },
+          ],
+          [
+            {
+              inquiry_id: null,
+              visit_request_id: VISIT,
+              created_at: new Date('2026-11-14T03:20:00Z'),
+            },
+          ],
+        );
+
+        const feed = await service.getFeed(20, ACCOUNT);
+        const alerts = feed.items.filter(
+          (item) => item.type === CuratorNotificationType.VISITOR_REPLY,
+        );
+
+        expect(alerts.map((item) => item.id)).toEqual([
+          `VISITOR_REPLY:${OTHER}`,
+        ]);
+      });
+
+      it('skips the follow-up read when there are no recent replies', async () => {
+        await service.getFeed(20, ACCOUNT);
+        expect(prisma.communication_history.findMany).toHaveBeenCalledTimes(1);
+      });
     });
 
     it('maps unresolved sync failures for the acting curator', async () => {
@@ -356,10 +431,9 @@ describe('NotificationsService', () => {
     it('omits personal and change alerts without an account', async () => {
       await service.getFeed();
 
-      // Only the shared incomplete-record and visitor-reply lookups run.
-      expect(prisma.$queryRaw).toHaveBeenCalledTimes(2);
+      // Only the shared incomplete-record lookup runs as raw SQL.
+      expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
       expect(sqlOf(0)).toContain('FROM public.specimen s');
-      expect(sqlOf(1)).toContain('FROM public.communication_history c');
     });
 
     it('maps significant changes by other curators to one alert per event', async () => {
