@@ -1,4 +1,4 @@
-import { withReference } from './visitor-email';
+import { lastSubjectReference, withReference } from './visitor-email';
 
 describe('withReference', () => {
   it('adds the marker to a custom subject that has none', () => {
@@ -30,6 +30,17 @@ describe('withReference', () => {
     expect(withReference('Re: visit (Ref 14D4337D)', 'E2C89B18')).toBe(
       'Re: visit (Ref 14D4337D) (Ref E2C89B18)',
     );
+  });
+
+  it('re-adds the marker when another record’s reference comes after it', () => {
+    // The mailbox sync reads the last reference, so this record's must be it.
+    const subject = 'Visit (Ref E2C89B18) moved from (Ref 14D4337D)';
+    const tagged = withReference(subject, 'E2C89B18');
+    expect(tagged).toBe(`${subject} (Ref E2C89B18)`);
+    expect(lastSubjectReference(tagged)).toBe('E2C89B18');
+    expect(
+      lastSubjectReference(withReference('Ref 14D4337D follow-up', 'E2C89B18')),
+    ).toBe('E2C89B18');
   });
 
   it('writes the code in capitals', () => {
