@@ -9,10 +9,27 @@ export function referenceCode(id: string): string {
 // A curator's own subject keeps the "(Ref XXXXXXXX)" tag, which the mailbox
 // sync falls back on when a reply loses its In-Reply-To header (a curator
 // subject "Email Approval" was seen without it on 2026-11-13).
+// Only the full "(Ref XXXXXXXX)" marker for this record counts, and only when
+// it is the reference the mailbox sync will read back (the last one): a bare
+// code, or a subject ending in another record's reference, still gets this one.
 export function withReference(subject: string, reference: string): string {
-  return subject.toUpperCase().includes(reference.toUpperCase())
+  // Reference codes are 8 hex characters, so they are safe inside a pattern.
+  const code = reference.toUpperCase();
+  const marker = new RegExp(String.raw`\(\s*Ref\s+${code}\s*\)`, 'i');
+  return marker.test(subject) && lastSubjectReference(subject) === code
     ? subject
-    : `${subject} (Ref ${reference})`;
+    : `${subject} (Ref ${code})`;
+}
+
+// "Ref 9A81836F" as written in every BioSphere visitor email subject.
+const SUBJECT_REFERENCE = /\bRef\s+([0-9a-f]{8})\b/gi;
+
+// The reference a reply subject points at. The last one wins: BioSphere
+// appends its own marker after a curator's subject text, which may quote
+// another record's "(Ref …)".
+export function lastSubjectReference(subject: string): string | null {
+  const matches = [...subject.matchAll(SUBJECT_REFERENCE)];
+  return matches.at(-1)?.[1]?.toUpperCase() ?? null;
 }
 
 // Matches a reference code typed into curator search.
