@@ -35,13 +35,19 @@ describe('Internal synthetic recovery recording on owned PostgreSQL', () => {
     database = await DisposableFaqPostgres.start('recovery-history');
     await database.createRole('service_role');
     await seedBackupHistoryDatabase(database.admin);
-    for (const file of ['016_inquiry.sql', '017_visit_request.sql']) {
+    // The feed also reads communication_history for unanswered visitor
+    // replies (VISITOR_REPLY); keep it present and empty here.
+    for (const file of [
+      '016_inquiry.sql',
+      '017_visit_request.sql',
+      '025_communication_history.sql',
+    ]) {
       await database.admin.query(
         readFileSync(resolve(__dirname, '../database/sql', file), 'utf8'),
       );
     }
     await database.admin.query(
-      'GRANT SELECT ON inquiry, visit_request TO service_role',
+      'GRANT SELECT ON inquiry, visit_request, communication_history TO service_role',
     );
     // The current real feed also queries incomplete records (#243). Keep this
     // owned scope empty, but present, rather than mocking that collaborator.

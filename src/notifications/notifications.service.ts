@@ -30,6 +30,12 @@ import {
   REPORT_AUDIT_MODULE,
 } from '../reports/reports.service';
 import { REPORT_TIMEZONE } from '../reports/report-period';
+import {
+  MAX_VISITOR_REPLY_ALERTS,
+  unansweredReplies,
+} from './visitor-reply-alerts';
+
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 const PENDING_ORDER = [{ created_at: 'desc' as const }, { id: 'asc' as const }];
 
@@ -153,22 +159,29 @@ export class NotificationsService {
     accountId?: string,
   ): Promise<CuratorNotificationFeed> {
     const select = { id: true, created_at: true };
-    const [inquiries, visitRequests, operational, changes, incomplete] =
-      await Promise.all([
-        this.prisma.inquiry.findMany({
-          where: { status: 'PENDING' },
-          select,
-          orderBy: PENDING_ORDER,
-        }),
-        this.prisma.visit_request.findMany({
-          where: { status: 'PENDING' },
-          select,
-          orderBy: PENDING_ORDER,
-        }),
-        this.operationalAlerts(accountId),
-        accountId ? this.changeEventAlerts(accountId) : [],
-        this.incompleteRecordAlerts(),
-      ]);
+    const [
+      inquiries,
+      visitRequests,
+      operational,
+      changes,
+      incomplete,
+      visitorReplies,
+    ] = await Promise.all([
+      this.prisma.inquiry.findMany({
+        where: { status: 'PENDING' },
+        select,
+        orderBy: PENDING_ORDER,
+      }),
+      this.prisma.visit_request.findMany({
+        where: { status: 'PENDING' },
+        select,
+        orderBy: PENDING_ORDER,
+      }),
+      this.operationalAlerts(accountId),
+      accountId ? this.changeEventAlerts(accountId) : [],
+      this.incompleteRecordAlerts(),
+      this.unansweredVisitorReplies(),
+    ]);
 
     const pendingIds = [...inquiries, ...visitRequests].map((row) => row.id);
     const failures =
@@ -228,6 +241,7 @@ export class NotificationsService {
           ? { id: `SUBMISSION_EMAIL_FAILED:${row.id}` }
           : {}),
       })),
+      ...visitorReplies,
       ...operational,
       ...changes,
       ...incomplete,
@@ -247,6 +261,68 @@ export class NotificationsService {
       incompleteRecords: incomplete.length,
       items: items.slice(0, limit),
     };
+  }
+
+  // Visitor replies from the last CHANGE_EVENT_DAYS days that no curator has
+  // followed up: no curator-recorded entry (email, note, status change) on
+  // the same record after the reply. Without this a reply is only seen by
+  // opening the record. Keyed VISITOR_REPLY:<entry id> for the state table.
+  // Two bounded queries instead of a correlated subquery: the replies read is
+  // capped, and the follow-up read uses the existing inquiry_id and
+  // visit_request_id indexes.
+  private async unansweredVisitorReplies(
+    now = new Date(),
+  ): Promise<CuratorNotification[]> {
+    const since = new Date(now.getTime() - CHANGE_EVENT_DAYS * DAY_MS);
+    const replies = await this.prisma.communication_history.findMany({
+      where: { direction: 'INBOUND', created_at: { gte: since } },
+      select: {
+        id: true,
+        inquiry_id: true,
+        visit_request_id: true,
+        created_at: true,
+      },
+      orderBy: [{ created_at: 'desc' }, { id: 'asc' }],
+      take: MAX_VISITOR_REPLY_ALERTS,
+    });
+    if (replies.length === 0) return [];
+
+    const ids = (column: 'inquiry_id' | 'visit_request_id') => [
+      ...new Set(
+        replies.flatMap((reply) => (reply[column] ? [reply[column]] : [])),
+      ),
+    ];
+    const followUps = await this.prisma.communication_history.findMany({
+      where: {
+        // Only curator-recorded entries answer a reply; see unansweredReplies.
+        recorded_by: { not: null },
+        created_at: { gt: replies[replies.length - 1].created_at },
+        OR: [
+          { inquiry_id: { in: ids('inquiry_id') } },
+          { visit_request_id: { in: ids('visit_request_id') } },
+        ],
+      },
+      select: { inquiry_id: true, visit_request_id: true, created_at: true },
+    });
+
+    return unansweredReplies(replies, followUps).flatMap((row) => {
+      const recordId = row.visit_request_id ?? row.inquiry_id;
+      if (!recordId) return [];
+      return [
+        {
+          ...this.toNotification(
+            CuratorNotificationType.VISITOR_REPLY,
+            row.visit_request_id
+              ? NotificationRecordType.VISIT_REQUEST
+              : NotificationRecordType.INQUIRY,
+            'A visitor replied by email',
+            recordId,
+            row.created_at,
+          ),
+          id: `${CuratorNotificationType.VISITOR_REPLY}:${row.id}`,
+        },
+      ];
+    });
   }
 
   // Failures that stay internal (REQ-4.3-10). Sync and report failures belong
