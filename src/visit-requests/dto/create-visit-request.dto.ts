@@ -95,17 +95,20 @@ export class CreateVisitRequestDto {
   @Max(MAX_VISITOR_COUNT)
   visitorCount!: number;
 
-  @ApiPropertyOptional({
+  @ApiProperty({
     type: [VisitorDto],
-    description: 'Named visitors; at most visitorCount entries',
+    minItems: 1,
+    maxItems: MAX_VISITOR_COUNT,
+    description:
+      'Every visitor by name, for campus entry; exactly visitorCount entries',
   })
-  @IsOptional()
   @IsArray()
+  @ArrayMinSize(1)
   @ArrayMaxSize(MAX_VISITOR_COUNT)
   @IsObject({ each: true })
   @ValidateNested({ each: true })
   @Type(() => VisitorDto)
-  visitors?: VisitorDto[];
+  visitors!: VisitorDto[];
 
   @ApiPropertyOptional({ default: false })
   @IsOptional()

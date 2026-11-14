@@ -63,7 +63,11 @@ const validDto = (
     { date: '2030-10-15', startTime: '09:00', endTime: '11:00' },
     { date: '2030-10-16', startTime: '13:00', endTime: '15:00' },
   ],
-  visitorCount: 20,
+  visitorCount: 2,
+  visitors: [
+    { firstName: 'Ana', lastName: 'Reyes' },
+    { firstName: 'Ben', lastName: 'Cruz' },
+  ],
   consentAccepted: true,
   ...overrides,
 });
@@ -121,10 +125,6 @@ describe('VisitRequestsService', () => {
 
     const receipt = await service.create(
       validDto({
-        visitors: [
-          { firstName: 'Ana', lastName: 'Reyes' },
-          { firstName: 'Ben' },
-        ],
         bringingVehicle: true,
         vehicles: [
           { plateNumber: 'ABC 1234', carBrand: 'Toyota' },
@@ -152,7 +152,7 @@ describe('VisitRequestsService', () => {
     ]);
     expect(data.visit_request_visitor.create).toEqual([
       { visitor_name: 'Ana Reyes' },
-      { visitor_name: 'Ben' },
+      { visitor_name: 'Ben Cruz' },
     ]);
     expect(data.visit_request_vehicle.create).toEqual([
       { plate_number: 'ABC 1234', vehicle_brand: 'Toyota', vehicle_type: null },
@@ -166,7 +166,7 @@ describe('VisitRequestsService', () => {
       data: expect.objectContaining({
         user_id: null,
         action: 'SUBMIT_VISIT_REQUEST',
-        details: { preferredScheduleCount: 2, visitorCount: 20 },
+        details: { preferredScheduleCount: 2, visitorCount: 2 },
       }),
     });
     expect(submissionNotifications.announce).toHaveBeenCalledWith({
@@ -422,15 +422,14 @@ describe('VisitRequestsService', () => {
     });
   });
 
-  it('rejects more named visitors than visitorCount', async () => {
+  it('requires one visitor name for each of visitorCount', async () => {
+    await expect(service.create(validDto({ visitorCount: 1 }))).rejects.toThrow(
+      'visitors must list one name for each of the visitorCount visitors.',
+    );
     await expect(
-      service.create(
-        validDto({
-          visitorCount: 1,
-          visitors: [{ firstName: 'Ana' }, { firstName: 'Ben' }],
-        }),
-      ),
+      service.create(validDto({ visitorCount: 3 })),
     ).rejects.toBeInstanceOf(BadRequestException);
+    expect(visitDelegate.create).not.toHaveBeenCalled();
   });
 
   it('rejects vehicle details without bringingVehicle', async () => {
