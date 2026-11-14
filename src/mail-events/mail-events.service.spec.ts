@@ -28,7 +28,10 @@ describe('MailEventsService', () => {
     ).resolves.toEqual({ received: 1, updated: 1 });
 
     expect(prisma.communication_history.findFirst).toHaveBeenCalledWith({
-      where: { direction: 'OUTBOUND', external_message_id: ID },
+      where: {
+        direction: 'OUTBOUND',
+        external_message_id: { in: [ID, 'receipt-1@smtp-relay.mailin.fr'] },
+      },
       select: { id: true, delivery_result: true },
     });
     // Conditional on the value read, so a racing event cannot be overwritten.

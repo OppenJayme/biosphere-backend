@@ -38,7 +38,18 @@ function text(value: unknown): string | null {
   return typeof value === 'string' && value.trim() ? value.trim() : null;
 }
 
+// The stored forms a webhook message id may match. MailService stores the
+// send API's messageId as returned ("<…@smtp-relay.mailin.fr>" in Brevo's
+// examples); matching with and without the angle brackets keeps tracking
+// working if either side ever drops or adds them.
+export function messageIdForms(messageId: string): string[] {
+  const bare = messageId.trim().replace(/^<(.*)>$/, '$1');
+  return [`<${bare}>`, bare];
+}
+
 // Brevo posts one event object, or an array when batching is switched on.
+// Keep batching off in Brevo: Express's default 100 KB JSON limit applies to
+// this route, and a larger batch would be refused (413) and retried.
 // Anything without a known event and a message id is ignored, so an
 // unexpected payload never fails the webhook (Brevo retries non-2xx).
 export function parseBrevoEvents(body: unknown): BrevoDeliveryEvent[] {

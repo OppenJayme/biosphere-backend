@@ -1,7 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { CommunicationDirection } from '../communication-history/communication-history';
 import { PrismaService } from '../prisma/prisma.service';
-import { BrevoDeliveryEvent, nextDeliveryResult } from './brevo-event';
+import {
+  BrevoDeliveryEvent,
+  messageIdForms,
+  nextDeliveryResult,
+} from './brevo-event';
 
 export interface MailEventsResult {
   received: number;
@@ -25,7 +29,7 @@ export class MailEventsService {
       const entry = await this.prisma.communication_history.findFirst({
         where: {
           direction: CommunicationDirection.OUTBOUND,
-          external_message_id: event.messageId,
+          external_message_id: { in: messageIdForms(event.messageId) },
         },
         select: { id: true, delivery_result: true },
       });

@@ -1,4 +1,8 @@
-import { nextDeliveryResult, parseBrevoEvents } from './brevo-event';
+import {
+  messageIdForms,
+  nextDeliveryResult,
+  parseBrevoEvents,
+} from './brevo-event';
 
 const ID = '<202611131903.56557643399@smtp-relay.mailin.fr>';
 const event = (name: string, reason?: string) =>
@@ -72,5 +76,14 @@ describe('nextDeliveryResult', () => {
     )!;
     expect(result.length).toBe(100);
     expect(result).toContain(' · delayed');
+  });
+});
+
+describe('messageIdForms', () => {
+  it('matches a stored id with or without angle brackets', () => {
+    const bare = '202611131903.56557643399@smtp-relay.mailin.fr';
+    expect(messageIdForms(ID)).toEqual([ID, bare]);
+    expect(messageIdForms(bare)).toEqual([ID, bare]);
+    expect(messageIdForms(`  ${ID} `)).toEqual([ID, bare]);
   });
 });
