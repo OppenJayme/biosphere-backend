@@ -1,11 +1,11 @@
 // Pure helpers that turn a Gmail API message into the parts the mailbox
 // sync needs. Nothing here touches the network or the database.
 
+import { lastSubjectReference } from '../mail/visitor-email';
+
 // Longest reply text stored in the timeline; the full email stays in Gmail.
 export const MAX_REPLY_LENGTH = 10_000;
 
-// "(Ref 9A81836F)" as written in every BioSphere visitor email subject.
-const SUBJECT_REFERENCE = /\bRef\s+([0-9a-f]{8})\b/i;
 const MESSAGE_ID = /<[^<>\s]+>/g;
 // Postgres text rejects NUL, and other control characters only garble the
 // timeline; tabs and newlines stay.
@@ -63,7 +63,7 @@ export function parseGmailMessage(message: GmailMessage): ParsedReply {
     ],
     from,
     subject,
-    reference: SUBJECT_REFERENCE.exec(subject)?.[1]?.toUpperCase() ?? null,
+    reference: lastSubjectReference(subject),
     receivedAt: new Date(Number(message.internalDate ?? Date.now())),
     // Out-of-office and mailing-list mail must not land in a timeline.
     automated:

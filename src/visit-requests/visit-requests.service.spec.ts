@@ -724,6 +724,29 @@ describe('VisitRequestsService', () => {
       expect(mail.send).not.toHaveBeenCalled();
     });
 
+    it('refuses to mark a visit Completed before it has started', async () => {
+      // approvedRecord is scheduled for 2030-10-15, still in the future.
+      visitDelegate.findUnique.mockResolvedValue(
+        visitRecord({
+          status: 'SUBMITTED_FOR_CAMPUS_ENTRY',
+          approved_date: new Date('2030-10-15T00:00:00.000Z'),
+          approved_start_time: new Date('1970-01-01T09:00:00.000Z'),
+          approved_end_time: new Date('1970-01-01T11:00:00.000Z'),
+        }),
+      );
+
+      await expect(
+        service.update(
+          VISIT_ID,
+          { status: VisitRequestStatus.COMPLETED },
+          CURATOR_ID,
+        ),
+      ).rejects.toThrow(
+        'has not started yet, so it cannot be marked Completed',
+      );
+      expect(visitDelegate.update).not.toHaveBeenCalled();
+    });
+
     it.each([
       ['DECLINED', 'Update on your BioSphere visit request (Ref 11111111)'],
       [
@@ -794,7 +817,8 @@ describe('VisitRequestsService', () => {
 
       expect(visitDelegate.update).not.toHaveBeenCalled();
       expect(mail.send).toHaveBeenCalledWith(
-        expect.objectContaining({ subject: 'Visitor list' }),
+        // A curator's own subject keeps the reference tag for reply matching.
+        expect.objectContaining({ subject: 'Visitor list (Ref 11111111)' }),
       );
       expect(entry).toMatchObject({
         direction: 'OUTBOUND',
@@ -927,6 +951,26 @@ describe('VisitRequestsService', () => {
       await expect(
         service.approveSchedule(VISIT_ID, { preferenceOrder: 1 }, CURATOR_ID),
       ).rejects.toThrow('already in the past');
+      expect(visitDelegate.update).not.toHaveBeenCalled();
+    });
+
+    it('rejects approving an option outside opening hours', async () => {
+      // Saved before the hours rule: 4:00 to 6:00 PM on a Tuesday (closes 4 PM).
+      visitDelegate.findUnique.mockResolvedValue(
+        visitRecord({
+          preferred_visit_date: [
+            {
+              ...visitRecord().preferred_visit_date[0],
+              preferred_start_time: new Date('1970-01-01T16:00:00.000Z'),
+              preferred_end_time: new Date('1970-01-01T18:00:00.000Z'),
+            },
+          ],
+        }),
+      );
+
+      await expect(
+        service.approveSchedule(VISIT_ID, { preferenceOrder: 1 }, CURATOR_ID),
+      ).rejects.toThrow('Preferred option 1 is outside museum opening hours');
       expect(visitDelegate.update).not.toHaveBeenCalled();
     });
 
@@ -1093,7 +1137,7 @@ describe('VisitRequestsService', () => {
       data: expect.objectContaining({
         visit_request_id: VISIT_ID,
         communication_type: 'REFERRAL',
-        message: `Created by curator referral from inquiry ${INQUIRY_ID}.`,
+        message: `Created by curator referral from inquiry ${INQUIRY_ID.slice(0, 8).toUpperCase()}.`,
       }),
     });
     expect(auditDelegate.create).toHaveBeenCalledWith({

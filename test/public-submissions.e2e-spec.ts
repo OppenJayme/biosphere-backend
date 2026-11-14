@@ -39,6 +39,17 @@ function expectOnlyAccessDeniedAudits(
 
 // Public General Inquiry and Visit Request submission (SRS §4.8, §4.9) and
 // the curator-only routes that read or change those records (NFR-SEC-10).
+// Submission and referral receipts are timeline entries too; most checks
+// below are about the curator's own entries, so they read past them.
+const withoutReceipts = <
+  T extends { type?: string; communication_type?: unknown },
+>(
+  entries: T[],
+) =>
+  entries.filter(
+    (entry) => (entry.type ?? entry.communication_type) !== 'RECEIPT_EMAIL',
+  );
+
 describe('Inquiries and visit requests (e2e)', () => {
   const curatorToken = 'curator-submissions-token';
   const developerToken = 'developer-submissions-token';
@@ -662,6 +673,8 @@ describe('Inquiries and visit requests (e2e)', () => {
       auditCreate.mockClear();
       inquiryWrites.mockClear();
       visitWrites.mockClear();
+      // The submission receipt is a timeline entry; later checks are about the routes only.
+      historyWrites.mockClear();
     };
     const expectNoDomainWrites = () => {
       expect(inquiryWrites).not.toHaveBeenCalled();
@@ -746,7 +759,14 @@ describe('Inquiries and visit requests (e2e)', () => {
         .get(`/${resource}/${id}/history`)
         .set('Authorization', auth)
         .expect(200);
-      expect(timeline.body[0]).toEqual(
+      // The submission receipt opens the timeline, sent by no curator.
+      expect(timeline.body[0]).toMatchObject({
+        type: 'RECEIPT_EMAIL',
+        direction: 'OUTBOUND',
+        recordedBy: null,
+      });
+      const entries = withoutReceipts(timeline.body as Array<{ type: string }>);
+      expect(entries[0]).toEqual(
         expect.objectContaining({
           type: 'STATUS_CHANGE',
           recordedBy: curatorAccountId,
@@ -755,7 +775,7 @@ describe('Inquiries and visit requests (e2e)', () => {
       );
       // Declining a visit request also emails the visitor; reviewing an
       // inquiry does not.
-      expect(timeline.body).toHaveLength(resource === 'inquiries' ? 1 : 2);
+      expect(entries).toHaveLength(resource === 'inquiries' ? 1 : 2);
     });
 
     it('record internal notes in the timeline', async () => {
@@ -857,10 +877,9 @@ describe('Inquiries and visit requests (e2e)', () => {
           email_address: validInquiry.email,
         }),
       ]);
-      expect(history.map((entry) => entry.communication_type)).toEqual([
-        'REFERRAL',
-        'REFERRAL',
-      ]);
+      expect(
+        withoutReceipts(history).map((entry) => entry.communication_type),
+      ).toEqual(['REFERRAL', 'REFERRAL']);
 
       // Turned to Visit Request is final.
       await request(app.getHttpServer())
@@ -934,11 +953,38 @@ describe('Inquiries and visit requests (e2e)', () => {
           .send({ status })
           .expect(400);
       }
-      await request(app.getHttpServer())
+      // The visit is on 2030-10-16, so it cannot be Completed yet.
+      const early = await request(app.getHttpServer())
         .patch(`/visit-requests/${visitId}`)
         .set('Authorization', auth)
         .send({ status: 'COMPLETED' })
-        .expect(200);
+        .expect(400);
+      expect(early.body.message).toContain('has not started yet');
+      // Only the clock moves past the visit; timers stay real for HTTP.
+      jest.useFakeTimers({
+        now: new Date('2030-10-17T00:00:00.000Z'),
+        doNotFake: [
+          'nextTick',
+          'setImmediate',
+          'setTimeout',
+          'setInterval',
+          'clearTimeout',
+          'clearInterval',
+          'clearImmediate',
+          'queueMicrotask',
+          'hrtime',
+          'performance',
+        ],
+      });
+      try {
+        await request(app.getHttpServer())
+          .patch(`/visit-requests/${visitId}`)
+          .set('Authorization', auth)
+          .send({ status: 'COMPLETED' })
+          .expect(200);
+      } finally {
+        jest.useRealTimers();
+      }
       // Completed is final.
       await request(app.getHttpServer())
         .patch(`/visit-requests/${visitId}`)
@@ -955,6 +1001,8 @@ describe('Inquiries and visit requests (e2e)', () => {
           (entry) => `${entry.type}: ${entry.message.split('\n')[0]}`,
         ),
       ).toEqual([
+        // The visitor's submission receipt opens the timeline.
+        'RECEIPT_EMAIL: Hello Maria Santos,',
         'STATUS_CHANGE: Status changed from PENDING to APPROVED_BY_CURATOR.',
         'STATUS_UPDATE_EMAIL: Hello Maria Santos,',
         'STATUS_CHANGE: Status changed from APPROVED_BY_CURATOR to SUBMITTED_FOR_CAMPUS_ENTRY.',
@@ -995,7 +1043,9 @@ describe('Inquiries and visit requests (e2e)', () => {
         .get(`/visit-requests/${visitId}/history`)
         .set('Authorization', auth)
         .expect(200);
-      expect(timeline.body[1]).toMatchObject({
+      expect(
+        withoutReceipts(timeline.body as Array<{ type: string }>)[1],
+      ).toMatchObject({
         direction: 'OUTBOUND',
         type: 'STATUS_UPDATE_EMAIL',
         recipientEmail: validVisit.email,
@@ -1068,7 +1118,10 @@ describe('Inquiries and visit requests (e2e)', () => {
         .send({ subject: 'Visitor list', message: 'Please send the list.' })
         .expect(201);
       expect(mailSend).toHaveBeenLastCalledWith(
-        expect.objectContaining({ subject: 'Visitor list' }),
+        // A curator's own subject keeps the reference tag for reply matching.
+        expect.objectContaining({
+          subject: expect.stringMatching(/^Visitor list \(Ref [0-9A-F]{8}\)$/),
+        }),
       );
 
       // Neither message changes the status.

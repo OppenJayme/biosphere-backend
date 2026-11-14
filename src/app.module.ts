@@ -27,6 +27,7 @@ import { ReportsModule } from './reports/reports.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { UserAccountsModule } from './user-accounts/user-accounts.module';
 import { MailboxSyncModule } from './mailbox-sync/mailbox-sync.module';
+import { MailEventsModule } from './mail-events/mail-events.module';
 
 @Module({
   imports: [
@@ -42,6 +43,7 @@ import { MailboxSyncModule } from './mailbox-sync/mailbox-sync.module';
     InquiriesModule,
     VisitRequestsModule,
     MailboxSyncModule,
+    MailEventsModule,
     NotificationsModule,
     DeveloperModule,
     StorageLocationsModule,

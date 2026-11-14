@@ -1,7 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import {
+  CommunicationType,
+  recordOutboundEmail,
+} from '../communication-history/communication-history';
 import { Prisma } from '../generated/prisma/client';
-import { MailService } from '../mail/mail.service';
+import { MailService, OutgoingEmail } from '../mail/mail.service';
 import {
   VISIT_CHANGE_GUIDANCE,
   CAMPUS_ENTRY_TIME,
@@ -29,6 +33,16 @@ export interface NewSubmission {
   visitorName: string;
   visitorEmail: string;
   // Label/value rows added to the visitor's receipt, e.g. preferred dates.
+  receiptDetails?: Array<[string, string]>;
+}
+
+// A visit request a curator created from an inquiry (REQ-4.8-07). The
+// visitor never submitted it, so only they are told; curators are not alerted.
+export interface ReferredVisitRequest {
+  id: string;
+  sourceInquiryId: string;
+  visitorName: string;
+  visitorEmail: string;
   receiptDetails?: Array<[string, string]>;
 }
 
@@ -105,7 +119,65 @@ export class SubmissionNotificationsService {
       details: submission.receiptDetails,
       reference,
     });
+    await this.deliverReceipt(submission, email);
+  }
+
+  // Tells the visitor their inquiry became a visit request and gives them
+  // the new reference, so later replies reach the record the curator is
+  // working on. Never throws, like announce().
+  async announceReferral(referral: ReferredVisitRequest): Promise<void> {
+    const reference = referenceCode(referral.id);
+    const email = buildVisitorEmail({
+      to: referral.visitorEmail,
+      visitorName: referral.visitorName,
+      subject: `Your BioSphere inquiry is now a visit request (Ref ${reference})`,
+      paragraphs: [
+        `A museum curator has turned your inquiry (Ref ${referenceCode(referral.sourceInquiryId)}) into a visit request so your visit can be scheduled. Please use the new reference number below from now on.`,
+        `This is not yet an approval. A curator will email you once a schedule has been approved. Campus entry is usually issued within ${CAMPUS_ENTRY_TIME} once the museum has all the details it needs from you.`,
+        VISIT_CHANGE_GUIDANCE,
+      ],
+      details: referral.receiptDetails,
+      reference,
+    });
+    await this.deliverReceipt(
+      {
+        recordType: NotificationRecordType.VISIT_REQUEST,
+        id: referral.id,
+        submittedAt: new Date(),
+        visitorName: referral.visitorName,
+        visitorEmail: referral.visitorEmail,
+      },
+      email,
+    ).catch((error: unknown) => {
+      this.logger.warn(
+        `Referral receipt failed for visit request ${referral.id}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    });
+  }
+
+  // Sends a receipt, records it on the record's timeline (so a reply to it
+  // has context and matches by In-Reply-To), and audits the result.
+  private async deliverReceipt(
+    submission: NewSubmission,
+    email: OutgoingEmail,
+  ): Promise<void> {
     const delivery = await this.mail.send(email);
+    await recordOutboundEmail(this.prisma, {
+      target:
+        submission.recordType === NotificationRecordType.INQUIRY
+          ? { inquiryId: submission.id }
+          : { visitRequestId: submission.id },
+      recordedBy: null,
+      type: CommunicationType.RECEIPT_EMAIL,
+      recipientEmail: email.to,
+      subject: email.subject,
+      message: email.text,
+      deliveryResult: delivery.result,
+      delivered: delivery.delivered,
+      externalMessageId: delivery.messageId,
+    });
     await this.recordAudit(
       submission,
       RECEIPT_AUDIT_ACTION,

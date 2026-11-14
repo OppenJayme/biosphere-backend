@@ -26,6 +26,7 @@ describe('SubmissionNotificationsService', () => {
   const prisma = {
     user_account: { findMany: jest.fn() },
     audit_log: { create: jest.fn() },
+    communication_history: { create: jest.fn() },
   };
   const mail = { send: jest.fn() };
   const env: Record<string, string | undefined> = {};
@@ -56,6 +57,10 @@ describe('SubmissionNotificationsService', () => {
       { full_name: 'No Email', users: { email: null } },
     ]);
     mail.send.mockResolvedValue({ delivered: true, result: 'SENT <id>' });
+    prisma.communication_history.create.mockImplementation(
+      ({ data }: { data: Record<string, unknown> }) =>
+        Promise.resolve({ id: 'entry-1', created_at: new Date(), ...data }),
+    );
     service = new SubmissionNotificationsService(
       prisma as unknown as PrismaService,
       mail as unknown as MailService,
@@ -132,6 +137,58 @@ describe('SubmissionNotificationsService', () => {
         details: { delivered: true },
         status: 'SUCCESS',
       }),
+    );
+  });
+
+  it('records the receipt on the record timeline so replies to it match', async () => {
+    mail.send.mockResolvedValue({
+      delivered: true,
+      result: 'SENT <receipt-1@smtp-relay.mailin.fr>',
+      messageId: '<receipt-1@smtp-relay.mailin.fr>',
+    });
+
+    await service.announce(inquirySubmission());
+
+    expect(prisma.communication_history.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        inquiry_id: '9a81836f-1111-4111-8111-111111111111',
+        recorded_by: null,
+        direction: 'OUTBOUND',
+        communication_type: 'RECEIPT_EMAIL',
+        recipient_email: 'juan@example.com',
+        subject: 'We received your BioSphere museum inquiry (Ref 9A81836F)',
+        external_message_id: '<receipt-1@smtp-relay.mailin.fr>',
+      }),
+    });
+  });
+
+  it('tells the visitor the new reference when an inquiry is referred', async () => {
+    await service.announceReferral({
+      id: '5b2c0e7d-3333-4333-8333-333333333333',
+      sourceInquiryId: '9a81836f-1111-4111-8111-111111111111',
+      visitorName: 'Juan Dela Cruz',
+      visitorEmail: 'juan@example.com',
+      receiptDetails: [
+        ['Preferred option 1', 'Tue, November 24, 2026, 13:00 - 14:00'],
+      ],
+    });
+
+    // Only the visitor: a curator created this request, so no curator alert.
+    expect(mail.send).toHaveBeenCalledTimes(1);
+    const receipt = sentTo('juan@example.com');
+    expect(receipt.subject).toBe(
+      'Your BioSphere inquiry is now a visit request (Ref 5B2C0E7D)',
+    );
+    expect(receipt.text).toContain('your inquiry (Ref 9A81836F)');
+    expect(receipt.text).toContain('Preferred option 1');
+    expect(prisma.communication_history.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        visit_request_id: '5b2c0e7d-3333-4333-8333-333333333333',
+        communication_type: 'RECEIPT_EMAIL',
+      }),
+    });
+    expect(auditFor('EMAIL_SUBMISSION_RECEIPT')).toEqual(
+      expect.objectContaining({ affected_record_type: 'visit_request' }),
     );
   });
 
