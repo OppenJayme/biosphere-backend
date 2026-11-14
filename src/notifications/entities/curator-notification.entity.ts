@@ -6,6 +6,11 @@ export enum CuratorNotificationType {
   // The visitor receipt or the curator alert for a submission was not
   // delivered (SRS 3.4: delivery failures are surfaced in-system).
   SUBMISSION_EMAIL_FAILED = 'SUBMISSION_EMAIL_FAILED',
+  // A visitor email reply was imported and no curator has acted on that
+  // record since (team decision 2026-11-14). Derived from
+  // communication_history; clears once a curator emails, notes, or changes
+  // the record, or after 7 days.
+  VISITOR_REPLY = 'VISITOR_REPLY',
   // Operational alerts kept in-system rather than emailed (REQ-4.3-05,
   // REQ-4.3-10). Each stays until its own condition is resolved.
   // The server rejected the acting curator's offline draft; cleared when the

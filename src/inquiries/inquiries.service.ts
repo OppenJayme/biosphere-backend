@@ -20,13 +20,20 @@ import {
   REFERENCE_CODE_PATTERN,
   buildVisitorEmail,
   referenceCode,
+  withReference,
   referenceIdRange,
 } from '../mail/visitor-email';
 import { NotificationRecordType } from '../notifications/entities/curator-notification.entity';
-import { SubmissionNotificationsService } from '../notifications/submission-notifications.service';
+import {
+  ReferredVisitRequest,
+  SubmissionNotificationsService,
+} from '../notifications/submission-notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { runSerializableTransaction } from '../prisma/serializable-transaction';
-import { VisitRequestsService } from '../visit-requests/visit-requests.service';
+import {
+  VisitRequestsService,
+  preferredScheduleReceiptDetails,
+} from '../visit-requests/visit-requests.service';
 import { CreateInquiryDto } from './dto/create-inquiry.dto';
 import { ListInquiriesQueryDto } from './dto/list-inquiries-query.dto';
 import { ReferInquiryDto } from './dto/refer-inquiry.dto';
@@ -193,7 +200,10 @@ export class InquiriesService {
     dto: ReferInquiryDto,
     actingCuratorAccountId: string,
   ): Promise<InquiryReferralResult> {
-    return runSerializableTransaction(
+    // Set inside the transaction (the last attempt wins if it retries) and
+    // sent only after it commits, so a rolled-back referral emails no one.
+    const pending: { receipt?: ReferredVisitRequest } = {};
+    const result = await runSerializableTransaction(
       this.prisma,
       async (transaction) => {
         const existing = await this.findOneOrThrow(transaction, id);
@@ -233,9 +243,19 @@ export class InquiriesService {
               visitorCount: dto.visitorCount,
               preferredSchedules: dto.preferredSchedules,
               consentAcceptedAt: existing.consent_accepted_at,
+              note: dto.note ?? null,
             },
             actingCuratorAccountId,
           );
+        pending.receipt = {
+          id: visitRequestId,
+          sourceInquiryId: id,
+          visitorName: existing.full_name,
+          visitorEmail: existing.email_address,
+          receiptDetails: preferredScheduleReceiptDetails(
+            dto.preferredSchedules,
+          ),
+        };
         const updated = await transaction.inquiry.update({
           where: { id },
           data: {
@@ -252,7 +272,10 @@ export class InquiriesService {
           message: describeStatusChange(
             previousStatus,
             InquiryStatus.TURNED_TO_VISIT_REQUEST,
-            [`Referred to visit request ${visitRequestId}.`, dto.note]
+            [
+              `Referred to visit request ${referenceCode(visitRequestId)}.`,
+              dto.note,
+            ]
               .filter(Boolean)
               .join('\n\n'),
           ),
@@ -271,6 +294,10 @@ export class InquiriesService {
       },
       CONFLICT_MESSAGE,
     );
+    if (pending.receipt) {
+      void this.submissionNotifications.announceReferral(pending.receipt);
+    }
+    return result;
   }
 
   // Internal curator note, e.g. a reply the visitor sent to the museum's
@@ -316,9 +343,9 @@ export class InquiriesService {
     const email = buildVisitorEmail({
       to: inquiry.email,
       visitorName: inquiry.name,
-      subject:
-        dto.subject ??
-        `Re: your BioSphere museum inquiry (Ref ${inquiry.referenceCode})`,
+      subject: dto.subject
+        ? withReference(dto.subject, inquiry.referenceCode)
+        : `Re: your BioSphere museum inquiry (Ref ${inquiry.referenceCode})`,
       paragraphs: ['Thank you for contacting the museum.'],
       curatorMessage: dto.message,
       reference: inquiry.referenceCode,

@@ -29,6 +29,7 @@ import {
   formatLongDate,
   referenceCode,
   referenceIdRange,
+  withReference,
 } from '../mail/visitor-email';
 import { NotificationRecordType } from '../notifications/entities/curator-notification.entity';
 import { SubmissionNotificationsService } from '../notifications/submission-notifications.service';
@@ -93,6 +94,19 @@ export interface VisitRequestReferral {
   visitorCount: number;
   preferredSchedules: PreferredScheduleDto[];
   consentAcceptedAt: Date;
+  // The curator's referral note; the dialog promises it on both timelines.
+  note?: string | null;
+}
+
+// "Preferred option 1: Mon, November 16, 2026, 09:00 - 10:00" rows for the
+// visitor's receipt, shared by public submissions and curator referrals.
+export function preferredScheduleReceiptDetails(
+  schedules: PreferredScheduleDto[],
+): Array<[string, string]> {
+  return schedules.map((schedule, index) => [
+    `Preferred option ${index + 1}`,
+    `${formatLongDate(schedule.date)}, ${schedule.startTime} - ${schedule.endTime}`,
+  ]);
 }
 
 @Injectable()
@@ -140,10 +154,8 @@ export class VisitRequestsService {
             create: this.toPreferredDateRows(dto.preferredSchedules),
           },
           visit_request_visitor: {
-            create: (dto.visitors ?? []).map((visitor) => ({
-              visitor_name: [visitor.firstName, visitor.lastName]
-                .filter(Boolean)
-                .join(' '),
+            create: dto.visitors.map((visitor) => ({
+              visitor_name: `${visitor.firstName} ${visitor.lastName}`,
             })),
           },
           visit_request_vehicle: {
@@ -179,10 +191,7 @@ export class VisitRequestsService {
       submittedAt: receipt.submittedAt,
       visitorName: dto.name,
       visitorEmail: dto.email,
-      receiptDetails: dto.preferredSchedules.map((schedule, index) => [
-        `Preferred option ${index + 1}`,
-        `${formatLongDate(schedule.date)}, ${schedule.startTime} - ${schedule.endTime}`,
-      ]),
+      receiptDetails: preferredScheduleReceiptDetails(dto.preferredSchedules),
     });
     return receipt;
   }
@@ -224,7 +233,14 @@ export class VisitRequestsService {
       target: { visitRequestId: created.id },
       recordedBy: actingCuratorAccountId,
       type: CommunicationType.REFERRAL,
-      message: `Created by curator referral from inquiry ${referral.sourceInquiryId}.`,
+      // Reference codes, not raw ids: they are what curators and visitors
+      // search for and quote.
+      message: [
+        `Created by curator referral from inquiry ${referenceCode(referral.sourceInquiryId)}.`,
+        referral.note,
+      ]
+        .filter(Boolean)
+        .join('\n\n'),
     });
     await this.recordAudit(transaction, {
       userId: actingCuratorAccountId,
@@ -347,6 +363,22 @@ export class VisitRequestsService {
           return { request: this.toEntity(existing), changed: false };
         }
         assertVisitRequestTransition(previousStatus, dto.status);
+        // A visit cannot be Completed before it happens (team decision
+        // 2026-11-14; a Nov 30 visit was marked Completed on Nov 13).
+        if (
+          dto.status === VisitRequestStatus.COMPLETED &&
+          existing.approved_date &&
+          existing.approved_start_time &&
+          !this.hasStarted(
+            this.formatDate(existing.approved_date),
+            this.formatTime(existing.approved_start_time),
+          )
+        ) {
+          throw new BadRequestException(
+            'This visit has not started yet, so it cannot be marked Completed. ' +
+              `It is scheduled for ${this.formatDate(existing.approved_date)} at ${this.formatTime(existing.approved_start_time)}.`,
+          );
+        }
 
         const updated = await transaction.visit_request.update({
           where: { id },
@@ -420,6 +452,14 @@ export class VisitRequestsService {
         if (this.hasStarted(optionDate, optionStart)) {
           throw new BadRequestException(
             `Preferred option ${dto.preferenceOrder} is already in the past.`,
+          );
+        }
+        // Requests saved before the opening-hours rule (or a later change
+        // of hours) can still hold options outside them; never approve one.
+        if (!fitsOpeningHours(optionDate, optionStart, optionEnd)) {
+          throw new BadRequestException(
+            `Preferred option ${dto.preferenceOrder} is outside museum opening hours: ` +
+              `${describeOpeningHours(optionDate)}. Ask the visitor for another time.`,
           );
         }
         // Read inside the serializable transaction, so two curators
@@ -503,9 +543,9 @@ export class VisitRequestsService {
       {
         to: request.email,
         visitorName: request.name,
-        subject:
-          dto.subject ??
-          `About your BioSphere visit request (Ref ${request.referenceCode})`,
+        subject: dto.subject
+          ? withReference(dto.subject, request.referenceCode)
+          : `About your BioSphere visit request (Ref ${request.referenceCode})`,
         paragraphs: ['The museum sent you a message about your visit request.'],
         curatorMessage: dto.message,
         reference: request.referenceCode,
@@ -803,10 +843,11 @@ export class VisitRequestsService {
     }));
   }
 
+  // Campus entry needs every visitor's name, so the list must match the count.
   private assertVisitorsValid(dto: CreateVisitRequestDto): void {
-    if ((dto.visitors?.length ?? 0) > dto.visitorCount) {
+    if (dto.visitors.length !== dto.visitorCount) {
       throw new BadRequestException(
-        'visitors cannot list more people than visitorCount.',
+        'visitors must list one name for each of the visitorCount visitors.',
       );
     }
   }

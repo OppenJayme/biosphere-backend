@@ -63,7 +63,11 @@ const validDto = (
     { date: '2030-10-15', startTime: '09:00', endTime: '11:00' },
     { date: '2030-10-16', startTime: '13:00', endTime: '15:00' },
   ],
-  visitorCount: 20,
+  visitorCount: 2,
+  visitors: [
+    { firstName: 'Ana', lastName: 'Reyes' },
+    { firstName: 'Ben', lastName: 'Cruz' },
+  ],
   consentAccepted: true,
   ...overrides,
 });
@@ -121,10 +125,6 @@ describe('VisitRequestsService', () => {
 
     const receipt = await service.create(
       validDto({
-        visitors: [
-          { firstName: 'Ana', lastName: 'Reyes' },
-          { firstName: 'Ben' },
-        ],
         bringingVehicle: true,
         vehicles: [
           { plateNumber: 'ABC 1234', carBrand: 'Toyota' },
@@ -152,7 +152,7 @@ describe('VisitRequestsService', () => {
     ]);
     expect(data.visit_request_visitor.create).toEqual([
       { visitor_name: 'Ana Reyes' },
-      { visitor_name: 'Ben' },
+      { visitor_name: 'Ben Cruz' },
     ]);
     expect(data.visit_request_vehicle.create).toEqual([
       { plate_number: 'ABC 1234', vehicle_brand: 'Toyota', vehicle_type: null },
@@ -166,7 +166,7 @@ describe('VisitRequestsService', () => {
       data: expect.objectContaining({
         user_id: null,
         action: 'SUBMIT_VISIT_REQUEST',
-        details: { preferredScheduleCount: 2, visitorCount: 20 },
+        details: { preferredScheduleCount: 2, visitorCount: 2 },
       }),
     });
     expect(submissionNotifications.announce).toHaveBeenCalledWith({
@@ -422,15 +422,14 @@ describe('VisitRequestsService', () => {
     });
   });
 
-  it('rejects more named visitors than visitorCount', async () => {
+  it('requires one visitor name for each of visitorCount', async () => {
+    await expect(service.create(validDto({ visitorCount: 1 }))).rejects.toThrow(
+      'visitors must list one name for each of the visitorCount visitors.',
+    );
     await expect(
-      service.create(
-        validDto({
-          visitorCount: 1,
-          visitors: [{ firstName: 'Ana' }, { firstName: 'Ben' }],
-        }),
-      ),
+      service.create(validDto({ visitorCount: 3 })),
     ).rejects.toBeInstanceOf(BadRequestException);
+    expect(visitDelegate.create).not.toHaveBeenCalled();
   });
 
   it('rejects vehicle details without bringingVehicle', async () => {
@@ -724,6 +723,29 @@ describe('VisitRequestsService', () => {
       expect(mail.send).not.toHaveBeenCalled();
     });
 
+    it('refuses to mark a visit Completed before it has started', async () => {
+      // approvedRecord is scheduled for 2030-10-15, still in the future.
+      visitDelegate.findUnique.mockResolvedValue(
+        visitRecord({
+          status: 'SUBMITTED_FOR_CAMPUS_ENTRY',
+          approved_date: new Date('2030-10-15T00:00:00.000Z'),
+          approved_start_time: new Date('1970-01-01T09:00:00.000Z'),
+          approved_end_time: new Date('1970-01-01T11:00:00.000Z'),
+        }),
+      );
+
+      await expect(
+        service.update(
+          VISIT_ID,
+          { status: VisitRequestStatus.COMPLETED },
+          CURATOR_ID,
+        ),
+      ).rejects.toThrow(
+        'has not started yet, so it cannot be marked Completed',
+      );
+      expect(visitDelegate.update).not.toHaveBeenCalled();
+    });
+
     it.each([
       ['DECLINED', 'Update on your BioSphere visit request (Ref 11111111)'],
       [
@@ -794,7 +816,8 @@ describe('VisitRequestsService', () => {
 
       expect(visitDelegate.update).not.toHaveBeenCalled();
       expect(mail.send).toHaveBeenCalledWith(
-        expect.objectContaining({ subject: 'Visitor list' }),
+        // A curator's own subject keeps the reference tag for reply matching.
+        expect.objectContaining({ subject: 'Visitor list (Ref 11111111)' }),
       );
       expect(entry).toMatchObject({
         direction: 'OUTBOUND',
@@ -927,6 +950,26 @@ describe('VisitRequestsService', () => {
       await expect(
         service.approveSchedule(VISIT_ID, { preferenceOrder: 1 }, CURATOR_ID),
       ).rejects.toThrow('already in the past');
+      expect(visitDelegate.update).not.toHaveBeenCalled();
+    });
+
+    it('rejects approving an option outside opening hours', async () => {
+      // Saved before the hours rule: 4:00 to 6:00 PM on a Tuesday (closes 4 PM).
+      visitDelegate.findUnique.mockResolvedValue(
+        visitRecord({
+          preferred_visit_date: [
+            {
+              ...visitRecord().preferred_visit_date[0],
+              preferred_start_time: new Date('1970-01-01T16:00:00.000Z'),
+              preferred_end_time: new Date('1970-01-01T18:00:00.000Z'),
+            },
+          ],
+        }),
+      );
+
+      await expect(
+        service.approveSchedule(VISIT_ID, { preferenceOrder: 1 }, CURATOR_ID),
+      ).rejects.toThrow('Preferred option 1 is outside museum opening hours');
       expect(visitDelegate.update).not.toHaveBeenCalled();
     });
 
@@ -1093,7 +1136,7 @@ describe('VisitRequestsService', () => {
       data: expect.objectContaining({
         visit_request_id: VISIT_ID,
         communication_type: 'REFERRAL',
-        message: `Created by curator referral from inquiry ${INQUIRY_ID}.`,
+        message: `Created by curator referral from inquiry ${INQUIRY_ID.slice(0, 8).toUpperCase()}.`,
       }),
     });
     expect(auditDelegate.create).toHaveBeenCalledWith({
