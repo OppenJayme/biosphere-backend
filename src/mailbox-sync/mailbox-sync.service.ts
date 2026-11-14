@@ -9,10 +9,12 @@ import { ConfigService } from '@nestjs/config';
 import {
   CommunicationDirection,
   CommunicationTarget,
+  CommunicationType,
   recordInboundReply,
+  recordInternalEntry,
 } from '../communication-history/communication-history';
 import { Prisma } from '../generated/prisma/client';
-import { referenceIdRange } from '../mail/visitor-email';
+import { referenceCode, referenceIdRange } from '../mail/visitor-email';
 import { PrismaService } from '../prisma/prisma.service';
 import { GmailApiError, GmailClient } from './gmail.client';
 import { ParsedReply, parseGmailMessage } from './reply-parser';
@@ -44,6 +46,9 @@ interface MatchedRecord {
   target: CommunicationTarget;
   recordId: string;
   recordType: 'inquiry' | 'visit_request';
+  // Set when the reply quoted an inquiry that a curator has since turned
+  // into this visit request.
+  forwardedFromInquiryId?: string;
 }
 
 // Imports visitor replies from the museum mailbox into the matching
@@ -200,6 +205,16 @@ export class MailboxSyncService implements OnModuleInit, OnModuleDestroy {
           receivedAt: reply.receivedAt,
           externalMessageId: reply.messageId,
         });
+        if (match.forwardedFromInquiryId) {
+          // The visitor answered the old inquiry thread; leave a pointer
+          // there so the inquiry's history still explains where it went.
+          await recordInternalEntry(transaction, {
+            target: { inquiryId: match.forwardedFromInquiryId },
+            recordedBy: null,
+            type: CommunicationType.NOTE,
+            message: `A visitor reply to this inquiry was filed on visit request ${referenceCode(match.recordId)}, which this inquiry was turned into.`,
+          });
+        }
         // No message text or address in the audit, matching outbound email.
         await transaction.audit_log.create({
           data: {
@@ -208,7 +223,12 @@ export class MailboxSyncService implements OnModuleInit, OnModuleDestroy {
             affected_record_type: match.recordType,
             action: 'IMPORT_VISITOR_REPLY',
             module: 'mailbox-sync',
-            details: { entryId: entry.id },
+            details: {
+              entryId: entry.id,
+              ...(match.forwardedFromInquiryId && {
+                forwardedFromInquiryId: match.forwardedFromInquiryId,
+              }),
+            },
             status: 'SUCCESS',
           },
         });
@@ -256,7 +276,7 @@ export class MailboxSyncService implements OnModuleInit, OnModuleDestroy {
         },
       });
       if (sent?.inquiry && sameSender(sent.inquiry.email_address)) {
-        return this.inquiryMatch(sent.inquiry.id);
+        return this.inquiryMatch(sent.inquiry.id, sameSender);
       }
       if (sent?.visit_request && sameSender(sent.visit_request.email_address)) {
         return this.visitMatch(sent.visit_request.id);
@@ -281,11 +301,25 @@ export class MailboxSyncService implements OnModuleInit, OnModuleDestroy {
     // A reference shared by two of the visitor's records is ambiguous.
     if (inquiries.length + visits.length !== 1) return null;
     return inquiries[0]
-      ? this.inquiryMatch(inquiries[0].id)
+      ? this.inquiryMatch(inquiries[0].id, sameSender)
       : this.visitMatch(visits[0].id);
   }
 
-  private inquiryMatch(id: string): MatchedRecord {
+  // An inquiry a curator turned into a visit request is no longer worked
+  // on, so its replies go to that visit request (team decision 2026-11-14).
+  // The newest referral wins; one from a different address never does.
+  private async inquiryMatch(
+    id: string,
+    sameSender: (email: string) => boolean,
+  ): Promise<MatchedRecord> {
+    const referred = await this.prisma.visit_request.findFirst({
+      where: { source_inquiry_id: id },
+      orderBy: { created_at: 'desc' },
+      select: { id: true, email_address: true },
+    });
+    if (referred && sameSender(referred.email_address)) {
+      return { ...this.visitMatch(referred.id), forwardedFromInquiryId: id };
+    }
     return { target: { inquiryId: id }, recordId: id, recordType: 'inquiry' };
   }
 
