@@ -276,3 +276,26 @@ When adding a notification type, change all three together: the
 `CuratorNotificationType` enum, the DTO pattern and a new constraint migration.
 `notification-key-contract.spec.ts` fails if they disagree. The frontend feed
 schema is a strict enum and also needs the new type.
+
+### Applying it ahead of a full deploy
+
+As with the earlier notification migrations, this one may be applied on its
+own as a hotfix, so curators can clear reply alerts before the next release:
+
+```powershell
+npx prisma migrate status
+npx prisma db execute --file prisma/migrations/20261116010000_add_visitor_reply_notification_state/migration.sql
+npx prisma migrate resolve --applied 20261116010000_add_visitor_reply_notification_state
+```
+
+`migrate resolve --applied` records it in `_prisma_migrations`, so a later
+`npx prisma migrate deploy` skips it and applies only what is still pending
+(for example `20261116000000`, `20261116020000` or `20261116120000`, whichever
+are not yet applied there). Run `migrate status` before that deploy as well.
+
+Record every out-of-band application here so the next deploy is not surprised:
+
+| Environment | Applied (date, PHT) | By | `migrate status` afterwards |
+| --- | --- | --- | --- |
+| Development (Supabase) | not yet | | |
+| Production | not yet | | |
