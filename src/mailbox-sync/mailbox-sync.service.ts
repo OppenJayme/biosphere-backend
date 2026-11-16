@@ -226,7 +226,7 @@ export class MailboxSyncService implements OnModuleInit, OnModuleDestroy {
           await recordInternalEntry(transaction, {
             target: { inquiryId: match.forwardedFromInquiryId },
             recordedBy: null,
-            type: CommunicationType.NOTE,
+            type: CommunicationType.SYSTEM_NOTE,
             message: `A visitor reply to this inquiry was filed on visit request ${referenceCode(match.recordId)}, which this inquiry was turned into.`,
           });
         }

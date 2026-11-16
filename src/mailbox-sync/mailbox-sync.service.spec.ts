@@ -208,6 +208,7 @@ describe('MailboxSyncService', () => {
       data: expect.objectContaining({
         inquiry_id: INQUIRY_ID,
         direction: 'INTERNAL',
+        communication_type: 'SYSTEM_NOTE',
         recorded_by: null,
         message: expect.stringContaining('filed on visit request 9A81836F'),
       }),
