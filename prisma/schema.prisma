@@ -579,7 +579,7 @@ model communication_history {
   inquiry_id          String?        @db.Uuid
   visit_request_id    String?        @db.Uuid
   /// Null only for entries BioSphere adds by itself: INBOUND visitor replies,
-  /// OUTBOUND RECEIPT_EMAIL receipts and INTERNAL NOTE pointers (DB check).
+  /// OUTBOUND RECEIPT_EMAIL receipts and INTERNAL SYSTEM_NOTE pointers (DB check).
   recorded_by         String?        @db.Uuid
   direction           String         @db.VarChar(50)
   communication_type  String         @db.VarChar(100)
