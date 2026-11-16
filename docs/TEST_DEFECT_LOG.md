@@ -40,8 +40,15 @@ mock Prisma and the disposable-database suite predates this type.
 re-creates the constraint with `VISITOR_REPLY`; no table, column or RLS change.
 `src/notifications/notification-key-contract.spec.ts` fails if the feed enum,
 the API validation and the newest constraint migration ever list different
-types; it failed without the migration and passes with it. Not yet run against
-PostgreSQL: the disposable-database suite needs Docker, which was not running.
+types; it failed without the migration and passes with it.
+
+`npm run test:notifications:db` (owned PostgreSQL, real HTTP) adds a case where
+one curator dismisses a reply alert and the other still sees it. It fails
+without the migration and passes with it: **13/13** on 2026-11-16. The suite
+itself was failing 11/12 on `develop` before this change, because its fixture
+lacked `communication_history`, which the feed reads since visitor-reply
+alerts. The fixture now loads that table and the mailbox migration, as the
+recovery fixture already does (`f23a8fe`). This suite is not run by Linux CI.
 
 **Retest:** After the migration is applied, repeat the steps with two curators:
 the acting curator's reply alerts clear; the other curator's stay until they
