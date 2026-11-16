@@ -41,9 +41,14 @@ export async function seedNotificationsDatabase(admin: Client) {
     'prisma/migrations/20261112000000_add_weekly_excel_export/migration.sql',
     'database/sql/016_inquiry.sql',
     'database/sql/017_visit_request.sql',
+    // The feed reads communication_history for unanswered visitor replies
+    // (VISITOR_REPLY); the mailbox migration lets inbound rows have no curator.
+    'database/sql/025_communication_history.sql',
+    'prisma/migrations/20261111000000_add_mailbox_reply_sync/migration.sql',
     'prisma/migrations/20261028000000_add_user_notification_state/migration.sql',
     'prisma/migrations/20261105000000_extend_notification_state_types/migration.sql',
     'prisma/migrations/20261106000000_extend_notification_state_activity_types/migration.sql',
+    'prisma/migrations/20261116010000_add_visitor_reply_notification_state/migration.sql',
   ]) {
     await admin.query(readFileSync(resolve(__dirname, '../..', file), 'utf8'));
   }
@@ -66,7 +71,7 @@ export async function seedNotificationsDatabase(admin: Client) {
       archived_at TIMESTAMPTZ
     )`);
   await admin.query(
-    'GRANT SELECT ON inquiry, visit_request, backup_history, offline_draft_sync, specimen TO service_role',
+    'GRANT SELECT ON inquiry, visit_request, backup_history, offline_draft_sync, specimen, communication_history TO service_role',
   );
 }
 

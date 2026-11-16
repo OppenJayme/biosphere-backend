@@ -101,6 +101,32 @@ describe('Per-curator notification state, owned PostgreSQL and real HTTP', () =>
       (await feed('other-curator-fixture').expect(200)).body.unreadTotal,
     ).toBe(3);
   });
+  // DEF-045: the state constraint once rejected VISITOR_REPLY keys, so reply
+  // alerts could never be read, dismissed or cleared.
+  it('lets a curator dismiss a visitor-reply alert for themselves only', async () => {
+    const reply = await database.admin.query<{ id: string }>(
+      `INSERT INTO communication_history(visit_request_id,direction,communication_type,message)
+      VALUES ($1,'INBOUND','VISITOR_REPLY','Synthetic reply') RETURNING id`,
+      [VISIT_ID],
+    );
+    const key = 'VISITOR_REPLY:' + reply.rows[0].id;
+    const ids = async (token?: string) =>
+      ((await feed(token).expect(200)).body as Feed).items.map(
+        (item: { id: string }) => item.id,
+      );
+    expect(await ids()).toContain(key);
+
+    await change(key, 'DISMISSED').expect(200);
+    expect(await ids()).not.toContain(key);
+    expect(await ids('other-curator-fixture')).toContain(key);
+    expect(
+      (
+        await database.admin.query(
+          'SELECT count(*)::int AS n FROM communication_history',
+        )
+      ).rows[0].n,
+    ).toBe(1);
+  });
   it('dismisses once, preserves first timestamps on retries and never changes source records', async () => {
     const key = 'NEW_VISIT_REQUEST:' + VISIT_ID;
     const before = await database.admin.query(

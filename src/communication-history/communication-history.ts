@@ -6,7 +6,9 @@ import { CommunicationEntry } from './communication-history.entity';
 // a curator's behalf; INBOUND entries are visitor replies imported from the
 // museum mailbox (team approved 2026-11-11, spec 0002; the SRS text for the
 // outbound-only rule in BR-22 / REQ-4.9-14 still has to be reworded).
-// INBOUND entries and system receipts (RECEIPT_EMAIL) have no acting curator.
+// INBOUND entries, system receipts (OUTBOUND RECEIPT_EMAIL) and system pointer
+// notes (INTERNAL SYSTEM_NOTE) have no acting curator; the database check
+// communication_recorded_by_unless_system rejects a null curator elsewhere.
 export const CommunicationDirection = {
   INTERNAL: 'INTERNAL',
   OUTBOUND: 'OUTBOUND',
@@ -16,7 +18,11 @@ export const CommunicationDirection = {
 export const CommunicationType = {
   STATUS_CHANGE: 'STATUS_CHANGE',
   REFERRAL: 'REFERRAL',
+  // Curator-written note (POST .../notes); always has a curator.
   NOTE: 'NOTE',
+  // Note BioSphere adds by itself: the pointer left on an inquiry when a
+  // visitor reply to it is filed on the visit request it was turned into.
+  SYSTEM_NOTE: 'SYSTEM_NOTE',
   // Email telling the visitor about a curator decision (approve, decline,
   // cancel), REQ-4.9-11.
   STATUS_UPDATE_EMAIL: 'STATUS_UPDATE_EMAIL',

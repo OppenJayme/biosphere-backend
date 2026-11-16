@@ -151,14 +151,19 @@ acting curator (`recorded_by`) and time (`created_at`):
 | `INTERNAL` | `STATUS_CHANGE` | `PATCH`, `approve-schedule` | `Status changed from X to Y.` plus the approved option and the curator's `note` |
 | `INTERNAL` | `REFERRAL` | `referral` | status change and the linked record's id, plus `note` |
 | `INTERNAL` | `NOTE` | `POST .../notes` | the curator's note, max 2000 characters |
+| `INTERNAL` | `SYSTEM_NOTE` | mailbox sync | pointer left on an inquiry when a visitor reply to it is filed on the visit request it was turned into (no acting curator) |
 | `OUTBOUND` | `STATUS_UPDATE_EMAIL` | approve, decline, cancel | the plain-text email sent to the visitor |
 | `OUTBOUND` | `MESSAGE_EMAIL` | `replies`, `messages` | the plain-text email sent to the visitor |
+| `OUTBOUND` | `RECEIPT_EMAIL` | public submission, `referral` | the automatic receipt sent to the visitor (no acting curator) |
 | `INBOUND` | `VISITOR_REPLY` | mailbox sync | the visitor's reply text, quoted earlier email removed |
 
 `OUTBOUND` entries also store `recipient_email`, `subject`, `delivery_result`,
 `sent_at` (null when the send failed), and `external_message_id` (Brevo's
 Message-ID, used to match replies). `INBOUND` entries have no acting curator
-(`recorded_by` is null, allowed only for `INBOUND` by a database check), store
+(`recorded_by` is null; the database check
+`communication_recorded_by_unless_system` allows that only for `INBOUND`,
+automatic `OUTBOUND` `RECEIPT_EMAIL` receipts and the system `INTERNAL`
+`SYSTEM_NOTE` left when a reply is filed on a referred visit request), store
 the received time in `sent_at`, and keep the reply's own Message-ID in
 `external_message_id`, which is unique so a reply is never imported twice. This
 replaces the old outbound only rule (BR-22, REQ-4.9-14); see

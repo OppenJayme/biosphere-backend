@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
   CommunicationType,
@@ -13,6 +13,7 @@ import {
   referenceCode,
 } from '../mail/visitor-email';
 import { PrismaService } from '../prisma/prisma.service';
+import { PushService } from '../push/push.service';
 import { buildCuratorAlertEmail } from './curator-alert-email';
 import { NotificationRecordType } from './entities/curator-notification.entity';
 
@@ -76,14 +77,17 @@ export class SubmissionNotificationsService {
     private readonly prisma: PrismaService,
     private readonly mail: MailService,
     private readonly config: ConfigService,
+    @Optional() private readonly push?: PushService,
   ) {}
 
   // Called after the submission is saved and never throws, so a mail or
-  // audit failure cannot undo or fail the visitor's submission.
+  // audit failure cannot undo or fail the visitor's submission. The push
+  // (spec 0004) carries nothing; curators' devices read their own feed.
   async announce(submission: NewSubmission): Promise<void> {
     const results = await Promise.allSettled([
       this.sendReceipt(submission),
       this.alertCurators(submission),
+      this.push?.notifyCurators(`new ${submission.recordType}`),
     ]);
     for (const result of results) {
       if (result.status === 'rejected') {

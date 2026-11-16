@@ -1,6 +1,7 @@
 import { ConfigService } from '@nestjs/config';
 import { MailService, OutgoingEmail } from '../mail/mail.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { PushService } from '../push/push.service';
 import { NotificationRecordType } from './entities/curator-notification.entity';
 import {
   NewSubmission,
@@ -267,5 +268,38 @@ describe('SubmissionNotificationsService', () => {
       undefined,
     );
     expect(sentTo('juan@example.com')).toBeDefined();
+  });
+});
+
+describe('SubmissionNotificationsService push (spec 0004)', () => {
+  it('wakes curator devices on a new submission and ignores push failures', async () => {
+    const prisma = {
+      user_account: { findMany: jest.fn().mockResolvedValue([]) },
+      audit_log: { create: jest.fn() },
+      communication_history: {
+        create: jest.fn().mockResolvedValue({ id: 'entry-1' }),
+      },
+    };
+    const mail = {
+      send: jest.fn().mockResolvedValue({ delivered: true, result: 'SENT' }),
+    };
+    const push = {
+      notifyCurators: jest.fn().mockRejectedValue(new Error('push down')),
+    };
+    const service = new SubmissionNotificationsService(
+      prisma as unknown as PrismaService,
+      mail as unknown as MailService,
+      { get: () => undefined } as unknown as ConfigService,
+      push as unknown as PushService,
+    );
+
+    await expect(
+      service.announce(inquirySubmission()),
+    ).resolves.toBeUndefined();
+    expect(push.notifyCurators).toHaveBeenCalledWith('new inquiry');
+    // The visitor still gets their receipt.
+    expect(mail.send).toHaveBeenCalledWith(
+      expect.objectContaining({ to: 'juan@example.com' }),
+    );
   });
 });

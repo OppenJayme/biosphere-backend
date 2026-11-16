@@ -262,3 +262,46 @@ Auth/provider services are synthetic; no browser, hosted account, shared record,
 Inventory rule or notification business logic was changed. The initial stopped
 Docker setup ran no API cases and is excluded from passing evidence. This is
 owner-run integration evidence, not independent module acceptance.
+
+## Visitor-reply state fix - November 16, 2026
+
+`VISITOR_REPLY` alerts (spec 0002) were accepted by `PATCH /notifications/state`
+but rejected by the `notification_state_key` CHECK, so they could not be read,
+dismissed or cleared ([DEF-045](./TEST_DEFECT_LOG.md#def-045---visitor-reply-alerts-cannot-be-read-dismissed-or-cleared)).
+Migration `20261116010000_add_visitor_reply_notification_state` adds the prefix;
+it changes no table, column or RLS policy and goes through the normal approved
+migration workflow.
+
+When adding a notification type, change all three together: the
+`CuratorNotificationType` enum, the DTO pattern and a new constraint migration.
+`notification-key-contract.spec.ts` fails if they disagree. The frontend feed
+schema is a strict enum and also needs the new type.
+
+### Applying it ahead of a full deploy
+
+As with the earlier notification migrations, this one may be applied on its
+own as a hotfix, so curators can clear reply alerts before the next release:
+
+```powershell
+npx prisma migrate status
+npx prisma db execute --file prisma/migrations/20261116010000_add_visitor_reply_notification_state/migration.sql
+npx prisma migrate resolve --applied 20261116010000_add_visitor_reply_notification_state
+```
+
+`migrate resolve --applied` records it in `_prisma_migrations`, so a later
+`npx prisma migrate deploy` skips it and applies only what is still pending
+(for example `20261116000000`, `20261116020000` or `20261116120000`, whichever
+are not yet applied there). Run `migrate status` before that deploy as well.
+
+Record every out-of-band application here so the next deploy is not surprised:
+
+| Environment | Applied (date, PHT) | By | `migrate status` afterwards |
+| --- | --- | --- | --- |
+| Development (Supabase) | 2026-11-17 00:27, with `migrate deploy` in the same run as `20261116000000`, `20261116020000` and `20261116120000` (all four were pending) | MarQtie | Database schema is up to date (19 migrations) |
+| Production | not yet | | |
+
+The development application was a normal `migrate deploy`, not `db execute`, so
+nothing needs `migrate resolve` there. Mailbox sync had never run on that
+project (no `gmail_sync_state` row), so the sync pause that
+`20261116120000_separate_system_pointer_notes` asks for was not needed.
+DEF-045 was retested there afterwards with two curators and passed.
