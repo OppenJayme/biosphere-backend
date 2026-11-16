@@ -3,6 +3,7 @@ import {
   Logger,
   OnModuleDestroy,
   OnModuleInit,
+  Optional,
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -16,6 +17,7 @@ import {
 import { Prisma } from '../generated/prisma/client';
 import { referenceCode, referenceIdRange } from '../mail/visitor-email';
 import { PrismaService } from '../prisma/prisma.service';
+import { PushService } from '../push/push.service';
 import { GmailApiError, GmailClient } from './gmail.client';
 import { ParsedReply, parseGmailMessage } from './reply-parser';
 import { MailboxSyncResult, MailboxSyncStatus } from './mailbox-sync.entity';
@@ -66,6 +68,7 @@ export class MailboxSyncService implements OnModuleInit, OnModuleDestroy {
     private readonly prisma: PrismaService,
     private readonly gmail: GmailClient,
     private readonly config: ConfigService,
+    @Optional() private readonly push?: PushService,
   ) {}
 
   onModuleInit(): void {
@@ -163,6 +166,7 @@ export class MailboxSyncService implements OnModuleInit, OnModuleDestroy {
       if (result.imported > 0) {
         this.logger.log(`Imported ${result.imported} visitor repl(ies).`);
       }
+      this.announceReplies(result);
       return result;
     } catch (error) {
       // Only Gmail errors are known to carry no message content; anything
@@ -172,6 +176,8 @@ export class MailboxSyncService implements OnModuleInit, OnModuleDestroy {
           ? error.message
           : 'Unexpected error while checking the mailbox; see the server log.';
       this.logger.warn(`Mailbox sync failed: ${describeError(error)}`);
+      // Replies imported before the failure are committed; still announce them.
+      this.announceReplies(result);
       // Keep the progress made before the failure.
       await this.saveState(mailbox, {
         last_checked_at: checkedAt,
@@ -181,6 +187,15 @@ export class MailboxSyncService implements OnModuleInit, OnModuleDestroy {
       throw new ServiceUnavailableException(
         `The mailbox could not be checked: ${reason}`,
       );
+    }
+  }
+
+  // One empty push per run that imported anything (spec 0004): devices read
+  // the feed, which lists every unanswered reply. Not awaited, so a slow push
+  // service never delays the sync or a curator's manual check.
+  private announceReplies(result: MailboxSyncResult): void {
+    if (result.imported > 0) {
+      void this.push?.notifyCurators('visitor reply');
     }
   }
 
