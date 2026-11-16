@@ -4,6 +4,7 @@ import { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { GmailClient, GmailApiError } from './gmail.client';
 import { MailboxSyncService } from './mailbox-sync.service';
+import { PushService } from '../push/push.service';
 
 const INQUIRY_ID = '9a81836f-1111-4111-8111-111111111111';
 const VISIT_ID = '9a81836f-2222-4222-8222-222222222222';
@@ -49,6 +50,7 @@ describe('MailboxSyncService', () => {
     audit_log: { create: jest.fn() },
     $transaction: jest.fn(),
   };
+  const push = { notifyCurators: jest.fn(() => Promise.resolve()) };
   let service: MailboxSyncService;
   let messages: Record<string, ReturnType<typeof gmailMessage>>;
 
@@ -87,10 +89,34 @@ describe('MailboxSyncService', () => {
       prisma as unknown as PrismaService,
       gmail as unknown as GmailClient,
       config as unknown as ConfigService,
+      push as unknown as PushService,
     );
   });
 
   afterEach(() => jest.useRealTimers());
+
+  it('wakes curator devices once per run that imported a reply, never otherwise', async () => {
+    messages.r1 = gmailMessage('r1', {
+      From: 'maria@example.com',
+      'In-Reply-To': '<sent-1@smtp-relay.mailin.fr>',
+    });
+    messages.r2 = gmailMessage('r2', {
+      From: 'maria@example.com',
+      'In-Reply-To': '<sent-1@smtp-relay.mailin.fr>',
+    });
+    prisma.communication_history.findFirst.mockResolvedValue({
+      inquiry: null,
+      visit_request: { id: VISIT_ID, email_address: 'maria@example.com' },
+    });
+
+    await expect(service.sync()).resolves.toMatchObject({ imported: 2 });
+    expect(push.notifyCurators).toHaveBeenCalledTimes(1);
+
+    push.notifyCurators.mockClear();
+    messages = {};
+    await expect(service.sync()).resolves.toMatchObject({ imported: 0 });
+    expect(push.notifyCurators).not.toHaveBeenCalled();
+  });
 
   it('imports a reply matched by In-Reply-To from the record email', async () => {
     messages.r1 = gmailMessage('r1', {
