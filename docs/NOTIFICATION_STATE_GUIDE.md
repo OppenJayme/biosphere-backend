@@ -297,5 +297,11 @@ Record every out-of-band application here so the next deploy is not surprised:
 
 | Environment | Applied (date, PHT) | By | `migrate status` afterwards |
 | --- | --- | --- | --- |
-| Development (Supabase) | not yet | | |
+| Development (Supabase) | 2026-11-17 00:27, with `migrate deploy` in the same run as `20261116000000`, `20261116020000` and `20261116120000` (all four were pending) | MarQtie | Database schema is up to date (19 migrations) |
 | Production | not yet | | |
+
+The development application was a normal `migrate deploy`, not `db execute`, so
+nothing needs `migrate resolve` there. Mailbox sync had never run on that
+project (no `gmail_sync_state` row), so the sync pause that
+`20261116120000_separate_system_pointer_notes` asks for was not needed.
+DEF-045 was retested there afterwards with two curators and passed.
