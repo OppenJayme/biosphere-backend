@@ -8,9 +8,9 @@ defect entry.
 
 ### DEF-045 - Visitor-reply alerts cannot be read, dismissed or cleared
 
-**Status:** Fix prepared on `fix/visitor-reply-notification-state-20261116`;
-migration not yet applied to any shared database. Reported by Charles on
-2026-11-16 using two Curator accounts.
+**Status:** Fixed and retested on development (2026-11-17); production still
+needs the migration. The fix merged in #328. Reported by Charles on 2026-11-16
+using two Curator accounts.
 
 **Module/owner:** Notifications (Charles, with John for notification review).
 
@@ -53,6 +53,26 @@ recovery fixture already does (`f23a8fe`). This suite is not run by Linux CI.
 **Retest:** After the migration is applied, repeat the steps with two curators:
 the acting curator's reply alerts clear; the other curator's stay until they
 clear them or a curator follows up on the record.
+
+**Retest result, development, 2026-11-17 (MarQtie): Passed.** The migration was
+applied with `migrate deploy`, and `develop` (`5aedba0`) was run locally
+against the development Supabase project. Two active curators were used, A and B.
+- Before: A's bell showed 7 unread, including 3 "A visitor replied by email"
+  alerts, and `user_notification_state` held no rows for either curator.
+- A used Clear all and confirmed "All 7 notifications are removed from your
+  list". The toast read "7 notifications were cleared." and the bell was empty.
+- After a page reload, A's bell stayed empty, so the reply alerts did not come
+  back. The database held 7 read and dismissed rows for A, including 3
+  `VISITOR_REPLY` rows.
+- B still had 7 unread, including the 3 reply alerts, after a reload in a
+  separate browser. B had no state rows.
+
+Production is still open. Its server runs `main` without this migration, and on
+2026-11-16 at 20:57 (server time) the production log showed the same 23514 on
+`notification_state_key` when a curator tried to clear a reply alert.
+
+The development project held 3 inbound replies at retest, not the 24 in
+**Actual** above, so those figures most likely came from a different project.
 
 ### DEF-044 - Large-group chatbot answer conflicts with its Visit Request link
 
@@ -278,7 +298,7 @@ system is not a reason to postpone all fixes until the end.
 
 | ID      | Date       | Module                     | Summary                                                                 | Severity    | Priority | Status | Owner                   |
 | ------- | ---------- | -------------------------- | ----------------------------------------------------------------------- | ----------- | -------- | ------ | ----------------------- |
-| [DEF-045](#def-045---visitor-reply-alerts-cannot-be-read-dismissed-or-cleared) | 2026-11-16 | Notifications / State | Visitor-reply alerts fail the notification-state constraint, so read, dismiss and Clear all leave them in the bell | S2 Major | P1 | Fix prepared | Charles; John review |
+| [DEF-045](#def-045---visitor-reply-alerts-cannot-be-read-dismissed-or-cleared) | 2026-11-16 | Notifications / State | Visitor-reply alerts fail the notification-state constraint, so read, dismiss and Clear all leave them in the bell | S2 Major | P1 | Passed on dev; prod pending | Charles; John review |
 | [DEF-043](#def-043---readiness-check-rejects-valid-files-on-windows-node-2214) | 2026-11-08 | Recovery / Planning CLI | Unknown path device ID differs from the open handle on Windows Node 22.14, rejecting valid records | S3 Moderate | P2 | Ready for retest | Kyer / Ivan; Raidiniom review |
 | [DEF-042](#def-042---automatic-accession-allocation-reissues-the-first-number) | 2026-11-08 | Cataloging / Offline sync | Second omitted-accession creation conflicts with the first generated accession | S2 Major | P1 | Ready for retest | Kyer / Ivan |
 | [DEF-041](#def-041---supabase-rehearsal-reuses-source-authentication-authority) | 2026-11-07 | Recovery / Supabase fixture | Restored target accepts source authentication; restore bypasses FK triggers and denial checks accept unrelated errors | S3 Moderate | P2 | Ready for retest | Kyer / Ivan; MarQtie #252/#253 review |
