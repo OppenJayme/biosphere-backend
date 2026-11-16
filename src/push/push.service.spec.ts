@@ -5,7 +5,11 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
-import { MAX_DEVICES_PER_ACCOUNT, PushService } from './push.service';
+import {
+  MAX_CONSECUTIVE_FAILURES,
+  MAX_DEVICES_PER_ACCOUNT,
+  PushService,
+} from './push.service';
 
 const ACCOUNT = '0b5c9f3e-6a1d-4c2b-9e7f-1a2b3c4d5e6f';
 const FCM = 'https://fcm.googleapis.com/fcm/send/device-1';
@@ -188,6 +192,32 @@ describe('PushService', () => {
     expect(prisma.push_subscription.update).toHaveBeenCalledWith({
       where: { id: 'flaky' },
       data: { failure_count: { increment: 1 } },
+      select: { failure_count: true },
+    });
+    expect(prisma.push_subscription.deleteMany).not.toHaveBeenCalledWith({
+      where: { id: 'flaky' },
+    });
+  });
+
+  it('drops a device after repeated consecutive failures, such as after a key rotation', async () => {
+    prisma.push_subscription.findMany.mockResolvedValue([
+      { id: 'stale', endpoint: FCM },
+    ]);
+    fetcher.mockResolvedValue(new Response(null, { status: 403 }));
+    prisma.push_subscription.update.mockResolvedValueOnce({
+      failure_count: MAX_CONSECUTIVE_FAILURES - 1,
+    });
+    const service = create();
+
+    await service.notifyCurators('x');
+    expect(prisma.push_subscription.deleteMany).not.toHaveBeenCalled();
+
+    prisma.push_subscription.update.mockResolvedValueOnce({
+      failure_count: MAX_CONSECUTIVE_FAILURES,
+    });
+    await service.notifyCurators('x');
+    expect(prisma.push_subscription.deleteMany).toHaveBeenCalledWith({
+      where: { id: 'stale' },
     });
   });
 

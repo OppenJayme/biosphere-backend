@@ -11,6 +11,9 @@ import { parseVapidKeys, vapidAuthorization, type VapidKeys } from './vapid';
 
 // Devices one curator may register; registering another drops the oldest.
 export const MAX_DEVICES_PER_ACCOUNT = 10;
+// Consecutive failed pushes after which a device is removed. The curator
+// can turn alerts on again from the bell.
+export const MAX_CONSECUTIVE_FAILURES = 5;
 // How long a push service keeps an undelivered alert for an offline device.
 const PUSH_TTL_SECONDS = 3600;
 const SEND_TIMEOUT_MS = 10_000;
@@ -149,11 +152,23 @@ export class PushService {
     }
   }
 
+  // A device that keeps failing (for example 401/403 after the VAPID keys
+  // were rotated) is dropped instead of being retried forever. Any success
+  // resets the count, so only consecutive failures add up.
   private async recordFailure(id: string, reason: string): Promise<void> {
     this.logger.warn(`Push to a registered device failed: ${reason}`);
-    await this.prisma.push_subscription
-      .update({ where: { id }, data: { failure_count: { increment: 1 } } })
-      .catch(() => undefined);
+    try {
+      const device = await this.prisma.push_subscription.update({
+        where: { id },
+        data: { failure_count: { increment: 1 } },
+        select: { failure_count: true },
+      });
+      if (device.failure_count >= MAX_CONSECUTIVE_FAILURES) {
+        await this.forget(id);
+      }
+    } catch {
+      // The device may already be gone; nothing else to do.
+    }
   }
 
   private async forget(id: string): Promise<void> {
