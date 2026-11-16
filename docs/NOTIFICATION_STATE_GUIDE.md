@@ -262,3 +262,17 @@ Auth/provider services are synthetic; no browser, hosted account, shared record,
 Inventory rule or notification business logic was changed. The initial stopped
 Docker setup ran no API cases and is excluded from passing evidence. This is
 owner-run integration evidence, not independent module acceptance.
+
+## Visitor-reply state fix - November 16, 2026
+
+`VISITOR_REPLY` alerts (spec 0002) were accepted by `PATCH /notifications/state`
+but rejected by the `notification_state_key` CHECK, so they could not be read,
+dismissed or cleared ([DEF-045](./TEST_DEFECT_LOG.md#def-045---visitor-reply-alerts-cannot-be-read-dismissed-or-cleared)).
+Migration `20261116010000_add_visitor_reply_notification_state` adds the prefix;
+it changes no table, column or RLS policy and goes through the normal approved
+migration workflow.
+
+When adding a notification type, change all three together: the
+`CuratorNotificationType` enum, the DTO pattern and a new constraint migration.
+`notification-key-contract.spec.ts` fails if they disagree. The frontend feed
+schema is a strict enum and also needs the new type.
