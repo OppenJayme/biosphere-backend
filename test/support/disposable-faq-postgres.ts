@@ -61,6 +61,10 @@ const DATABASE_PROFILES = {
     database: 'biosphere_accession_allocation_disposable',
     optIn: 'RUN_ACCESSION_ALLOCATION_DISPOSABLE_DB',
   },
+  'communication-history': {
+    database: 'biosphere_communication_history_disposable',
+    optIn: 'RUN_COMMUNICATION_HISTORY_DISPOSABLE_DB',
+  },
 } as const;
 type DatabaseScope = keyof typeof DATABASE_PROFILES;
 
@@ -114,7 +118,8 @@ export class DisposableFaqPostgres {
 
   static async start(scope: DatabaseScope = 'faq-review') {
     const profile = DATABASE_PROFILES[scope];
-    // Linux CI is enabled only for explicitly owned recovery/allocation profiles.
+    // Linux CI is enabled only for explicitly owned recovery/allocation and
+    // communication-history profiles.
     const supported =
       process.platform === 'win32' ||
       (process.platform === 'linux' &&
@@ -122,6 +127,7 @@ export class DisposableFaqPostgres {
           'recovery-history',
           'recovery-recording',
           'accession-allocation',
+          'communication-history',
         ].includes(scope));
     if (!supported || !profile || process.env[profile.optIn] !== 'true')
       throw new Error(
