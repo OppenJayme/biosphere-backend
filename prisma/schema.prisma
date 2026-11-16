@@ -578,7 +578,8 @@ model communication_history {
   id                  String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   inquiry_id          String?        @db.Uuid
   visit_request_id    String?        @db.Uuid
-  /// Null only for INBOUND visitor replies imported from the museum mailbox.
+  /// Null only for entries BioSphere adds by itself: INBOUND visitor replies,
+  /// OUTBOUND RECEIPT_EMAIL receipts and INTERNAL NOTE pointers (DB check).
   recorded_by         String?        @db.Uuid
   direction           String         @db.VarChar(50)
   communication_type  String         @db.VarChar(100)
