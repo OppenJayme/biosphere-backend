@@ -33,8 +33,8 @@ out or offline, the device shows a generic "New activity" alert.
    ```
 
 3. Generate keys once per environment and keep them only in the server `.env`
-   (never Git, chat or docs). Changing keys later makes every device turn
-   alerts on again.
+   (never Git, chat or docs). See [Rotating the keys](#rotating-the-keys)
+   before ever changing them.
 
    ```powershell
    npm run push:vapid-keys
@@ -70,7 +70,20 @@ out or offline, the device shows a generic "New activity" alert.
   record; the bell is correct.
 - Signing out does not unregister the device. The next curator to sign in on
   that browser takes it over; until then it shows only the generic alert.
-- No retention job: devices are removed when a push service reports them gone.
+- No retention job. A device is removed when a push service reports it gone
+  (404/410) or after 5 failed pushes in a row; any success resets the count.
+
+## Rotating the keys
+
+Every browser subscription is tied to the VAPID public key it was made with,
+so new keys invalidate all of them. Rotate only if the private key leaked:
+
+1. Generate new keys, replace both `VAPID_*` values and restart the backend.
+2. Each curator opens BioSphere on each device. The page notices the
+   subscription uses the old key and re-subscribes with the new one by itself
+   (permission is already granted). A device nobody opens stops receiving
+   pushes; its old registration fails and is removed after 5 attempts.
+3. If a device still shows no alerts, turn alerts off and on again in the bell.
 
 ## Turning it off
 

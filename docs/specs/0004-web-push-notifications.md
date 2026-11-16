@@ -50,7 +50,8 @@ delivery channel under REQ-4.3-05/06, not as a new requirement ID.
 - **AC-4**: Clicking the notification opens the related record (REQ-4.3-06).
 - **AC-5**: An open BioSphere tab refreshes its bell when a push arrives.
 - **AC-6**: A failed push never fails or delays the submission or the import.
-  Devices the push service reports as gone (404/410) are removed.
+  Devices the push service reports as gone (404/410), or that fail 5 pushes in
+  a row (for example after a key rotation), are removed.
 - **AC-7**: With `PUSH_NOTIFICATIONS_ENABLED` unset or false, or VAPID keys
   missing, nothing is sent, the config endpoint reports push as off, and
   registration returns 503.
