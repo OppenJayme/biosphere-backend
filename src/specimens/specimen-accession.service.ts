@@ -19,7 +19,7 @@ export const ACCESSION_PREFIX = 'USC-BM';
 const ACCESSION_TIME_ZONE = 'Asia/Manila';
 const ACCESSION_SEQUENCE_DIGITS = 4;
 // Serializes concurrent allocators; any constant key works.
-const ACCESSION_ALLOCATION_LOCK = 4_232_026;
+export const ACCESSION_ALLOCATION_LOCK = 4_232_026;
 
 export function accessionYear(at: Date): number {
   return Number(
