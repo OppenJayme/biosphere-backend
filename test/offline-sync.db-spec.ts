@@ -4,6 +4,7 @@ import type { App } from 'supertest/types';
 import request from 'supertest';
 import { performance } from 'node:perf_hooks';
 import { DisposableFaqPostgres } from './support/disposable-faq-postgres';
+import { ACCESSION_ALLOCATION_LOCK as ACCESSION_ALLOCATION_LOCK_KEY } from '../src/specimens/specimen-accession.service';
 import {
   createOfflineSyncDatabaseApp,
   seedOfflineSyncDatabase,
@@ -171,7 +172,10 @@ describe('Offline sync on owned disposable PostgreSQL', () => {
   });
 
   it('converges two overlapping same-ID transactions on one specimen, receipt and audit', async () => {
-    // Owned SQL barrier: prove both transactions reached specimen insertion before releasing either.
+    // Owned SQL barrier: prove both transactions are in flight before releasing
+    // either. A draft without an accession number takes the allocation lock
+    // (USC-BM-YYYY-NNNN) before its insert, so the second transaction may wait
+    // there instead of at this barrier; both waits prove the overlap.
     await database.admin.query(`
       CREATE FUNCTION offline_test_insert_barrier() RETURNS trigger LANGUAGE plpgsql AS $$
       BEGIN PERFORM pg_advisory_xact_lock(196143::bigint); RETURN NEW; END $$;
@@ -190,7 +194,8 @@ describe('Offline sync on owned disposable PostgreSQL', () => {
       while (performance.now() < deadline) {
         const locks = await database.admin
           .query(`SELECT count(*)::int AS contenders FROM pg_locks
-          WHERE locktype = 'advisory' AND classid = 0 AND objid = 196143 AND NOT granted`);
+          WHERE locktype = 'advisory' AND classid = 0
+            AND objid IN (196143, ${ACCESSION_ALLOCATION_LOCK_KEY}) AND NOT granted`);
         contenders = Number(locks.rows[0].contenders);
         if (contenders === 2) break;
         await new Promise((resolve) => setTimeout(resolve, 25));
