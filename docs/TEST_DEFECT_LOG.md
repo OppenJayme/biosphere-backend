@@ -6,12 +6,141 @@ defect entry.
 
 ## Start here
 
+### Retest sweep - 2026-11-17 (Charles)
+
+**Requested by:** Charles. **What it is:** a tool-run retest of every defect
+not yet Verified. It adds evidence only. Statuses stay as they were, except
+DEF-044 (Open to Ready for retest, because its fix is deployed and passed in
+production). Owner and independent acceptance are still needed to mark any
+defect Verified.
+
+**Code tested:** backend `develop` `585181d`, frontend `develop` `4e72a57`, each
+in a separate worktree. Production (`biosphere.dcism.org`, backend v1.5.0) was
+checked read-only, except for one alert dismissed in DEF-045 with approval.
+
+**Environment limits:**
+- No development database was available. The local `.env` points at the
+  production database: it has the same 43 specimens, and its newest migration
+  finished at the v1.5.0 deploy time. So the app was not run locally against
+  it, and nothing was written to it.
+- Database behavior was tested only in owned, disposable Docker PostgreSQL and
+  Supabase containers created by the project's test commands.
+- Production checks needing writes (submits, imports, interrupted saves,
+  attaching tags) were not done. Those defects rely on automated tests only.
+
+**Whole-suite results (all passed unless noted):**
+
+| Check | Result |
+| --- | --- |
+| Backend `lint:ci` | 0 errors (6 existing warnings) |
+| Backend unit (`npm test`) | 1140/1140, 77 suites |
+| Backend build | Passed |
+| Backend e2e | 501 passed, 17 opt-in skipped, 33 suites |
+| Recovery node tests (guards, readiness, inventory, Supabase contracts/files/guards) | 72/72 |
+| Recovery CLI rehearsal (`test:recovery:cli`, Docker) | 16/16, 0 skipped |
+| FAQ evaluation (`evaluate:faq`) | 25/25 |
+| Disposable-DB suites (16 `*:db` commands) | All passed, after one test fix (see below) |
+| Progress API (`test:progress-api:db`) | 28/28 tests after two test fixes (see below). Of 796 observations, 3 are still deliberately "Not executed": ACCT-CURATOR-ACTIVATE, ACCT-CHANGE-PASSWORD, BAK-RUN-RESTORE. These are open evidence gaps, not regressions, and they make the command exit 1 |
+| Frontend lint / unit (`vitest`) | 0 errors / 723/723, 100 files |
+| Frontend browser diagnostics (draft save, duplicate ordering, public dialogs, public submissions, visitor count, notification bell) | 14 / 6 / 6 / 16 / 15 / OK |
+| Offline containment / recovery browser suites | 3/3 / 1/1, after one harness fix (see below) |
+
+**Per-defect results:**
+
+| Defect | Evidence this run | Result |
+| --- | --- | --- |
+| DEF-001 | `test:collections:db` 16/16 | Pass |
+| DEF-003 | Production: client-side row selection loads the preview in a remote browser | Pass (one browser) |
+| DEF-004 | Production: media "Choose file" turns sage to forest-100 on hover; frontend tests | Pass |
+| DEF-005 | Production: vocabulary search "Lu" shows a visible, clickable "Luzon" | Pass |
+| DEF-006 | Production: media history reads "Image added" with no IDs or paths; frontend tests | Pass (see OBS below) |
+| DEF-007 | Production: Beetles shows its cover; no-cover specimens show the fallback text | Pass |
+| DEF-008 | Production: Clear all resets URL, tab and gender; Back/Forward restore and re-clear | Pass |
+| DEF-010 | Production: default tree active-only; archived group, labels, breadcrumbs, read-only note, active child count excludes archived | Pass |
+| DEF-011 | See the DEF-011 note | Still In progress |
+| DEF-012 | Production: "Save metadata" turns transparent to forest-100 on hover. "Set as cover" was not visible (only image is already cover) | Partial pass |
+| DEF-013 | Production: CSV "Choose file" turns sage-50 to forest-100 on hover, pointer cursor | Pass |
+| DEF-014 | Frontend tests only (`tag-notice-page.test.ts`); production needs a tag attach | Tests pass; not checked in production |
+| DEF-015, DEF-016, DEF-017, DEF-033 | Backend e2e suites | Pass |
+| DEF-019 | See the DEF-019 note | Still Open |
+| DEF-020, DEF-021, DEF-022 | Frontend tests (duplicate, import and media request interruption) | Tests pass; not checked in production |
+| DEF-023 | `test:faq-review:db` 20/20 | Pass |
+| DEF-024 | `evaluate:faq` 25/25; production: E19/E20 return NO_MATCH + General Inquiry, the real fee question is still answered | Pass |
+| DEF-026 | Duplicate-ordering browser 6/6; frontend tests | Pass |
+| DEF-027 | Public-submission browser 16/16; frontend tests | Pass |
+| DEF-030 | `test:lot-history:db` 7/7 | Pass |
+| DEF-031 | `test:duplicates:db` 1/1 | Pass |
+| DEF-032 | `test:archive-reads:db` 6/6 | Pass |
+| DEF-034, DEF-035 | `test:recovery:cli` 16/16, plus source-inventory node and DB suites | Pass |
+| DEF-036 | `test:backup-history:db` 16/16, `test:recovery-history:db` 25/25 | Pass |
+| DEF-037, DEF-038 | `test:recovery-recording:db` 11/11 | Pass |
+| DEF-039 | Backend unit and e2e | Pass |
+| DEF-040 | `test:recovery-worker:db` 16/16 | Pass |
+| DEF-041 | `test:recovery:supabase:contracts` 9/9. The owned Supabase restore workflow (`test:recovery:supabase:biosphere`) was refused at preflight with `INSUFFICIENT_HOST_MEMORY`: 3.0 GiB free of 15.4, and it needs 3.5-5 GiB. Nothing was created; cleanup COMPLETE | Contracts pass; workflow not run (host memory) |
+| DEF-042 | `test:accession-allocation:db` 1/1; `test:offline-sync:db` 8/8 after the test fix | Pass |
+| DEF-043 | `test:recovery:readiness` 27/27 on Windows, Node 22.23 (the report was on 22.14) | Pass on 22.23 |
+| DEF-044 | Production: 60-person group gets the approved answer, `GENERAL_INQUIRY`, no visit message; 20-person group and booking keep `VISIT_REQUEST`; change requests go to General Inquiry | Pass |
+| DEF-045 | Production single dismiss (entry below) | Pass; Clear all and second curator pending |
+
+Already Verified and still green in this run: DEF-002, DEF-009, DEF-017,
+DEF-018, DEF-025, DEF-028 (public dialogs 6/6), DEF-029.
+
+**Failures found and fixed (branches for review, not merged):**
+
+1. `test:offline-sync:db` "converges two overlapping same-ID transactions"
+   failed every run (expected 2 waiting transactions, saw 1). Cause: since the
+   accession fix (`b46ac9d`/`bb016e6`), a draft without an accession number
+   takes the allocation advisory lock before its insert. The second
+   transaction now waits there, not at the test's insert barrier. The app
+   still serializes correctly; the test's assumption was stale. CI does not run
+   this suite, so nobody saw it. Fix: count waiters on either lock; the
+   convergence checks are unchanged (one specimen, one receipt, one audit,
+   exactly one `alreadySynchronized`). Now 8/8.
+   Backend branch `fix/offline-sync-db-accession-lock-barrier` (exports the
+   lock key; test only). Owner review: Kyer / Ivan.
+2. `test:offline:recovery` failed: "Local save did not show Pending Sync".
+   Cause: `e057e30` (2026-11-15) added a "Save this draft on this device?"
+   confirmation, and the harness never confirmed it. Fix: click "Save draft".
+   Now 1/1. Frontend branch
+   `fix/offline-recovery-harness-save-confirmation`. Owner: Charles; Kyer review.
+
+3. `test:progress-api:db` "accepts a public visit request…" failed with
+   `invalid input syntax for type uuid: ""`. The suite's valid payload had no
+   `visitors` list, which is required since `5afe909` (#319), so the POST was
+   rejected. Fix: send 25 synthetic visitor names.
+4. The same suite's INQ-REPLY observation failed: the reply returned 201 and was
+   sent, but the readback queried `subject='Tours'`. Stored subjects now carry
+   the `(Ref XXXXXXXX)` reply-matching marker (Nov 14 commits `22b5386`,
+   `0fbb0db`, `d7a7ec1`). Fix: match `Tours (Ref %)`. It now passes, recipient
+   `visitor@example.test`.
+   Fixes 3 and 4 are test only, in the visit-requests and inquiries modules,
+   on backend branch `test/progress-api-visitor-names-reply-ref`. Owner:
+   Charles; John review.
+
+Running the containment and recovery suites also needs the frontend's
+`tools/browser` package (`npm --prefix tools/browser ci --ignore-scripts`).
+The suites hard-code the sibling `../../biosphere-frontend` folder.
+
+**New observation (not a regression of a listed defect):**
+OBS - On a specimen's Change history page, lot "Storage Unit Id" changes show
+raw location UUIDs (for example `…4ede6fb4e526` to `…1c2b8f9eede4`) instead of
+location names. Seen in production on 2026-11-17 for "UAT-Test Specimen"
+(Beetles). `revisionDisplayValue` in `src/features/specimens/revision-history.ts`
+formats media values but passes other IDs through. Owners: Kyer (history
+display) with John (lot data). Not fixed in this sweep.
+
+**Also noted:** `tsc --noEmit` over the whole backend reports two type errors in
+test files (`visitor-reply-alerts.spec.ts:22`,
+`source-inventory-connection.db-spec.ts:224`). Jest and the build pass; CI does
+not run a whole-project type check.
+
 ### DEF-045 - Visitor-reply alerts cannot be read, dismissed or cleared
 
 **Status:** Fixed in production with v1.5.0 (migration applied 2026-11-17
-01:19 PHT) and retested on development the same day. A production retest by a
-curator is pending. The fix merged in #328. Reported by Charles on 2026-11-16
-using two Curator accounts.
+01:19 PHT). Retested on development and, for a single dismiss, in production
+on 2026-11-17. Clear all and the second-curator check are not yet retested in
+production. The fix merged in #328. Reported by Charles on 2026-11-16 using two
+Curator accounts.
 
 **Module/owner:** Notifications (Charles, with John for notification review).
 
@@ -72,15 +201,34 @@ Before the release, production showed the same failure. On 2026-11-16 at 20:57
 PHT, its log recorded the same 23514 on `notification_state_key` when a curator
 tried to clear a reply alert. v1.5.0 (backend `47d847a`) was deployed and the
 migration applied at 2026-11-17 01:19 PHT. No 23514 has been logged since the
-restart. A curator still needs to confirm in production that Clear all removes
-reply alerts and that they stay gone after a reload.
+restart.
+
+**Retest result, production, 2026-11-17 ~21:20 PHT (Charles): Passed for a
+single dismiss.** Checked after John Mark questioned the fix. One Curator
+account was used at `https://biosphere.dcism.org`.
+- Before: the bell showed 14 unread, most of them "A visitor replied by email"
+  alerts from Nov 12-17, several older than the deploy.
+- Dismiss on one reply alert (Visitor reply, Nov 13, 2026, 9:07 PM) sent
+  `PATCH /api/notifications` and got 200. The toast read "Notification
+  dismissed." and the bell dropped to 13.
+- After a page reload, the bell still showed 13. The dismissed alert did not
+  come back, and the other reply alerts were unchanged.
+
+The remaining reply alerts are still there because no one has cleared them on
+this account, not because clearing fails. Each curator has to clear their own
+alerts. Not retested in production: Clear all, and checking that a second
+curator still sees an alert the first one dismissed. The database was not
+queried.
 
 The development project held 3 inbound replies at retest, not the 24 in
 **Actual** above, so those figures most likely came from a different project.
 
 ### DEF-044 - Large-group chatbot answer conflicts with its Visit Request link
 
-**Status:** Open — reproduced on DCISM on 2026-11-11.
+**Status:** Ready for retest — fixed by #313 (`9c5dab1`, Kyer, 2026-11-12),
+deployed in v1.3.0 and later; production retest passed on 2026-11-17 (see the
+[retest sweep](#retest-sweep---2026-11-17-charles)). Reproduced on
+DCISM on 2026-11-11.
 
 **Module/owner:** FAQ assistant, Kyer/Ivan; coordinate with Charles only if the
 Visits/public workflow itself needs changing. No Visits behavior change is
@@ -302,7 +450,8 @@ system is not a reason to postpone all fixes until the end.
 
 | ID      | Date       | Module                     | Summary                                                                 | Severity    | Priority | Status | Owner                   |
 | ------- | ---------- | -------------------------- | ----------------------------------------------------------------------- | ----------- | -------- | ------ | ----------------------- |
-| [DEF-045](#def-045---visitor-reply-alerts-cannot-be-read-dismissed-or-cleared) | 2026-11-16 | Notifications / State | Visitor-reply alerts fail the notification-state constraint, so read, dismiss and Clear all leave them in the bell | S2 Major | P1 | Deployed v1.5.0; prod retest pending | Charles; John review |
+| [DEF-045](#def-045---visitor-reply-alerts-cannot-be-read-dismissed-or-cleared) | 2026-11-16 | Notifications / State | Visitor-reply alerts fail the notification-state constraint, so read, dismiss and Clear all leave them in the bell | S2 Major | P1 | Deployed v1.5.0; prod single-dismiss retest passed 2026-11-17, Clear all/second curator pending | Charles; John review |
+| [DEF-044](#def-044---large-group-chatbot-answer-conflicts-with-its-visit-request-link) | 2026-11-11 | FAQ assistant | Groups over 50 got the General Inquiry answer but a Visit Request link | S3 Moderate | P2 | Ready for retest (fix #313 deployed since v1.3.0; prod retest passed 2026-11-17) | Kyer / Ivan |
 | [DEF-043](#def-043---readiness-check-rejects-valid-files-on-windows-node-2214) | 2026-11-08 | Recovery / Planning CLI | Unknown path device ID differs from the open handle on Windows Node 22.14, rejecting valid records | S3 Moderate | P2 | Ready for retest | Kyer / Ivan; Raidiniom review |
 | [DEF-042](#def-042---automatic-accession-allocation-reissues-the-first-number) | 2026-11-08 | Cataloging / Offline sync | Second omitted-accession creation conflicts with the first generated accession | S2 Major | P1 | Ready for retest | Kyer / Ivan |
 | [DEF-041](#def-041---supabase-rehearsal-reuses-source-authentication-authority) | 2026-11-07 | Recovery / Supabase fixture | Restored target accepts source authentication; restore bypasses FK triggers and denial checks accept unrelated errors | S3 Moderate | P2 | Ready for retest | Kyer / Ivan; MarQtie #252/#253 review |
@@ -1847,6 +1996,23 @@ Before another dependent run:
 - [ ] Obtain direction on retaining or explicitly archiving the server fixture;
   do not delete it or conceal its audit automatically.
 
+**2026-11-17 retest sweep:** The owned replacement harnesses were
+run on develop (`585181d` / `4e72a57`) against disposable Docker PostgreSQL only.
+- `test:offline:containment` passed 3/3.
+- `test:offline:recovery` passed 1/1 (tab close, recovered draft, same-ID retry,
+  no duplicate writes) after one fix: the harness now confirms the new "Save
+  draft" dialog. Branch `fix/offline-recovery-harness-save-confirmation`.
+- `test:offline-sync:db` passed 8/8 after updating its concurrency barrier for
+  the accession lock. Branch `fix/offline-sync-db-accession-lock-barrier`.
+
+This meets the first three "Before another dependent run" items in owned
+fixtures: isolated target, containment that does not depend on the tab, and a
+no-write reproduction. The retained fixture `99782144-…` is not in production
+(its URL returns "Specimen not found"). It lives on the shared local or
+development backend used on 2026-10-22. The team still has to decide whether
+to keep or archive it. The original shared-backend pilot stays disabled.
+**Status stays Open** until that decision and owner review.
+
 Application acceptance remains incomplete. This is a diagnostic defect/incident,
 not permission to weaken authentication or change Inventory logic. Documentation
 verification: `git diff --check`; application suites/build were not rerun for
@@ -3303,6 +3469,30 @@ authorization before choosing an optimization. No counts, location detail,
 authorization or cache policy was changed based on this partial pilot. Keep
 DEF-011 In progress; no new application defect or speed improvement is claimed.
 Documentation diff checks pass; no source tests/build were rerun for these notes.
+
+#### Production follow-up - 2026-11-17 (retest sweep)
+
+Read-only, on production (frontend served at `biosphere.dcism.org`, backend v1.5.0):
+
+- Clear all on `/specimens?status=CATALOGED&gender=UNKNOWN` showed busy feedback
+  14 ms after the click. The URL reset at 2.2 s. This was the first navigation
+  after the page had been idle.
+- Back restored the filters and Forward cleared them again, so the pending,
+  reset and history behavior passes.
+- Server-render timing for `/specimens` (RSC fetch, 3 samples each): about
+  1.7 s for the first request, then 0.45-0.67 s warm. The filtered page took
+  0.40-0.67 s and `/dashboard` 0.50-0.69 s. For comparison, the public API
+  answered in 78-237 ms and the notifications proxy in 166-481 ms.
+- Source check: catalog search already runs the page query and count in one
+  transaction, then one ancestry query per hierarchy level for the whole page.
+  There is no per-row query to remove.
+
+**Disposition proposal:** the slow Clear all seen by testers is mostly the
+first request after idle. Warm renders are well under a second, and no query
+bottleneck is shown. No code was changed. A reviewer should decide whether to
+accept the current feedback and timing (close) or set a target and profile
+cold start (connection pool and server warm-up). Status stays In progress
+until then.
 
 #### Required investigation / remediation
 
