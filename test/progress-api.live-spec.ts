@@ -3392,6 +3392,11 @@ describe('Inquiries, visit requests, notifications, dashboard (§4.3, §4.8, §4
         { date: today(15), startTime: '13:00', endTime: '15:00' },
       ],
       visitorCount: 25,
+      // Public requests name every visitor, exactly visitorCount (5afe909).
+      visitors: Array.from({ length: 25 }, (_, index) => ({
+        firstName: `Visitor${index + 1}`,
+        lastName: 'Synthetic',
+      })),
       bringingVehicle: true,
       vehicles: [
         { plateNumber: 'ABC 1234', carBrand: 'Toyota' },
