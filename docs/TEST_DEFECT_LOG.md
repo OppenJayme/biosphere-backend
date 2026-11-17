@@ -8,8 +8,9 @@ defect entry.
 
 ### DEF-045 - Visitor-reply alerts cannot be read, dismissed or cleared
 
-**Status:** Fixed and retested on development (2026-11-17); production still
-needs the migration. The fix merged in #328. Reported by Charles on 2026-11-16
+**Status:** Fixed in production with v1.5.0 (migration applied 2026-11-17
+01:19 PHT) and retested on development the same day. A production retest by a
+curator is pending. The fix merged in #328. Reported by Charles on 2026-11-16
 using two Curator accounts.
 
 **Module/owner:** Notifications (Charles, with John for notification review).
@@ -67,9 +68,12 @@ against the development Supabase project. Two active curators were used, A and B
 - B still had 7 unread, including the 3 reply alerts, after a reload in a
   separate browser. B had no state rows.
 
-Production is still open. Its server runs `main` without this migration, and on
-2026-11-16 at 20:57 (server time) the production log showed the same 23514 on
-`notification_state_key` when a curator tried to clear a reply alert.
+Before the release, production showed the same failure. On 2026-11-16 at 20:57
+PHT, its log recorded the same 23514 on `notification_state_key` when a curator
+tried to clear a reply alert. v1.5.0 (backend `47d847a`) was deployed and the
+migration applied at 2026-11-17 01:19 PHT. No 23514 has been logged since the
+restart. A curator still needs to confirm in production that Clear all removes
+reply alerts and that they stay gone after a reload.
 
 The development project held 3 inbound replies at retest, not the 24 in
 **Actual** above, so those figures most likely came from a different project.
@@ -298,7 +302,7 @@ system is not a reason to postpone all fixes until the end.
 
 | ID      | Date       | Module                     | Summary                                                                 | Severity    | Priority | Status | Owner                   |
 | ------- | ---------- | -------------------------- | ----------------------------------------------------------------------- | ----------- | -------- | ------ | ----------------------- |
-| [DEF-045](#def-045---visitor-reply-alerts-cannot-be-read-dismissed-or-cleared) | 2026-11-16 | Notifications / State | Visitor-reply alerts fail the notification-state constraint, so read, dismiss and Clear all leave them in the bell | S2 Major | P1 | Passed on dev; prod pending | Charles; John review |
+| [DEF-045](#def-045---visitor-reply-alerts-cannot-be-read-dismissed-or-cleared) | 2026-11-16 | Notifications / State | Visitor-reply alerts fail the notification-state constraint, so read, dismiss and Clear all leave them in the bell | S2 Major | P1 | Deployed v1.5.0; prod retest pending | Charles; John review |
 | [DEF-043](#def-043---readiness-check-rejects-valid-files-on-windows-node-2214) | 2026-11-08 | Recovery / Planning CLI | Unknown path device ID differs from the open handle on Windows Node 22.14, rejecting valid records | S3 Moderate | P2 | Ready for retest | Kyer / Ivan; Raidiniom review |
 | [DEF-042](#def-042---automatic-accession-allocation-reissues-the-first-number) | 2026-11-08 | Cataloging / Offline sync | Second omitted-accession creation conflicts with the first generated accession | S2 Major | P1 | Ready for retest | Kyer / Ivan |
 | [DEF-041](#def-041---supabase-rehearsal-reuses-source-authentication-authority) | 2026-11-07 | Recovery / Supabase fixture | Restored target accepts source authentication; restore bypasses FK triggers and denial checks accept unrelated errors | S3 Moderate | P2 | Ready for retest | Kyer / Ivan; MarQtie #252/#253 review |
