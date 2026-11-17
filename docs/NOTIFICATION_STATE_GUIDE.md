@@ -298,10 +298,18 @@ Record every out-of-band application here so the next deploy is not surprised:
 | Environment | Applied (date, PHT) | By | `migrate status` afterwards |
 | --- | --- | --- | --- |
 | Development (Supabase) | 2026-11-17 00:27, with `migrate deploy` in the same run as `20261116000000`, `20261116020000` and `20261116120000` (all four were pending) | MarQtie | Database schema is up to date (19 migrations) |
-| Production | not yet | | |
+| Production | 2026-11-17 01:19, with `migrate deploy` during the v1.5.0 release deploy, in the same run as `20261116000000`, `20261116020000` and `20261116120000` | MarQtie | Database schema is up to date (19 migrations) |
 
 The development application was a normal `migrate deploy`, not `db execute`, so
 nothing needs `migrate resolve` there. Mailbox sync had never run on that
 project (no `gmail_sync_state` row), so the sync pause that
 `20261116120000_separate_system_pointer_notes` asks for was not needed.
 DEF-045 was retested there afterwards with two curators and passed.
+
+Production was also a normal `migrate deploy`, as part of the v1.5.0 release
+(backend `47d847a`). `biosphere-api` was stopped while it ran, which paused the
+mailbox sync as `20261116120000` asks. Afterwards `gmail_sync_state.last_message_at`
+was rewound to 2026-11-10 15:38 UTC, one day before `20261111000000` was applied
+there. The first sync after the restart finished with no error and imported
+nothing new, so no reply had been lost while the old checks rejected pointer
+notes.
