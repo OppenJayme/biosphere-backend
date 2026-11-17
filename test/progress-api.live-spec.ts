@@ -3292,9 +3292,10 @@ describe('Inquiries, visit requests, notifications, dashboard (§4.3, §4.8, §4
       token: C,
       body: { subject: 'Tours', message: 'Yes, weekdays 9-4.' },
     });
-    // The stored message is the full templated email, so match on the subject.
+    // The stored message is the full templated email, so match on the subject,
+    // which carries the record's reply-matching marker: "Tours (Ref XXXXXXXX)".
     const reply = await one(
-      `SELECT delivery_result, recipient_email, sent_at, recorded_by FROM communication_history WHERE inquiry_id=$1 AND subject='Tours'`,
+      `SELECT delivery_result, recipient_email, sent_at, recorded_by FROM communication_history WHERE inquiry_id=$1 AND subject LIKE 'Tours (Ref %)'`,
       [ctx.inquiry],
     );
     record({
@@ -3392,6 +3393,11 @@ describe('Inquiries, visit requests, notifications, dashboard (§4.3, §4.8, §4
         { date: today(15), startTime: '13:00', endTime: '15:00' },
       ],
       visitorCount: 25,
+      // Public requests name every visitor, exactly visitorCount (5afe909).
+      visitors: Array.from({ length: 25 }, (_, index) => ({
+        firstName: `Visitor${index + 1}`,
+        lastName: 'Synthetic',
+      })),
       bringingVehicle: true,
       vehicles: [
         { plateNumber: 'ABC 1234', carBrand: 'Toyota' },
