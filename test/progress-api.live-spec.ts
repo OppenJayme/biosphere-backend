@@ -3292,9 +3292,10 @@ describe('Inquiries, visit requests, notifications, dashboard (§4.3, §4.8, §4
       token: C,
       body: { subject: 'Tours', message: 'Yes, weekdays 9-4.' },
     });
-    // The stored message is the full templated email, so match on the subject.
+    // The stored message is the full templated email, so match on the subject,
+    // which carries the record's reply-matching marker: "Tours (Ref XXXXXXXX)".
     const reply = await one(
-      `SELECT delivery_result, recipient_email, sent_at, recorded_by FROM communication_history WHERE inquiry_id=$1 AND subject='Tours'`,
+      `SELECT delivery_result, recipient_email, sent_at, recorded_by FROM communication_history WHERE inquiry_id=$1 AND subject LIKE 'Tours (Ref %)'`,
       [ctx.inquiry],
     );
     record({
