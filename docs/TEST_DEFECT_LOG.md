@@ -136,9 +136,10 @@ not run a whole-project type check.
 
 ### DEF-045 - Visitor-reply alerts cannot be read, dismissed or cleared
 
-**Status:** Ready for retest - every retest check now passes in production;
-awaiting owner or reviewer acceptance to mark Verified. Fixed in production
-with v1.5.0 (migration applied 2026-11-17 01:19 PHT). Retested on development
+**Status:** Verified - accepted on 2026-11-25 by John Mark, the defect's
+reviewer, on the production evidence below; every retest check passes in
+production. Fixed in production with v1.5.0 (migration applied 2026-11-17
+01:19 PHT). Retested on development
 and, for a single dismiss, in production on 2026-11-17. On 2026-11-25,
 production's own notification state showed Clear all and the second-curator
 behavior working since the deploy (see the last retest result below). The fix
@@ -476,7 +477,7 @@ system is not a reason to postpone all fixes until the end.
 
 | ID      | Date       | Module                     | Summary                                                                 | Severity    | Priority | Status | Owner                   |
 | ------- | ---------- | -------------------------- | ----------------------------------------------------------------------- | ----------- | -------- | ------ | ----------------------- |
-| [DEF-045](#def-045---visitor-reply-alerts-cannot-be-read-dismissed-or-cleared) | 2026-11-16 | Notifications / State | Visitor-reply alerts fail the notification-state constraint, so read, dismiss and Clear all leave them in the bell | S2 Major | P1 | Ready for retest (fix deployed in v1.5.0; all prod checks passed by 2026-11-25; awaiting acceptance) | Charles; John review |
+| [DEF-045](#def-045---visitor-reply-alerts-cannot-be-read-dismissed-or-cleared) | 2026-11-16 | Notifications / State | Visitor-reply alerts fail the notification-state constraint, so read, dismiss and Clear all leave them in the bell | S2 Major | P1 | Verified (fix deployed in v1.5.0; prod checks passed; accepted by John Mark, reviewer, 2026-11-25) | Charles; John review |
 | [DEF-044](#def-044---large-group-chatbot-answer-conflicts-with-its-visit-request-link) | 2026-11-11 | FAQ assistant | Groups over 50 got the General Inquiry answer but a Visit Request link | S3 Moderate | P2 | Ready for retest (fix #313 deployed since v1.3.0; prod retest passed 2026-11-17) | Kyer / Ivan |
 | [DEF-043](#def-043---readiness-check-rejects-valid-files-on-windows-node-2214) | 2026-11-08 | Recovery / Planning CLI | Unknown path device ID differs from the open handle on Windows Node 22.14, rejecting valid records | S3 Moderate | P2 | Ready for retest | Kyer / Ivan; Raidiniom review |
 | [DEF-042](#def-042---automatic-accession-allocation-reissues-the-first-number) | 2026-11-08 | Cataloging / Offline sync | Second omitted-accession creation conflicts with the first generated accession | S2 Major | P1 | Ready for retest | Kyer / Ivan |
