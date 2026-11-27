@@ -136,11 +136,14 @@ not run a whole-project type check.
 
 ### DEF-045 - Visitor-reply alerts cannot be read, dismissed or cleared
 
-**Status:** Fixed in production with v1.5.0 (migration applied 2026-11-17
-01:19 PHT). Retested on development and, for a single dismiss, in production
-on 2026-11-17. Clear all and the second-curator check are not yet retested in
-production. The fix merged in #328. Reported by Charles on 2026-11-16 using two
-Curator accounts.
+**Status:** Verified - accepted on 2026-11-25 by John Mark, the defect's
+reviewer, on the production evidence below; every retest check passes in
+production. Fixed in production with v1.5.0 (migration applied 2026-11-17
+01:19 PHT). Retested on development
+and, for a single dismiss, in production on 2026-11-17. On 2026-11-25,
+production's own notification state showed Clear all and the second-curator
+behavior working since the deploy (see the last retest result below). The fix
+merged in #328. Reported by Charles on 2026-11-16 using two Curator accounts.
 
 **Module/owner:** Notifications (Charles, with John for notification review).
 
@@ -222,6 +225,30 @@ queried.
 
 The development project held 3 inbound replies at retest, not the 24 in
 **Actual** above, so those figures most likely came from a different project.
+
+**Retest result, production, 2026-11-25 (requested by John Mark): Passed for
+Clear all and the second curator.** Read-only database queries (`READ ONLY`
+transaction, run on the DCISM server) and the `biosphere-api` logs. Production
+runs v1.5.1. Nothing was written. Account names are left out.
+- **No live UI retest was possible.** The bell lists a visitor reply only for
+  7 days. The newest inbound reply arrived 2026-11-17 02:29 PHT, so no account
+  had a reply alert on 2026-11-25. The test curator account had no state rows,
+  and logging in as it would not have exercised the fix.
+- **Clear all works.** After the deploy, four curator accounts each cleared all
+  their reply alerts in one burst, mixed with other alert types: 14 rows at
+  2026-11-17 01:27, 13 at 09:13, 13 at 21:03 and 13 at 23:59 PHT. The frontend's
+  Clear all sends one `{ "all": "DISMISSED" }` request for the whole feed, so
+  each burst is one Clear all. Charles's single dismiss is the separate row at
+  21:21, matching the retest above.
+- **The second curator keeps their alerts.** The same reply alerts were cleared
+  by all four accounts hours apart (01:27, 09:13, 21:03 and 23:59). Each account
+  still had them until it cleared them itself. 15 distinct reply alerts carry
+  state.
+- **Before the fix nothing was saved.** No `VISITOR_REPLY` state row predates
+  the deploy, and `notification_state_key` now accepts `VISITOR_REPLY`.
+- **The error is gone.** The 23514 on `notification_state_key` was logged 44
+  times on 2026-11-14 and 396 times on 2026-11-16, and not once from the deploy
+  to 2026-11-25 11:59 PHT.
 
 ### DEF-044 - Large-group chatbot answer conflicts with its Visit Request link
 
@@ -450,7 +477,7 @@ system is not a reason to postpone all fixes until the end.
 
 | ID      | Date       | Module                     | Summary                                                                 | Severity    | Priority | Status | Owner                   |
 | ------- | ---------- | -------------------------- | ----------------------------------------------------------------------- | ----------- | -------- | ------ | ----------------------- |
-| [DEF-045](#def-045---visitor-reply-alerts-cannot-be-read-dismissed-or-cleared) | 2026-11-16 | Notifications / State | Visitor-reply alerts fail the notification-state constraint, so read, dismiss and Clear all leave them in the bell | S2 Major | P1 | Deployed v1.5.0; prod single-dismiss retest passed 2026-11-17, Clear all/second curator pending | Charles; John review |
+| [DEF-045](#def-045---visitor-reply-alerts-cannot-be-read-dismissed-or-cleared) | 2026-11-16 | Notifications / State | Visitor-reply alerts fail the notification-state constraint, so read, dismiss and Clear all leave them in the bell | S2 Major | P1 | Verified (fix deployed in v1.5.0; prod checks passed; accepted by John Mark, reviewer, 2026-11-25) | Charles; John review |
 | [DEF-044](#def-044---large-group-chatbot-answer-conflicts-with-its-visit-request-link) | 2026-11-11 | FAQ assistant | Groups over 50 got the General Inquiry answer but a Visit Request link | S3 Moderate | P2 | Ready for retest (fix #313 deployed since v1.3.0; prod retest passed 2026-11-17) | Kyer / Ivan |
 | [DEF-043](#def-043---readiness-check-rejects-valid-files-on-windows-node-2214) | 2026-11-08 | Recovery / Planning CLI | Unknown path device ID differs from the open handle on Windows Node 22.14, rejecting valid records | S3 Moderate | P2 | Ready for retest | Kyer / Ivan; Raidiniom review |
 | [DEF-042](#def-042---automatic-accession-allocation-reissues-the-first-number) | 2026-11-08 | Cataloging / Offline sync | Second omitted-accession creation conflicts with the first generated accession | S2 Major | P1 | Ready for retest | Kyer / Ivan |
